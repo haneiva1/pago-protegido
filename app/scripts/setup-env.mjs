@@ -56,6 +56,8 @@ const lines = [
 
 const pollarFile = process.env.POLLAR_ENV_FILE ?? join(APP, "..", "..", "docs-pp", ".env.pollar");
 if (existsSync(pollarFile)) {
+  // Con Pollar configurado, es la billetera principal; el e2e fuerza NEXT_PUBLIC_WALLET=local.
+  lines[lines.indexOf("NEXT_PUBLIC_WALLET=local")] = "NEXT_PUBLIC_WALLET=pollar";
   lines.push("# Pollar (testnet), copiado de " + pollarFile);
   for (const l of readFileSync(pollarFile, "utf8").split("\n")) {
     if (/^\s*[A-Z0-9_]+=/.test(l)) lines.push(l.trim());

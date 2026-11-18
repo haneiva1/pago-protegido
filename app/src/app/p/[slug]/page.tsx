@@ -223,9 +223,10 @@ function SellerCard({ v }: { v: OrderView }) {
         <p className="text-xs text-slate-500">
           {s.completedSales} {s.completedSales === 1 ? "venta completada" : "ventas completadas"} con Pago Protegido
         </p>
+        <p className="text-xs text-slate-500">WhatsApp {s.whatsapp}</p>
       </div>
-      <a className="btn-secondary !px-3 !py-2 text-sm" href={waLink("Hola, te escribo por tu link de Pago Protegido", s.whatsapp)} target="_blank" rel="noreferrer">
-        WhatsApp {s.whatsapp}
+      <a className="btn-secondary flex-none !px-3 !py-2 text-sm" href={waLink("Hola, te escribo por tu link de Pago Protegido", s.whatsapp)} target="_blank" rel="noreferrer">
+        Escribir
       </a>
     </section>
   );

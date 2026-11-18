@@ -101,10 +101,17 @@ export default function Vender() {
         {step === 2 && (
           <div className="space-y-4">
             <h1 className="text-2xl font-bold">Tu billetera</h1>
-            <p className="text-slate-600">
-              Aquí recibes lo que vendes, en dólares digitales. Se crea sola en este dispositivo: la llave queda solo contigo y nosotros
-              nunca la vemos. Las comisiones de red las pagamos nosotros.
-            </p>
+            {WALLET_KIND === "pollar" ? (
+              <p className="text-slate-600">
+                Aquí recibes lo que vendes, en dólares digitales. Ingresa con Google o tu email y la billetera se crea sola, sin frases
+                secretas. Las comisiones de red las pagamos nosotros.
+              </p>
+            ) : (
+              <p className="text-slate-600">
+                Aquí recibes lo que vendes, en dólares digitales. Se crea sola en este dispositivo: la llave queda solo contigo y nosotros
+                nunca la vemos. Las comisiones de red las pagamos nosotros.
+              </p>
+            )}
             {WALLET_KIND === "local" && (
               <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800">
                 Versión de prueba: la billetera se guarda en este navegador y usa USD de prueba de Stellar testnet.
@@ -117,6 +124,8 @@ export default function Vender() {
                 <>
                   <Spinner /> Creando tu billetera…
                 </>
+              ) : WALLET_KIND === "pollar" ? (
+                "Ingresar con Google o email y continuar"
               ) : (
                 "Crear mi billetera y continuar"
               )}

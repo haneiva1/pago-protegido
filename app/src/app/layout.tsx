@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import { WalletRuntime } from "@/components/WalletRuntime";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </nav>
         </header>
         <main className="mx-auto max-w-5xl px-4 pb-16 pt-6">{children}</main>
+        <WalletRuntime />
         <footer className="border-t border-slate-200 py-6 text-center text-xs text-slate-500">
           Pago Protegido · prueba en Stellar testnet · escrow de Trustless Work ·{" "}
           <Link href="/arbitro" className="underline">
