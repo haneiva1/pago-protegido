@@ -1,0 +1,27 @@
+{
+  "name": "pago-protegido-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pago Protegido: bot de WhatsApp para que el vendedor cree links de pago desde el chat y reciba avisos de cada pedido",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "tsx src/main.ts --whatsapp",
+    "sim": "tsx src/main.ts --sim",
+    "sim:demo": "tsx src/main.ts --sim --mock",
+    "mock": "tsx src/mock/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.1",
+    "@types/node": "^22.20.5",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.0"
+  }
+}
