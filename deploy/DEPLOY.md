@@ -17,6 +17,27 @@ La app web (Next.js + SQLite) y el bot de WhatsApp se despliegan con Docker. Los
 - **Variables del navegador:** las `NEXT_PUBLIC_*` se fijan **al compilar**. Si cambias `NEXT_PUBLIC_WALLET` o la publishable key de Pollar, recompila.
 - **`output: "standalone"`:** la app no lo fija en `next.config.ts`, así que `app.Dockerfile` lo agrega solo dentro de la imagen. Si la app lo agrega en su config, el Dockerfile lo detecta y no hace nada.
 
+## Estado de la verificación (2026-11-18)
+
+- ✅ **`docker-compose.yml` es válido.** `docker compose --profile bot config --quiet` termina sin errores y lista los servicios `app`, `bot` y `caddy`. Se probó sobre una copia con la estructura final: `app/` de la rama de la app, `bot/` de la del bot y este `deploy/`.
+- ❌ **El build de las imágenes NO se completó en la Mac de desarrollo.** El motivo fue la red, no los Dockerfiles: **la descarga de la imagen base `node:22-bookworm-slim` desde Docker Hub no terminó**, y siguió sin terminar después de más de 10 minutos.
+  - El primer intento falló antes, al bajar el frontend `docker/dockerfile:1.7` (`DeadlineExceeded`). Esa línea `# syntax=` ya se quitó porque no hace falta.
+  - Los Dockerfiles todavía no se probaron de punta a punta.
+
+Comando exacto para verificarlo en una máquina con buena conexión a Docker Hub, desde el repo ya integrado:
+
+```bash
+cd pago-protegido/deploy
+docker compose --profile bot build          # imágenes pago-protegido-app y pago-protegido-bot
+# o, por separado:
+cd .. && docker build -f deploy/app.Dockerfile -t pp-app . && docker build -f deploy/bot.Dockerfile -t pp-bot .
+```
+
+Puntos a revisar en ese primer build:
+
+- **better-sqlite3:** debería bajar su binario precompilado para Linux. Si no puede, lo compila con las herramientas que instala el Dockerfile.
+- **`next build` sin secretos:** se espera que funcione, porque `cfg()` lee las llaves solo en runtime. Si alguna página las pide al prerenderizar, hay que marcarla como dinámica en la app.
+
 ## (a) VPS con Docker, unos 10 minutos
 
 Requisitos:
