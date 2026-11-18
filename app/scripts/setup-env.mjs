@@ -3,7 +3,7 @@
 // (plataforma, arbitro, lab) y la dirección de twfee. SOLO TESTNET.
 // Uso: npm run setup            (no pisa un .env.local existente)
 //      npm run setup -- --force (lo regenera)
-// Si existe docs-pp/.env.pollar (o la ruta en POLLAR_ENV_FILE), copia también las variables de Pollar.
+// Si existe .env.pollar en la raíz del repo (o la ruta en POLLAR_ENV_FILE; nunca se versiona), copia también las variables de Pollar.
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -56,7 +56,7 @@ const lines = [
   `PP_BOT_KEY=${randomBytes(18).toString("base64url")}`,
 ];
 
-const pollarFile = process.env.POLLAR_ENV_FILE ?? join(APP, "..", "..", "docs-pp", ".env.pollar");
+const pollarFile = process.env.POLLAR_ENV_FILE ?? join(APP, "..", ".env.pollar");
 if (existsSync(pollarFile)) {
   // Con Pollar configurado, es la billetera principal; el e2e fuerza NEXT_PUBLIC_WALLET=local.
   lines[lines.indexOf("NEXT_PUBLIC_WALLET=local")] = "NEXT_PUBLIC_WALLET=pollar";

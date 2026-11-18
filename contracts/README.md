@@ -1,6 +1,6 @@
 # Pago Protegido: contratos Soroban (`pp_guardian` y `pp_arbiter`)
 
-Contratos del "modo guardián" de Pago Protegido ([SPEC.md](../../docs-pp/SPEC.md) §2–§4, en `stellar-lab/docs-pp/`) sobre el escrow single-release de Trustless Work (commit `f0b706e`, soroban-sdk 28). **Solo testnet.**
+Contratos del "modo guardián" de Pago Protegido ([SPEC.md](../docs/SPEC.md) §2–§4) sobre el escrow single-release de Trustless Work (commit `f0b706e`, soroban-sdk 28). **Solo testnet.**
 
 - **`pp_guardian`**: approver y release_signer de cada escrow. El comprador fondea a través de él (`fund`), confirma con aprobación y liberación atómicas (`confirm`), abre disputas junto con el vendedor (`dispute`) y, si vence el plazo con el hito en `"enviado"`, cualquiera puede liberar (`auto_release`).
 - **`pp_arbiter`**: dispute_resolver de cada escrow. El admin solo elige `buyer_bps` y el contrato reparte el saldo entre el comprador registrado y el vendedor (`roles.receiver`). Ninguna función acepta direcciones de destino.

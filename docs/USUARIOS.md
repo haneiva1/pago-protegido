@@ -1,6 +1,6 @@
 # Usuarios: entrevistas y pilotos
 
-Esta plantilla sirve para registrar cada conversación con vendedores (y compradores) y cada piloto. Sirve para medir el pendiente "20 pilotos" del [CHANGELOG](../CHANGELOG.md).
+Esta plantilla sirve para registrar cada conversación con vendedores (y compradores) y cada piloto. Esta semana sirve para medir la validación con entrevistas y con el formulario `/piloto` (ver el [CHANGELOG](../CHANGELOG.md)). La sección "Pilotos" se usa desde el plan de 30 días, cuando arrancan los 20 pilotos ([README](../README.md#plan-de-30-días)).
 
 **Segmento inicial:** vendedores de celulares y electrónica de Bs 1.000 a 7.000 que envían por encomienda a otras ciudades.
 

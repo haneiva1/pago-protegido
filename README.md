@@ -66,7 +66,8 @@ Diagramas de secuencia, máquina de estados y "quién puede hacer qué": [docs/A
 | **Tests de contratos** | **38 tests** (`cargo test`) contra el **WASM real** de Trustless Work: los 9 invariantes de seguridad y el red team. Los contratos **no son actualizables**. |
 | **Flujo v2 real en testnet** | `contracts/scripts/flujo-v2-testnet.sh`, 6 escenarios, terminó con código 0:<br>• caso feliz;<br>• disputa 70/30;<br>• liberación automática 60 s después del envío;<br>• extensión de la revisión, verificada con la hora del ledger;<br>• devolución por falta de envío;<br>• **9 desvíos rechazados**: nadie, ni el admin del árbitro ni la plataforma, pudo mandar el pago a un tercero. |
 | **App web** (Next.js, mobile-first, en español) | Panel del vendedor, link del comprador, panel del revisor y "Cómo funciona". **Usa los contratos v2**: los dos plazos en `fund`, `mark_shipped`, "Necesito más tiempo" (`extend`), la devolución automática si no se despacha (`refund_unshipped`) y `auto_release`, que respeta la disputa. El e2e con Playwright contra testnet cubre el flujo v2 (incluidos `extend` y la devolución), con capturas en `app/e2e/capturas/`. Video y capturas clave de la demo v2: [demo/v2/](demo/v2/). |
-| **Bot de WhatsApp** | Crea links desde el chat (con código PP-#### y quién paga la protección), verifica links, avisa en cada paso y recuerda desde el envío con la hora que da la app. Tiene 169 tests unitarios y 4 e2e del simulador. |
+| **Bot de WhatsApp** | Crea links desde el chat (con código PP-#### y quién paga la protección), verifica links, avisa en cada paso y recuerda desde el envío con la hora que da la app. Tiene 174 tests unitarios y 4 e2e del simulador. |
+| **Métricas en vivo y perfil de la tienda** | `/metricas` muestra los números con eventos on-chain (cada número enlaza a sus compras en stellar.expert) y `/tienda/<slug>` es el perfil verificable del vendedor, con insignia para la bio. El bot responde "mi perfil" con el link. e2e de solo lectura contra testnet: `npm run test:e2e:publico`. |
 | **Métricas on-chain** | `contracts/scripts/metricas.sh` las calcula solo con eventos públicos (`getEvents`). Hasta ahora suma **47 compras** en v1 y v2, por ≈ USD 2.227 de prueba (≈ Bs 26.052), con liberaciones, extensiones, disputas y devoluciones. Detalle en [docs/METRICAS.md](docs/METRICAS.md). |
 | **Bug reportable en Trustless Work (H-1)** | Reproducido en testnet, con el fix y el test validados: [docs/reporte-trustless-work.md](docs/reporte-trustless-work.md) (borrador). |
 | **v1** (retirado para compras nuevas) | Contratos v1 con 27 tests y un flujo con 5 ataques rechazados: [contracts/DEPLOYED-v1.md](contracts/DEPLOYED-v1.md). |
@@ -98,7 +99,7 @@ Requisitos:
 - [Stellar CLI](https://developers.stellar.org/docs/tools/cli) con las identidades de testnet `plataforma`, `arbitro`, `lab` y `twfee`.
 
 ```bash
-cd pago-protegido/app
+cd app
 npm install
 npm run setup          # crea .env.local con las llaves de TESTNET
 npm run dev            # http://localhost:3000  (o PORT=3020 npm run dev)
@@ -108,10 +109,13 @@ Además:
 
 | Qué | Comandos |
 |---|---|
-| Contratos | `cd pago-protegido/contracts && cargo test` (38 tests) |
-| Flujo v2 en testnet | `bash scripts/flujo-v2-testnet.sh` |
-| Bot, simulador sin red | `cd pago-protegido/bot && npm install && npm run sim:demo` (abre http://localhost:3030) |
-| e2e de la app | `cd pago-protegido/app && npm run test:e2e` |
+| Contratos | `cd contracts && cargo test` (38 tests) |
+| Flujo v2 en testnet | `cd contracts && bash scripts/flujo-v2-testnet.sh` |
+| Bot, tests | `cd bot && npm install && npm test` (174 unitarios + 4 e2e del simulador) |
+| Bot, simulador sin red | `cd bot && npm run sim:demo` (abre http://localhost:3030) |
+| Build de la app | `cd app && npm run build` |
+| e2e público de la app (solo lectura, sin claves) | `cd app && npm run test:e2e:publico` |
+| e2e de la app con pagos en testnet (necesita `.env.local`) | `cd app && npm run test:e2e` |
 | Producción | [deploy/DEPLOY.md](deploy/DEPLOY.md): Docker + Caddy en un VPS, o Railway |
 | Demo en vivo | [docs/DEMO.md](docs/DEMO.md) |
 
@@ -122,27 +126,39 @@ pago-protegido/
 ├── app/          App web Next.js: vendedor, comprador, árbitro, API, SQLite, Pollar, fee bump
 ├── bot/          Bot de WhatsApp: links desde el chat y avisos del pedido (simulador + Cloud API)
 ├── contracts/    Contratos Soroban v2 (pp_guardian, pp_arbiter), 38 tests, scripts de testnet, bindings TS
+│   ├── wasm/             escrow de Trustless Work (commit f0b706e) que usan los tests
 │   ├── DEPLOYED.md       v2: IDs, hashes, transacciones y comisiones reales (v1: DEPLOYED-v1.md)
 │   └── DECISIONES.md     decisiones, interfaz v2 y hallazgos
 ├── deploy/       Dockerfiles, docker-compose + Caddy, Railway, túnel para la demo
 ├── docs/
+│   ├── SPEC.md           especificación original del MVP v1
 │   ├── ARQUITECTURA.md   diagramas y "quién puede hacer qué"
 │   ├── SEGURIDAD.md      modelo de amenazas, invariantes, red team TW-1..TW-5
 │   ├── METRICAS.md       métricas on-chain y página /transparencia
 │   ├── DEMO.md           guion de la demo de 3 minutos
-│   ├── USUARIOS.md       plantilla de entrevistas y pilotos
+│   ├── USUARIOS.md       registro de entrevistas (y de pilotos, desde el plan de 30 días)
 │   └── reporte-trustless-work.md   bug H-1 (borrador)
-└── CHANGELOG.md  qué se hizo en cada etapa y pendientes de la entrega
+├── CHANGELOG.md  qué se hizo en cada etapa y pendientes de la entrega
+└── DECISIONES.md decisiones al crear este repo (las de cada pieza están en app/, bot/ y contracts/)
 ```
 
-La especificación del MVP está en `docs-pp/SPEC.md`, en la raíz de `stellar-lab`.
+La especificación original del MVP está en [docs/SPEC.md](docs/SPEC.md). Las decisiones de cada pieza están en [app/DECISIONES.md](app/DECISIONES.md), [bot/DECISIONES.md](bot/DECISIONES.md) y [contracts/DECISIONES.md](contracts/DECISIONES.md).
+
+## Validación de esta semana
+
+Esta semana validamos **con entrevistas y con un formulario**, no con pilotos:
+
+- **Entrevistas** a vendedores del segmento inicial, con nota de consentimiento y registro en [docs/USUARIOS.md](docs/USUARIOS.md).
+- **Formulario de lista de espera** en `/piloto`. `npm run piloto:csv` exporta las inscripciones (el CSV no se versiona).
+
+Los **20 pilotos** arrancan en el plan de 30 días.
 
 ## Plan de 30 días
 
 
 | Semana | Fechas | Objetivo |
 |---|---|---|
-| 1 | 30 nov – 6 dic | Arrancar el piloto con vendedores del segmento inicial y conseguir un socio ETF para la rampa en bolivianos |
+| 1 | 30 nov – 6 dic | Arrancar los **20 pilotos** con vendedores del segmento inicial (elegidos entre las entrevistas y el formulario) y conseguir un socio ETF para la rampa en bolivianos |
 | 2 | 7 – 13 dic | Piloto con pedidos reales sobre testnet: vendedores y compradores reales, montos de prueba |
 | 3 | 14 – 20 dic | Prueba A/B de precio (quién paga la comisión y cuánto) y bot con número de WhatsApp real |
 | 4 | 21 – 27 dic | Mainnet acotado, con topes por pedido y por vendedor, **solo con una opinión legal favorable** |
@@ -151,6 +167,7 @@ La especificación del MVP está en `docs-pp/SPEC.md`, en la raíz de `stellar-l
 1. Contratos en mainnet con revisión externa, y el reporte del bug H-1 enviado a Trustless Work.
 2. Rampa en bolivianos con una ETF, en su sandbox.
 3. Bot con número real, verificador e insignia.
+4. 20 pilotos con vendedores del segmento inicial, medidos en [docs/USUARIOS.md](docs/USUARIOS.md) y en las métricas on-chain.
 
 ## Equipo
 

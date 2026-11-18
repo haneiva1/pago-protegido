@@ -4,17 +4,36 @@ Todo corre en **Stellar testnet**. Las fechas son de noviembre de 2026.
 
 ## v1-19nov (entrega 1 en Atlas)
 
-Estado al momento de la entrega: los contratos v2 están desplegados y probados, la app funciona de punta a punta sobre los contratos v1, y el bot funciona con el simulador.
+Estado al momento de la entrega: los contratos v2 están desplegados y probados (38 tests), la app funciona de punta a punta sobre los contratos v2 en testnet, con métricas en vivo y perfil verificable de la tienda, y el bot funciona con el simulador. Desde esta entrega, Pago Protegido vive en su propio repo, con todo su historial.
+
+**Validación de esta semana: entrevistas y formulario.** Esta semana validamos con entrevistas a vendedores y con el formulario de lista de espera (`/piloto`), no con pilotos. Los **20 pilotos** pasan al [plan de 30 días](README.md#plan-de-30-días).
 
 **Pendientes medibles** (los revisamos en la próxima entrega):
 
 | # | Pendiente | Cómo se mide | Estado |
 |---|---|---|---|
-| 1 | **20 pilotos** con vendedores del segmento inicial (celulares y electrónica, Bs 1.000–7.000, envío por encomienda) | Filas con "¿Piloto? = sí" en [docs/USUARIOS.md](docs/USUARIOS.md) y compras en las métricas on-chain | 0 / 20 |
-| 2 | **Despliegue público** de la app y el bot | Una URL HTTPS estable, con [deploy/DEPLOY.md](deploy/DEPLOY.md) | pendiente: el build de Docker no se pudo probar porque la imagen base no terminó de descargarse en la Mac |
-| 3 | **WhatsApp real** | El bot responde desde un número real conectado a WhatsApp Cloud API | pendiente: hoy funciona con el simulador y el número de prueba de Meta |
-| 4 | **Integración de v2 en la app** | La app usa `pp_guardian` y `pp_arbiter` v2 (`mark_shipped`, `extend`, los dos plazos) y su e2e pasa contra v2 | hecho en la rama `worktree-pp-v2-integracion` (ver la entrada "18-nov, tarde") |
-| 5 | **Carta de intención con una ETF** para la rampa en bolivianos | Una carta firmada | pendiente |
+| 1 | **Entrevistas** con vendedores del segmento inicial (celulares y electrónica, Bs 1.000–7.000, envío por encomienda) | Filas en "Registro" de [docs/USUARIOS.md](docs/USUARIOS.md), con la nota de consentimiento | en curso esta semana |
+| 2 | **Formulario de lista de espera** (`/piloto`) | Inscripciones exportadas con `npm run piloto:csv` (el CSV no se versiona) | en curso esta semana |
+| 3 | **20 pilotos** con vendedores del segmento inicial | Sección "Pilotos" de [docs/USUARIOS.md](docs/USUARIOS.md) y compras en las métricas on-chain | pasa al plan de 30 días (semana 1) |
+| 4 | **Despliegue público** de la app y el bot | Una URL HTTPS estable, con [deploy/DEPLOY.md](deploy/DEPLOY.md) | pendiente: el build de Docker no se pudo probar porque la imagen base no terminó de descargarse en la Mac |
+| 5 | **WhatsApp real** | El bot responde desde un número real conectado a WhatsApp Cloud API | pendiente: hoy funciona con el simulador y el número de prueba de Meta |
+| 6 | **Carta de intención con una ETF** para la rampa en bolivianos | Una carta firmada | pendiente |
+| 7 | **Integración de v2 en la app** | La app usa `pp_guardian` y `pp_arbiter` v2 (`mark_shipped`, `extend`, los dos plazos) y su e2e pasa contra v2 | hecho (ver "18-nov, tarde") |
+
+## 19-nov: repo propio
+
+- **Pago Protegido sale de `stellar-lab`** a su propio repo, con el historial de la carpeta `pago-protegido/` (`git subtree split`). Las decisiones de este paso están en [DECISIONES.md](DECISIONES.md).
+- **Funciona solo:** el WASM de Trustless Work está en [contracts/wasm/](contracts/wasm/) con su procedencia, la especificación en [docs/SPEC.md](docs/SPEC.md) y `npm run setup` busca las variables de Pollar en `.env.pollar`, en la raíz del repo (no se versiona).
+- **Revisión de secretos** de todo el historial: sin claves secretas de Stellar, tokens ni claves de Pollar. Se sacó del historial un CSV de prueba de `app/data/`. `.env*`, `data/*.db` y `data/*.csv` quedan en `.gitignore`.
+- **Validación de esta semana:** entrevistas y formulario; los 20 pilotos pasan al plan de 30 días.
+
+## 18-nov: métricas en vivo y perfil de la tienda
+
+- **`/metricas`**: números calculados solo con eventos on-chain de `pp_guardian` y `pp_arbiter` (v1 y v2), con las pruebas del equipo separadas del piloto, cada número enlazado a sus compras y un gráfico por día ([app/DECISIONES.md](app/DECISIONES.md) §86–99).
+- **Perfil verificable `/tienda/<slug>`** con insignia para la bio, y "Tus números" en el panel del vendedor.
+- **Tarjeta del vendedor** en la página de pago.
+- **Bot:** "mi perfil" responde con el link del perfil público.
+- **e2e de solo lectura** contra testnet (`npm run test:e2e:publico`), sin claves.
 
 ## 18-nov, tarde: v2 de punta a punta (app, bot y demo)
 

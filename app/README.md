@@ -9,7 +9,7 @@ Links de pago protegidos para ventas por redes:
 
 **Solo testnet.** La red está fija en el código. La moneda es LABUSD, que en pantalla se llama "USD de prueba". La rampa de bolivianos está simulada y la pantalla lo dice.
 
-Especificación: [`docs-pp/SPEC.md`](../../docs-pp/SPEC.md). Decisiones tomadas fuera del SPEC: [`DECISIONES.md`](DECISIONES.md).
+Especificación: [`docs/SPEC.md`](../docs/SPEC.md). Decisiones tomadas fuera del SPEC: [`DECISIONES.md`](DECISIONES.md).
 
 ## Producto v2 (segmento: ventas entre ciudades por encomienda, Bs 300 a 3.000)
 
@@ -32,7 +32,7 @@ Especificación: [`docs-pp/SPEC.md`](../../docs-pp/SPEC.md). Decisiones tomadas 
 Requisitos:
 
 - Node 20 o superior (probado con Node 25).
-- Stellar CLI con las identidades de testnet `plataforma`, `arbitro`, `lab` y `twfee`, las del spike de `stellar-lab`.
+- Stellar CLI con las identidades de testnet `plataforma`, `arbitro`, `lab` y `twfee` (las mismas que usan los scripts de `../contracts/scripts/`).
 
 ```bash
 npm install
@@ -41,7 +41,7 @@ npm run dev     # http://localhost:3000
 ```
 
 - `npm run setup` no pisa un `.env.local` que ya exista. Para regenerarlo: `npm run setup -- --force`.
-- Si encuentra `docs-pp/.env.pollar` (o la ruta en `POLLAR_ENV_FILE`), copia también las variables de Pollar.
+- Si encuentra `.env.pollar` en la raíz del repo (o la ruta en `POLLAR_ENV_FILE`; no se versiona), copia también las variables de Pollar.
 - Si el puerto 3000 está ocupado: `PORT=3020 npm run dev`. Pollar tiene registrados `http://localhost:3000` y `http://localhost:3020` como origen y URL de retorno.
 - **Modo guardián por defecto** (`PP_MODE=guardian`), con `pp_guardian` `CAOX6JZV…4OZU` y `pp_arbiter` `CBCDVLEP…PWGU` (de `../contracts/deployments/testnet.json`). El modo directo sigue disponible con `PP_MODE=direct`.
 - Para producción local: `npm run build && npm start`.
@@ -265,14 +265,14 @@ PP_ARBITER_ID=C...
 
 ### Billetera Pollar
 
-`NEXT_PUBLIC_WALLET=local|pollar`. Con las llaves de `docs-pp/.env.pollar`, `npm run setup` deja `pollar` como billetera principal. Tiene login con Google o email y billetera embebida, sin frases secretas.
+`NEXT_PUBLIC_WALLET=local|pollar`. Con las llaves de `.env.pollar` (raíz del repo, no se versiona), `npm run setup` deja `pollar` como billetera principal. Tiene login con Google o email y billetera embebida, sin frases secretas.
 
 - La firma va por `signTx(xdr, { skipSponsorship: true })` y la comisión la patrocina nuestra plataforma con fee bump, igual que con la billetera local.
 - Pollar acepta los orígenes `http://localhost:3000` y `http://localhost:3020`; en modo Pollar la app tiene que correr en uno de esos puertos.
 
 **Cómo probar el login real (Hans):**
 
-1. En `.env.local`, deja `NEXT_PUBLIC_WALLET=pollar` (lo pone `npm run setup` si existe `docs-pp/.env.pollar`).
+1. En `.env.local`, deja `NEXT_PUBLIC_WALLET=pollar` (lo pone `npm run setup` si existe `.env.pollar` en la raíz del repo).
 2. Corre `PORT=3020 npm run dev` (o `npm run dev` si el 3000 está libre). Si cambiaste `NEXT_PUBLIC_*`, reinicia el servidor.
 3. Abre `http://localhost:3020/vender`, completa tienda y WhatsApp y toca **"Ingresar con Google o email y continuar"**.
 4. En el modal de Pollar, entra con Google o con tu email (llega un código). La billetera se crea sola y Pollar le agrega la trustline a LABUSD (configurado en el dashboard).

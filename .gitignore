@@ -1,0 +1,22 @@
+# Dependencias y builds
+node_modules/
+target/
+.next/
+.next-*/
+*.tsbuildinfo
+.DS_Store
+.stellar/
+
+# Credenciales: nunca se versionan. Solo las plantillas *.example.
+.env*
+!.env.example
+*.pem
+*.key
+
+# Datos locales: SQLite de la app y CSV exportados (pueden tener datos personales)
+data/*.db
+data/*.db-*
+data/*.csv
+**/data/*.db
+**/data/*.db-*
+**/data/*.csv
