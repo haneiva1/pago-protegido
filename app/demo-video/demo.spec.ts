@@ -6,7 +6,8 @@ import path from "node:path";
 
 // Video de la demo (npm run demo:video): recorrido completo en TESTNET, grabado por escenas (clips),
 // con subtítulos en español inyectados en la página. Al final, scripts/video-join.mjs une los clips
-// en pago-protegido/demo/video/pago-protegido-demo.mp4 (1280x720).
+// en pago-protegido/demo/video/pago-protegido-demo.mp4 (1280x720, ~1:52): acorta las esperas a testnet
+// y agrega las placas inicial y final.
 
 const VIDEO_DIR = path.resolve(__dirname, "..", "..", "demo", "video");
 const CLIPS = path.join(VIDEO_DIR, "clips");
@@ -120,10 +121,6 @@ async function payWithRetry(p: Page) {
   }
 }
 
-const TITLE = `<!doctype html><html><body style="margin:0;height:100vh;display:grid;place-items:center;background:linear-gradient(135deg,#065f46,#0f172a);font-family:system-ui,-apple-system,sans-serif;color:#fff;text-align:center">
-<div><div style="font-size:66px;font-weight:800;letter-spacing:-1px">🛡️ Pago Protegido</div>
-<div style="font-size:28px;margin-top:18px;opacity:.92">Vende por redes sin que desconfíen de ti</div>
-<div style="font-size:19px;margin-top:30px;opacity:.75">Escrow de Trustless Work · contratos pp_guardian y pp_arbiter · Stellar testnet · USD de prueba</div></div></body></html>`;
 
 test("video de la demo (2–3 min)", async ({ browser }) => {
   fs.rmSync(CLIPS, { recursive: true, force: true });
@@ -141,11 +138,6 @@ test("video de la demo (2–3 min)", async ({ browser }) => {
     await p.getByRole("button", { name: "Continuar" }).click();
     await p.getByRole("button", { name: "Crear mi billetera y continuar" }).click();
     await p.waitForURL("**/panel**", CHAIN);
-  });
-
-  await clip(browser, "portada", "desktop", null, async (p) => {
-    await p.setContent(TITLE);
-    await p.waitForTimeout(4000);
   });
 
   // (a) La vendedora crea el link desde el simulador de WhatsApp.

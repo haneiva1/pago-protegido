@@ -1,20 +1,35 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { WalletRuntime } from "@/components/WalletRuntime";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: "Pago Protegido",
-  description: "Links de pago protegidos para vender por redes sociales. Versión de prueba en Stellar testnet.",
-};
+const OG_TITLE = "Pago Protegido: vende por redes sin que desconfíen de ti";
+const OG_DESC = "Tu cliente paga por adelantado y su plata queda protegida hasta que recibe. Tú cobras seguro y sin comprobantes falsos.";
+
+/** WhatsApp y las redes necesitan URLs absolutas: se arman con el host del request (sirve también detrás de un túnel). */
+export async function generateMetadata(): Promise<Metadata> {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const local = /^(localhost|127\.|0\.0\.0\.0|\[::1\])/.test(host);
+  const proto = h.get("x-forwarded-proto") ?? (local ? "http" : "https");
+  return {
+    metadataBase: new URL(`${proto}://${host}`),
+    title: "Pago Protegido",
+    description: "Links de pago protegidos para vender por redes sociales. Versión de prueba en Stellar testnet.",
+    openGraph: { title: OG_TITLE, description: OG_DESC, type: "website", siteName: "Pago Protegido", locale: "es_BO" },
+    twitter: { card: "summary_large_image", title: OG_TITLE, description: OG_DESC },
+  };
+}
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#059669" };
 
 function Shield() {
   return (
-    <svg viewBox="0 0 24 24" className="h-6 w-6" aria-hidden>
-      <path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Z" className="fill-brand-600" />
-      <path d="m8.5 12 2.5 2.5 4.5-5" className="stroke-white" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    <svg viewBox="0 0 64 64" className="h-7 w-7" aria-hidden>
+      <path d="M32 4 9 12.5v17.2C9 45 18.8 56.3 32 60c13.2-3.7 23-15 23-30.3V12.5L32 4Z" fill="#059669" />
+      <path d="M32 4 9 12.5v17.2C9 45 18.8 56.3 32 60V4Z" fill="#047857" />
+      <path d="m21 32.5 7.6 7.6L43.5 25" fill="none" stroke="#fff" strokeWidth="5.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

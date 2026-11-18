@@ -82,10 +82,24 @@ Deja la base local de la demo (`data/pp.db`) limpia y con dos pedidos histórico
 ### Video de la demo: `npm run demo:video`
 
 ```bash
-npm run demo:video   # unos 4 minutos; deja pago-protegido/demo/video/pago-protegido-demo.mp4
+npm run demo:video        # graba (~4 min en testnet) y arma pago-protegido/demo/video/pago-protegido-demo.mp4
+npm run demo:video:join   # solo vuelve a armar el mp4 con los clips ya grabados
 ```
 
-- Graba con Playwright el recorrido completo en testnet (≈ 2:30, 1280x720), con subtítulos en español inyectados en la página:
+El video final dura **≈ 1:52** (1280x720):
+
+- placa inicial de 3 s: "Pago Protegido · Pagos protegidos para ventas por redes · sobre Stellar";
+- el recorrido con subtítulos;
+- placa final de 4 s: "Contratos en Stellar testnet · pp_guardian · pp_arbiter · Trustless Work · Pollar".
+
+`scripts/video-join.mjs` acorta las esperas a testnet:
+
+- Detecta con `freezedetect` de ffmpeg los tramos en que la pantalla no cambia.
+- Si un tramo dura más de 4,5 s, deja 3,6 s a velocidad normal para leer el subtítulo y acelera el resto ×12 con `setpts`. Por ejemplo, el QR de la rampa pasa de 33 s a unos 6 s.
+- Después ajusta la velocidad general para acercarse a 1:52 (`VIDEO_TARGET_S`).
+- También deja la lámina de cuadros `pago-protegido/demo/video/lamina.png`, que muestra las placas y cada escena.
+
+- Graba con Playwright el recorrido completo en testnet, con subtítulos en español inyectados en la página:
   1. La vendedora crea el link desde el simulador del bot.
   2. El comprador paga en el celular y aparece "Contrato verificado".
   3. La vendedora marca enviado desde el link del bot.
@@ -96,6 +110,26 @@ npm run demo:video   # unos 4 minutos; deja pago-protegido/demo/video/pago-prote
 - `scripts/video-join.mjs` une los clips con ffmpeg en un mp4 de 1280x720; los de celular se centran sobre fondo oscuro.
 - Sin ffmpeg, quedan los `.webm` en `pago-protegido/demo/video/clips/` y el script imprime los comandos para unirlos.
 - Usa su propia app (3200), su propio simulador (3230) y una base nueva (`data/video.db`).
+
+## Vista previa del link en WhatsApp (Open Graph)
+
+Cuando el vendedor pega `/p/<slug>` en un chat, WhatsApp muestra una tarjeta con:
+
+- el producto y el precio en Bs (aprox. en USD de prueba);
+- la tienda;
+- el escudo "Pago protegido";
+- "Tu plata queda guardada hasta que confirmes que te llegó".
+
+Cómo está hecho:
+
+- **Imagen por pedido:** `src/app/p/[slug]/opengraph-image.tsx` (`ImageResponse`, 1200x630).
+- **Landing:** la imagen genérica de la marca es `src/app/opengraph-image.tsx`.
+- **Meta tags:** `og:title`, `og:description`, `og:image` (URL absoluta armada con el host del request, así sirve detrás de un túnel) y `twitter:card=summary_large_image`.
+- **Fuente:** Inter local (`@fontsource/inter`), así las imágenes no dependen de la red.
+- **Logo:** `src/app/icon.svg` (escudo con check), que también es el favicon.
+- **Test:** `e2e/og.spec.ts`. Pide las páginas como WhatsApp, verifica las meta tags, baja las imágenes (PNG 1200x630) y las guarda en `e2e/capturas/og-pedido.png` y `og-landing.png`.
+
+Para probarlo en un WhatsApp real, la app tiene que ser pública (túnel): WhatsApp no puede leer `localhost`.
 
 ## Transparencia: métricas on-chain
 
@@ -135,7 +169,7 @@ npm run test:e2e
 ```
 
 - Hace su propio build en `.next-e2e/`, con la billetera local, y lo levanta en `http://localhost:3100` con una base aparte (`data/e2e.db`). No toca tu `npm run dev`.
-- Corre en **modo guardián**. Recorre cinco escenarios con transacciones reales en testnet y tarda entre 10 y 14 minutos:
+- Corre en **modo guardián**. Recorre seis escenarios con transacciones reales en testnet y tarda entre 10 y 14 minutos:
   1. **Caso feliz:** onboarding → link → pago con rampa simulada (sello "Contrato verificado") → enviado → "Recibí conforme". Verifica 37,58 / 0,77 / 0,12 USD de prueba.
   2. **Disputa:** pago → enviado → reclamo → versión del vendedor → vista previa con `pp_arbiter.quote` → intento de desvío rechazado por el contrato (`Error(Contract, #12)`) → `pp_arbiter.resolve` 70/30 (17,54 / 7,52).
   3. **Liberación automática:** link con plazo de demo de 2 minutos → pago → enviado → cuenta regresiva → "Liberar ahora (plazo vencido)" → `pp_guardian.auto_release`.
@@ -148,6 +182,7 @@ npm run test:e2e
      - Verifica también que el WhatsApp del comprador no aparece en la API pública y que `/api/bot/*` exige la clave.
      - Capturas `e2e/capturas/bot-*.png`.
   5. **Transparencia:** `/transparencia` con datos reales de testnet. Verifica que la suma de estados cuadre con las compras protegidas (captura `60-transparencia`).
+  6. **Open Graph** (`e2e/og.spec.ts`, sin transacciones): meta tags e imágenes 1200x630 del pedido y de la landing, y el favicon.
 - Modo directo: `PP_MODE=direct npm run test:e2e`.
 - Guarda capturas en `e2e/capturas/` en tamaño celular (390 px, @2x) y escritorio (1280 px).
 - En cada captura verifica que la pantalla no diga "cripto".

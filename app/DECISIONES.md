@@ -179,3 +179,19 @@ Integrado con `@pollar/react` y `@pollar/core` 0.12, siguiendo las páginas de `
     - Los subtítulos son un overlay que sobrevive a las navegaciones (sessionStorage) y no tapa la interacción (`pointer-events: none`).
     - Se versiona solo el mp4 final; los clips se regeneran.
 55. **Playwright compartido:** `playwright.shared.ts` arma la app y el simulador para el e2e (3100/3130, `data/e2e.db`) y para el video (3200/3230, `data/video.db`, `slowMo` 120 ms).
+
+## Quinta ronda: vista previa en WhatsApp y video corto
+
+56. **`/p/[slug]` pasó a ser un componente de servidor** que exporta `generateMetadata` y renderiza `PaginaDePago` (cliente).
+    - Así cada pedido tiene su `og:title` ("Producto · Bs 450,00 | Pago Protegido") y su `og:description` (la tienda y la promesa).
+    - La imagen OG solo usa datos que ya son públicos en el link: producto, precio y tienda.
+57. **`metadataBase` se arma con el host del request** (`x-forwarded-host`/`host` y `x-forwarded-proto`). WhatsApp exige URLs absolutas, y así funciona en localhost, con un túnel o con un dominio sin configurar nada.
+    - Costo: el layout lee `headers()` y todas las páginas pasan a ser dinámicas, lo que en este MVP no importa.
+58. **Fuente de las imágenes OG: Inter 400/700/800 local** (`@fontsource/inter`).
+    - La fuente por defecto de `next/og` solo trae el peso regular.
+    - Se escribe "aprox." en lugar de "≈", porque ese glyph no está en el subset latino y satori intentaría bajar una fuente de la red.
+59. **Logo:** escudo con check en dos tonos de verde (`src/app/icon.svg`). Es el favicon (convención de Next) y se usa igual en el header, en las imágenes OG y en las placas del video.
+60. **Video corto:** las esperas a testnet se acortan automáticamente (`freezedetect` + `setpts`), no a mano. Así el script sigue siendo reproducible con cualquier grabación nueva.
+    - En cada tramo quieto se dejan 3,6 s a velocidad normal, para que el subtítulo se lea, y el resto se acelera ×12.
+    - Las placas se renderizan desde HTML con Playwright, porque el ffmpeg de Homebrew no trae `drawtext`.
+    - La portada grabada se reemplazó por la placa inicial.
