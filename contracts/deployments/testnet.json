@@ -19,5 +19,6 @@
   "minWindowSecs": 60,
   "maxWindowSecs": 2592000,
   "shippedStatus": "enviado",
-  "initialStatus": "pendiente"
+  "initialStatus": "pendiente",
+  "deployLedger": 5790662
 }

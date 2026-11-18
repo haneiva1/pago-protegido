@@ -34,6 +34,10 @@ ARBITER=$(tx D4 "deploy pp_arbiter (admin=arbitro, guardian, tw_fee=twfee)" \
 tx D5 "pp_guardian.set_arbiter(pp_arbiter) firmado por arbitro" \
   inv "$GUARDIAN" arbitro set_arbiter --arbiter "$ARBITER" >/dev/null || exit 1
 
+D3_HASH=$(awk -F'\t' '$2=="D3"{print $4}' "$TXLOG" | tail -1)
+DEPLOY_LEDGER=$(curl -s -m 20 -X POST https://soroban-testnet.stellar.org -H 'Content-Type: application/json' \
+  -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getTransaction\",\"params\":{\"hash\":\"$D3_HASH\"}}" | jq -r '.result.ledger // 0')
+
 cat >"$DEPLOY_ENV" <<EOF
 # Generado por scripts/deploy-testnet.sh el $(date -u +%Y-%m-%dT%H:%M:%SZ). SOLO TESTNET.
 NETWORK=testnet
@@ -49,10 +53,11 @@ PLATFORM=$(addr plataforma)
 MIN_WINDOW_SECS=$MIN_WINDOW
 MAX_WINDOW_SECS=$MAX_WINDOW
 PLATFORM_FEE_BPS=200
+DEPLOY_LEDGER=$DEPLOY_LEDGER
 EOF
 jq -n --arg g "$GUARDIAN" --arg a "$ARBITER" --arg gh "$G_HASH" --arg ah "$A_HASH" \
   --arg eh "$ESCROW_WASM_HASH" --arg sac "$LABUSD_SAC" --arg admin "$ADMIN" --arg tw "$TWFEE" \
-  --arg pl "$(addr plataforma)" --argjson min $MIN_WINDOW --argjson max $MAX_WINDOW '{
+  --arg pl "$(addr plataforma)" --arg dl "$DEPLOY_LEDGER" --argjson min $MIN_WINDOW --argjson max $MAX_WINDOW '{
     network: "testnet",
     networkPassphrase: "Test SDF Network ; September 2015",
     rpcUrl: "https://soroban-testnet.stellar.org",
@@ -60,7 +65,7 @@ jq -n --arg g "$GUARDIAN" --arg a "$ARBITER" --arg gh "$G_HASH" --arg ah "$A_HAS
     wasmHashes: {pp_guardian: $gh, pp_arbiter: $ah, tw_escrow: $eh},
     labusdSac: $sac, admin: $admin, twFee: $tw, platform: $pl,
     platformFeeBps: 200, minWindowSecs: $min, maxWindowSecs: $max,
-    shippedStatus: "enviado", initialStatus: "pendiente"}' >"$ROOT/deployments/testnet.json"
+    shippedStatus: "enviado", initialStatus: "pendiente", deployLedger: ($dl|tonumber)}' >"$ROOT/deployments/testnet.json"
 cat "$DEPLOY_ENV" >&2
 view "$GUARDIAN" config | jq . >&2
 view "$ARBITER" config | jq . >&2

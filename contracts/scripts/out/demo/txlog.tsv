@@ -1,0 +1,33 @@
+p3	p3.1	deploy instancia del escrow (ppdemo)	dac92c14402b5873631f7dc938af77c0004bc6532962313524cf0306f90c03b2	5.60	16282
+p3	p3.2	initialize_escrow (ppdemo), roles modo guardián	b0fec7b9e6bc633aba256e104437b6f1378256c0c35c9abc45e1f9a4aa97696f	5.78	138192
+p3	p3.3	pp_guardian.fund Bs 380 (324786325 u.)	0686e8ca88e45e7f2e18287d8f16079827dba6d4b45ef332db1636e7e85f54ca	8.85	727478
+p3	p3.4	vendedor marca "enviado"	44d0bdd690facfbc16935dd542a1342c873688e85e2cedaa78b68f6f0c94ce36	9.16	10696
+p6	p6.1	deploy instancia del escrow (ppdemo)	70e3c8527ca593b5630bf1235e8b639d213b78e9d1b468ebf828421a31382f63	3.57	16282
+p6	p6.2	initialize_escrow (ppdemo), roles modo guardián	5adec893ab387d49120c8ca5fb8a3a858fae2124c7a6a0041d7a14a5473a6ab7	3.98	138192
+p6	p6.3	pp_guardian.fund Bs 900 (769230769 u.)	c1173acceffc5519caccb1e26dd2e90bbfba9c3da7645a5c99a0c31de8c79cf1	8.84	727478
+p6	p6.5	comprador abre disputa (nunca se envió)	5ed57ae5f8572f9c5effcef8163dd470062886a957bb5b70ea0db8ca0b6533ac	14.96	8075
+p1	p1.1	deploy instancia del escrow (ppdemo)	02b6ea71d5cdd39d4ddf1a88329fb69f5dee118c37f0e488a94d42335f6fa683	38.56	16282
+p1	p1.2	initialize_escrow (ppdemo), roles modo guardián	945b63f2bb0315b606a8f365cc658c86156f2ebf52948778408726fe22757547	13.68	138192
+p1	p1.3	pp_guardian.fund Bs 120 (102564103 u.)	b93a57ee187a72f69833ff11e13dffad557f390454a95f7b43896ab19b505508	40.65	727478
+p1	p1.4	vendedor marca "enviado"	0a6bd08d9302ac513e7e625ded5713c7af917a0d207f7561436e621a93214e79	8.73	10696
+p1	p1.5	pp_guardian.confirm	2594aa6fbb5e307d35af028cb2c2b39d8ba59a659a4216e000beb5ce14f3e208	4.06	19245
+p1	p1.6	H-1: vendedor llama escrow.dispute_escrow sobre un escrow YA liberado (TW lo acepta)	8315f9c353d0177be12669090af6e880e2f41767d7f79af6b356e35ff78b7d26	5.86	6814
+p2	p2.1	deploy instancia del escrow (ppdemo)	8dbac823fe390bc22e9b9c9b7e1f196c0720830b856c33565e1a80166b21a596	8.19	16282
+p2	p2.2	initialize_escrow (ppdemo), roles modo guardián	a9e55d6a0e3a3bd2d9f7db95e9c84d39b88601d455f7f4ff04b5c92d608f3867	4.30	137246
+p2	p2.3	pp_guardian.fund Bs 250 (213675214 u.)	9fa6a4165e0e15e644c8ded7341e55cd76f7b8a9ec44ac5ec8e49c8b95a5b14d	8.73	727425
+p2	p2.4	vendedor marca "enviado"	2d470c40da411bbdb1d800fbcc5364adc2b134702e52c394ade89845bab4a474	4.11	10673
+p2	p2.5	pp_guardian.confirm	9babd7e28d082387f77e447932ac53cdfbdf6023332412e4ecf2e8c6055e3537	5.78	19222
+p4	p4.1	deploy instancia del escrow (ppdemo)	f5009fd487a250ade6690356db62de1594297e0d6a863427899a867de3b96a1b	8.52	16282
+p4	p4.2	initialize_escrow (ppdemo), roles modo guardián	4c02876c71b474bf6051617749e070c4af8a76cb540883668c99af6fcf3d1534	3.96	138192
+p4	p4.3	pp_guardian.fund Bs 450 (384615385 u.)	bae454f65f51d110999ada7beb2fdda4f360fd48208a2b7dfbe603bd87acd4bc	3.93	727478
+p4	p4.4	vendedor marca "enviado"	53025eed7ccf0df9f134239f55a79e8d56801c35757cdf50402205961825d334	21.71	10696
+p4	p4.5	comprador abre disputa	7e5b52ad256dffcc285051c44f6be08ae4d6bb10d27b44d06a62b6a05b392d53	8.79	8167
+p4	p4.6	pp_arbiter.resolve 30% comprador	b6b4dbda7bff1fb6a3793ef59338a07695bcbb5f43c6ea387ec969fac7615475	8.58	22681
+p5	p5.1	deploy instancia del escrow (ppdemo)	531f95fa537d57d5cb9d3d4b73596cebf005d573bb60b502ddae1c84da364924	3.93	16282
+p5	p5.2	initialize_escrow (ppdemo), roles modo guardián	79d3a116a1e497a27f85f316c8fba6d2adb51bc778232c78ccce533fbc07d327	79.47	137720
+p5	p5.3	pp_guardian.fund Bs 650 (555555556 u.)	9667e0dd3211c9bb51e42f8a9cb2d4eb26c3a2df3c56da82fcc558a57c5663b1	8.84	727451
+p5	p5.4	vendedor marca "enviado"	acb85431fcbecc8cccdd918e75db687076b1075a79e79c44fef862b0da6ae3eb	8.97	10684
+p5	p5.5	vendedor abre disputa (comprador no responde)	237e1787c245d828d37114ae76bab1bccfed0a44318be4e6766b0e3e5243bbe2	8.65	8156
+p5	p5.6	pp_arbiter.resolve 0% comprador (100% vendedor)	2dc082cb227e6c012c8fe35fe00a0b69e87eef1f26dd969fd59d11f2a1d094c9	4.08	19705
+p3	p3.5	pp_guardian.auto_release (lo dispara tercero)	8d8d88beb313aaae76e121ef6b02614b700494b00c60839c343a851bc21023d9	8.58	18698
+p6	p6.6	pp_arbiter.refund_unshipped (lo dispara tercero)	e68025fbf08cd81ae7b86e662cdb89d285d43e690f7d2b3b1b42e81dffec0b5a	8.93	19227

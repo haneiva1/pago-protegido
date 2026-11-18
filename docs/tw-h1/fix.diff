@@ -1,0 +1,13 @@
+--- a/contracts/escrow/src/core/validators/dispute.rs
++++ b/contracts/escrow/src/core/validators/dispute.rs
+@@ -87,6 +87,10 @@
+         return Err(ContractError::EscrowAlreadyResolved);
+     }
+ 
++    if escrow.flags.released {
++        return Err(ContractError::EscrowAlreadyReleased);
++    }
++
+     let Roles {
+         approver,
+         service_provider,

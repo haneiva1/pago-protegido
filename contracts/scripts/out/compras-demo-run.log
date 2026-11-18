@@ -1,0 +1,65 @@
+✅ Key saved with alias ppdemo in "/Users/hansaneiva/.config/stellar/identity/ppdemo.toml"
+✅ Account ppdemo funded on "Test SDF Network ; September 2015"
+  comprador   2979350000
+  vendedor    7789650000
+  plataforma  233461533
+  twfee       41769225
+  arbitro     0
+  tercero     0
+== p3: Audífonos inalámbricos, Bs 380 = 324786325 unidades LABUSD, ventana 60 s
+ok [p3/p3.1] deploy instancia del escrow (ppdemo)  https://stellar.expert/explorer/testnet/tx/dac92c14402b5873631f7dc938af77c0004bc6532962313524cf0306f90c03b2  5.60s  fee=16282
+ok [p3/p3.2] initialize_escrow (ppdemo), roles modo guardián  https://stellar.expert/explorer/testnet/tx/b0fec7b9e6bc633aba256e104437b6f1378256c0c35c9abc45e1f9a4aa97696f  5.78s  fee=138192
+ok [p3/p3.3] pp_guardian.fund Bs 380 (324786325 u.)  https://stellar.expert/explorer/testnet/tx/0686e8ca88e45e7f2e18287d8f16079827dba6d4b45ef332db1636e7e85f54ca  8.85s  fee=727478
+ok [p3/p3.4] vendedor marca "enviado"  https://stellar.expert/explorer/testnet/tx/44d0bdd690facfbc16935dd542a1342c873688e85e2cedaa78b68f6f0c94ce36  9.16s  fee=10696
+== p6: Celular reacondicionado, Bs 900 = 769230769 unidades LABUSD, ventana 60 s
+ok [p6/p6.1] deploy instancia del escrow (ppdemo)  https://stellar.expert/explorer/testnet/tx/70e3c8527ca593b5630bf1235e8b639d213b78e9d1b468ebf828421a31382f63  3.57s  fee=16282
+ok [p6/p6.2] initialize_escrow (ppdemo), roles modo guardián  https://stellar.expert/explorer/testnet/tx/5adec893ab387d49120c8ca5fb8a3a858fae2124c7a6a0041d7a14a5473a6ab7  3.98s  fee=138192
+ok [p6/p6.3] pp_guardian.fund Bs 900 (769230769 u.)  https://stellar.expert/explorer/testnet/tx/c1173acceffc5519caccb1e26dd2e90bbfba9c3da7645a5c99a0c31de8c79cf1  8.84s  fee=727478
+ok [p6/p6.5] comprador abre disputa (nunca se envió)  https://stellar.expert/explorer/testnet/tx/5ed57ae5f8572f9c5effcef8163dd470062886a957bb5b70ea0db8ca0b6533ac  14.96s  fee=8075
+== p1: Polera estampada talla M, Bs 120 = 102564103 unidades LABUSD, ventana 86400 s
+ok [p1/p1.1] deploy instancia del escrow (ppdemo)  https://stellar.expert/explorer/testnet/tx/02b6ea71d5cdd39d4ddf1a88329fb69f5dee118c37f0e488a94d42335f6fa683  38.56s  fee=16282
+ok [p1/p1.2] initialize_escrow (ppdemo), roles modo guardián  https://stellar.expert/explorer/testnet/tx/945b63f2bb0315b606a8f365cc658c86156f2ebf52948778408726fe22757547  13.68s  fee=138192
+ok [p1/p1.3] pp_guardian.fund Bs 120 (102564103 u.)  https://stellar.expert/explorer/testnet/tx/b93a57ee187a72f69833ff11e13dffad557f390454a95f7b43896ab19b505508  40.65s  fee=727478
+ok [p1/p1.4] vendedor marca "enviado"  https://stellar.expert/explorer/testnet/tx/0a6bd08d9302ac513e7e625ded5713c7af917a0d207f7561436e621a93214e79  8.73s  fee=10696
+ok [p1/p1.5] pp_guardian.confirm  https://stellar.expert/explorer/testnet/tx/2594aa6fbb5e307d35af028cb2c2b39d8ba59a659a4216e000beb5ce14f3e208  4.06s  fee=19245
+ok [p1/p1.6] H-1: vendedor llama escrow.dispute_escrow sobre un escrow YA liberado (TW lo acepta)  https://stellar.expert/explorer/testnet/tx/8315f9c353d0177be12669090af6e880e2f41767d7f79af6b356e35ff78b7d26  5.86s  fee=6814
+ok (rechazado como se esperaba) [p1/p1.7] por el guardián la misma disputa se rechaza (EscrowAlreadyReleased) -> Error(Contract, #21)
+ok (rechazado como se esperaba) [p1/p1.8] el árbitro no tiene nada que repartir (EmptyEscrow) -> Error(Contract, #5)
+== p2: Mochila urbana, Bs 250 = 213675214 unidades LABUSD, ventana 172800 s
+ok [p2/p2.1] deploy instancia del escrow (ppdemo)  https://stellar.expert/explorer/testnet/tx/8dbac823fe390bc22e9b9c9b7e1f196c0720830b856c33565e1a80166b21a596  8.19s  fee=16282
+ok [p2/p2.2] initialize_escrow (ppdemo), roles modo guardián  https://stellar.expert/explorer/testnet/tx/a9e55d6a0e3a3bd2d9f7db95e9c84d39b88601d455f7f4ff04b5c92d608f3867  4.30s  fee=137246
+ok [p2/p2.3] pp_guardian.fund Bs 250 (213675214 u.)  https://stellar.expert/explorer/testnet/tx/9fa6a4165e0e15e644c8ded7341e55cd76f7b8a9ec44ac5ec8e49c8b95a5b14d  8.73s  fee=727425
+ok [p2/p2.4] vendedor marca "enviado"  https://stellar.expert/explorer/testnet/tx/2d470c40da411bbdb1d800fbcc5364adc2b134702e52c394ade89845bab4a474  4.11s  fee=10673
+ok [p2/p2.5] pp_guardian.confirm  https://stellar.expert/explorer/testnet/tx/9babd7e28d082387f77e447932ac53cdfbdf6023332412e4ecf2e8c6055e3537  5.78s  fee=19222
+== p4: Zapatillas Nike talla 40, Bs 450 = 384615385 unidades LABUSD, ventana 259200 s
+ok [p4/p4.1] deploy instancia del escrow (ppdemo)  https://stellar.expert/explorer/testnet/tx/f5009fd487a250ade6690356db62de1594297e0d6a863427899a867de3b96a1b  8.52s  fee=16282
+ok [p4/p4.2] initialize_escrow (ppdemo), roles modo guardián  https://stellar.expert/explorer/testnet/tx/4c02876c71b474bf6051617749e070c4af8a76cb540883668c99af6fcf3d1534  3.96s  fee=138192
+ok [p4/p4.3] pp_guardian.fund Bs 450 (384615385 u.)  https://stellar.expert/explorer/testnet/tx/bae454f65f51d110999ada7beb2fdda4f360fd48208a2b7dfbe603bd87acd4bc  3.93s  fee=727478
+   [p4/p4.4] error de RPC (❌ error: client error (Connect) ), reintento 1/3 en 10 s
+ok [p4/p4.4] vendedor marca "enviado"  https://stellar.expert/explorer/testnet/tx/53025eed7ccf0df9f134239f55a79e8d56801c35757cdf50402205961825d334  21.71s  fee=10696
+ok [p4/p4.5] comprador abre disputa  https://stellar.expert/explorer/testnet/tx/7e5b52ad256dffcc285051c44f6be08ae4d6bb10d27b44d06a62b6a05b392d53  8.79s  fee=8167
+ok [p4/p4.6] pp_arbiter.resolve 30% comprador  https://stellar.expert/explorer/testnet/tx/b6b4dbda7bff1fb6a3793ef59338a07695bcbb5f43c6ea387ec969fac7615475  8.58s  fee=22681
+== p5: Chamarra de cuero, Bs 650 = 555555556 unidades LABUSD, ventana 259200 s
+ok [p5/p5.1] deploy instancia del escrow (ppdemo)  https://stellar.expert/explorer/testnet/tx/531f95fa537d57d5cb9d3d4b73596cebf005d573bb60b502ddae1c84da364924  3.93s  fee=16282
+   [p5/p5.2] error de RPC (❌ error: Request timeout ), reintento 1/3 en 10 s
+ok [p5/p5.2] initialize_escrow (ppdemo), roles modo guardián  https://stellar.expert/explorer/testnet/tx/79d3a116a1e497a27f85f316c8fba6d2adb51bc778232c78ccce533fbc07d327  79.47s  fee=137720
+ok [p5/p5.3] pp_guardian.fund Bs 650 (555555556 u.)  https://stellar.expert/explorer/testnet/tx/9667e0dd3211c9bb51e42f8a9cb2d4eb26c3a2df3c56da82fcc558a57c5663b1  8.84s  fee=727451
+ok [p5/p5.4] vendedor marca "enviado"  https://stellar.expert/explorer/testnet/tx/acb85431fcbecc8cccdd918e75db687076b1075a79e79c44fef862b0da6ae3eb  8.97s  fee=10684
+ok [p5/p5.5] vendedor abre disputa (comprador no responde)  https://stellar.expert/explorer/testnet/tx/237e1787c245d828d37114ae76bab1bccfed0a44318be4e6766b0e3e5243bbe2  8.65s  fee=8156
+ok [p5/p5.6] pp_arbiter.resolve 0% comprador (100% vendedor)  https://stellar.expert/explorer/testnet/tx/2dc082cb227e6c012c8fe35fe00a0b69e87eef1f26dd969fd59d11f2a1d094c9  4.08s  fee=19705
+ok [p3/p3.5] pp_guardian.auto_release (lo dispara tercero)  https://stellar.expert/explorer/testnet/tx/8d8d88beb313aaae76e121ef6b02614b700494b00c60839c343a851bc21023d9  8.58s  fee=18698
+ok [p6/p6.6] pp_arbiter.refund_unshipped (lo dispara tercero)  https://stellar.expert/explorer/testnet/tx/e68025fbf08cd81ae7b86e662cdb89d285d43e690f7d2b3b1b42e81dffec0b5a  8.93s  fee=19227
+  comprador   1493191881
+  vendedor    9221748297
+  plataforma  293290588
+  twfee       50743578
+  arbitro     0
+  tercero     0
+p1 {"flags":{"disputed":true,"released":true,"resolved":false},"status":"enviado"}
+p2 {"flags":{"disputed":false,"released":true,"resolved":false},"status":"enviado"}
+p3 {"flags":{"disputed":false,"released":true,"resolved":false},"status":"enviado"}
+p4 {"flags":{"disputed":false,"released":false,"resolved":true},"status":"enviado"}
+p5 {"flags":{"disputed":false,"released":false,"resolved":true},"status":"enviado"}
+p6 {"flags":{"disputed":false,"released":false,"resolved":true},"status":"pendiente"}
+OK: 6 compras de ejemplo en testnet
+EXIT=0
