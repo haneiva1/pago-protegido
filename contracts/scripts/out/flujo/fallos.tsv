@@ -1,0 +1,8 @@
+a	a6	comprador intenta disputar después de confirm	0.81	Error(Contract, #21)
+c	c5	tercero llama auto_release antes del plazo	0.83	Error(Contract, #19)
+d	d0	interfaz de pp_arbiter: ninguna función acepta destino ni distribuciones	-	quote(escrow: address, buyer_bps: u32); config(); resolve(escrow: address, buyer_bps: u32); set_admin(new_admin: address); __constructor(admin: address, guardian: address, tw_fee: address); refund_unshipped(escrow: address)
+d	d5	tercero llama pp_arbiter.resolve (falta la firma del admin)	2.47	error: Missing signing key for account GBCSZ6TJSQD5FCOPGDQGTGWLLICPKE3DTHRMRVLYSDA4RQDOQMAUDRJT
+d	d6	tercero llama escrow.resolve_dispute como dispute_resolver, todo para él	0.93	Error(Contract, #12)
+d	d7	tercero llama escrow.resolve_dispute en nombre de pp_arbiter	33.11	error: Contract addresses are not supported to sign auth entries CBCDVLEPJ6PN7RDC3HFGML3IUT7SOQEYSGH3LE3SWXWZJO7Z2QG2PWGU
+d	d8	el admin (arbitro) llama escrow.resolve_dispute en nombre de pp_arbiter hacia tercero	2.30	error: Contract addresses are not supported to sign auth entries CBCDVLEPJ6PN7RDC3HFGML3IUT7SOQEYSGH3LE3SWXWZJO7Z2QG2PWGU
+d	d9	la plataforma intenta cambiar el receiver a tercero	0.83	Error(Contract, #16)

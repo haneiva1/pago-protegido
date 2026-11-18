@@ -1,0 +1,5 @@
+deploy	D1	upload WASM pp_guardian	d47d8e2c11093402bc8545f8f39868dfe8b0109bcb617083c29d15c1414a42c0	8.91	10319350
+deploy	D2	upload WASM pp_arbiter	d9d701e33df9389df7de53e9870d85ae6a6b74c0b3ea41c0b33139f64d41341a	8.17	8784583
+deploy	D3	deploy pp_guardian (admin=arbitro, tw_fee=twfee, 60 s..30 d)	d57cd28b0a006460a015b47dbfc211b2cfe4c73d9b613e7eafc5030bb92ed8d4	8.39	33920002
+deploy	D4	deploy pp_arbiter (admin=arbitro, guardian, tw_fee=twfee)	8fea8d38989db8d006cf19044abf185a7ebd687b4eeb599b385e971ffd55ccd8	5.43	28907675
+deploy	D5	pp_guardian.set_arbiter(pp_arbiter) firmado por arbitro	f7be608db6319aa9454fb15c67ee260871f481d25ac69d8fa885e36effa6cd5a	8.59	35843

@@ -1,0 +1,9 @@
+✅ Key saved with alias tercero in "/Users/hansaneiva/.config/stellar/identity/tercero.toml"
+✅ Account tercero funded on "Test SDF Network ; September 2015"
+ok [prep/P1] trustline tercero -> LABUSD  https://stellar.expert/explorer/testnet/tx/baeadfd3cb9269514341d8b36fc608985e0ce29e7a1a5325ed54f629bf12aff8  2.26s  fee=100
+ok [prep/P2] lab (emisor) envía 600 LABUSD al comprador  https://stellar.expert/explorer/testnet/tx/50dac771f187eb0a3737676241d2591d49bb56a5243724b24b16df3699357a38  4.11s  fee=100
+== (a) caso feliz: fund → enviado → confirm
+ok [a/a1] deploy instancia del escrow de TW (wasm 1b367bc8…)  https://stellar.expert/explorer/testnet/tx/cda49e7fa6882e3962af78cafa3fab9f26971bbe4af22d0eccdad505364759c0  9.68s  fee=16241
+!! [a/a2] initialize_escrow con roles del modo guardián (plataforma) FALLÓ (rc=1, 60.48s)
+❌ error: Request timeout
+EXIT=1

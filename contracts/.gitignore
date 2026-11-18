@@ -1,0 +1,5 @@
+target/
+test_snapshots/
+**/test_snapshots/
+bindings/*/node_modules/
+scripts/out/.tmp*

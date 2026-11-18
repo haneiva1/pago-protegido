@@ -1,0 +1,32 @@
+{
+  "amount": "1500000000",
+  "description": "Pago Protegido en testnet (modo guardián)",
+  "engagement_id": "pp-20261118-045216-a",
+  "flags": {
+    "disputed": false,
+    "released": true,
+    "resolved": false
+  },
+  "milestones": [
+    {
+      "approved": true,
+      "description": "Entrega del producto",
+      "evidence": "Encomienda SRV-20261118-045216-a",
+      "status": "enviado"
+    }
+  ],
+  "platform_fee": 200,
+  "receiver_memo": 0,
+  "roles": {
+    "approver": "CAOX6JZV3CJZFDD22J2XI3NKY5G4NRFOYRV7IA724MSVREYVRALW4OZU",
+    "dispute_resolver": "CBCDVLEPJ6PN7RDC3HFGML3IUT7SOQEYSGH3LE3SWXWZJO7Z2QG2PWGU",
+    "platform": "GDDJTZ7LNW33A46DYIYWQY5YDBZPPHLIAQHOAHTIM5ZIQALDVVTCPKDZ",
+    "receiver": "GAKG5N3HI34WELUVISY56P3FWZTHJLE3I47GK3XWG3GGXE7ZZZWTCZQQ",
+    "release_signer": "CAOX6JZV3CJZFDD22J2XI3NKY5G4NRFOYRV7IA724MSVREYVRALW4OZU",
+    "service_provider": "GAKG5N3HI34WELUVISY56P3FWZTHJLE3I47GK3XWG3GGXE7ZZZWTCZQQ"
+  },
+  "title": "Zapatillas Nike talla 40",
+  "trustline": {
+    "address": "CC65P6TQQ646YDXVS3PM6YVZASXW6WM5B67YKI46JH4EG65LJPOGBD4S"
+  }
+}

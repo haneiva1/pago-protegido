@@ -1,0 +1,26 @@
+== (a) caso feliz: fund → enviado → confirm
+ok [a/a1] deploy instancia del escrow de TW (wasm 1b367bc8…)  https://stellar.expert/explorer/testnet/tx/e38ea4cbd75505bb5491772fc71de0a63ab2a0541583a6472f0f7c0713e15efa  5.49s  fee=16241
+ok [a/a2] initialize_escrow con roles del modo guardián (plataforma)  https://stellar.expert/explorer/testnet/tx/515814b38ad1bd31c2eb0d58424dc2042284ffa7a5d9b1affa7b66c92ba5dcc3  8.50s  fee=136807
+  comprador   8720750000
+  vendedor    2220750000
+  plataforma  57820511
+  twfee       15423075
+  arbitro     0
+  tercero     0
+  escrow      
+ok [a/a3] pp_guardian.fund: comprador deposita 150 LABUSD (ventana 259200 s)  https://stellar.expert/explorer/testnet/tx/d5701af122e5a7890b6f7c7772058d42fa626a11941dd70d1f4b68269e032dd5  4.20s  fee=724946
+ok [a/a4] change_milestone_status: vendedor marca "enviado" + guía  https://stellar.expert/explorer/testnet/tx/918ab502c2e9cabc507447cf7d834a3123ee8de4f713eb4fb17f46a90a52d326  11.79s  fee=10190
+ok [a/a5] pp_guardian.confirm: comprador aprueba y libera en la misma invocación  https://stellar.expert/explorer/testnet/tx/d2311f0ad9ce9ac14e5b8050d32458423df6d6433b269fda468717ad82365069  8.55s  fee=19210
+ok (rechazado como se esperaba) [a/a6] comprador intenta disputar después de confirm -> Error(Contract, #21)
+  comprador   7220750000
+  vendedor    3686250000
+  plataforma  87820511
+  twfee       19923075
+  arbitro     0
+  tercero     0
+  escrow      0
+== (b) disputa → resolve 70% comprador
+ok [b/b1] deploy instancia del escrow de TW (wasm 1b367bc8…)  https://stellar.expert/explorer/testnet/tx/9110e5ec37542c3db6610ac13d10574b6cf3f5f7bd47bc4a63a017b67fa0f878  5.48s  fee=16241
+ok [b/b2] initialize_escrow con roles del modo guardián (plataforma)  https://stellar.expert/explorer/testnet/tx/2e14989724e5f79bb58f48dddf4c5606e2282c10b1f8b8f58c5f3a2a891444cf  8.68s  fee=136807
+!! roles inesperados en CB3YYZXOK76XVZEI7PQEIYQGIDQ7LJKUJEEGK4ODD5IDJ6WHWKRCM442
+EXIT=1
