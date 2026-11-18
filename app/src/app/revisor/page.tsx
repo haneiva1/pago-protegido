@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { SplitView, TxList } from "@/components/OrderBits";
 import { ErrorBox, ExplorerLink, Spinner, StatusBadge, TxLink } from "@/components/ui";
-import { MOTIVOS, explorer, fmtBs, fmtBsUnits, fmtDate, fmtUsd, shortAddr, splitPreview } from "@/lib/format";
+import { MOTIVOS, explorer, fmtBs, fmtBsUnits, fmtDate, fmtPct, fmtUsd, shortAddr, splitPreview } from "@/lib/format";
 import type { ArbitroData, DisputeItem, EvidenceRow } from "@/lib/types";
 import { api } from "@/lib/wallet";
 
@@ -304,7 +304,7 @@ function DisputeCard({ d, arbKey, onDone }: { d: DisputeItem; arbKey: string; on
         <label className="label flex items-center justify-between" htmlFor={`pct-${d.slug}`}>
           <span>% para el comprador</span>
           <span className="text-lg font-bold text-violet-800" data-testid="pct">
-            {pct == null ? "elige" : `${pct}%`}
+            {pct == null ? "elige" : fmtPct(pct)}
           </span>
         </label>
         <input
@@ -321,11 +321,11 @@ function DisputeCard({ d, arbKey, onDone }: { d: DisputeItem; arbKey: string; on
         {prev ? (
           <div className="grid grid-cols-2 gap-2 text-center text-sm" data-testid="vista-previa">
             <div className="rounded-xl bg-violet-50 p-3">
-              <p className="text-xs text-violet-800">Comprador recibe ({pct}%)</p>
+              <p className="text-xs text-violet-800">Comprador recibe ({fmtPct(pct ?? 0)})</p>
               <p className="text-xl font-bold text-violet-900">{fmtBsUnits(prev.buyer, d.fx)}</p>
             </div>
             <div className="rounded-xl bg-violet-50 p-3">
-              <p className="text-xs text-violet-800">Vendedor recibe ({100 - (pct ?? 0)}%)</p>
+              <p className="text-xs text-violet-800">Vendedor recibe ({fmtPct(100 - (pct ?? 0))})</p>
               <p className="text-xl font-bold text-violet-900">{fmtBsUnits(prev.seller, d.fx)}</p>
             </div>
             <p className="col-span-2 text-xs text-slate-500">

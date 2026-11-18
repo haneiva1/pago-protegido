@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { explorer, fmtUsd, shortAddr, unitsToNumber } from "@/lib/format";
+import { explorer, fmtPct, fmtUsd, shortAddr, unitsToNumber } from "@/lib/format";
 import { sellers } from "@/lib/server/db";
 import { computeMetrics, ingestEvents, type Metrics, type PurchaseState } from "@/lib/server/metrics";
 
@@ -174,7 +174,7 @@ export default async function Transparencia() {
                 <span className="block text-slate-800">
                   {EVENT[e.kind] ?? e.kind}
                   {e.kind === "pp_funded" && e.data.amount != null ? ` · ${fmtUsd(String(e.data.amount))} USD de prueba` : ""}
-                  {e.kind === "pp_resolved" && e.data.buyer_bps != null ? ` · ${Number(e.data.buyer_bps) / 100}% comprador / ${100 - Number(e.data.buyer_bps) / 100}% vendedor` : ""}
+                  {e.kind === "pp_resolved" && e.data.buyer_bps != null ? ` · ${fmtPct(Number(e.data.buyer_bps) / 100)} comprador / ${fmtPct(100 - Number(e.data.buyer_bps) / 100)} vendedor` : ""}
                 </span>
                 <span className="text-xs text-slate-500">
                   {fmtWhen(e.closed_at)} · ledger {nf(e.ledger)}

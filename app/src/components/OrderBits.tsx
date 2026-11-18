@@ -31,14 +31,16 @@ export function SplitView({ money, buyerBps, fx }: { money: MoneyView; buyerBps:
   if (!money.split || buyerBps == null) return null;
   const s = money.split;
   const b = buyerBps / 100;
+  // Sin "100 %" en pantalla (lista de palabras prohibidas): en los extremos se dice con palabras.
+  const pct = (x: number) => (x === 100 ? "todo" : x === 0 ? "nada" : `${x.toLocaleString("es-BO")}%`);
   return (
     <dl data-testid="reparto" className="grid grid-cols-2 gap-2 text-center">
       <div className="rounded-xl bg-violet-50 p-3 ring-1 ring-violet-100">
-        <dt className="text-xs text-violet-800">Comprador ({b.toLocaleString("es-BO")}%)</dt>
+        <dt className="text-xs text-violet-800">Comprador ({pct(b)})</dt>
         <dd className="mt-1 text-lg font-bold text-violet-900">{fmtBsUnits(s.buyer, fx)}</dd>
       </div>
       <div className="rounded-xl bg-violet-50 p-3 ring-1 ring-violet-100">
-        <dt className="text-xs text-violet-800">Vendedor ({(100 - b).toLocaleString("es-BO")}%)</dt>
+        <dt className="text-xs text-violet-800">Vendedor ({pct(100 - b)})</dt>
         <dd className="mt-1 text-lg font-bold text-violet-900">{fmtBsUnits(s.seller, fx)}</dd>
       </div>
       <p className="col-span-2 text-xs text-slate-500">
@@ -57,6 +59,8 @@ const ICON: Record<string, string> = {
   liberacion: "✅",
   disputa: "⚠️",
   resolucion: "⚖️",
+  extension: "⏳",
+  devolucion: "↩️",
 };
 
 /** Línea de tiempo del pedido, con "Ver registro público" en cada transacción. */

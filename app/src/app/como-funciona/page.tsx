@@ -54,11 +54,14 @@ export default async function ComoFunciona() {
         <Arrow />
         <Node n="3" title="El pago queda guardado en el contrato del pedido">
           Antes de pedir la firma, la app verifica que el contrato ejecuta el código de Trustless Work y tiene los roles correctos.
-          {guardian ? " El comprador paga a través de pp_guardian, que registra la compra y el plazo." : ""}
+          {guardian ? " El comprador paga a través de pp_guardian v2, que registra la compra y los dos plazos que firmó: despacho (los días de entrega) y revisión (días de entrega + 3, desde el envío)." : ""}
         </Node>
         <Arrow />
         <Node n="4" title="El vendedor registra el envío" tone="slate">
           Empresa, número de guía, peso, foto y destino (y el IMEI si es un celular). En el contrato queda la evidencia compacta: empresa|guía|peso|hash de la foto.
+          {guardian
+            ? " Se registra una sola vez con pp_guardian.mark_shipped, antes del plazo de despacho, y desde ahí corre la revisión. Si no despacha a tiempo, la plataforma abre la disputa y pp_arbiter.refund_unshipped le devuelve el pago al comprador, sin que tenga que reclamar."
+            : ""}
         </Node>
         <Arrow />
         <div className="grid gap-3 md:grid-cols-2">

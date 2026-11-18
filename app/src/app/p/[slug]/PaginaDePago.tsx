@@ -359,8 +359,11 @@ function SellerCard({ v }: { v: OrderView }) {
 
 function Promesa({ v }: { v: OrderView }) {
   const o = v.order;
-  const window = (o.window_secs ?? (o.delivery_days + 3) * 86400) * 1000;
-  const shipBy = Date.now() + o.delivery_days * 86400_000;
+  // Plazos v2 (DECISIONES 77): despacho desde el pago y revisión desde el envío.
+  const shipSecs = o.ship_secs ?? o.window_secs ?? o.delivery_days * 86400;
+  const inspectSecs = o.inspect_secs ?? o.window_secs ?? (o.delivery_days + 3) * 86400;
+  const shipBy = Date.now() + shipSecs * 1000;
+  const dur = (s: number) => (s >= 86400 ? `${Math.round(s / 86400)} días` : `${Math.round(s / 60)} minutos`);
   const steps = [
     "Pagas con QR desde tu banco.",
     "Tu pago queda guardado. El vendedor ve que pagaste, pero no puede cobrar.",
@@ -380,11 +383,11 @@ function Promesa({ v }: { v: OrderView }) {
       <div className="rounded-xl bg-slate-50 p-3 text-sm">
         <p className="font-semibold">¿Y si no llega?</p>
         <p className="text-slate-600">
-          Si el vendedor no lo envía hasta el {fmtDate(shipBy)}, abres un reclamo y se te devuelve solo. Si llega mal, un tercero revisa el reclamo.
+          Si el vendedor no lo despacha hasta el {fmtDate(shipBy)} (aprox.), se te devuelve solo, sin que tengas que reclamar. Si llega mal, un tercero revisa el reclamo.
         </p>
       </div>
       <p className="text-xs text-slate-500">
-        Si no confirmas ni reclamas, se libera el {fmtDate(Date.now() + window)} (aprox.). Te avisamos un día antes.
+        Si no pagas ni reclamas, se le paga al vendedor {dur(inspectSecs)} después de que registre el envío. Si necesitas más tiempo para revisar, puedes pedirlo una vez. Te avisamos un día antes.
       </p>
     </section>
   );

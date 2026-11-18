@@ -139,3 +139,8 @@ export function linkAmounts(priceBsCents: number, fx: number, feePayer: FeePayer
   const platformBps = Number(((amount - tw - price) * 10000n) / amount); // floor: el vendedor nunca recibe menos que el precio
   return { price, amount, platformBps, protectionBsCents };
 }
+
+/** Porcentaje para pantallas: sin "100 %" (lista de palabras prohibidas); en los extremos se dice con palabras. */
+export function fmtPct(x: number): string {
+  return x >= 100 ? "todo" : x <= 0 ? "nada" : `${x.toLocaleString("es-BO")}%`;
+}
