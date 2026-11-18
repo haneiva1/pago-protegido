@@ -35,8 +35,10 @@ if (useMock) {
   mock = await startMockApp({
     port: cfg.mockPort,
     botKey: cfg.botKey || undefined,
-    // En modo demo, el plazo de la app de mentira también se escala: (días + 3) × 24 minutos.
-    windowMs: cfg.demoMinutes ? (d) => (d + 3) * 24 * unitMs : undefined,
+    // En modo demo, los plazos de la app de mentira también se escalan: despacho = días × 24 minutos,
+    // revisión desde el envío = (días + 3) × 24 minutos.
+    shipMs: cfg.demoMinutes ? (d) => d * 24 * unitMs : undefined,
+    inspectMs: cfg.demoMinutes ? (d) => (d + 3) * 24 * unitMs : undefined,
   });
   apiUrl = publicUrl = mock.url;
   console.log(`App de mentira en ${mock.url} (tienda "${DEMO_SELLER.store_name}", WhatsApp +${DEMO_SELLER.whatsapp})`);

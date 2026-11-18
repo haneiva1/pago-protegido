@@ -14,6 +14,8 @@ export interface TrackedOrder {
   deadline?: number | null;
   /** Cuándo se marcó enviado: los recordatorios cuentan desde ahí. */
   shippedAt?: number | null;
+  /** El comprador ya usó "Necesito más tiempo". */
+  extended?: boolean;
   /** Hitos de recordatorio ya enviados (en horas: 48, 24, 2). */
   reminders?: number[];
   /** Aviso anti-presión ya enviado al comprador, al pagar y al enviar. */
@@ -28,7 +30,17 @@ export interface PollerState {
   orders: Record<string, TrackedOrder>;
 }
 
-export type NoticeKind = "pagado" | "enviado_vendedor" | "te_llego" | "liberado" | "reclamo" | "resuelto" | "recordatorio" | "anti_presion";
+export type NoticeKind =
+  | "pagado"
+  | "enviado_vendedor"
+  | "te_llego"
+  | "liberado"
+  | "reclamo"
+  | "resuelto"
+  | "devuelto"
+  | "mas_tiempo"
+  | "recordatorio"
+  | "anti_presion";
 
 /** Recordatorios al comprador: cuántas horas antes de la liberación automática. */
 export const REMINDER_HOURS = [48, 24, 2];
@@ -40,7 +52,7 @@ export interface Sent {
   msg: OutMsg;
 }
 
-const FINAL: OrderStatus[] = ["liberado", "resuelto"];
+const FINAL: OrderStatus[] = ["liberado", "resuelto", "devuelto"];
 
 /** Qué avisar, y a quién, cuando un pedido llega a su estado actual. Pura. */
 export function noticesFor(view: OrderView, appUrl: string, sellerPhone: string, buyerPhone: string | null): Omit<Sent, "slug">[] {
@@ -64,6 +76,10 @@ export function noticesFor(view: OrderView, appUrl: string, sellerPhone: string,
     case "resuelto":
       out.push({ to: sellerPhone, kind: "resuelto", msg: notice.resolved(d, "vendedor") });
       if (buyerPhone) out.push({ to: buyerPhone, kind: "resuelto", msg: notice.resolved(d, "comprador") });
+      break;
+    case "devuelto":
+      out.push({ to: sellerPhone, kind: "devuelto", msg: notice.refunded(d, "vendedor") });
+      if (buyerPhone) out.push({ to: buyerPhone, kind: "devuelto", msg: notice.refunded(d, "comprador") });
       break;
   }
   return out;
@@ -134,8 +150,10 @@ export class Poller {
     for (const { slug, buyerWhatsapp } of await this.changed()) {
       const view = await this.d.client.order(slug).catch(() => null);
       if (!view) continue;
-      const prev = this.state.orders[slug]?.status ?? "esperando_pago";
+      const prevT = this.state.orders[slug];
+      const prev = prevT?.status ?? "esperando_pago";
       const o = view.order;
+      const extended = Boolean(o.extended);
       const sellerPhone = normPhone(view.seller.whatsapp);
       const buyerPhone = buyerWhatsapp ? normPhone(buyerWhatsapp) : (this.state.orders[slug]?.buyerPhone ?? null);
       const t = (this.state.orders[slug] = {
@@ -145,10 +163,17 @@ export class Poller {
         buyerPhone,
         deadline: o.deadline,
         shippedAt: o.shipped_at,
+        extended,
         updatedAt: o.updated_at,
       });
       const changedStatus = prev !== o.status;
       if (changedStatus) for (const n of noticesFor(view, this.appUrl, sellerPhone, buyerPhone)) await deliver(slug, n);
+
+      // La hora de liberación cambió (envío o "Necesito más tiempo"): los recordatorios se vuelven a programar con la nueva.
+      if (prevT && prevT.deadline != null && o.deadline != null && prevT.deadline !== o.deadline) t.reminders = [];
+      if (o.status === "enviado" && extended && prevT && !prevT.extended && !changedStatus) {
+        await deliver(slug, { to: sellerPhone, kind: "mas_tiempo", msg: notice.extended({ appUrl: this.appUrl, view }) });
+      }
 
       // Anti-presión al comprador: al pagar y otra vez al enviar (dentro de "¿Te llegó?"). También si deja su
       // WhatsApp después de que el bot vio el cambio de estado.

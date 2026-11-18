@@ -20,6 +20,7 @@ test("verificador: el comprador reenvía un link auténtico y uno falso (captura
   await expect(link).toBeVisible();
   const href = (await link.getAttribute("href"))!;
   const slug = href.split("/p/")[1];
+  const code = (await (await request.get(`${MOCK}/api/orders/${slug}`)).json()).order.code as string;
   await expect(page.getByTestId("bot-msg").filter({ hasText: "Tu link de pago protegido" }).last()).toContainText(
     "Ojo: el QR de pago nunca está a nombre de una persona.",
   );
@@ -28,7 +29,7 @@ test("verificador: el comprador reenvía un link auténtico y uno falso (captura
   await page.locator("#as-buyer").click();
   await page.getByRole("button", { name: /Reenviar el último link/ }).click();
   await expect(page.getByTestId("my-msg").last()).toContainText(href);
-  await expect(lastBot(page)).toContainText(`✅ Auténtico: Tienda Demo, Zapatillas nike 40, Bs 450,00, pedido ${slug.slice(-6)}. Estado: Esperando pago`);
+  await expect(lastBot(page)).toContainText(`✅ Auténtico: Tienda Demo, Zapatillas nike 40, Bs 450,00, pedido ${code}. Estado: Esperando pago`);
 
   // Y luego un mensaje con un link de dominio parecido.
   await page.getByRole("button", { name: /dominio parecido/ }).click();
@@ -57,9 +58,9 @@ test("el comprador recibe el aviso anti-presión al pagar", async ({ page, reque
   const link = page.locator('[data-testid="bot-msg"] a[href*="/p/polera-alpaca-"]').first();
   await expect(link).toBeVisible();
   const slug = (await link.getAttribute("href"))!.split("/p/")[1];
-  await request.post(`${MOCK}/__mock/advance`, { data: { slug, action: "pagar" } });
+  const paid = await (await request.post(`${MOCK}/__mock/advance`, { data: { slug, action: "pagar" } })).json();
   await page.locator("#as-buyer").click();
-  await expect(page.getByTestId("bot-msg").filter({ hasText: `${slug.slice(-6)}: tu pago de Bs 120,00` })).toContainText(
+  await expect(page.getByTestId("bot-msg").filter({ hasText: `${paid.code}: tu pago de Bs 120,00` })).toContainText(
     "Si te lo piden, es la señal número 1 de estafa.",
     { timeout: 15_000 },
   );

@@ -32,7 +32,7 @@ describe("verificador de links (bot contra la app de mentira)", () => {
   it("link auténtico: tienda, producto, precio, código y estado — también para quien no tiene tienda", async () => {
     const o = newLink();
     const [out] = await texts(BUYER, `verificar ${URL_}/p/${o.slug}`);
-    expect(out.split("\n")[0]).toBe(`✅ Auténtico: Tienda Demo, Zapatillas Nike 40, Bs 450,00, pedido ${o.slug.slice(-6)}. Estado: Esperando pago`);
+    expect(out.split("\n")[0]).toBe(`✅ Auténtico: Tienda Demo, Zapatillas Nike 40, Bs 450,00, pedido ${o.code}. Estado: Esperando pago`);
     expect(out).toMatch(/Puedes pagar en ese link/);
     app.advance(o.slug, "pagar");
     const [paid] = await texts(BUYER, `${URL_}/p/${o.slug}`); // reenviado tal cual, sin "verificar"
@@ -128,7 +128,7 @@ describe("verificador de links (bot contra la app de mentira)", () => {
     const o = newLink();
     expect((await texts(BUYER, `problema ${o.slug}`))[0]).toMatch(new RegExp(`Tengo un problema.*👉 ${URL_}/p/${o.slug}`, "s"));
     expect((await texts(BUYER, `tiempo ${o.slug}`))[0]).toMatch(new RegExp(`Nadie puede alargar el plazo por chat.*👉 ${URL_}/p/${o.slug}`, "s"));
-    expect((await texts(BUYER, `todo bien ${o.slug}`))[0]).toMatch(/Recibí conforme/);
+    expect((await texts(BUYER, `todo bien ${o.slug}`))[0]).toMatch(/Pagar al vendedor/);
     expect((await texts(BUYER, "Tengo un problema"))[0]).toMatch(/Busca el link de tu pedido/);
   });
 });
@@ -174,9 +174,9 @@ describe("motor: qué va al verificador", () => {
 describe("avisos al comprador: anti-presión y recordatorios 48/24/2 h", () => {
   let clock: number;
   let inbox: { to: string; msg: OutMsg }[];
-  async function setup(opts: { unitMs?: number; hours?: number[]; windowMs?: (d: number) => number } = {}) {
+  async function setup(opts: { unitMs?: number; hours?: number[]; shipMs?: (d: number) => number; inspectMs?: (d: number) => number } = {}) {
     clock = 1_800_000_000_000;
-    app = await startMockApp({ now: () => clock, windowMs: opts.windowMs });
+    app = await startMockApp({ now: () => clock, shipMs: opts.shipMs, inspectMs: opts.inspectMs });
     inbox = [];
     return new Poller({
       client: new HttpAppClient(app.url),
@@ -241,7 +241,7 @@ describe("avisos al comprador: anti-presión y recordatorios 48/24/2 h", () => {
 
   it("recordatorios a las 48 h, 24 h y 2 h, cada uno una vez, con 'Tengo un problema' y 'Necesito más tiempo'", async () => {
     const poller = await setup();
-    const o = newLink(); // 3 días de entrega → plazo a 6 días del pago
+    const o = newLink(); // 3 días de entrega → revisión de 6 días desde el envío
     app.advance(o.slug, "pagar");
     app.advance(o.slug, "enviar");
     clock += 1000;
@@ -267,18 +267,34 @@ describe("avisos al comprador: anti-presión y recordatorios 48/24/2 h", () => {
     const m = r2[0].msg;
     const page = `${URL_}/p/${o.slug}`;
     expect(m.text).toContain(`*Tengo un problema* → ${page}`);
-    expect(m.text).toContain(`*Necesito más tiempo* → ${page}`);
+    expect(m.text).toContain(`*Necesito más tiempo* (una sola vez) → ${page}`);
     expect(m.buttons?.map((b) => b.title)).toEqual(["Sí, todo bien", "Tengo un problema", "Necesito más tiempo"]);
     expect(m.buttons?.map((b) => b.id)).toEqual([`todo bien ${o.slug}`, `problema ${o.slug}`, `tiempo ${o.slug}`]);
   });
 
-  it("el plazo de los recordatorios arranca al marcar enviado: los hitos de antes no se mandan", async () => {
+  it("el plazo arranca al marcar enviado (contrato v2): antes no hay hora de liberación ni recordatorios", async () => {
     const poller = await setup();
     const o = newLink();
     app.advance(o.slug, "pagar");
-    const deadline = app.orders.get(o.slug)!.deadline!;
-    clock = deadline - 30 * H; // se despacha cuando faltan 30 h
+    clock += 1000;
+    await poller.tick();
+    expect(app.orders.get(o.slug)!.deadline).toBeNull(); // pagado: solo corre el plazo de despacho
+    clock += 2 * 24 * H; // despacha 2 días después del pago
     app.advance(o.slug, "enviar");
+    clock += 1000;
+    await poller.tick();
+    const deadline = app.orders.get(o.slug)!.deadline!;
+    expect(deadline).toBe(app.orders.get(o.slug)!.shipped_at! + 6 * 24 * H);
+    clock = deadline - 47 * H;
+    expect((await poller.tick()).filter((s) => s.kind === "recordatorio")).toHaveLength(1); // el de 48 h, contado desde el envío
+  });
+
+  it("con una revisión corta, los hitos que caen antes del envío no se mandan", async () => {
+    const poller = await setup({ inspectMs: () => 30 * H });
+    const o = newLink();
+    app.advance(o.slug, "pagar");
+    app.advance(o.slug, "enviar"); // la liberación queda a 30 h del envío
+    const deadline = app.orders.get(o.slug)!.deadline!;
     await poller.tick();
     clock += 1000;
     expect((await poller.tick()).filter((s) => s.kind === "recordatorio")).toEqual([]); // nada de "48 h"
@@ -303,7 +319,7 @@ describe("avisos al comprador: anti-presión y recordatorios 48/24/2 h", () => {
 
   it("modo demo: los recordatorios se escalan a minutos (48, 24 y 2 min)", async () => {
     const M = 60_000;
-    const poller = await setup({ unitMs: M, windowMs: (d) => (d + 3) * 24 * M });
+    const poller = await setup({ unitMs: M, shipMs: (d) => d * 24 * M, inspectMs: (d) => (d + 3) * 24 * M });
     const o = newLink();
     app.advance(o.slug, "pagar");
     app.advance(o.slug, "enviar");

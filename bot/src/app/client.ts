@@ -1,6 +1,6 @@
 // Cliente de la app web. Usa las rutas reales de pago-protegido/app y las propuestas en APP-ENDPOINTS.md.
 
-import type { ChangesFeed, CreateLinkInput, Order, OrderView, Seller, SellerData } from "./types.ts";
+import type { ChangesFeed, CreateLinkInput, Order, OrderView, Proteccion, Seller, SellerData } from "./types.ts";
 
 /** La app respondió con un error legible ({ error }). */
 export class AppError extends Error {
@@ -20,15 +20,17 @@ export class MissingEndpoint extends Error {
 }
 
 export interface AppClient {
-  /** Propuesto §1: vendedor por número de WhatsApp, o null si no tiene tienda. */
+  /** §1: vendedor por número de WhatsApp, o null si no tiene tienda. */
   sellerByPhone(phone: string): Promise<Seller | null>;
   /** Existe: GET /api/sellers/:pubkey (tienda, pedidos y saldo). null si no existe. */
   sellerData(pubkey: string): Promise<SellerData | null>;
   /** Existe: POST /api/links. */
   createLink(input: CreateLinkInput): Promise<Order>;
+  /** §6: PATCH /api/links/:slug { sellerPubkey, proteccion }, solo con el pedido en "esperando_pago" y sin comprador. */
+  setProteccion(slug: string, sellerPubkey: string, proteccion: Proteccion): Promise<Order>;
   /** Existe: GET /api/orders/:slug. */
   order(slug: string): Promise<OrderView>;
-  /** Propuesto §2: pedidos que cambiaron desde `since` (ms). */
+  /** §2: pedidos que cambiaron desde `since` (ms). */
   changes(since: number): Promise<ChangesFeed>;
 }
 
@@ -75,6 +77,14 @@ export class HttpAppClient implements AppClient {
 
   createLink(input: CreateLinkInput): Promise<Order> {
     return this.call<Order>("/api/links", { method: "POST", body: JSON.stringify(input) });
+  }
+
+  async setProteccion(slug: string, sellerPubkey: string, proteccion: Proteccion): Promise<Order> {
+    const r = await this.call<Order | { order: Order }>(`/api/links/${encodeURIComponent(slug)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ sellerPubkey, proteccion }),
+    });
+    return "order" in r && r.order && typeof r.order === "object" ? r.order : (r as Order);
   }
 
   order(slug: string): Promise<OrderView> {

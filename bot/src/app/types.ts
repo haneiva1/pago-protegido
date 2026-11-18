@@ -1,7 +1,13 @@
-// Formas de la API de la app web (pago-protegido/app), copiadas de src/lib/server/db.ts y orders.ts.
-// Los campos marcados "propuesto" todavía no existen en la app: ver APP-ENDPOINTS.md.
+// Formas de la API de la app web (pago-protegido/app v2), copiadas de src/lib/server/db.ts y orders.ts.
+// Ver APP-ENDPOINTS.md: §1–§8 ya existen en la app.
 
-export type OrderStatus = "esperando_pago" | "pagado" | "enviado" | "liberado" | "en_disputa" | "resuelto";
+export type OrderStatus = "esperando_pago" | "pagado" | "enviado" | "liberado" | "en_disputa" | "resuelto" | "devuelto";
+
+/** Quién paga la protección del link (APP-ENDPOINTS.md §6). */
+export type Proteccion = "comprador" | "vendedor";
+
+/** Categorías de la app. "Celular" hace que la app pida el IMEI al despachar. */
+export type Categoria = "Celular" | "Electrónica" | "Ropa y calzado" | "Otro";
 
 export const STATUS_LABEL: Record<OrderStatus, string> = {
   esperando_pago: "Esperando pago",
@@ -10,6 +16,7 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   liberado: "Liberado",
   en_disputa: "En disputa",
   resuelto: "Resuelto",
+  devuelto: "Devuelto (no se despachó)",
 };
 
 /** Fila `sellers` (GET /api/sellers/:pubkey → `seller`). */
@@ -35,9 +42,25 @@ export interface Order {
   delivery_days: number;
   status: OrderStatus;
   buyer_pubkey: string | null;
+  /** Código corto y legible que genera la app ("PP-4821"). Los pedidos viejos pueden no tenerlo. */
+  code?: string | null;
+  category?: string | null;
+  /** Quién paga la protección (por defecto, el comprador). */
+  proteccion?: Proteccion | null;
+  /** Protección en centavos de Bs. Si la paga el comprador, la suma al precio. */
+  proteccion_bs_cents?: number | null;
+  /** `platform_fee` del escrow de este pedido (bps): con la protección del comprador, el vendedor recibe el precio. */
+  platform_bps?: number | null;
   funded_at: number | null;
-  /** Liberación automática (ms). */
+  /** Hasta cuándo puede despachar el vendedor (ms, hora del contrato). Existe desde que se paga. */
+  ship_deadline?: number | null;
+  /**
+   * Liberación automática (ms): `release_at` del contrato v2, el fin de la revisión contado DESDE EL ENVÍO.
+   * Es null antes de que se marque enviado.
+   */
   deadline: number | null;
+  /** 1 si el comprador ya usó "Necesito más tiempo" (una sola vez; suma otra ventana de revisión). */
+  extended?: number | boolean | null;
   shipped_evidence: string | null;
   shipped_at: number | null;
   dispute_by: string | null;
@@ -45,6 +68,8 @@ export interface Order {
   buyer_bps: number | null;
   released_at: number | null;
   resolved_at: number | null;
+  /** Devolución automática por no despachar a tiempo (estado `devuelto`). */
+  refunded_at?: number | null;
   created_at: number;
   updated_at: number;
 }
@@ -78,9 +103,12 @@ export interface CreateLinkInput {
   photoUrl?: string;
   priceBs: number;
   deliveryDays: number;
+  /** Por defecto "comprador". */
+  proteccion?: Proteccion;
+  category?: Categoria;
 }
 
-/** Propuesto: GET /api/bot/changes?since= */
+/** GET /api/bot/changes?since= */
 export interface ChangesFeed {
   now: number;
   changes: {
@@ -89,5 +117,10 @@ export interface ChangesFeed {
     updated_at: number;
     /** WhatsApp del comprador si aceptó avisos (APP-ENDPOINTS.md §4). Nunca va en la vista pública del pedido. */
     buyer_whatsapp: string | null;
+    code?: string | null;
+    deadline?: number | null;
+    ship_deadline?: number | null;
+    shipped_at?: number | null;
+    extended?: number | boolean | null;
   }[];
 }

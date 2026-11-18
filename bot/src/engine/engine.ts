@@ -3,7 +3,8 @@
 
 import { msg, type OutMsg } from "./messages.ts";
 import { findLinks, parseLink } from "./links.ts";
-import { clean, fold, parseSell, type SellDraft } from "./parse.ts";
+import type { Proteccion } from "../app/types.ts";
+import { clean, fold, inferCategory, normCodes, parseSell, type SellDraft } from "./parse.ts";
 
 export type Step = "idle" | "ask_product" | "ask_price" | "ask_days" | "ask_evidence";
 
@@ -17,7 +18,9 @@ export interface Session {
 }
 
 export type Command =
-  | { kind: "createLink"; product: string; priceBs: number; days: number }
+  | { kind: "createLink"; product: string; priceBs: number; days: number; category: "Celular" | "Otro" }
+  /** [La paga mi cliente] / [Yo la regalo]: `code` es el slug del botón o lo que escribió; sin él, el último link sin pagar. */
+  | { kind: "proteccion"; who: Proteccion; code?: string }
   | { kind: "myOrders" }
   | { kind: "status"; code: string }
   | { kind: "shipped"; code: string; evidence?: string }
@@ -40,6 +43,7 @@ export type Intent =
   | { kind: "shipped"; code?: string; evidence?: string }
   | { kind: "balance" }
   | { kind: "link"; pubkey: string }
+  | { kind: "proteccion"; who: Proteccion; code?: string }
   | { kind: "verify"; arg: string }
   | { kind: "report"; arg: string }
   | { kind: "buyerHelp"; action: BuyerAction; slug?: string }
@@ -61,7 +65,8 @@ export const newSession = (now: number): Session => ({ step: "idle", draft: {}, 
 
 /** Intención del mensaje. Los comandos con argumento conservan mayúsculas (guías, claves). */
 export function detectIntent(text: string): Intent {
-  const raw = text.trim();
+  // "pp 4821" / "pp4821" → "PP-4821": el código del pedido queda en una sola palabra.
+  const raw = normCodes(text.trim());
   const t = clean(raw);
   const words = raw.split(/\s+/);
   const lowWords = fold(raw).split(/\s+/);
@@ -81,6 +86,12 @@ export function detectIntent(text: string): Intent {
     return { kind: "buyerHelp", action: t.startsWith("tengo") ? "problema" : "tiempo" };
   }
   if (/^(si )?todo bien$/.test(t)) return { kind: "buyerHelp", action: "ok" };
+
+  // Quién paga la protección: botones del link recién creado (llevan el slug) o el texto escrito.
+  const prot = /^(regalo|cliente)\s+([a-z0-9-]{8,40})$/.exec(t);
+  if (prot) return { kind: "proteccion", who: prot[1] === "regalo" ? "vendedor" : "comprador", code: prot[2] };
+  const protText = /^(?:(yo )?la regalo|la regalo yo|regalo la proteccion|(?:la )?paga (?:mi |el )?cliente|la paga el comprador)(?:\s+(pp-\d{4,5}|[0-9a-f]{6}))?$/.exec(t);
+  if (protText) return { kind: "proteccion", who: /regalo/.test(t) ? "vendedor" : "comprador", code: protText[2] };
 
   if (/^(cancelar|cancela|cancelalo|salir|olvidalo|olvida|nada|ya no|stop)$/.test(t)) return { kind: "cancel" };
 
@@ -113,7 +124,7 @@ export function continueSell(draft: SellDraft, now: number): StepResult {
   if (draft.priceBs < 1 || draft.priceBs > 100_000) return at("ask_price", msg.priceOutOfRange());
   if (draft.days == null) return at("ask_days", msg.askDays());
   if (!Number.isInteger(draft.days) || draft.days < 1 || draft.days > 15) return at("ask_days", msg.daysOutOfRange());
-  return done(newSession(now), [], { kind: "createLink", product: draft.product, priceBs: draft.priceBs, days: draft.days });
+  return done(newSession(now), [], { kind: "createLink", product: draft.product, priceBs: draft.priceBs, days: draft.days, category: inferCategory(draft.product) });
 }
 
 /** Completa el borrador con lo que trae el mensaje. Lo nuevo reemplaza lo viejo. */
@@ -146,6 +157,8 @@ export function step(prev: Session | undefined, text: string, now: number, ctx: 
       break; // "hola" en medio de una pregunta: seguimos con la pregunta.
     case "link":
       return done(reset, [], { kind: "link", pubkey: intent.pubkey });
+    case "proteccion":
+      return done(reset, [], { kind: "proteccion", who: intent.who, code: intent.code });
     case "myOrders":
       return done(reset, [], { kind: "myOrders" });
     case "balance":

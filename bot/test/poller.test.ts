@@ -45,7 +45,8 @@ describe("avisos por cambio de estado (GET /api/bot/changes)", () => {
     ]);
     expect(sent[0].msg.text).toMatch(/tu cliente pagó Bs 450,00 .* el pago está GUARDADO, todavía no en tu cuenta/);
     expect(sent[0].msg.text).not.toMatch(/te pagaron/i);
-    expect(sent[0].msg.text).toMatch(new RegExp(`Despacha y marca enviado: escríbeme \\*enviado ${o.slug.slice(-6)}`));
+    expect(sent[0].msg.text).toMatch(new RegExp(`Despacha antes del .* y marca enviado: escríbeme \\*enviado ${o.code}`));
+    expect(sent[0].msg.text).toMatch(new RegExp(`^💸 ${o.code}:`));
     step();
     expect(await poller.tick()).toEqual([]); // no repite
   });
@@ -62,16 +63,17 @@ describe("avisos por cambio de estado (GET /api/bot/changes)", () => {
       [DEMO_SELLER.whatsapp, "enviado_vendedor"],
       [DEMO_BUYER_PHONE, "te_llego"],
     ]);
-    expect(sent[1].msg.text).toMatch(/¿Te llegó\?.*Recibí conforme/s);
+    expect(sent[1].msg.text).toMatch(/¿Te llegó\?.*Pagar al vendedor.*Necesito más tiempo/s);
     expect(sent[1].msg.text).toContain("OLV-777");
     app.advance(o.slug, "confirmar");
     step();
     const rel = await poller.tick();
     expect(rel[0]).toMatchObject({ to: DEMO_SELLER.whatsapp, kind: "liberado" });
-    expect(rel[0].msg.text).toMatch(/¡Liberado!.*37,58 USD de prueba/s);
+    // El cliente pagó la protección: el vendedor recibe el precio completo (Bs 450 = 38,46 USD de prueba).
+    expect(rel[0].msg.text).toMatch(/¡Liberado!.*38,46 USD de prueba/s);
   });
 
-  it("reclamo abierto y resolución del árbitro", async () => {
+  it("reclamo abierto y resolución del revisor", async () => {
     const o = link();
     app.advance(o.slug, "pagar");
     step();
@@ -106,6 +108,48 @@ describe("avisos por cambio de estado (GET /api/bot/changes)", () => {
     expect(sent[0].msg.text).toMatch(/se libera solo al vendedor en unas 20 h/);
     clock += 3_600_000;
     expect(await poller.tick()).toEqual([]);
+  });
+
+  it("no se despachó a tiempo → 'devuelto': aviso a los dos con lo que vuelve al comprador", async () => {
+    const o = link();
+    app.advance(o.slug, "pagar");
+    step();
+    await poller.tick();
+    clock = app.orders.get(o.slug)!.ship_deadline! + 1000;
+    app.advance(o.slug, "devolver");
+    const sent = await poller.tick();
+    expect(sent.map((s) => [s.to, s.kind])).toEqual([
+      [DEMO_SELLER.whatsapp, "devuelto"],
+      [DEMO_BUYER_PHONE, "devuelto"],
+    ]);
+    expect(sent[0].msg.text).toMatch(new RegExp(`^↩️ ${o.code}: no se marcó el envío a tiempo\\. Devolvimos Bs [\\d.,]+ al comprador`));
+    expect(sent[1].msg.text).toMatch(/Te devolvimos Bs/);
+    step();
+    expect(await poller.tick()).toEqual([]);
+  });
+
+  it("'Necesito más tiempo': aviso al vendedor y los recordatorios se reprograman con la nueva hora", async () => {
+    const o = link();
+    app.advance(o.slug, "pagar");
+    app.advance(o.slug, "enviar");
+    step();
+    await poller.tick();
+    const first = app.orders.get(o.slug)!.deadline!;
+    clock = first - 20 * 3_600_000; // faltan 20 h: recordatorio de 24 h
+    expect((await poller.tick()).map((s) => s.kind)).toEqual(["recordatorio"]);
+    app.advance(o.slug, "extender");
+    step();
+    const ext = await poller.tick();
+    expect(ext.map((s) => [s.to, s.kind])).toEqual([[DEMO_SELLER.whatsapp, "mas_tiempo"]]);
+    expect(ext[0].msg.text).toMatch(/pidió más tiempo.*Solo se puede pedir una vez/s);
+    const next = app.orders.get(o.slug)!.deadline!;
+    expect(next).toBe(first + 6 * 86_400_000);
+    clock = next - 30 * 3_600_000;
+    expect(await poller.tick()).toEqual([]);
+    clock = next - 20 * 3_600_000; // el de 24 h, otra vez, con la hora nueva
+    const r = await poller.tick();
+    expect(r.map((s) => s.kind)).toEqual(["recordatorio"]);
+    expect(r[0].msg.text).toContain("Ya usaste *Necesito más tiempo*");
   });
 
   it("sin número del comprador solo avisa al vendedor", async () => {

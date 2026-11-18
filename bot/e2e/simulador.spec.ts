@@ -22,17 +22,20 @@ test("vender zapatillas 450 → devuelve un link de pago, y avisa cuando pagan",
   await expect(link).toBeVisible();
   const href = (await link.getAttribute("href"))!;
   expect(href).toMatch(new RegExp(`^${MOCK}/p/zapatillas-[0-9a-f]{6}$`));
-  await expect(page.getByTestId("bot-msg").filter({ hasText: "Tu link de pago protegido" })).toContainText("Bs 450,00 (≈ 38,46 USD de prueba) · entrega en 3 días");
+  await expect(page.getByTestId("bot-msg").filter({ hasText: "Tu link de pago protegido" })).toContainText("*Zapatillas* · Bs 450,00 · entrega en 3 días".replace(/\*/g, ""));
+  await expect(page.getByTestId("bot-msg").filter({ hasText: "Tu link de pago protegido" })).toContainText("Paga Bs 456,75 (≈ 39,04 USD de prueba) y tú recibes Bs 450,00.");
 
   // El link existe de verdad en la API (POST /api/links) y es el pedido.
   const slug = href.split("/p/")[1];
   const view = await (await request.get(`${MOCK}/api/orders/${slug}`)).json();
-  expect(view.order).toMatchObject({ product: "Zapatillas", price_bs_cents: 45000, delivery_days: 3, status: "esperando_pago" });
+  expect(view.order).toMatchObject({ product: "Zapatillas", price_bs_cents: 45000, delivery_days: 3, status: "esperando_pago", proteccion: "comprador" });
+  const code = view.order.code as string;
+  expect(code).toMatch(/^PP-\d{4}$/);
 
   // El comprador paga en la web: el poller lo ve en /api/bot/changes y avisa al vendedor.
   expect((await request.post(`${MOCK}/__mock/advance`, { data: { slug, action: "pagar" } })).ok()).toBe(true);
   await expect(lastBot(page)).toContainText("el pago está GUARDADO", { timeout: 15_000 });
-  await expect(lastBot(page)).toContainText(`enviado ${slug.slice(-6)}`);
+  await expect(lastBot(page)).toContainText(`enviado ${code}`);
 
   expect(await page.locator("body").innerText()).not.toMatch(/cripto/i);
   await page.screenshot({ path: "docs/simulador.png" });

@@ -104,7 +104,7 @@ export const GET = (req: Request) => handle(() => {
 });
 ```
 
-- El H-1 de la app (el estado on-chain manda) solo corre en `GET /api/orders/:slug?onchain` y en el panel del árbitro. Si `reconcile` actualiza `status`, también actualiza `updated_at` (`orders.update` ya lo hace), así que el cambio aparece en este feed.
+- El H-1 de la app (el estado on-chain manda) solo corre en `GET /api/orders/:slug?onchain` y en el panel del revisor. Si `reconcile` actualiza `status`, también actualiza `updated_at` (`orders.update` ya lo hace), así que el cambio aparece en este feed.
 
 **Plan B mientras no exista:** el bot revisa uno por uno, con `GET /api/orders/:slug`, los pedidos que conoce (los que creó o listó en "mis ventas") y que no están liberados ni resueltos. Funciona, pero solo ve esos pedidos.
 
@@ -153,42 +153,63 @@ El bot manda a los números sin tienda a `/vender?wa=59171234567`. Si viene `wa`
 
 ## Ronda 2 (anti-fraude): nada nuevo obligatorio
 
-El verificador de links usa `GET /api/orders/:slug`, que ya es pública. Los reportes quedan en un archivo local del bot. Los recordatorios usan el `deadline` de `/api/bot/changes` + `GET /api/orders/:slug`. Lo que sigue sale de los ajustes del capataz (DECISIONES 39–40) y es opcional.
+El verificador de links usa `GET /api/orders/:slug`, que ya es pública. Los reportes quedan en un archivo local del bot.
 
-## §6. Quién paga la protección (campo nuevo en `POST /api/links`)
+## Ronda 3 (contratos v2): §6–§8 ya están en la app
+
+Con los contratos v2 (`pp_guardian` con `mark_shipped`, `extend` y los dos plazos; `pp_arbiter.refund_unshipped`), la app implementó lo que sigue. La app de mentira (`src/mock/app-mock.ts`) tiene las mismas formas.
+
+`GET /api/info` → `capabilities: { extend: true, clockFromShipping: true, refundUnshipped: true, proteccionPatch: true }`.
+
+### Campos nuevos del pedido (`OrderRow` y vista pública `GET /api/orders/:slug` → `order`)
+
+| Campo | Qué es |
+|---|---|
+| `code` | "PP-4821", lo genera la app (único) |
+| `category` | "Celular", "Electrónica", "Ropa y calzado" u "Otro". Con "Celular" la app pide el IMEI al despachar |
+| `proteccion` | `"comprador"` o `"vendedor"` |
+| `proteccion_bs_cents` | protección en centavos de Bs (0 si la regala el vendedor) |
+| `ship_deadline` | ms, hora del contrato: hasta cuándo puede despachar el vendedor. Existe desde que se paga |
+| `shipped_at` | ms, cuándo se registró el envío (`mark_shipped`) |
+| `deadline` | ms, `release_at` del contrato: fin de la revisión, **contado desde el envío**. Es null antes de marcar enviado |
+| `extended` | 0/1: el comprador ya usó "Necesito más tiempo" (una sola vez, suma otra ventana de revisión) |
+| `refunded_at` | ms, devolución por no despachar a tiempo |
+
+Estado nuevo **`devuelto`** ("Devuelto (no se despachó)"): el vendedor no marcó enviado antes de `ship_deadline`; la app abre la disputa como plataforma y `pp_arbiter.refund_unshipped` devuelve la plata al comprador (menos 2% + 0,3% de comisiones). Pasa sola, sin reclamo.
+
+`GET /api/bot/changes` → cada cambio: `{ slug, status, updated_at, buyer_whatsapp, code, deadline, ship_deadline, shipped_at, extended }`.
+
+## §6. Quién paga la protección (`POST /api/links` y `PATCH /api/links/:slug`) — implementado
 
 ```json
-{ "sellerPubkey": "G…", "product": "Zapatillas Nike 40", "priceBs": 450, "deliveryDays": 3, "proteccion": "comprador" }
+{ "sellerPubkey": "G…", "product": "Celular Samsung A54", "priceBs": 1800, "deliveryDays": 3, "proteccion": "comprador", "category": "Celular" }
 ```
 
 - `proteccion`: `"comprador"` (por defecto, si falta) o `"vendedor"` ("Yo la regalo").
-- Monto: 1,5 % del precio, con mínimo Bs 5 y máximo Bs 50. Ej.: Bs 450 → Bs 6,75; Bs 100 → Bs 5; Bs 5.000 → Bs 50.
-- `OrderRow` y la vista pública suman `proteccion` y `proteccion_bs_cents`. Si la paga el comprador, la página de pago muestra el total.
-- Error: `400 { "error": "Elige quién paga la protección" }` si viene otro valor.
-- **Bot, cuando exista:** con producto, precio y días, crea el link con `"comprador"` y ofrece los botones [La paga mi cliente] [Yo la regalo]. "Yo la regalo" necesita cambiar el link, así que hace falta `PATCH /api/links/:slug { proteccion }` mientras el pedido esté en `esperando_pago`, o preguntar antes de crear el link (cambia DECISIONES 2).
+- Monto: 1,5 % del precio, con mínimo Bs 5 y máximo Bs 50. Ej.: Bs 450 → Bs 6,75; Bs 100 → Bs 5; Bs 5.000 → Bs 50. Si la paga el comprador, entra al contrato precio + protección y el `platform_fee` del pedido se ajusta para que el vendedor reciba al menos el precio.
+- `PATCH /api/links/:slug { sellerPubkey, proteccion }`: solo si el pedido es de ese vendedor y está en `esperando_pago` sin comprador. Responde el pedido actualizado; `409` si ya no se puede.
+- **Bot:** crea el link con `"comprador"` (y la categoría inferida) y ofrece [La paga mi cliente] [Yo la regalo] (DECISIONES 42).
 
-## §7. Código corto del pedido "PP-4821" (opcional)
+## §7. Código corto del pedido "PP-4821" — implementado
 
-- Columna `orders.code TEXT UNIQUE`: "PP-" + 4 dígitos al azar, con reintento si choca.
-- El bot lo recibe en `OrderRow.code` y lo acepta en `estado` y `enviado`. Mientras tanto usa el sufijo hex del slug.
+- `orders.code`: "PP-" + 4 dígitos al azar, con reintento si choca. `/verificar?codigo=PP-4821` en la web.
+- El bot lo muestra en todos los mensajes y lo acepta en `estado` y `enviado` (DECISIONES 41). Para pedidos viejos sin `code`, usa el sufijo hex del slug.
 
-## §8. Devolución por no envío (opcional)
+## §8. Devolución por no envío y "Necesito más tiempo" — implementado
 
-Para avisar "PP-4821: no se marcó el envío a tiempo. Devolvimos Bs <total> al comprador" a los dos lados, hace falta:
-
-- que la devolución pase sin reclamo: hoy `pp_arbiter.refund_unshipped` exige uno;
-- un estado nuevo, por ejemplo `devuelto` con `refunded_at`, que aparezca en `/api/bot/changes`.
+- `devuelto` + `refunded_at`, en `/api/bot/changes`. El bot avisa a los dos: "PP-4821: no se marcó el envío a tiempo. Devolvimos Bs <monto> al comprador" (DECISIONES 43).
+- "Necesito más tiempo": `POST /api/orders/:slug/extend` lo usa la página del pedido (lo firma el comprador). El bot solo manda el link y avisa al vendedor cuando `extended` pasa a 1 (DECISIONES 44).
 
 ## Resumen
 
-| # | Qué | Tipo | Sin esto |
+| # | Qué | Tipo | Estado |
 |---|---|---|---|
-| 0 | `PP_BOT_KEY` + `checkBot` | config | — |
-| 1 | `GET /api/bot/sellers?phone=` | endpoint nuevo | `vincular <clave>` |
-| 2 | `GET /api/bot/changes?since=` | endpoint nuevo | revisa pedido por pedido |
-| 3 | `/panel?enviar=&evidencia=` | parámetros de página | abre `/panel` |
-| 4 | `buyer_whatsapp` + `POST /api/orders/:slug/buyer-contact` | columna + endpoint | sin avisos al comprador |
-| 5 | `/vender?wa=` | parámetro de página | el vendedor escribe su número |
-| 6 | `proteccion` en `POST /api/links` | campo nuevo | la protección la paga siempre el cliente |
-| 7 | `orders.code` ("PP-4821") | columna | código = sufijo hex del slug |
-| 8 | estado `devuelto` + devolución sin reclamo | contrato + estado | sin aviso de "no enviado" |
+| 0 | `PP_BOT_KEY` + `checkBot` | config | en la app |
+| 1 | `GET /api/bot/sellers?phone=` | endpoint | en la app (sin él: `vincular <clave>`) |
+| 2 | `GET /api/bot/changes?since=` | endpoint | en la app (sin él: revisa pedido por pedido) |
+| 3 | `/panel?enviar=&evidencia=` | parámetros de página | en la app |
+| 4 | `buyer_whatsapp` + `POST /api/orders/:slug/buyer-contact` | columna + endpoint | en la app |
+| 5 | `/vender?wa=` | parámetro de página | en la app |
+| 6 | `proteccion` en `POST /api/links` + `PATCH /api/links/:slug` | campo + endpoint | en la app (v2) |
+| 7 | `orders.code` ("PP-4821") | columna | en la app (v2) |
+| 8 | `devuelto`, `ship_deadline`, `deadline` desde el envío, `extended` | contrato v2 + estado | en la app (v2) |

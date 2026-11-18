@@ -15,7 +15,7 @@ Criterio: cuando el SPEC no decide algo, se elige **la opción más simple que r
    - Si el precio viene en dólares ("$us 30", "40 dólares"), pregunta el monto en Bs: los links son en Bs (SPEC §6).
    - En la respuesta a "¿Qué vas a vender?" los números quedan en el nombre ("iPhone 13").
 6. **Cómo se leen los días:** "3 días", "en 3 d", "tres días", "mañana" / "hoy" / "al toque" (1), "pasado mañana" (2), "una semana" (7) y "dos semanas" (14). Fuera de 1 a 15 se vuelve a preguntar, el mismo rango de la app.
-7. **Código del pedido = sufijo hex del slug** (6 caracteres). También se acepta el slug completo. La búsqueda es solo dentro de los pedidos del vendedor que escribe.
+7. **Código del pedido = el "PP-4821" que genera la app** (ver 41). Para pedidos viejos sin `code`, el sufijo hex del slug (6 caracteres). También se acepta el slug completo. La búsqueda es solo dentro de los pedidos del vendedor que escribe.
 8. **Al crear el link, el bot manda tres mensajes:** el link con el código, "Reenvíale esto a tu cliente 👇" y el texto listo para el comprador, el mismo de `waText("link")` de la app. En WhatsApp se reenvía con dos toques.
 9. **"saldo"** = saldo de la billetera (`balance` de la app) + lo que está protegido en pedidos pagados o enviados (suma en Bs).
 10. **"enviado" sin guía:** el bot la pide en el mensaje siguiente. La guía mínima es de 3 caracteres, como en la app.
@@ -38,12 +38,14 @@ Criterio: cuando el SPEC no decide algo, se elige **la opción más simple que r
 
     | Estado nuevo | Al vendedor | Al comprador (si hay número) |
     |---|---|---|
-    | `pagado` | "¡Te pagaron! Despacha y marca enviado" | — |
-    | `enviado` | confirmación del envío | "¿Te llegó?" con el link para "Recibí conforme" |
+    | `pagado` | "tu cliente pagó… el pago está GUARDADO", despacha antes del `ship_deadline` y marca enviado | anti-presión + "si no lo envían hasta el <fecha>, te lo devolvemos automáticamente" |
+    | `enviado` | confirmación del envío, con la hora de liberación | "¿Te llegó?" con "Pagar al vendedor", "Tengo un problema" y "Necesito más tiempo" |
+    | `enviado` + `extended` | "tu cliente pidió más tiempo", con la hora nueva | — (lo pidió él en la web) |
     | `liberado` | "¡Liberado!" con el neto en USD de prueba | — |
-    | `en_disputa` | "Reclamo abierto" con el motivo | — |
-    | `resuelto` | el reparto del árbitro | el reparto del árbitro |
-    | `enviado`, a menos de `REMINDER_HOURS` (24 h) del plazo | — | recordatorio de la liberación automática (una sola vez) |
+    | `en_disputa` | "Reclamo abierto" con el motivo | "hay un reclamo", sube tus pruebas |
+    | `resuelto` | el reparto del revisor | el reparto del revisor |
+    | `devuelto` | "no se marcó el envío a tiempo. Devolvimos Bs … al comprador" | "te devolvimos Bs …" |
+    | `enviado`, a 48 h, 24 h y 2 h del `deadline` | — | recordatorio de la liberación automática (cada hito una vez) |
 
 18. **Un aviso por cambio de estado.** El último estado visto de cada pedido queda en `data/bot-state.json`, así un reinicio no repite avisos. Un pedido nuevo para el bot cuenta como si viniera de "Esperando pago".
 19. **El WhatsApp del comprador nunca sale de la vista pública del pedido.** El bot lo recibe solo por `/api/bot/changes`, que exige la clave del bot (APP-ENDPOINTS.md §4).
@@ -59,7 +61,7 @@ Criterio: cuando el SPEC no decide algo, se elige **la opción más simple que r
 23. **Graph API `v23.0` por defecto** (`WA_GRAPH_VERSION`). Si está `WA_APP_SECRET`, se exige `X-Hub-Signature-256`. El webhook responde 200 al instante y descarta los `wamid` repetidos, porque Meta reintenta.
 24. **Puertos:** simulador 3030, app de mentira 3031, webhook 3040. El e2e usa 3130 y 3131 para no chocar con `npm run sim`.
 25. **El simulador manda todo por Server-Sent Events,** tanto las respuestas como los avisos del poller. Muestra dos chats, vendedor y comprador, para ver los dos lados de los avisos.
-26. **App de mentira (`src/mock/app-mock.ts`):** imita las rutas reales (mismas formas, mismos errores en español y mismo cálculo de comisiones) y las propuestas. Sirve para los tests, para el e2e y para `npm run sim:demo`, que suma botones para simular al comprador, al vendedor firmando y al árbitro.
+26. **App de mentira (`src/mock/app-mock.ts`):** imita las rutas reales de la app v2 (mismas formas, mismos errores en español y mismo cálculo de comisiones y de protección). Sirve para los tests, para el e2e y para `npm run sim:demo`, que suma botones para simular al comprador, al vendedor firmando, al revisor, "Necesito más tiempo" y la devolución por no despachar.
 
 ## Anti-fraude (ronda 2)
 
@@ -75,17 +77,18 @@ Criterio: cuando el SPEC no decide algo, se elige **la opción más simple que r
 32. **Reportes en un archivo JSONL** (`REPORTS_FILE`, por defecto `data/reportes.jsonl`, ignorado por git), no en SQLite: es lo más simple y no suma dependencias. Cada línea guarda fecha, número de quien reporta, link, host, veredicto del verificador y el mensaje (500 caracteres como máximo).
 33. **Anti-presión al comprador, con el texto exacto del pedido.**
     - Al pagar, va en un mensaje propio, con el código y el monto.
-    - Al marcar enviado, va dentro de "¿Te llegó?". Es un mensaje menos y la acción ("Recibí conforme") queda última en el chat.
+    - Al marcar enviado, va dentro de "¿Te llegó?". Es un mensaje menos y la acción ("Pagar al vendedor") queda última en el chat.
     - Si el comprador deja su WhatsApp después de que el bot vio el cambio de estado, le llega igual, una vez por etapa.
-34. **Recordatorios 48 h, 24 h y 2 h antes del `deadline` que reporta la app.**
-    - El pedido dice "el plazo arranca cuando se marca enviado", pero la app cuenta el plazo desde el fondeo (DECISIONES 4 de la app), y ese es el que ejecuta el contrato. El bot no calcula otro plazo: le diría al comprador una hora distinta de la real, y la plata se liberaría antes de lo que él cree.
-    - Lo que arranca al marcar enviado son los recordatorios: un hito que cae antes del envío no se manda.
+34. **Recordatorios 48 h, 24 h y 2 h antes del `deadline` que reporta la app, que ahora cuenta desde el envío.**
+    - Con los contratos v2, la app pasa en `deadline` el `release_at` de `pp_guardian`: el fin de la revisión, contado desde `mark_shipped` (y no desde el pago, como en v1). Es la hora que ejecuta el contrato, así que el bot no calcula otra.
+    - Antes del envío `deadline` es null: no hay hora de liberación ni recordatorios. Lo que corre al pagar es el plazo de despacho (`ship_deadline`), que el bot le dice al vendedor y al comprador.
+    - Un hito que cae antes del envío no se manda (solo pasa con revisiones más cortas que 48 h, como en el modo demo).
+    - Si la hora cambia (por "Necesito más tiempo", ver 44), los recordatorios se vuelven a programar con la hora nueva: los hitos ya mandados que quedan en el futuro se mandan otra vez.
     - Si se juntan varios hitos (el bot estuvo apagado), va solo el más urgente.
-    - Si la app cambia el plazo para que cuente desde el envío, el bot no cambia.
-35. **Modo demo `DEMO_MINUTES=1`:** cada "hora" de los recordatorios dura un minuto. En `sim:demo` también se escala el plazo de la app de mentira: (días + 3) × 24 minutos. El texto dice el tiempo que de verdad falta ("unas 20 h" o "unos 48 min"). El botón "Adelantar al próximo recordatorio" mueve el plazo al siguiente hito.
+35. **Modo demo `DEMO_MINUTES=1`:** cada "hora" de los recordatorios dura un minuto. En `sim:demo` también se escalan los plazos de la app de mentira: despacho = días × 24 minutos y revisión desde el envío = (días + 3) × 24 minutos. El texto dice el tiempo que de verdad falta ("unas 20 h" o "unos 48 min"). El botón "Adelantar al próximo recordatorio" mueve el plazo al siguiente hito.
 36. **"Tengo un problema" y "Necesito más tiempo" llevan a la página del pedido.**
     - Van como link en el texto y como botones de respuesta: WhatsApp no deja poner URLs en los botones de respuesta, y el botón con URL (CTA) admite uno solo. Al tocar un botón, el bot contesta con el link.
-    - La app no tiene prórroga. "Necesito más tiempo" explica que la única forma de frenar la liberación es abrir un reclamo antes de la hora y que nadie alarga el plazo por chat. Un estafador podría ofrecer "más tiempo" a cambio de que confirmes.
+    - "Necesito más tiempo" ahora existe en la app (ver 44). El bot no lo ejecuta: explica que se toca en la página del pedido, una sola vez, y sigue advirtiendo que nadie alarga el plazo por chat. Un estafador podría ofrecer "más tiempo" a cambio de que confirmes.
 37. **Aviso de registro al vendedor.** El registro pasa en la web, así que el bot lo dice:
     - al invitar a registrarse;
     - al vincular el número;
@@ -94,17 +97,38 @@ Criterio: cuando el SPEC no decide algo, se elige **la opción más simple que r
 
 ## Ajustes del capataz (consejo de mercado)
 
-39. **Aplicados:**
-    - Nunca "¡Te pagaron!": "tu cliente pagó Bs X y el pago está GUARDADO, todavía no en tu cuenta… Cobras cuando tu cliente confirme o el <fecha>. Vale tu panel, no una captura."
+39. **Aplicados (ronda 2):**
+    - Nunca "¡Te pagaron!": "tu cliente pagó Bs X y el pago está GUARDADO, todavía no en tu cuenta… Vale tu panel, no una captura."
     - El código del pedido va en todos los avisos.
     - El reclamo también le llega al comprador ("sube tus pruebas").
     - El recordatorio suma "Sí, todo bien".
     - Test de palabras prohibidas: cripto, token, stablecoin, wallet, llave, blockchain, garantía, seguro y custodia. "La llave de tu billetera" pasó a ser "solo tú confirmas, desde tu billetera".
-40. **No aplicados todavía, y por qué:**
-    - **Código "PP-4821":** la app identifica el pedido por los 6 hex del slug. Un número propio lo tiene que generar y guardar la app (APP-ENDPOINTS.md §7). Mientras tanto, el bot usa el código hex en todos los mensajes.
-    - **Botones del recordatorio [Sí, todo bien] [Todavía no llegó] [Tengo un problema]:** el pedido de esta ronda pide "Tengo un problema" y "Necesito más tiempo", y WhatsApp admite 3 botones. Quedó [Sí, todo bien] [Tengo un problema] [Necesito más tiempo]. "Todavía no llegó", escrito, equivale a "Necesito más tiempo".
-    - **"Si no lo envían hasta el <fecha>, te lo devolvemos automáticamente" y el aviso "No enviado (ambos)":** hoy no es cierto. `pp_arbiter.refund_unshipped` exige un reclamo abierto y el plazo vencido, y la app no tiene un estado de devolución. El bot no promete lo que el contrato no hace (APP-ENDPOINTS.md §8).
-    - **"Ya puedes retirar Bs 450 a tu banco o dejarlos en dólares digitales":** en testnet no hay retiro a banco y la moneda es "USD de prueba" (DECISIONES 1). Sigue "Te llegaron X USD de prueba".
-    - **"Despacha antes del <fecha>" y "suban sus pruebas hasta el <fecha>":** la app no tiene fecha límite de despacho ni de pruebas. Se omite la fecha.
-    - **Texto para el cliente ("Te vendo con Pago Protegido: pagas con QR…"):** se mantiene el de `waText("link")` de la app (DECISIONES 8), para que la web y el bot digan lo mismo. Hay que cambiarlo en los dos lados a la vez.
-    - **Quién paga la protección:** necesita el campo en `POST /api/links` (APP-ENDPOINTS.md §6). Preguntarlo antes de crear el link rompe DECISIONES 2 (link sin confirmación, demo de 30 segundos), y el bot no podría aplicarlo. Queda especificado para cuando la app lo acepte.
+40. **Pendientes de la ronda 2: qué se aplicó con la app v2 y qué sigue pendiente.**
+    - **Código "PP-4821": aplicado** (41).
+    - **Botones del recordatorio:** quedan [Sí, todo bien] [Tengo un problema] [Necesito más tiempo]; WhatsApp admite 3. "Todavía no llegó", escrito, equivale a "Necesito más tiempo". Si el comprador ya lo usó, el botón no aparece.
+    - **"Si no lo envían hasta el <fecha>, te lo devolvemos automáticamente" y el aviso de devolución a los dos lados: aplicado** (43). Ahora es cierto: la app abre la disputa como plataforma y `pp_arbiter.refund_unshipped` devuelve la plata sin que el comprador reclame.
+    - **"Despacha antes del <fecha>": aplicado** con `ship_deadline` (43). **"Suban sus pruebas hasta el <fecha>": sigue pendiente**, la app no tiene fecha límite de pruebas.
+    - **Quién paga la protección: aplicado** (42).
+    - **"Ya puedes retirar Bs 450 a tu banco o dejarlos en dólares digitales": pendiente.** En testnet no hay retiro a banco y la moneda es "USD de prueba" (DECISIONES 1). Sigue "Te llegaron X USD de prueba".
+    - **Texto para el cliente ("Te vendo con Pago Protegido: pagas con QR…"): pendiente.** Se mantiene igual al de `waText("link")` de la app (DECISIONES 8), que en v2 cambió a "…de <tienda>… un tercero revisa el reclamo". Para cambiarlo hay que tocar los dos lados a la vez.
+
+## Ronda 3: alineado con la app v2 (contratos v2)
+
+41. **Código PP-#### de la app en todos los mensajes.**
+    - El bot muestra `order.code`, y si un pedido viejo no lo tiene, el sufijo hex del slug.
+    - En `estado` y `enviado` acepta "PP-4821", "pp 4821", "pp4821" o solo "4821", además del hex y el slug. La búsqueda sigue siendo solo dentro de los pedidos del vendedor que escribe (7).
+42. **Quién paga la protección: el link se crea con `proteccion: "comprador"` y se puede regalar con un botón.**
+    - Así se mantiene la demo de 30 segundos (DECISIONES 2): el link sale de una, sin preguntas.
+    - El primer mensaje muestra cuánto paga el cliente y cuánto recibe el vendedor, y trae [La paga mi cliente] [Yo la regalo] [Vender otro].
+    - "Yo la regalo" (botón o texto, con o sin código) llama `PATCH /api/links/:slug { sellerPubkey, proteccion }`. Sin código, cambia el último link de esa tienda que sigue esperando pago. Si el cliente ya empezó a pagar, la app responde 409 y el bot muestra ese error.
+    - El texto que se reenvía al cliente dice el precio del producto, igual que el de la app (40).
+43. **Plazo de despacho y devolución automática (`devuelto`).**
+    - Al pagar, el vendedor recibe "Despacha antes del <ship_deadline>… Si no se marca enviado a tiempo, la plata vuelve sola a tu cliente", y el comprador, "Si no lo envían hasta el <fecha>, te lo devolvemos automáticamente".
+    - Pasado `ship_deadline`, `enviado <código>` ya no manda el link para firmar: el contrato rechazaría el envío (`#26 ShipDeadlinePassed`). Responde que el plazo venció y que la plata vuelve al comprador.
+    - Con el estado `devuelto` se avisa a los dos lados. El monto es el reparto que informa la app o, si no viene, el total menos 0,3% de Trustless Work y el `platform_fee` del pedido, en Bs con el tipo de cambio del pedido.
+44. **"Necesito más tiempo" (`extend`).**
+    - Lo toca el comprador en la página del pedido, una sola vez, antes de la hora de liberación, y suma otra ventana de revisión. El bot nunca lo ejecuta.
+    - Cuando `extended` pasa de 0 a 1, el vendedor recibe "tu cliente pidió más tiempo" con la hora nueva, y los recordatorios se reprograman (34).
+    - El recordatorio ya no ofrece el botón si el comprador lo usó.
+45. **Categoría "Celular" inferida del producto.** Si el producto menciona celular, teléfono, Samsung, Galaxy, iPhone, Xiaomi, Redmi, Poco, Motorola, Huawei, Honor, Realme, Oppo, Tecno o Infinix, el link se crea con `category: "Celular"` y la app pide el IMEI al despachar. Si no, "Otro". La frase del guion del video, "vendo celular Samsung A54 a 1800 bs entrega 3 días", crea el link de una (test en `engine.test.ts` y `bot.test.ts`).
+46. **"Revisor" en lugar de "árbitro" y "Pagar al vendedor" en lugar de "Recibí conforme"**, como la app (DECISIONES 61 de la app). El test de textos suma las palabras prohibidas legales que faltaban: árbitro, arbitraje, garantizado, 100%, plataforma de pagos y pasarela.

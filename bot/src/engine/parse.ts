@@ -191,14 +191,39 @@ export function normPhone(p: string): string {
   return d.length === 8 ? `591${d}` : d;
 }
 
-/** Código corto del pedido: el sufijo hex del slug ("zapatillas-nike-a1b2c3" → "a1b2c3"). */
+/** Sufijo hex del slug ("zapatillas-nike-a1b2c3" → "a1b2c3"): el código de los pedidos viejos, sin `code`. */
 export function shortCode(slug: string): string {
   return slug.split("-").pop() ?? slug;
 }
 
-/** Busca un pedido por slug completo o por su código corto. */
-export function matchOrder<T extends { slug: string }>(orders: T[], code: string): T | undefined {
-  const c = fold(code).replace(/^#/, "").trim();
+/** Código que ven las personas: el "PP-4821" que genera la app o, en pedidos viejos, el sufijo hex del slug. */
+export function orderCode(o: { slug: string; code?: string | null }): string {
+  return o.code || shortCode(o.slug);
+}
+
+/** "pp 4821", "pp4821", "PP-4821" → "PP-4821" dentro de un texto (para los comandos). */
+export function normCodes(text: string): string {
+  return text.replace(/\bpp\s*[-#]?\s*(\d{4,5})\b/gi, "PP-$1");
+}
+
+/**
+ * Busca un pedido por su código PP ("PP-4821", "pp 4821" o solo "4821"), por el slug completo o por el sufijo hex.
+ * Solo entre los pedidos que recibe (los del vendedor que escribe).
+ */
+export function matchOrder<T extends { slug: string; code?: string | null }>(orders: T[], code: string): T | undefined {
+  const c = fold(normCodes(code)).replace(/^#/, "").trim();
   if (!c) return undefined;
+  const pp = /^(?:pp-)?(\d{4,5})$/.exec(c);
+  if (pp) {
+    const found = orders.find((o) => fold(o.code ?? "") === `pp-${pp[1]}`);
+    if (found) return found;
+  }
   return orders.find((o) => o.slug === c) ?? orders.find((o) => shortCode(o.slug) === c) ?? orders.find((o) => o.slug.startsWith(c));
+}
+
+const CELULAR = /\b(celular(es)?|cel|telefono|smartphone|samsung|galaxy|iphone|xiaomi|redmi|poco|motorola|moto\s?[eg]\d*|huawei|honor|realme|oppo|tecno|infinix|vivo\s+y\d+)\b/;
+
+/** Categoría de la app a partir del producto: "Celular" si lo parece (así la app pide el IMEI al despachar), si no "Otro". */
+export function inferCategory(product: string): "Celular" | "Otro" {
+  return CELULAR.test(fold(product)) ? "Celular" : "Otro";
 }

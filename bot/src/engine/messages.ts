@@ -3,7 +3,7 @@
 
 import { STATUS_LABEL, type Order, type OrderStatus, type OrderView, type SellerData } from "../app/types.ts";
 import type { FakeReason } from "./links.ts";
-import { shortCode } from "./parse.ts";
+import { orderCode } from "./parse.ts";
 
 export interface Button {
   /** Lo que el bot recibe como texto cuando la persona toca el botón. */
@@ -29,6 +29,11 @@ export function fmtUsd(units: string | bigint): string {
   return nf2.format(Number(u / 10_000_000n) + Number(u % 10_000_000n) / 1e7);
 }
 
+/** Centavos de Bs a partir de unidades base (7 decimales) y el tipo de cambio del pedido. */
+export function unitsToBsCents(units: string | bigint, fx: number): number {
+  return Math.round((Number(BigInt(units)) * fx) / 100_000);
+}
+
 export function fmtDate(ms: number): string {
   return new Intl.DateTimeFormat("es-BO", {
     weekday: "long",
@@ -47,6 +52,7 @@ const STATUS_ICON: Record<OrderStatus, string> = {
   liberado: "✅",
   en_disputa: "⚠️",
   resuelto: "⚖️",
+  devuelto: "↩️",
 };
 
 export const BTN = {
@@ -55,6 +61,12 @@ export const BTN = {
   saldo: { id: "saldo", title: "💰 Saldo" },
   otro: { id: "vender", title: "🛍️ Vender otro" },
 } satisfies Record<string, Button>;
+
+/** Botones para elegir quién paga la protección de un link recién creado (llevan el slug). */
+export const protButtons = (slug: string): Button[] => [
+  { id: `cliente ${slug}`, title: "La paga mi cliente" },
+  { id: `regalo ${slug}`, title: "Yo la regalo" },
+];
 
 export const linkUrl = (appUrl: string, slug: string) => `${appUrl}/p/${slug}`;
 export const shipUrl = (appUrl: string, slug: string, evidence: string) =>
@@ -81,6 +93,7 @@ export const STATUS_PUBLIC: Record<OrderStatus, string> = {
   liberado: "Liberado",
   en_disputa: "En disputa",
   resuelto: "Resuelto",
+  devuelto: "Devuelto al comprador",
 };
 
 const FAKE_WHY: Record<FakeReason, (host: string) => string> = {
@@ -104,8 +117,8 @@ const HOW_TO = [
   "Escríbeme nomás:",
   "• *vendo zapatillas nike 40 a 450 bs entrega 3 días*",
   "• *mis ventas*",
-  "• *estado <código>*",
-  "• *enviado <código> <guía>*",
+  "• *estado PP-4821*",
+  "• *enviado PP-4821 <guía>*",
   "• *saldo*",
 ].join("\n");
 
@@ -166,26 +179,41 @@ export const msg = {
     return { ...msg.askDays(), text: "Los días de entrega van de 1 a 15. ¿En cuántos días entregas?" };
   },
 
-  linkCreated(appUrl: string, o: Order): OutMsg[] {
+  linkCreated(appUrl: string, o: Order, store?: string): OutMsg[] {
     const url = linkUrl(appUrl, o.slug);
     const days = o.delivery_days === 1 ? "1 día" : `${o.delivery_days} días`;
+    const prot = protectionLine(o);
+    const head = prot
+      ? `*${o.product}* · ${fmtBs(o.price_bs_cents)} · entrega en ${days}\n👉 ${url}\n\n${prot}`
+      : `*${o.product}* · ${fmtBs(o.price_bs_cents)} (≈ ${fmtUsd(o.amount_units)} USD de prueba) · entrega en ${days}\n👉 ${url}`;
     return [
       {
-        text: `¡Listo! ✅ Tu link de pago protegido:\n*${o.product}* · ${fmtBs(o.price_bs_cents)} (≈ ${fmtUsd(o.amount_units)} USD de prueba) · entrega en ${days}\n👉 ${url}\n\nCódigo: *${shortCode(o.slug)}*. Es para un solo cliente. Te aviso apenas pague.\n\n⚠️ ${QR_WARNING}`,
-        buttons: [BTN.otro, BTN.ventas],
+        text: `¡Listo! ✅ Tu link de pago protegido:\n${head}\n\nCódigo: *${orderCode(o)}*. Es para un solo cliente. Te aviso apenas pague.\n\n⚠️ ${QR_WARNING}`,
+        buttons: o.proteccion ? [...protButtons(o.slug), BTN.otro] : [BTN.otro, BTN.ventas],
       },
       { text: "Reenvíale esto a tu cliente 👇" },
+      // El mismo texto que waText("link") de la app (DECISIONES 8): la web y el bot dicen lo mismo.
       {
-        text: `¡Hola! 👋 Te paso el link de pago protegido para *${o.product}* (${fmtBs(o.price_bs_cents)}).\n\nTu plata queda guardada en un contrato y solo me llega cuando confirmas que recibiste. Si hay un problema, decide un árbitro.\n\n👉 ${url}`,
+        text: `¡Hola! 👋 Te paso el link de pago protegido de ${store ?? "mi tienda"} para *${o.product}* (${fmtBs(o.price_bs_cents)}).\n\nTu plata queda guardada en un contrato y solo me llega cuando confirmas que recibiste. Si hay un problema, un tercero revisa el reclamo.\n\n👉 ${url}`,
       },
     ];
+  },
+
+  /** Después de [La paga mi cliente] o [Yo la regalo] (PATCH /api/links/:slug). */
+  proteccionSet(o: Order): OutMsg {
+    return { text: `🛡️ Listo, *${o.product}* (${orderCode(o)}):\n${protectionLine(o) ?? "Quién paga la protección quedó guardado."}`, buttons: [BTN.otro, BTN.ventas] };
+  },
+
+  /** "yo la regalo" sin pedido elegido y sin links esperando pago. */
+  proteccionNoOrder(): OutMsg {
+    return { text: "No tienes links esperando pago 🤔. Quién paga la protección se elige con el link recién creado, antes de que tu cliente pague.", buttons: [BTN.vender] };
   },
 
   orders(appUrl: string, d: SellerData, max = 5): OutMsg {
     if (!d.orders.length) return { text: "Todavía no tienes ventas. Escribe *vender* para crear tu primer link 🛍️", buttons: [BTN.vender] };
     const list = [...d.orders].sort((a, b) => b.created_at - a.created_at).slice(0, max);
     const lines = list.map(
-      (o, i) => `${i + 1}. ${STATUS_ICON[o.status]} *${o.product}* · ${fmtBs(o.price_bs_cents)} · ${STATUS_LABEL[o.status]} · código *${shortCode(o.slug)}*`,
+      (o, i) => `${i + 1}. ${STATUS_ICON[o.status]} *${o.product}* · ${fmtBs(o.price_bs_cents)} · ${STATUS_LABEL[o.status]} · código *${orderCode(o)}*`,
     );
     const more = d.orders.length > max ? `\n…y ${d.orders.length - max} más en tu panel: ${appUrl}/panel` : "";
     return {
@@ -200,7 +228,7 @@ export const msg = {
 
   askCode(cmd: "estado" | "enviado"): OutMsg {
     return {
-      text: cmd === "estado" ? "¿De qué pedido? Escribe *estado <código>*. Los códigos están en *mis ventas*." : "¿Qué pedido enviaste? Escribe *enviado <código> <guía>*. Ej.: *enviado a1b2c3 OLV-12345*",
+      text: cmd === "estado" ? "¿De qué pedido? Escribe *estado <código>*. Ej.: *estado PP-4821*. Los códigos están en *mis ventas*." : "¿Qué pedido enviaste? Escribe *enviado <código> <guía>*. Ej.: *enviado PP-4821 OLV-12345*",
       buttons: [BTN.ventas],
     };
   },
@@ -208,7 +236,7 @@ export const msg = {
   status(appUrl: string, v: OrderView): OutMsg {
     const o = v.order;
     const url = linkUrl(appUrl, o.slug);
-    const code = shortCode(o.slug);
+    const code = orderCode(o);
     const head = `${STATUS_ICON[o.status]} *${o.product}* (${code})\nEstado: *${STATUS_LABEL[o.status]}* · ${fmtBs(o.price_bs_cents)}`;
     let next = "";
     switch (o.status) {
@@ -216,22 +244,25 @@ export const msg = {
         next = `Tu cliente todavía no pagó. Su link: ${url}`;
         break;
       case "pagado":
-        next = `La plata está protegida en el contrato. Despacha y luego escríbeme:\n*enviado ${code} <código de encomienda>*`;
+        next = `La plata está protegida en el contrato. Despacha${o.ship_deadline ? ` antes del ${fmtDate(o.ship_deadline)}` : ""} y luego escríbeme:\n*enviado ${code} <código de encomienda>*${o.ship_deadline ? "\nSi no se marca enviado a tiempo, la plata vuelve sola a tu cliente." : ""}`;
         break;
       case "enviado":
-        next = `Enviado con: ${o.shipped_evidence ?? "-"}. Se libera cuando tu cliente confirme${o.deadline ? ` o, si no dice nada, el ${fmtDate(o.deadline)}` : ""}.`;
+        next = `Enviado con: ${o.shipped_evidence ?? "-"}. Se libera cuando tu cliente confirme${o.deadline ? ` o, si no dice nada, el ${fmtDate(o.deadline)}` : ""}.${o.extended ? " Tu cliente ya pidió más tiempo una vez." : ""}`;
         break;
       case "liberado":
         next = v.breakdown ? `Recibiste *${fmtUsd(v.breakdown.seller)} USD de prueba* en tu billetera 🙌` : "El pago ya se liberó a tu billetera 🙌";
         break;
       case "en_disputa":
-        next = `Hay un reclamo${o.dispute_reason ? `: “${o.dispute_reason}”` : ""}. La plata queda congelada hasta que decida el árbitro. Cuenta tu versión en ${appUrl}/panel`;
+        next = `Hay un reclamo${o.dispute_reason ? `: “${o.dispute_reason}”` : ""}. La plata queda congelada hasta que decida el revisor. Cuenta tu versión en ${appUrl}/panel`;
         break;
       case "resuelto": {
         const b = (o.buyer_bps ?? 0) / 100;
-        next = `El árbitro repartió ${b}% para el comprador y ${100 - b}% para ti${v.split ? ` (*${fmtUsd(v.split.seller)} USD de prueba*)` : ""}.`;
+        next = `El revisor repartió ${b}% para el comprador y ${100 - b}% para ti${v.split ? ` (*${fmtUsd(v.split.seller)} USD de prueba*)` : ""}.`;
         break;
       }
+      case "devuelto":
+        next = `No se marcó el envío a tiempo${o.ship_deadline ? ` (hasta el ${fmtDate(o.ship_deadline)})` : ""}: el contrato le devolvió la plata a tu cliente.`;
+        break;
     }
     return { text: `${head}\n${next}` };
   },
@@ -244,13 +275,19 @@ export const msg = {
     const why: Partial<Record<OrderStatus, string>> = {
       esperando_pago: "todavía no te pagaron. Espera mi aviso de pago antes de despachar",
       enviado: "ya figura como enviado",
+      devuelto: "venció el plazo de despacho y la plata ya volvió a tu cliente",
     };
     return { text: `No se puede marcar *${o.product}* como enviado: ${why[o.status] ?? `está en “${STATUS_LABEL[o.status]}”`}.` };
   },
 
+  /** Pagado, pero ya pasó `ship_deadline`: el contrato no deja marcar enviado y la plata vuelve al comprador. */
+  shipLate(o: Order): OutMsg {
+    return { text: `⌛ No se puede marcar *${o.product}* (${orderCode(o)}) como enviado: el plazo para despachar venció el ${fmtDate(o.ship_deadline ?? 0)}. La plata vuelve sola a tu cliente.` };
+  },
+
   shipLink(appUrl: string, o: Order, evidence: string): OutMsg {
     return {
-      text: `📦 Para marcar *${o.product}* como enviado con *${evidence}*, confírmalo con tu billetera aquí:\n👉 ${shipUrl(appUrl, o.slug, evidence)}\n\n🔐 Yo no puedo firmar por ti: solo tú confirmas, desde tu billetera.`,
+      text: `📦 Para marcar *${o.product}* (${orderCode(o)}) como enviado con *${evidence}*, confírmalo con tu billetera aquí:\n👉 ${shipUrl(appUrl, o.slug, evidence)}\n\n🔐 Yo no puedo firmar por ti: solo tú confirmas, desde tu billetera.`,
     };
   },
 
@@ -285,7 +322,7 @@ export const msg = {
       o.status === "esperando_pago"
         ? "Puedes pagar en ese link: tu plata queda bloqueada hasta que confirmes que recibiste."
         : "Este pedido ya fue pagado: si te piden pagarlo otra vez, es estafa.";
-    return { text: `✅ Auténtico: ${v.seller.store_name}, ${o.product}, ${fmtBs(o.price_bs_cents)}, pedido ${shortCode(o.slug)}. Estado: ${STATUS_PUBLIC[o.status]}\n\n${after}` };
+    return { text: `✅ Auténtico: ${v.seller.store_name}, ${o.product}, ${fmtBs(o.price_bs_cents)}, pedido ${orderCode(o)}. Estado: ${STATUS_PUBLIC[o.status]}\n\n${after}` };
   },
 
   verifyFake(link: string, host: string, reason: FakeReason, appUrl: string): OutMsg {
@@ -314,13 +351,34 @@ export const msg = {
   buyerHelp(action: "problema" | "tiempo" | "ok", url: string | null): OutMsg {
     const where = url ? `\n👉 ${url}` : "\nBusca el link de tu pedido en el chat con el vendedor. Si dudas de un link, reenvíamelo y lo verifico.";
     const text = {
-      problema: "⚠️ Abre tu pedido y toca *Tengo un problema*: el pago queda congelado y decide un árbitro.",
-      tiempo: "⏳ Si todavía no te llegó, abre tu pedido y toca *Tengo un problema* antes de la hora límite: así el pago no se libera. Nadie puede alargar el plazo por chat.",
-      ok: "✅ ¡Qué bueno! Abre tu pedido y toca *Recibí conforme* para liberar el pago al vendedor.",
+      problema: "⚠️ Abre tu pedido y toca *Tengo un problema*: el pago queda congelado y decide un revisor.",
+      tiempo:
+        "⏳ Si todavía no te llegó, abre tu pedido y toca *Necesito más tiempo*: suma otro plazo de revisión, una sola vez. Si hay un problema, toca *Tengo un problema* antes de la hora límite y el pago no se libera.\nNadie puede alargar el plazo por chat: si alguien te ofrece más tiempo a cambio de que confirmes, es estafa.",
+      ok: "✅ ¡Qué bueno! Cuando lo tengas en tus manos y lo hayas revisado, abre tu pedido y toca *Pagar al vendedor*.",
     }[action];
     return { text: text + where };
   },
 };
+
+/** Quién paga la protección y cuánto paga el cliente, si la app lo informa (APP-ENDPOINTS.md §6). */
+function protectionLine(o: Order): string | null {
+  if (!o.proteccion) return null;
+  const prot = o.proteccion_bs_cents ?? 0;
+  const usd = `≈ ${fmtUsd(o.amount_units)} USD de prueba`;
+  if (o.proteccion === "comprador") {
+    return `🛡️ Protección: la paga tu cliente${prot ? ` (${fmtBs(prot)})` : ""}. Paga ${fmtBs(o.price_bs_cents + prot)} (${usd}) y tú recibes ${fmtBs(o.price_bs_cents)}.`;
+  }
+  return `🛡️ Protección: la regalas tú. Tu cliente paga ${fmtBs(o.price_bs_cents)} (${usd}) y al cobrar se descuenta el 2,3%.`;
+}
+
+/** Lo que vuelve al comprador en una devolución: el reparto de la app o el monto menos comisiones (TW 0,3% y plataforma). */
+function refundBsCents(v: OrderView): number {
+  const o = v.order;
+  if (v.split) return unitsToBsCents(v.split.buyer, o.fx);
+  const amount = BigInt(o.amount_units);
+  const net = amount - (amount * 30n) / 10000n - (amount * BigInt(v.platformFeeBps ?? 200)) / 10000n;
+  return unitsToBsCents(net, o.fx);
+}
 
 // ---------- Avisos del poller ----------
 
@@ -333,21 +391,28 @@ export const notice = {
   /** Al vendedor cuando el comprador paga. */
   paid({ appUrl, view }: NoticeData): OutMsg {
     const o = view.order;
+    const code = orderCode(o);
+    const by = o.ship_deadline ? ` antes del ${fmtDate(o.ship_deadline)}` : "";
+    const refund = o.ship_deadline ? " Si no se marca enviado a tiempo, la plata vuelve sola a tu cliente." : "";
     return {
-      text: `💸 ${shortCode(o.slug)}: tu cliente pagó ${fmtBs(o.price_bs_cents)} por *${o.product}* y el pago está GUARDADO, todavía no en tu cuenta.\n\nDespacha y marca enviado: escríbeme *enviado ${shortCode(o.slug)} <código de encomienda>*\nCobras cuando tu cliente confirme${o.deadline ? ` o, si no dice nada, el ${fmtDate(o.deadline)}` : ""}. Vale tu panel, no una captura.\nSeguimiento: ${linkUrl(appUrl, o.slug)}`,
+      text: `💸 ${code}: tu cliente pagó ${fmtBs(o.price_bs_cents)} por *${o.product}* y el pago está GUARDADO, todavía no en tu cuenta.\n\nDespacha${by} y marca enviado: escríbeme *enviado ${code} <código de encomienda>*.${refund}\nCobras cuando tu cliente confirme o, si no dice nada, al terminar su tiempo de revisión, que cuenta desde el envío. Vale tu panel, no una captura.\nSeguimiento: ${linkUrl(appUrl, o.slug)}`,
     };
   },
 
   /** Al vendedor cuando su envío quedó registrado on-chain. */
   shippedSeller({ view }: NoticeData): OutMsg {
-    return { text: `📦 ${shortCode(view.order.slug)}: listo, *${view.order.product}* figura como enviado. Te aviso cuando se libere tu plata.` };
+    const o = view.order;
+    return {
+      text: `📦 ${orderCode(o)}: listo, *${o.product}* figura como enviado.${o.deadline ? ` Si tu cliente no dice nada, se te paga el ${fmtDate(o.deadline)}.` : ""} Te aviso cuando se libere tu plata.`,
+    };
   },
 
   /** Al comprador (si tenemos su número) cuando el vendedor despacha. */
   arrived({ appUrl, view }: NoticeData): OutMsg {
     const o = view.order;
+    const when = o.deadline ? `\nSi no haces nada, el pago se libera solo al vendedor el ${fmtDate(o.deadline)}.` : "";
     return {
-      text: `📦 ${shortCode(o.slug)}: ¡Hola! ${view.seller.store_name} ya envió tu *${o.product}*${o.shipped_evidence ? ` (guía: ${o.shipped_evidence})` : ""}.\n\n¿Te llegó? Revísalo antes de confirmar. Si está todo bien, toca *Recibí conforme* para liberar el pago. Si hay un problema, toca *Tengo un problema*:\n👉 ${linkUrl(appUrl, o.slug)}\n\n🛡️ ${ANTI_PRESSURE}`,
+      text: `📦 ${orderCode(o)}: ¡Hola! ${view.seller.store_name} ya envió tu *${o.product}*${o.shipped_evidence ? ` (guía: ${o.shipped_evidence})` : ""}.\n\n¿Te llegó? Revísalo antes de pagar. Si está todo bien, toca *Pagar al vendedor*. Si hay un problema, toca *Tengo un problema*. ¿Todavía no llega? Toca *Necesito más tiempo* (una sola vez).${when}\n👉 ${linkUrl(appUrl, o.slug)}\n\n🛡️ ${ANTI_PRESSURE}`,
     };
   },
 
@@ -355,7 +420,7 @@ export const notice = {
   released({ view }: NoticeData): OutMsg {
     const o = view.order;
     const amount = view.breakdown ? ` Te llegaron *${fmtUsd(view.breakdown.seller)} USD de prueba*` : " La plata ya está en tu billetera";
-    return { text: `✅ ${shortCode(o.slug)}: ¡Liberado! Tu cliente recibió *${o.product}*.${amount}. ¡Gracias por vender protegido! 🙌`, buttons: [BTN.otro, BTN.saldo] };
+    return { text: `✅ ${orderCode(o)}: ¡Liberado! Tu cliente recibió *${o.product}*.${amount}. ¡Gracias por vender protegido! 🙌`, buttons: [BTN.otro, BTN.saldo] };
   },
 
   /** Al vendedor cuando se abre un reclamo. */
@@ -363,7 +428,7 @@ export const notice = {
     const o = view.order;
     const who = o.dispute_by === "vendedor" ? "Abriste un reclamo" : "Tu cliente abrió un reclamo";
     return {
-      text: `⚠️ Reclamo abierto en *${o.product}* (${shortCode(o.slug)}). ${who}${o.dispute_reason ? `: “${o.dispute_reason}”` : ""}.\nLa plata queda congelada hasta que decida el árbitro. Cuenta tu versión aquí: ${appUrl}/panel`,
+      text: `⚠️ Reclamo abierto en *${o.product}* (${orderCode(o)}). ${who}${o.dispute_reason ? `: “${o.dispute_reason}”` : ""}.\nLa plata queda congelada hasta que decida el revisor. Cuenta tu versión aquí: ${appUrl}/panel`,
     };
   },
 
@@ -371,38 +436,58 @@ export const notice = {
   disputeBuyer({ appUrl, view }: NoticeData): OutMsg {
     const o = view.order;
     return {
-      text: `⚠️ ${shortCode(o.slug)}: hay un reclamo en *${o.product}*${o.dispute_reason ? ` (“${o.dispute_reason}”)` : ""} y el pago queda congelado hasta que decida el árbitro. Sube tus pruebas aquí:\n👉 ${linkUrl(appUrl, o.slug)}`,
+      text: `⚠️ ${orderCode(o)}: hay un reclamo en *${o.product}*${o.dispute_reason ? ` (“${o.dispute_reason}”)` : ""} y el pago queda congelado hasta que decida el revisor. Sube tus pruebas aquí:\n👉 ${linkUrl(appUrl, o.slug)}`,
     };
   },
 
   /** Al comprador (si dejó su WhatsApp) al pagar. Al marcar enviado, el mismo texto va dentro de "¿Te llegó?". */
   antiPressure({ view }: NoticeData): OutMsg {
     const o = view.order;
-    return { text: `🛡️ ${shortCode(o.slug)}: tu pago de ${fmtBs(o.price_bs_cents)} por *${o.product}* está guardado.\n\n${ANTI_PRESSURE}` };
+    const refund = o.status === "pagado" && o.ship_deadline ? `\n\nSi no lo envían hasta el ${fmtDate(o.ship_deadline)}, te lo devolvemos automáticamente.` : "";
+    return { text: `🛡️ ${orderCode(o)}: tu pago de ${fmtBs(o.price_bs_cents)} por *${o.product}* está guardado.${refund}\n\n${ANTI_PRESSURE}` };
   },
 
-  /** Al vendedor (y al comprador si tenemos su número) cuando el árbitro resuelve. */
+  /** Al vendedor (y al comprador si tenemos su número) cuando el revisor resuelve. */
   resolved({ appUrl, view }: NoticeData, to: "vendedor" | "comprador"): OutMsg {
     const o = view.order;
     const b = (o.buyer_bps ?? 0) / 100;
     const mine = to === "vendedor" ? `${100 - b}% para ti y ${b}% para el comprador` : `${b}% para ti y ${100 - b}% para el vendedor`;
-    return { text: `⚖️ ${shortCode(o.slug)}: el árbitro resolvió el reclamo de *${o.product}*: ${mine}. El contrato ya hizo los pagos.\n${linkUrl(appUrl, o.slug)}` };
+    return { text: `⚖️ ${orderCode(o)}: el revisor resolvió el reclamo de *${o.product}*: ${mine}. El contrato ya hizo los pagos.\n${linkUrl(appUrl, o.slug)}` };
+  },
+
+  /** A los dos cuando no se marcó el envío a tiempo y el contrato devolvió la plata (estado `devuelto`). */
+  refunded({ appUrl, view }: NoticeData, to: "vendedor" | "comprador"): OutMsg {
+    const o = view.order;
+    const bs = fmtBs(refundBsCents(view));
+    if (to === "vendedor") {
+      return { text: `↩️ ${orderCode(o)}: no se marcó el envío a tiempo. Devolvimos ${bs} al comprador. El pedido de *${o.product}* quedó cerrado.`, buttons: [BTN.otro, BTN.ventas] };
+    }
+    return { text: `↩️ ${orderCode(o)}: el vendedor no marcó el envío de *${o.product}* a tiempo. Te devolvimos ${bs} (tu pago menos las comisiones).\n${linkUrl(appUrl, o.slug)}` };
+  },
+
+  /** Al vendedor cuando el comprador usa "Necesito más tiempo" (una sola vez). */
+  extended({ view }: NoticeData): OutMsg {
+    const o = view.order;
+    return {
+      text: `⏳ ${orderCode(o)}: tu cliente pidió más tiempo para revisar *${o.product}*. Se te paga cuando confirme${o.deadline ? ` o, si no dice nada, el ${fmtDate(o.deadline)}` : ""}. Solo se puede pedir una vez.`,
+    };
   },
 
   /**
-   * Al comprador antes de la liberación automática (48 h, 24 h y 2 h). Ofrece "Tengo un problema" y
-   * "Necesito más tiempo", con el link a la página del pedido en el texto y como botones.
+   * Al comprador antes de la liberación automática (48 h, 24 h y 2 h antes del `deadline`, que cuenta desde el envío).
+   * Ofrece "Tengo un problema" y "Necesito más tiempo" (si todavía no lo usó), con el link a la página del pedido.
    */
   reminder({ appUrl, view }: NoticeData, now: number): OutMsg {
     const o = view.order;
     const url = linkUrl(appUrl, o.slug);
     const deadline = o.deadline ?? now;
+    const more = o.extended ? "⏳ Ya usaste *Necesito más tiempo* (es una sola vez)." : `⏳ *Necesito más tiempo* (una sola vez) → ${url}`;
     return {
-      text: `⏰ ${shortCode(o.slug)}: el pago de *${o.product}* se libera solo al vendedor en ${timeLeft(deadline - now)} (${fmtDate(deadline)}). ¿Ya lo tienes?\n\n⚠️ *Tengo un problema* → ${url}\n⏳ *Necesito más tiempo* → ${url}\n\nSi todo llegó bien, no tienes que hacer nada.`,
+      text: `⏰ ${orderCode(o)}: el pago de *${o.product}* se libera solo al vendedor en ${timeLeft(deadline - now)} (${fmtDate(deadline)}). ¿Ya lo tienes?\n\n⚠️ *Tengo un problema* → ${url}\n${more}\n\nSi todo llegó bien, no tienes que hacer nada.`,
       buttons: [
         { id: `todo bien ${o.slug}`, title: "Sí, todo bien" },
         { id: `problema ${o.slug}`, title: "Tengo un problema" },
-        { id: `tiempo ${o.slug}`, title: "Necesito más tiempo" },
+        ...(o.extended ? [] : [{ id: `tiempo ${o.slug}`, title: "Necesito más tiempo" }]),
       ],
     };
   },

@@ -37,6 +37,11 @@ describe("intenciones", () => {
     expect(detectIntent("Estado del pedido a1b2c3")).toEqual({ kind: "status", code: "a1b2c3" });
     expect(detectIntent("enviado a1b2c3 OLV-12345 Trans Copacabana")).toEqual({ kind: "shipped", code: "a1b2c3", evidence: "OLV-12345 Trans Copacabana" });
     expect(detectIntent("ya envié a1b2c3 BOA-778")).toEqual({ kind: "shipped", code: "a1b2c3", evidence: "BOA-778" });
+    // Código PP que genera la app, escrito de varias formas.
+    expect(detectIntent("estado PP-4821")).toEqual({ kind: "status", code: "pp-4821" });
+    expect(detectIntent("estado pp 4821")).toEqual({ kind: "status", code: "pp-4821" });
+    expect(detectIntent("enviado pp4821 OLV-12345")).toEqual({ kind: "shipped", code: "PP-4821", evidence: "OLV-12345" });
+    expect(detectIntent("enviado 4821 OLV-12345")).toEqual({ kind: "shipped", code: "4821", evidence: "OLV-12345" });
     expect(detectIntent("enviado")).toEqual({ kind: "shipped", code: undefined, evidence: undefined });
   });
 });
@@ -44,7 +49,7 @@ describe("intenciones", () => {
 describe("venta en un solo mensaje", () => {
   it("con todo, devuelve el comando para crear el link y deja la sesión libre", () => {
     const r = talk(["vendo zapatillas nike 40 a 450 bs entrega 3 días"]);
-    expect(r.command).toEqual({ kind: "createLink", product: "Zapatillas nike 40", priceBs: 450, days: 3 });
+    expect(r.command).toEqual({ kind: "createLink", product: "Zapatillas nike 40", priceBs: 450, days: 3, category: "Otro" });
     expect(r.session.step).toBe("idle");
     expect(r.replies).toEqual([]);
   });
@@ -62,12 +67,12 @@ describe("preguntas guiadas", () => {
     expect(r.session.step).toBe("ask_days");
     expect(r.replies[0].buttons?.map((b) => b.id)).toEqual(["1 día", "3 días", "7 días"]);
     r = step(r.session, "3 días", T + 3);
-    expect(r.command).toEqual({ kind: "createLink", product: "Chompa de alpaca", priceBs: 1200, days: 3 });
+    expect(r.command).toEqual({ kind: "createLink", product: "Chompa de alpaca", priceBs: 1200, days: 3, category: "Otro" });
   });
 
   it("falta solo el precio", () => {
     const r = talk(["vendo polera entrega 2 días", "120"]);
-    expect(r.command).toEqual({ kind: "createLink", product: "Polera", priceBs: 120, days: 2 });
+    expect(r.command).toEqual({ kind: "createLink", product: "Polera", priceBs: 120, days: 2, category: "Otro" });
   });
 
   it("falta solo los días: 'vender zapatillas 450' → botón '3 días'", () => {
@@ -103,5 +108,22 @@ describe("preguntas guiadas", () => {
   it("'enviado <código>' sin guía pide el código de encomienda", () => {
     const r = talk(["enviado a1b2c3"]);
     expect(r.command).toEqual({ kind: "shipped", code: "a1b2c3", evidence: undefined });
+  });
+});
+
+describe("guion del video y quién paga la protección", () => {
+  it('"vendo celular Samsung A54 a 1800 bs entrega 3 días" crea el link de una, como Celular', () => {
+    const r = step(undefined, "vendo celular Samsung A54 a 1800 bs entrega 3 días", 0);
+    expect(r.replies).toEqual([]);
+    expect(r.command).toEqual({ kind: "createLink", product: "Celular Samsung A54", priceBs: 1800, days: 3, category: "Celular" });
+  });
+
+  it("botones [La paga mi cliente] / [Yo la regalo] y el texto escrito", () => {
+    expect(detectIntent("regalo celular-samsung-a54-a1b2c3")).toEqual({ kind: "proteccion", who: "vendedor", code: "celular-samsung-a54-a1b2c3" });
+    expect(detectIntent("cliente celular-samsung-a54-a1b2c3")).toEqual({ kind: "proteccion", who: "comprador", code: "celular-samsung-a54-a1b2c3" });
+    expect(detectIntent("Yo la regalo")).toEqual({ kind: "proteccion", who: "vendedor", code: undefined });
+    expect(detectIntent("la paga mi cliente")).toEqual({ kind: "proteccion", who: "comprador", code: undefined });
+    expect(detectIntent("yo la regalo PP-4821")).toEqual({ kind: "proteccion", who: "vendedor", code: "pp-4821" });
+    expect(step(undefined, "Yo la regalo", 0).command).toEqual({ kind: "proteccion", who: "vendedor", code: undefined });
   });
 });

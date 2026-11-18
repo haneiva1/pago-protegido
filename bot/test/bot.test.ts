@@ -29,7 +29,9 @@ describe("bot contra la API (mock)", () => {
     const order = [...app.orders.values()][0];
     expect(order).toMatchObject({ product: "Zapatillas nike 40", price_bs_cents: 45000, delivery_days: 3, status: "esperando_pago" });
     expect(out).toContain(`https://pp.test/p/${order.slug}`);
-    expect(out).toContain("≈ 38,46 USD de prueba");
+    expect(out).toContain(`Código: *${order.code}*`);
+    expect(order).toMatchObject({ proteccion: "comprador", category: "Otro", proteccion_bs_cents: 675 });
+    expect(out).toContain("Paga Bs 456,75 (≈ 39,04 USD de prueba) y tú recibes Bs 450,00.");
     expect(app.calls.some((c) => c.startsWith("GET /api/bot/sellers?phone=59171234567"))).toBe(true);
   });
 
@@ -37,9 +39,12 @@ describe("bot contra la API (mock)", () => {
     const o = app.createLink({ sellerPubkey: DEMO_SELLER.pubkey, product: "Polera", priceBs: 120, deliveryDays: 2 });
     app.advance(o.slug, "pagar");
     expect(await texts(SELLER, "mis ventas")).toMatch(/💸 \*Polera\* · Bs 120,00 · Pagado \(despacha\)/);
-    expect(await texts(SELLER, `estado ${o.slug.slice(-6)}`)).toMatch(/Despacha y luego escríbeme/);
+    expect(await texts(SELLER, `estado ${o.slug.slice(-6)}`)).toMatch(/Despacha antes del .* y luego escríbeme/);
+    expect(await texts(SELLER, `estado ${o.code}`)).toMatch(/Despacha antes del/);
+    expect(await texts(SELLER, `estado ${o.code!.replace("PP-", "pp ")}`)).toMatch(/Despacha antes del/);
     app.advance(o.slug, "confirmar");
-    expect(await texts(SELLER, "saldo")).toMatch(/Tu saldo: \*10,02 USD de prueba\*/);
+    // La protección la pagó el cliente: el vendedor recibe al menos el precio (Bs 120 = 10,26 USD de prueba).
+    expect(await texts(SELLER, "saldo")).toMatch(/Tu saldo: \*10,26 USD de prueba\*/);
   });
 
   it("enviado: no firma nada, manda el link para confirmar con la billetera", async () => {
@@ -52,6 +57,31 @@ describe("bot contra la API (mock)", () => {
     expect(out).toContain(`https://pp.test/panel?enviar=${o.slug}&evidencia=OLV-12345`);
     expect(out).toMatch(/no puedo firmar por ti/);
     expect(app.orders.get(o.slug)!.status).toBe("pagado"); // el bot no cambió nada
+  });
+
+  it("guion del video: celular → link de una, categoría Celular y [Yo la regalo] cambia el link (PATCH)", async () => {
+    const created = await bot.handle(SELLER, "vendo celular Samsung A54 a 1800 bs entrega 3 días");
+    const order = [...app.orders.values()][0];
+    expect(order).toMatchObject({ product: "Celular Samsung A54", price_bs_cents: 180000, delivery_days: 3, category: "Celular", proteccion: "comprador" });
+    expect(created.map((m) => m.text).join("\n")).toContain(`https://pp.test/p/${order.slug}`);
+    const first = created.find((m) => m.text.includes("Tu link de pago protegido"))!;
+    expect(first.text).toContain(`Código: *${order.code}*`);
+    expect(first.buttons?.map((b) => b.title)).toEqual(["La paga mi cliente", "Yo la regalo", "🛍️ Vender otro"]);
+    const out = await texts(SELLER, `regalo ${order.slug}`);
+    expect(out).toMatch(/la regalas tú/);
+    expect(app.orders.get(order.slug)).toMatchObject({ proteccion: "vendedor", proteccion_bs_cents: 0 });
+    expect(app.calls).toContain(`PATCH /api/links/${order.slug}`);
+    expect(await texts(SELLER, "la paga mi cliente")).toMatch(/la paga tu cliente/); // sin código: el último link sin pagar
+    app.advance(order.slug, "pagar");
+    expect(await texts(SELLER, `regalo ${order.slug}`)).toMatch(/no pude hacerlo 😕: Ya no se puede cambiar/);
+  });
+
+  it("enviado con el código PP; vencido el plazo de despacho, ya no manda el link", async () => {
+    const o = app.createLink({ sellerPubkey: DEMO_SELLER.pubkey, product: "Polera", priceBs: 120, deliveryDays: 2 });
+    app.advance(o.slug, "pagar");
+    expect(await texts(SELLER, `enviado ${o.code} OLV-1`)).toContain(`/panel?enviar=${o.slug}&evidencia=OLV-1`);
+    const late = new Bot({ client: new HttpAppClient(app.url, "secreto"), appUrl: "https://pp.test", now: () => app.orders.get(o.slug)!.ship_deadline! + 1 });
+    expect((await late.handle(SELLER, `enviado ${o.code} OLV-1`)).map((m) => m.text).join("\n")).toMatch(/el plazo para despachar venció .* La plata vuelve sola a tu cliente/);
   });
 
   it("no muestra pedidos de otra tienda", async () => {

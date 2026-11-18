@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchOrder, normPhone, parseAmount, parseSell, shortCode } from "../src/engine/parse.ts";
+import { inferCategory, matchOrder, normCodes, normPhone, orderCode, parseAmount, parseSell, shortCode } from "../src/engine/parse.ts";
 
 describe("precios en bolivianos", () => {
   it.each([
@@ -73,5 +73,30 @@ describe("teléfonos y códigos", () => {
     expect(matchOrder(list, "A1B2C3")?.slug).toBe("zapatillas-nike-a1b2c3");
     expect(matchOrder(list, "polera-ff00aa")?.slug).toBe("polera-ff00aa");
     expect(matchOrder(list, "zzzzzz")).toBeUndefined();
+  });
+
+  it("código PP que genera la app: PP-4821, pp 4821 o solo 4821; el hex queda para pedidos viejos", () => {
+    const list = [
+      { slug: "celular-samsung-a54-a1b2c3", code: "PP-4821" },
+      { slug: "polera-ff00aa", code: null },
+    ];
+    for (const c of ["PP-4821", "pp-4821", "pp 4821", "PP4821", "4821", "#4821"]) expect(matchOrder(list, c)?.slug, c).toBe("celular-samsung-a54-a1b2c3");
+    expect(matchOrder(list, "a1b2c3")?.slug).toBe("celular-samsung-a54-a1b2c3");
+    expect(matchOrder(list, "ff00aa")?.slug).toBe("polera-ff00aa");
+    expect(matchOrder(list, "PP-1111")).toBeUndefined();
+    expect(orderCode(list[0])).toBe("PP-4821");
+    expect(orderCode(list[1])).toBe("ff00aa");
+    expect(normCodes("enviado pp 4821 OLV-1")).toBe("enviado PP-4821 OLV-1");
+  });
+
+  it("categoría: Celular si el producto lo parece (la app pide el IMEI)", () => {
+    for (const p of ["Celular Samsung A54", "iPhone 13 128GB", "Xiaomi Redmi Note 12", "Motorola G84", "teléfono Huawei", "Galaxy S23"]) expect(inferCategory(p), p).toBe("Celular");
+    for (const p of ["Zapatillas Nike 40", "Polera", "Chompa de alpaca", "Audífonos JBL"]) expect(inferCategory(p), p).toBe("Otro");
+  });
+});
+
+describe("guion del video", () => {
+  it('"vendo celular Samsung A54 a 1800 bs entrega 3 días"', () => {
+    expect(parseSell("vendo celular Samsung A54 a 1800 bs entrega 3 días")).toEqual({ product: "Celular Samsung A54", priceBs: 1800, days: 3 });
   });
 });
