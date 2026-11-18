@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Simulador del bot · Pago Protegido</title>
+<style>
+  :root {
+    --page: #d1d7db; --panel: #ffffff; --ink: #111b21; --muted: #667781;
+    --head: #008069; --chat: #efeae2; --doodle: rgba(0,0,0,.035);
+    --in: #ffffff; --out: #d9fdd3; --link: #027eb5; --btn: #00a5f4;
+    --bar: #f0f2f5; --field: #ffffff; --send: #00a884; --tick: #53bdeb; --pill: #ffffffd9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page: #0c1317; --panel: #111b21; --ink: #e9edef; --muted: #8696a0;
+      --head: #202c33; --chat: #0b141a; --doodle: rgba(255,255,255,.03);
+      --in: #202c33; --out: #005c4b; --link: #53bdeb; --btn: #53bdeb;
+      --bar: #202c33; --field: #2a3942; --send: #00a884; --pill: #182229;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: var(--page); color: var(--ink);
+    font: 14.2px/1.38 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    display: flex; gap: 32px; align-items: center; justify-content: center; padding: 24px 16px; flex-wrap: wrap; }
+  .side { width: 300px; max-width: 100%; }
+  .side h1 { font-size: 20px; margin: 0 0 4px; }
+  .side p { color: var(--muted); margin: 0 0 16px; }
+  .card { background: var(--panel); border-radius: 14px; padding: 14px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 10px; }
+  .who { display: flex; gap: 8px; }
+  .who button, .demo button { flex: 1; border: 1px solid #00000018; background: var(--bar); color: var(--ink); border-radius: 10px;
+    padding: 9px 10px; font: inherit; cursor: pointer; position: relative; text-align: left; }
+  .who button.on { background: var(--head); color: #fff; border-color: transparent; }
+  .who small { display: block; opacity: .75; font-size: 12px; }
+  .badge { position: absolute; top: -6px; right: -6px; background: var(--send); color: #fff; border-radius: 10px; font-size: 11px; padding: 1px 6px; }
+  .demo { display: grid; gap: 8px; }
+  .demo button { text-align: center; }
+  .note { font-size: 12px; color: var(--muted); }
+
+  .phone { width: 380px; max-width: 100%; height: 900px; max-height: calc(100vh - 48px); background: #0b0b0c; border-radius: 48px; padding: 12px;
+    box-shadow: 0 30px 60px rgba(0,0,0,.25), inset 0 0 0 2px #2b2b2e; }
+  .screen { height: 100%; border-radius: 37px; overflow: hidden; display: flex; flex-direction: column; background: var(--chat); position: relative; }
+  .status { height: 34px; background: var(--head); color: #fff; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; padding: 6px 26px 0; }
+  .notch { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 110px; height: 26px; background: #0b0b0c; border-radius: 16px; }
+  header { background: var(--head); color: #fff; display: flex; align-items: center; gap: 10px; padding: 6px 12px 10px; }
+  .avatar { width: 38px; height: 38px; border-radius: 50%; background: #25d366; display: grid; place-items: center; font-size: 20px; }
+  header b { display: block; font-size: 16px; font-weight: 600; }
+  header span { font-size: 12.5px; opacity: .85; }
+  #chat { flex: 1; overflow-y: auto; padding: 10px 14px 6px;
+    background-color: var(--chat);
+    background-image: radial-gradient(var(--doodle) 1.5px, transparent 1.5px), radial-gradient(var(--doodle) 1.5px, transparent 1.5px);
+    background-size: 26px 26px; background-position: 0 0, 13px 13px; }
+  .pill { margin: 6px auto 10px; width: fit-content; max-width: 90%; text-align: center; background: var(--pill); color: var(--muted);
+    font-size: 12px; padding: 5px 10px; border-radius: 8px; box-shadow: 0 1px .5px rgba(11,20,26,.13); }
+  .row { display: flex; margin: 2px 0 6px; }
+  .row.yo { justify-content: flex-end; }
+  .msg { max-width: 82%; padding: 6px 8px 8px 9px; border-radius: 8px; box-shadow: 0 1px .5px rgba(11,20,26,.13); position: relative; word-wrap: break-word; overflow-wrap: anywhere; }
+  .bot .msg { background: var(--in); border-top-left-radius: 0; }
+  .yo .msg { background: var(--out); border-top-right-radius: 0; }
+  .msg a { color: var(--link); }
+  .meta { float: right; margin: 6px 0 -4px 10px; font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .yo .meta::after { content: " ✓✓"; color: var(--tick); }
+  .wrap { max-width: 82%; }
+  .wrap .msg { max-width: 100%; }
+  .wrap .msg.has-btns { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+  .reply-btn { display: block; width: 100%; background: var(--in); color: var(--btn); border: 0; border-top: 1px solid #00000012; font: inherit; font-weight: 500;
+    padding: 9px; cursor: pointer; box-shadow: 0 1px .5px rgba(11,20,26,.13); }
+  .reply-btn:last-child { border-radius: 0 0 8px 8px; }
+  .typing { font-style: italic; }
+  form { display: flex; gap: 8px; padding: 8px 10px 14px; background: var(--bar); align-items: center; }
+  #msg { flex: 1; border: 0; border-radius: 22px; padding: 11px 16px; font: inherit; background: var(--field); color: var(--ink); outline: none; }
+  #send { width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--send); color: #fff; cursor: pointer; display: grid; place-items: center; }
+</style>
+</head>
+<body>
+  <section class="side">
+    <h1>Simulador del bot</h1>
+    <p>Pago Protegido en WhatsApp, sin WhatsApp real. Usa el mismo motor que el bot conectado a la Cloud API.</p>
+    <div class="card">
+      <h2>Chateas como</h2>
+      <div class="who">
+        <button id="as-seller" class="on" type="button">Vendedor<small id="seller-num"></small></button>
+        <button id="as-buyer" type="button">Comprador<small id="buyer-num"></small></button>
+      </div>
+    </div>
+    <div class="card" id="demo-card" hidden>
+      <h2>Demo: lo que pasa en la web</h2>
+      <div class="demo">
+        <button type="button" data-demo="pagar">💸 El cliente pagó</button>
+        <button type="button" data-demo="enviar">📦 El vendedor firmó el envío</button>
+        <button type="button" data-demo="recordar">⏰ Faltan 2 h para liberar</button>
+        <button type="button" data-demo="confirmar">✅ El cliente confirmó</button>
+        <button type="button" data-demo="reclamar">⚠️ El cliente abrió un reclamo</button>
+        <button type="button" data-demo="resolver">⚖️ El árbitro resolvió 70/30</button>
+      </div>
+      <p class="note">App de mentira (modo <code>--mock</code>). Cada botón cambia el último pedido; el bot lo detecta y avisa.</p>
+    </div>
+    <p class="note" id="app-url"></p>
+  </section>
+
+  <div class="phone">
+    <div class="screen">
+      <div class="notch"></div>
+      <div class="status"><span id="clock">9:41</span><span>4G · 100%</span></div>
+      <header>
+        <div class="avatar">🛡️</div>
+        <div><b>Pago Protegido</b><span id="sub">cuenta de empresa</span></div>
+      </header>
+      <div id="chat" aria-live="polite"></div>
+      <form id="form" autocomplete="off">
+        <input id="msg" placeholder="Mensaje" aria-label="Mensaje" />
+        <button id="send" aria-label="Enviar"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M1.1 21.8 23 12 1.1 2.2 1 9.8l15.6 2.2L1 14.2z"/></svg></button>
+      </form>
+    </div>
+  </div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const chat = $("#chat");
+const chats = {};
+const unread = {};
+let cfg, me;
+
+function esc(s) {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
+// Formato de WhatsApp: *negrita*, _cursiva_, ~tachado~ y links.
+function fmt(s) {
+  return esc(s)
+    .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>')
+    .replace(/(^|[\s(“"])\*([^*\n]+)\*/g, "$1<strong>$2</strong>")
+    .replace(/(^|[\s(])_([^_\n]+)_/g, "$1<em>$2</em>")
+    .replace(/(^|[\s(])~([^~\n]+)~/g, "$1<s>$2</s>")
+    .replace(/\n/g, "<br>");
+}
+const hhmm = (t) => new Date(t).toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit", hour12: false });
+
+function bubble(it) {
+  const row = document.createElement("div");
+  row.className = `row ${it.from}`;
+  const wrap = document.createElement("div");
+  wrap.className = "wrap";
+  const m = document.createElement("div");
+  m.className = "msg" + (it.buttons?.length ? " has-btns" : "");
+  m.dataset.testid = it.from === "bot" ? "bot-msg" : "my-msg";
+  m.innerHTML = `${fmt(it.text)}<span class="meta">${hhmm(it.at)}</span>`;
+  wrap.append(m);
+  for (const b of it.buttons ?? []) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "reply-btn";
+    btn.textContent = b.title;
+    btn.onclick = () => send(b.id);
+    wrap.append(btn);
+  }
+  row.append(wrap);
+  chat.append(row);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function intro() {
+  chat.innerHTML = '<div class="pill">HOY</div><div class="pill">🔒 Simulador: los mensajes pasan por el mismo motor que el bot de WhatsApp. Prueba “hola” o “vendo zapatillas 450 bs entrega 3 días”.</div>';
+}
+
+function show(phone) {
+  me = phone;
+  unread[phone] = 0;
+  $("#as-seller").classList.toggle("on", phone === cfg.sellerPhone);
+  $("#as-buyer").classList.toggle("on", phone === cfg.buyerPhone);
+  intro();
+  for (const it of chats[phone] ?? []) bubble(it);
+  badges();
+  $("#msg").focus();
+}
+
+function badges() {
+  for (const [id, phone] of [["#as-seller", cfg.sellerPhone], ["#as-buyer", cfg.buyerPhone]]) {
+    const el = $(id);
+    el.querySelector(".badge")?.remove();
+    if (unread[phone]) el.insertAdjacentHTML("beforeend", `<span class="badge">${unread[phone]}</span>`);
+  }
+}
+
+async function send(text) {
+  text = text.trim();
+  if (!text) return;
+  $("#msg").value = "";
+  $("#sub").textContent = "escribiendo…";
+  $("#sub").classList.add("typing");
+  try {
+    await fetch("/api/send", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ phone: me, text }) });
+  } finally {
+    $("#sub").textContent = "cuenta de empresa";
+    $("#sub").classList.remove("typing");
+  }
+}
+
+async function main() {
+  cfg = await fetch("/api/config").then((r) => r.json());
+  $("#seller-num").textContent = "+" + cfg.sellerPhone;
+  $("#buyer-num").textContent = "+" + cfg.buyerPhone;
+  $("#app-url").textContent = "App: " + cfg.appUrl;
+  $("#demo-card").hidden = !cfg.demo;
+  $("#as-seller").onclick = () => show(cfg.sellerPhone);
+  $("#as-buyer").onclick = () => show(cfg.buyerPhone);
+  for (const b of document.querySelectorAll("[data-demo]")) {
+    b.onclick = async () => {
+      const r = await fetch("/api/demo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: b.dataset.demo }) }).then((x) => x.json());
+      if (r.error) alertPill(r.error);
+    };
+  }
+  $("#form").onsubmit = (e) => { e.preventDefault(); send($("#msg").value); };
+  setInterval(() => ($("#clock").textContent = hhmm(Date.now())), 10_000);
+  $("#clock").textContent = hhmm(Date.now());
+  show(cfg.sellerPhone);
+  const es = new EventSource("/api/events");
+  es.onmessage = (e) => {
+    const it = JSON.parse(e.data);
+    if ((chats[it.phone] ??= []).some((x) => x.id === it.id)) return;
+    chats[it.phone].push(it);
+    if (it.phone === me) bubble(it);
+    else { unread[it.phone] = (unread[it.phone] ?? 0) + 1; badges(); }
+  };
+}
+function alertPill(text) {
+  chat.insertAdjacentHTML("beforeend", `<div class="pill">${esc(text)}</div>`);
+  chat.scrollTop = chat.scrollHeight;
+}
+main();
+</script>
+</body>
+</html>
