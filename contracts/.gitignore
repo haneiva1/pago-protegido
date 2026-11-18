@@ -2,5 +2,4 @@ target/
 test_snapshots/
 **/test_snapshots/
 bindings/*/node_modules/
-bindings/*/dist/
 scripts/out/.tmp*
