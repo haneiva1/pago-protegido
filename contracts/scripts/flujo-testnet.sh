@@ -138,7 +138,7 @@ scenario_c() {
     sleep $((deadline + 5 - nowts))
   fi
   for i in 1 2 3 4 5 6 7 8 9 10 11 12; do   # el ledger puede ir unos segundos atrás
-    view "$GUARDIAN_ID" auto_release --escrow "$ESC" >/dev/null && break
+    sim "$GUARDIAN_ID" auto_release --escrow "$ESC" && break
     sleep 5
   done
   tx c6 "pp_guardian.auto_release: lo dispara tercero (sin rol, sin auth de nadie)" \
@@ -160,7 +160,7 @@ scenario_d() {
          | length == 0' "$OUT/arbiter-interface.json" >/dev/null \
     || { echo "!! pp_arbiter expone una función con destino elegible" >&2; return 1; }
   printf '%s\t%s\t%s\t%s\t%s\n' d d0 "interfaz de pp_arbiter: ninguna función acepta destino ni distribuciones" "-" \
-    "$(jq -r '[.[].name + "(" + (.inputs|join(", ")) + ")"] | join("; ")' "$OUT/arbiter-funciones.json")" >>"$FAILLOG"
+    "$(jq -r '[.[] | .name + "(" + (.inputs|join(", ")) + ")"] | join("; ")' "$OUT/arbiter-funciones.json")" >>"$FAILLOG"
 
   new_escrow || return 1
   saldos antes "$ESC" $CUENTAS

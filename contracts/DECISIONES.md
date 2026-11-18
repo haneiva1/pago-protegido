@@ -112,6 +112,15 @@ Todo lo de SPEC §3 existe con los mismos nombres y argumentos. Lo nuevo es adit
 - `deadline` usa `env.ledger().timestamp()`, no el reloj del servidor.
 - El escenario (c) espera hasta `deadline + 5 s` y reintenta la simulación cada 5 s, porque el ledger puede ir unos segundos atrás.
 
+**D-16. Robustez frente al RPC de testnet.** Dos corridas del flujo se cortaron por el RPC, no por los contratos. Sus logs quedan en `scripts/out/flujo-run-1-timeout.log` y `scripts/out/flujo-run-2-lectura-vacia.log`.
+
+| Corrida | Qué pasó | Corrección en el script |
+|---|---|---|
+| 1 | `Request timeout` de 60 s en `initialize_escrow`, sin hash: la transacción no llegó a firmarse. | `tx()` reintenta hasta 3 veces, pero solo errores de transporte (timeout, conexión, 5xx o 429) que no dejaron hash. Nunca reintenta errores de contrato ni de auth. |
+| 2 | La lectura de `get_escrow` inmediatamente después del init volvió vacía: un nodo del RPC todavía no veía el ledger. Los roles eran correctos. | Las lecturas `view` reintentan si la respuesta viene vacía. |
+
+Las instancias huérfanas de esas corridas (un escrow sin inicializar en la corrida 1, y un escrow A completo más un escrow B inicializado en la corrida 2) no tienen fondos o ya se liberaron.
+
 ## Hallazgos sobre Trustless Work (no se modificó su código)
 
 **H-1. Bug: `dispute_escrow` no revisa `flags.released`.**

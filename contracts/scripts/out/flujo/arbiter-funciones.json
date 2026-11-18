@@ -1,0 +1,40 @@
+[
+  {
+    "name": "quote",
+    "inputs": [
+      "escrow: address",
+      "buyer_bps: u32"
+    ]
+  },
+  {
+    "name": "config",
+    "inputs": []
+  },
+  {
+    "name": "resolve",
+    "inputs": [
+      "escrow: address",
+      "buyer_bps: u32"
+    ]
+  },
+  {
+    "name": "set_admin",
+    "inputs": [
+      "new_admin: address"
+    ]
+  },
+  {
+    "name": "__constructor",
+    "inputs": [
+      "admin: address",
+      "guardian: address",
+      "tw_fee: address"
+    ]
+  },
+  {
+    "name": "refund_unshipped",
+    "inputs": [
+      "escrow: address"
+    ]
+  }
+]

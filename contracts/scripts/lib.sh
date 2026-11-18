@@ -89,9 +89,20 @@ inv() { # inv <contrato> <firmante> <función> [args...]
   local id="$1" src="$2"; shift 2
   stellar contract invoke --id "$id" --source "$src" -- "$@"
 }
-view() { # view <contrato> <función> [args...]: lectura simulada, sin enviar
+view() { # view <contrato> <función> [args...]: lectura simulada, sin enviar.
+  # Reintenta si el RPC devuelve vacío o falla (p. ej. un nodo que todavía no
+  # ve el ledger de la transacción anterior).
+  local id="$1" o i; shift
+  for i in 1 2 3 4 5; do
+    o=$(stellar contract invoke --id "$id" --source plataforma --send=no -- "$@" 2>/dev/null) \
+      && [ -n "$o" ] && { echo "$o"; return 0; }
+    sleep 3
+  done
+  return 1
+}
+sim() { # sim <contrato> <función> [args...]: simula una sola vez; código de salida = éxito
   local id="$1"; shift
-  stellar contract invoke --id "$id" --source plataforma --send=no -- "$@" 2>/dev/null
+  stellar contract invoke --id "$id" --source plataforma --send=no -- "$@" >/dev/null 2>&1
 }
 
 bal() { view "$LABUSD_SAC" balance --id "$1" | tr -d '"'; }
