@@ -45,6 +45,12 @@ const STEP_LABEL: Record<string, string> = {
   dispute: "Abrir un reclamo",
 };
 
+/** Teléfono a solo dígitos; 8 dígitos (celular boliviano) → con 591 adelante. */
+export function normPhone(p: unknown): string {
+  const d = String(p ?? "").replace(/\D/g, "");
+  return d.length === 8 ? `591${d}` : d;
+}
+
 export const isPubkey = (s: unknown): s is string => typeof s === "string" && StrKey.isValidEd25519PublicKey(s);
 
 function clean(v: unknown, max: number): string {
@@ -173,8 +179,10 @@ function buildProps(o: OrderRow, buyer: string): EscrowProps {
  * "Simular pago del banco": rampa simulada (lab emite LABUSD al comprador por el equivalente en Bs),
  * deploy del escrow de esta compra (plataforma) y fondeo armado para que lo firme el comprador.
  */
-export async function startPayment(slug: string, buyer: unknown): Promise<PreparedDto> {
+export async function startPayment(slug: string, buyer: unknown, whatsapp?: unknown): Promise<PreparedDto> {
   if (!isPubkey(buyer)) throw new AppError("Billetera inválida");
+  const buyerWa = whatsapp ? normPhone(whatsapp) : "";
+  if (whatsapp && buyerWa.length < 7) throw new AppError("Escribe un WhatsApp válido");
   return withLock(`order:${slug}`, async () => {
     let o = mustOrder(slug);
     if (o.status !== "esperando_pago") throw new AppError("Este link ya fue pagado", 409);
@@ -182,6 +190,7 @@ export async function startPayment(slug: string, buyer: unknown): Promise<Prepar
     if (buyer === o.seller_pubkey) throw new AppError("No puedes pagar tu propio link");
     if (!hasTrustline(await horizonAccount(buyer))) throw new AppError("Primero activa tu billetera", 409);
     if (!o.buyer_pubkey) orders.update(slug, { buyer_pubkey: buyer });
+    if (buyerWa) orders.update(slug, { buyer_whatsapp: buyerWa });
     const svc = escrowService();
     const amount = BigInt(o.amount_units);
 
@@ -339,6 +348,32 @@ export async function submitSigned(signedXdr: unknown): Promise<{ hash: string; 
   return { hash: sent.hash };
 }
 
+/** APP-ENDPOINTS §4: el comprador deja (o cambia) su WhatsApp. Solo se guarda en el servidor. */
+export function buyerContact(slug: string, body: Record<string, unknown>) {
+  const o = mustOrder(slug);
+  if (!o.buyer_pubkey || body.buyer !== o.buyer_pubkey) throw new AppError("Solo el comprador puede dejar su WhatsApp", 403);
+  const wa = normPhone(body.whatsapp);
+  if (wa.length < 7) throw new AppError("Escribe un WhatsApp válido");
+  orders.update(slug, { buyer_whatsapp: wa });
+  return { ok: true };
+}
+
+/** APP-ENDPOINTS §1: tienda por WhatsApp (la más reciente si hay varias). */
+export function botSellerByPhone(phoneParam: string | null) {
+  const phone = normPhone(phoneParam ?? "");
+  if (phone.length < 7) throw new AppError("Número inválido");
+  const s = sellers.allNewestFirst().find((x) => normPhone(x.whatsapp) === phone);
+  if (!s) throw new AppError("Tienda no encontrada", 404);
+  return { seller: { ...s, completedSales: sellers.completedSales(s.pubkey) } };
+}
+
+/** APP-ENDPOINTS §2: cambios desde `since`; `now` se toma antes de consultar. */
+export function botChanges(sinceParam: string | null) {
+  const since = Number(sinceParam ?? 0) || 0;
+  const now = Date.now();
+  return { now, changes: orders.changesSince(since) };
+}
+
 export function sellerReply(slug: string, body: Record<string, unknown>) {
   const o = mustOrder(slug);
   if (body.pubkey !== o.seller_pubkey) throw new AppError("Solo el vendedor puede responder", 403);
@@ -409,7 +444,8 @@ export async function probeForeign(slug: unknown) {
 // ---------- Vistas ----------
 
 function publicOrder(o: OrderRow) {
-  const { escrow_json: _e, verify_json, ...rest } = o;
+  // buyer_whatsapp nunca sale en vistas públicas (APP-ENDPOINTS §4).
+  const { escrow_json: _e, verify_json, buyer_whatsapp: _w, ...rest } = o;
   return { ...rest, verification: verify_json ? (JSON.parse(verify_json) as Verification) : null };
 }
 

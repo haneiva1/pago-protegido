@@ -52,6 +52,8 @@ const lines = [
   "PLATFORM_FEE_BPS=200",
   "FX_BS_PER_USD=11.70",
   `ARBITRO_PANEL_KEY=${randomBytes(9).toString("base64url")}`,
+  // Clave compartida con el bot de WhatsApp (pago-protegido/bot, header x-bot-key).
+  `PP_BOT_KEY=${randomBytes(18).toString("base64url")}`,
 ];
 
 const pollarFile = process.env.POLLAR_ENV_FILE ?? join(APP, "..", "..", "docs-pp", ".env.pollar");

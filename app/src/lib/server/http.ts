@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { cfg } from "./config";
 import { AppError } from "./orders";
 import { ChainError } from "./stellar";
@@ -26,4 +27,11 @@ export async function body(req: Request): Promise<Record<string, unknown>> {
 export function checkArbitro(req: Request) {
   const key = req.headers.get("x-arbitro-key") ?? "";
   if (!cfg().arbitroPanelKey || key !== cfg().arbitroPanelKey) throw new AppError("Clave del árbitro incorrecta", 401);
+}
+
+/** Rutas /api/bot/*: clave compartida con el bot (header x-bot-key), comparada en tiempo constante. */
+export function checkBot(req: Request) {
+  const want = Buffer.from(process.env.PP_BOT_KEY ?? "");
+  const got = Buffer.from(req.headers.get("x-bot-key") ?? "");
+  if (!want.length || want.length !== got.length || !timingSafeEqual(want, got)) throw new AppError("Clave del bot incorrecta", 401);
 }

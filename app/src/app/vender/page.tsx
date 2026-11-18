@@ -17,6 +17,12 @@ export default function Vender() {
   const progress = useProgress();
 
   useEffect(() => {
+    // El bot manda a /vender?wa=591… (APP-ENDPOINTS §5): número precargado.
+    const wa = new URLSearchParams(window.location.search).get("wa");
+    if (wa) setWhatsapp(wa.replace(/[^\d+ ]/g, ""));
+  }, []);
+
+  useEffect(() => {
     // Si ya hay tienda en este dispositivo, directo al panel.
     const pk = getWallet("vendedor").publicKey();
     if (pk) api(`/api/sellers/${pk}`).then(() => router.replace("/panel")).catch(() => {});

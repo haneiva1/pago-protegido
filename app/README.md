@@ -43,6 +43,41 @@ npm run dev     # http://localhost:3000
    - "Resolver" llama `pp_arbiter.resolve`.
 6. **Liberación automática:** entra a `/panel?demo=1` y marca "Plazo corto de demo" (2 minutos). Paga, marca enviado y espera la cuenta regresiva. Al vencer aparece **"Liberar ahora (plazo vencido)"**, que llama a `pp_guardian.auto_release`, sin firmas.
 
+## Demo para la presentación: `npm run demo`
+
+```bash
+npm run demo
+```
+
+Levanta todo listo para presentar (Ctrl+C apaga todo):
+
+- **App web en http://localhost:3020** con la billetera de `.env.local` (Pollar, si `npm run setup` encontró sus llaves). Pollar acepta ese origen.
+- **Simulador del bot de WhatsApp en http://localhost:3030**, conectado a esa app con la clave compartida `PP_BOT_KEY`. Avisa cada 3 s.
+- Al arrancar imprime los links (vendedor, árbitro con su clave, `/panel?demo=1`) y los números del simulador.
+
+Recorrido sugerido:
+
+1. Crea la tienda en `http://localhost:3020/vender?wa=59171234567` (el número del vendedor del simulador; llega precargado).
+2. En el simulador escribe *vendo zapatillas nike 40 a 450 bs entrega 3 días*. El bot crea el link en la app real.
+3. Abre el link, deja el WhatsApp del comprador (opcional) y paga. En el chat llega **"¡Te pagaron!"**.
+4. Escribe *enviado <código> <guía>*. El bot responde con el link `/panel?enviar=…&evidencia=…`, que abre el pedido con la guía precargada; el vendedor firma.
+5. En la pestaña **Comprador** del simulador llega "¿Te llegó?". Toca "Recibí conforme" en la app y en el chat del vendedor llega **"¡Liberado!"** con el monto.
+
+Variables opcionales: `DEMO_APP_PORT`, `DEMO_SIM_PORT`, `DEMO_SELLER_PHONE` y `DEMO_BUYER_PHONE`.
+
+## Bot de WhatsApp: endpoints de la app
+
+La app implementa todo lo de [`../bot/APP-ENDPOINTS.md`](../bot/APP-ENDPOINTS.md), con las formas exactas:
+
+| § | Qué | Dónde |
+|---|---|---|
+| 0 | `x-bot-key: PP_BOT_KEY` (generada por `npm run setup`), comparada con `timingSafeEqual`; sin clave → `401 { error: "Clave del bot incorrecta" }` | `checkBot` en `src/lib/server/http.ts` |
+| 1 | `GET /api/bot/sellers?phone=591…`: tienda por WhatsApp (8 dígitos → `591…`; la más reciente si hay varias) | `src/app/api/bot/sellers` |
+| 2 | `GET /api/bot/changes?since=<ms>` → `{ now, changes: [{ slug, status, updated_at, buyer_whatsapp }] }` | `src/app/api/bot/changes` |
+| 3 | `/panel?enviar=<slug>&evidencia=<texto>`: abre el pedido, lo resalta y precarga la guía; el vendedor firma | `src/app/panel/page.tsx` |
+| 4 | `buyer_whatsapp`: campo opcional "Tu WhatsApp para avisarte" antes de pagar, y `POST /api/orders/:slug/buyer-contact` | solo servidor; nunca sale en `GET /api/orders/:slug` ni en `/api/sellers/:pubkey` |
+| 5 | `/vender?wa=591…`: número precargado | `src/app/vender/page.tsx` |
+
 ## Test e2e (Playwright, contra testnet)
 
 ```bash
@@ -51,10 +86,18 @@ npm run test:e2e
 ```
 
 - Hace su propio build en `.next-e2e/`, con la billetera local, y lo levanta en `http://localhost:3100` con una base aparte (`data/e2e.db`). No toca tu `npm run dev`.
-- Corre en **modo guardián**. Recorre tres escenarios con transacciones reales en testnet y tarda entre 8 y 12 minutos:
+- Corre en **modo guardián**. Recorre cuatro escenarios con transacciones reales en testnet y tarda entre 10 y 14 minutos:
   1. **Caso feliz:** onboarding → link → pago con rampa simulada (sello "Contrato verificado") → enviado → "Recibí conforme". Verifica 37,58 / 0,77 / 0,12 USD de prueba.
   2. **Disputa:** pago → enviado → reclamo → versión del vendedor → vista previa con `pp_arbiter.quote` → intento de desvío rechazado por el contrato (`Error(Contract, #12)`) → `pp_arbiter.resolve` 70/30 (17,54 / 7,52).
   3. **Liberación automática:** link con plazo de demo de 2 minutos → pago → enviado → cuenta regresiva → "Liberar ahora (plazo vencido)" → `pp_guardian.auto_release`.
+  4. **Bot de WhatsApp:** Playwright levanta también el simulador del bot (`../bot`, puerto 3130) contra esta app.
+     - Registro con `/vender?wa=`.
+     - En el chat: "vendo zapatillas nike 40 a 450 bs entrega 3 días" → link.
+     - El comprador paga en la app con su WhatsApp → "¡Te pagaron!" en el chat.
+     - `enviado <código> <guía>` → link a `/panel?enviar=…` → el vendedor firma.
+     - "¿Te llegó?" en el chat del comprador → "Recibí conforme" → "¡Liberado!" con 37,58.
+     - Verifica también que el WhatsApp del comprador no aparece en la API pública y que `/api/bot/*` exige la clave.
+     - Capturas `e2e/capturas/bot-*.png`.
 - Modo directo: `PP_MODE=direct npm run test:e2e`.
 - Guarda capturas en `e2e/capturas/` en tamaño celular (390 px, @2x) y escritorio (1280 px).
 - En cada captura verifica que la pantalla no diga "cripto".

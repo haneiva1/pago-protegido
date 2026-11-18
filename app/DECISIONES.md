@@ -140,3 +140,25 @@ Integrado con `@pollar/react` y `@pollar/core` 0.12, siguiendo las páginas de `
     - En una corrida, el deploy del escrow falló una vez por la red. El flujo es idempotente (no vuelve a emitir la rampa y solo crea el escrow si falta), así que el test hace lo mismo que haría el usuario: ve el error y reintenta.
     - El servidor ahora registra los errores de red o contrato (422) en el log.
     - El error se busca por `data-testid="error"`: `role="alert"` también lo usa el route announcer de Next.js.
+
+## Tercera ronda: bot de WhatsApp
+
+45. **Endpoints del bot tal como los pide `../bot/APP-ENDPOINTS.md`.**
+    - Van bajo `/api/bot/`, con la clave compartida `PP_BOT_KEY` (`npm run setup`) en `x-bot-key`, comparada con `timingSafeEqual`.
+    - Si la app no tiene `PP_BOT_KEY`, siempre responde 401.
+46. **WhatsApp del comprador antes de pagar.** El capataz lo pidió antes de pagar; APP-ENDPOINTS §4 lo describía después. Se hicieron las dos cosas:
+    - El campo opcional "Tu WhatsApp para avisarte" viaja en `POST /api/orders/:slug/pay`.
+    - `POST /api/orders/:slug/buyer-contact` existe con las respuestas exactas de §4, para dejarlo o cambiarlo después.
+    - El número se normaliza (solo dígitos; 8 dígitos → `591…`) y se guarda en `orders.buyer_whatsapp`.
+    - Solo lo devuelve `/api/bot/changes`: `publicOrder` lo quita de todas las vistas públicas, y el e2e lo verifica.
+47. **`/panel?enviar=&evidencia=`:**
+    - Si el pedido es de esa billetera y está "pagado", se resalta, se hace scroll hasta él y se precarga la guía. Si no, el panel se ve normal.
+    - El bot nunca firma: el vendedor confirma con su billetera.
+48. **Si hay varias tiendas con el mismo WhatsApp**, `/api/bot/sellers` devuelve la más reciente, como pide §1. El e2e registra una tienda nueva en cada corrida con el mismo número, y el bot toma esa.
+49. **El e2e levanta el simulador del bot como segundo `webServer` de Playwright**, contra la app del e2e: app en el 3100, simulador en el 3130.
+    - El simulador corre sin estado en disco (`BOT_STATE_FILE=""`) y avisa cada 2 s.
+    - La clave del bot sale de `.env.local`.
+50. **`npm run demo`** (`scripts/demo.mjs`) usa `next dev` en el 3020, que acepta Pollar, y `npm run sim` del bot en el 3030.
+    - Avisa cada 3 s.
+    - Si el bot no tiene `node_modules`, los instala.
+    - Si una de las dos partes se cae, apaga todo.

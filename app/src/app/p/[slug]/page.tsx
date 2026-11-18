@@ -66,7 +66,7 @@ export default function PaginaDePago() {
     }
   }
 
-  const pagar = () =>
+  const pagar = (whatsapp: string) =>
     run(async () => {
       const wallet = getWallet("comprador");
       const LW = wallet.kind === "pollar" ? "Ingresando con tu cuenta (Pollar)" : "Creando tu billetera en este dispositivo";
@@ -77,7 +77,7 @@ export default function PaginaDePago() {
       await activateWallet(wallet, progress.push);
       const L = "Banco: pago simulado y contrato protegido creado";
       progress.push(L);
-      const prepared = await api<PreparedTx & { verification?: { ok: boolean } }>(`/api/orders/${slug}/pay`, { buyer: pk });
+      const prepared = await api<PreparedTx & { verification?: { ok: boolean } }>(`/api/orders/${slug}/pay`, { buyer: pk, whatsapp: whatsapp.trim() || undefined });
       progress.finish(L);
       if (prepared.verification?.ok) progress.push("Contrato verificado: código de Trustless Work y roles correctos", undefined), progress.finish("Contrato verificado: código de Trustless Work y roles correctos");
       await signAndSubmit(wallet, prepared, progress.push);
@@ -257,8 +257,9 @@ function Protection() {
   );
 }
 
-function QrPanel({ v, busy, onPay }: { v: OrderView; busy: boolean; onPay: () => void }) {
+function QrPanel({ v, busy, onPay }: { v: OrderView; busy: boolean; onPay: (whatsapp: string) => void }) {
   const [qr, setQr] = useState<string | null>(null);
+  const [wa, setWa] = useState("");
   const o = v.order;
   useEffect(() => {
     QRCode.toDataURL(`PAGO-PROTEGIDO-EJEMPLO|NO-ES-UN-QR-REAL|${o.slug}|BOB ${(o.price_bs_cents / 100).toFixed(2)}`, { margin: 1, width: 220 })
@@ -294,7 +295,14 @@ function QrPanel({ v, busy, onPay }: { v: OrderView; busy: boolean; onPay: () =>
       <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900" data-testid="rampa-simulada">
         Rampa simulada en testnet. En producción la hace una entidad certificada por ASFI.
       </p>
-      <button className="btn-primary w-full" disabled={busy} onClick={onPay}>
+      <div>
+        <label className="label" htmlFor="buyer-wa">
+          Tu WhatsApp para avisarte <span className="font-normal text-slate-400">(opcional)</span>
+        </label>
+        <input id="buyer-wa" className="input" inputMode="tel" value={wa} onChange={(e) => setWa(e.target.value)} placeholder="Ej.: 591 76543210" disabled={busy} />
+        <p className="mt-1 text-xs text-slate-500">Te avisamos cuando despachen y antes de la liberación automática. Solo lo usa el asistente; no se muestra a nadie.</p>
+      </div>
+      <button className="btn-primary w-full" disabled={busy} onClick={() => onPay(wa)}>
         {busy ? (
           <>
             <Spinner /> Procesando pago…

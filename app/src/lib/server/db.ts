@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS orders (
   seller_reply TEXT,
   window_secs INTEGER,
   verify_json TEXT,
+  buyer_whatsapp TEXT,
   buyer_bps INTEGER,
   resolved_at INTEGER,
   released_at INTEGER,
@@ -105,6 +106,8 @@ export interface OrderRow {
   seller_reply: string | null;
   window_secs: number | null;
   verify_json: string | null;
+  /** Solo servidor: nunca va en vistas públicas (APP-ENDPOINTS §4). */
+  buyer_whatsapp: string | null;
   buyer_bps: number | null;
   resolved_at: number | null;
   released_at: number | null;
@@ -146,7 +149,7 @@ export function db(): Database.Database {
   d.exec(SCHEMA);
   // Migración de bases creadas antes de la segunda ronda.
   const cols = (d.prepare("PRAGMA table_info(orders)").all() as { name: string }[]).map((c) => c.name);
-  for (const [c, t] of [["window_secs", "INTEGER"], ["verify_json", "TEXT"]]) {
+  for (const [c, t] of [["window_secs", "INTEGER"], ["verify_json", "TEXT"], ["buyer_whatsapp", "TEXT"]]) {
     if (!cols.includes(c)) d.exec(`ALTER TABLE orders ADD COLUMN ${c} ${t}`);
   }
   g.__ppDb = d;
@@ -166,6 +169,10 @@ export const sellers = {
   },
   get(pubkey: string): SellerRow | undefined {
     return db().prepare(`SELECT * FROM sellers WHERE pubkey = ?`).get(pubkey) as SellerRow | undefined;
+  },
+  /** Todas las tiendas, la más reciente primero (para buscar por WhatsApp). */
+  allNewestFirst(): SellerRow[] {
+    return db().prepare(`SELECT * FROM sellers ORDER BY created_at DESC`).all() as SellerRow[];
   },
   completedSales(pubkey: string): number {
     const r = db()
@@ -193,6 +200,12 @@ export const orders = {
   },
   byStatus(status: OrderStatus): OrderRow[] {
     return db().prepare(`SELECT * FROM orders WHERE status = ? ORDER BY updated_at ASC`).all(status) as OrderRow[];
+  },
+  /** Feed del bot (APP-ENDPOINTS §2). */
+  changesSince(since: number): { slug: string; status: string; updated_at: number; buyer_whatsapp: string | null }[] {
+    return db()
+      .prepare(`SELECT slug, status, updated_at, buyer_whatsapp FROM orders WHERE updated_at >= ? ORDER BY updated_at ASC LIMIT 500`)
+      .all(since) as { slug: string; status: string; updated_at: number; buyer_whatsapp: string | null }[];
   },
   recentResolved(limit = 10): OrderRow[] {
     return db()

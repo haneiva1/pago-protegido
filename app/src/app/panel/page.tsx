@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Countdown } from "@/components/Guardian";
 import { Breakdown, SplitView, TxList } from "@/components/OrderBits";
 import { CopyButton, ErrorBox, ExplorerLink, Progress, Spinner, StatusBadge, useProgress } from "@/components/ui";
@@ -21,6 +21,7 @@ export default function Panel() {
   const [error, setError] = useState<string | null>(null);
   const [primer, setPrimer] = useState(false);
   const [demo, setDemo] = useState(false);
+  const [enviar, setEnviar] = useState<{ slug: string; evidencia: string } | null>(null);
   const [created, setCreated] = useState<string | null>(null);
 
   const load = useCallback(async (p: string) => {
@@ -35,7 +36,10 @@ export default function Panel() {
     const p = getWallet("vendedor").publicKey();
     setPk(p);
     setPrimer(new URLSearchParams(window.location.search).has("primer"));
-    setDemo(new URLSearchParams(window.location.search).has("demo"));
+    const qs = new URLSearchParams(window.location.search);
+    setDemo(qs.has("demo"));
+    // Link del bot (APP-ENDPOINTS §3): abrir ese pedido con la evidencia precargada.
+    if (qs.get("enviar")) setEnviar({ slug: qs.get("enviar")!, evidencia: qs.get("evidencia") ?? "" });
     api<InfoData>("/api/info").then(setInfo).catch(() => {});
     if (!p) return;
     load(p);
@@ -119,7 +123,16 @@ export default function Panel() {
         <h2 className="text-lg font-bold">Pedidos</h2>
         {orders.length === 0 && <p className="muted card">Todavía no tienes pedidos. Crea tu primer link y compártelo.</p>}
         {orders.map((o) => (
-          <OrderCard key={o.slug} o={o} store={seller.store_name} sellerPubkey={seller.pubkey} platformFeeBps={info?.platformFeeBps ?? 200} mode={info?.mode ?? "guardian"} onChange={() => load(seller.pubkey)} />
+          <OrderCard
+            key={o.slug}
+            o={o}
+            store={seller.store_name}
+            sellerPubkey={seller.pubkey}
+            platformFeeBps={info?.platformFeeBps ?? 200}
+            mode={info?.mode ?? "guardian"}
+            prefill={enviar && enviar.slug === o.slug && o.status === "pagado" ? enviar.evidencia : null}
+            onChange={() => load(seller.pubkey)}
+          />
         ))}
       </section>
     </div>
@@ -207,8 +220,31 @@ function CreateLink({ sellerPubkey, fx, title, demo, onCreated }: { sellerPubkey
   );
 }
 
-function OrderCard({ o, store, sellerPubkey, platformFeeBps, mode, onChange }: { o: SellerOrder; store: string; sellerPubkey: string; platformFeeBps: number; mode: "direct" | "guardian"; onChange: () => void }) {
-  const [evidence, setEvidence] = useState("");
+function OrderCard({
+  o,
+  store,
+  sellerPubkey,
+  platformFeeBps,
+  mode,
+  prefill,
+  onChange,
+}: {
+  o: SellerOrder;
+  store: string;
+  sellerPubkey: string;
+  platformFeeBps: number;
+  mode: "direct" | "guardian";
+  prefill: string | null;
+  onChange: () => void;
+}) {
+  const [evidence, setEvidence] = useState(prefill ?? "");
+  const ref = useRef<HTMLElement>(null);
+  const focused = prefill !== null;
+  useEffect(() => {
+    if (prefill === null) return;
+    setEvidence((cur) => cur || prefill);
+    ref.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [prefill]);
   const [reply, setReply] = useState(o.seller_reply ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -244,7 +280,7 @@ function OrderCard({ o, store, sellerPubkey, platformFeeBps, mode, onChange }: {
   }
 
   return (
-    <article className="card space-y-4" data-testid={`pedido-${o.slug}`}>
+    <article ref={ref} className={`card space-y-4 ${focused ? "ring-2 ring-brand-500" : ""}`} data-testid={`pedido-${o.slug}`}>
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="truncate font-semibold">{o.product}</h3>
@@ -266,6 +302,7 @@ function OrderCard({ o, store, sellerPubkey, platformFeeBps, mode, onChange }: {
         <>
           <div className="rounded-xl bg-sky-50 p-3 text-sm text-sky-900">
             💰 Tu cliente pagó y la plata está guardada en el contrato. Despacha y marca el pedido como enviado.
+            {focused && <span className="mt-1 block font-semibold">Vienes desde el asistente de WhatsApp: revisa la guía y confirma con tu billetera.</span>}
           </div>
           <form onSubmit={ship} className="space-y-2">
             <label className="label" htmlFor={`ev-${o.slug}`}>

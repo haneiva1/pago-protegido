@@ -59,7 +59,7 @@ async function crearLink(page: Page, p: { producto: string; descripcion: string;
   return { url, slug: url.split("/p/")[1] };
 }
 
-async function pagar(browser: Browser, url: string, capturas: boolean) {
+async function pagar(browser: Browser, url: string, capturas: boolean, whatsapp?: string) {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   await page.goto(url);
@@ -71,6 +71,7 @@ async function pagar(browser: Browser, url: string, capturas: boolean) {
   if (capturas) await capturar(page, "07-comprador-qr-rampa-simulada");
   // El pago encadena varias transacciones en testnet (rampa, deploy del escrow, fondeo). Si la red falla,
   // la pantalla muestra el error y se puede reintentar: el flujo es idempotente (no vuelve a emitir la rampa).
+  if (whatsapp) await page.getByLabel("Tu WhatsApp para avisarte").fill(whatsapp);
   const simular = page.getByRole("button", { name: "Simular pago del banco (testnet)" });
   const ok = page.getByTestId("estado-pedido");
   const err = page.getByTestId("error"); // ojo: Next.js tiene un route announcer con role="alert"
@@ -253,4 +254,79 @@ test("liberación automática: plazo corto de demo (2 min) y pp_guardian.auto_re
   await seller.reload();
   await expect(seller.getByTestId(`pedido-${slug}`).getByTestId("estado")).toHaveText("Liberado", { timeout: 60_000 });
   await capturar(seller, "45-vendedor-liberado-por-plazo");
+});
+
+// ---------- Bot de WhatsApp (simulador) contra la app real en testnet ----------
+
+async function say(chat: Page, text: string) {
+  const input = chat.getByLabel("Mensaje");
+  await input.fill(text);
+  await input.press("Enter");
+  await expect(chat.getByTestId("my-msg").last()).toContainText(text);
+}
+const botSays = (chat: Page, text: string) => chat.getByTestId("bot-msg").filter({ hasText: text }).last();
+
+test("bot de WhatsApp: vender por chat → pago con WhatsApp → enviado desde el link del bot → liberado", async ({ browser, request }) => {
+  const SIM = process.env.E2E_SIM_URL!;
+  const SELLER_WA = process.env.E2E_SELLER_WA!;
+
+  // El bot manda a /vender?wa=… a los números sin tienda: el número llega precargado.
+  const seller = await (await browser.newContext()).newPage();
+  await seller.goto(`/vender?wa=${SELLER_WA}`);
+  await seller.getByLabel("Nombre de la tienda").fill("Tienda del Bot");
+  await seller.getByRole("button", { name: "Continuar" }).click();
+  await expect(seller.getByLabel("Número de WhatsApp")).toHaveValue(SELLER_WA);
+  await seller.getByRole("button", { name: "Continuar" }).click();
+  await seller.getByRole("button", { name: "Crear mi billetera y continuar" }).click();
+  await seller.waitForURL("**/panel**", CHAIN);
+
+  // 1) El vendedor vende desde el chat y recibe el link.
+  const chat = await (await browser.newContext()).newPage();
+  await chat.goto(SIM);
+  await say(chat, "vendo zapatillas nike 40 a 450 bs entrega 3 días");
+  const link = chat.locator('[data-testid="bot-msg"] a[href*="/p/zapatillas-nike-40-"]').first();
+  await expect(link).toBeVisible({ timeout: 60_000 });
+  const url = (await link.getAttribute("href"))!;
+  const slug = url.split("/p/")[1];
+  expect(url.startsWith("http://localhost:")).toBe(true);
+  await capturar(chat, "bot-01-chat-link");
+
+  // 2) El comprador abre el link en la app y paga dejando su WhatsApp.
+  const buyer = await pagar(browser, url, false, "591 76543210");
+  await capturar(buyer, "bot-02-app-pagado");
+  // Privacidad: el WhatsApp del comprador no sale en la vista pública, y el feed del bot pide la clave.
+  expect(await (await request.get(`/api/orders/${slug}`)).text()).not.toContain("76543210");
+  expect((await request.get(`/api/bot/changes?since=0`)).status()).toBe(401);
+
+  // 3) El bot avisa al vendedor: ¡Te pagaron!
+  await expect(botSays(chat, "¡Te pagaron!")).toBeVisible({ timeout: 90_000 });
+  await capturar(chat, "bot-03-chat-te-pagaron");
+
+  // 4) El vendedor pide marcar enviado por el chat y firma en la app desde el link del bot.
+  await say(chat, `enviado ${slug.slice(-6)} SRV-2026-555001`);
+  const shipLink = chat.locator('[data-testid="bot-msg"] a[href*="/panel?enviar="]').last();
+  await expect(shipLink).toBeVisible({ timeout: 30_000 });
+  await capturar(chat, "bot-04-chat-link-enviar");
+  await seller.goto((await shipLink.getAttribute("href"))!);
+  const card = seller.getByTestId(`pedido-${slug}`);
+  await expect(card.getByLabel("Código de encomienda o link de la foto del envío")).toHaveValue("SRV-2026-555001", { timeout: 60_000 });
+  await capturar(seller, "bot-05-app-panel-enviar");
+  await card.getByRole("button", { name: "Marcar como enviado" }).click();
+  await expect(card.getByTestId("estado")).toHaveText("Enviado", CHAIN);
+
+  // 5) Al comprador le llega "¿Te llegó?" (tenemos su WhatsApp).
+  await expect(botSays(chat, "figura como enviado")).toBeVisible({ timeout: 90_000 });
+  await chat.locator("#as-buyer").click();
+  await expect(botSays(chat, "¿Te llegó?")).toBeVisible({ timeout: 60_000 });
+  await capturar(chat, "bot-06-chat-comprador-te-llego");
+
+  // 6) El comprador confirma en la app y el bot avisa al vendedor: liberado.
+  await buyer.reload();
+  await buyer.getByRole("button", { name: /Recibí conforme/ }).click();
+  await expect(buyer.getByTestId("estado-pedido")).toContainText("Pago liberado al vendedor", CHAIN);
+  await capturar(buyer, "bot-07-app-liberado");
+  await chat.locator("#as-seller").click();
+  await expect(botSays(chat, "Liberado")).toBeVisible({ timeout: 90_000 });
+  await expect(botSays(chat, "Liberado")).toContainText("37,58");
+  await capturar(chat, "bot-08-chat-liberado");
 });
