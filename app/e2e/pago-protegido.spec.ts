@@ -224,6 +224,35 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
   await expect(card.getByTestId("estado")).toHaveText("Liberado", { timeout: 60_000 });
   await expect(seller.getByTestId("saldo")).toHaveText("Bs 450,04");
   await capturar(seller, "13-vendedor-cobrado");
+
+  // Perfil verificable: la tarjeta del vendedor enlaza a /tienda/<slug> con los mismos números (registro público).
+  const tarjeta = buyer.getByTestId("vendedor");
+  await expect(async () => {
+    await buyer.reload();
+    await expect(tarjeta.getByTestId("num-ventas")).toContainText(/1\s*venta protegida/, { timeout: 5_000 });
+  }).toPass({ timeout: 180_000 });
+  await expect(tarjeta.getByTestId("num-sin-reclamo")).toContainText("Todas");
+  await expect(tarjeta.getByTestId("num-perdidos")).toContainText(/0\s*reclamos perdidos/);
+  await capturar(buyer, "75-comprador-tarjeta-tras-venta");
+  await tarjeta.getByTestId("link-perfil-tienda").click();
+  await expect(buyer).toHaveURL(/\/tienda\/tienda-sofi-[0-9a-f]{4}$/);
+  await expect(buyer.getByTestId("perfil-nombre")).toHaveText("Tienda Sofi");
+  await expect(buyer.getByTestId("sello")).toContainText("Vende con Pago Protegido");
+  await expect(buyer.getByTestId("num-ventas")).toContainText(/1\s*venta protegida/);
+  await expect(buyer.getByTestId("num-despacho")).not.toContainText("—");
+  await expect(buyer.getByTestId("verificacion")).toHaveText("Verificación de identidad: pendiente (modo práctica)");
+  await expect(buyer.getByTestId("operacion").first().locator(TX_LINK).first()).toBeVisible();
+  expect(await buyer.locator("body").innerText()).not.toMatch(/WhatsApp\s*\+?\d/);
+  await capturar(buyer, "76-tienda-perfil-recien-vendio");
+
+  // Panel del vendedor: sus propios KPIs (ventas protegidas, % sin reclamo y tiempo hasta el cobro).
+  await seller.goto("/panel");
+  const tus = seller.getByTestId("kpis-vendedor");
+  await expect(tus.getByTestId("kpi-ventas")).toContainText(/1\s*venta protegida/, CHAIN);
+  await expect(tus.getByTestId("kpi-sin-reclamo")).toContainText("Todas");
+  await expect(tus.getByTestId("kpi-cobro")).not.toContainText("—");
+  await expect(tus.getByTestId("link-mi-perfil")).toHaveAttribute("href", /\/tienda\/tienda-sofi-[0-9a-f]{4}$/);
+  await capturar(seller, "77-vendedor-tus-numeros");
 });
 
 test("presión para confirmar abre un reclamo; el vendedor regala la protección; el revisor reparte 70/30", async ({ browser }) => {
@@ -537,6 +566,9 @@ test("palabras prohibidas en todas las pantallas, /verificar, /pedir, /piloto y 
     ["/verificar", "usuario"],
     ["/pedir", "usuario"],
     ["/piloto", "usuario"],
+    ["/metricas", "usuario"],
+    ["/metricas/equipo/compras", "usuario"],
+    ["/metricas/piloto/reclamos", "usuario"],
     ["/como-funciona", "tecnica"],
     ["/transparencia", "tecnica"],
     ["/revisor", "tecnica"],
