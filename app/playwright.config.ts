@@ -33,7 +33,7 @@ export default defineConfig({
   webServer: {
     // Build propio (.next-e2e) con la billetera local, base de datos aparte (data/e2e.db).
     command: `npm run build && npx next start -p ${PORT}`,
-    env: { NEXT_DIST_DIR: ".next-e2e", NEXT_PUBLIC_WALLET: "local", PP_DB_PATH: "data/e2e.db" },
+    env: { NEXT_DIST_DIR: ".next-e2e", NEXT_PUBLIC_WALLET: "local", PP_DB_PATH: "data/e2e.db", PP_MODE: process.env.PP_MODE || "guardian" },
     url: `http://localhost:${PORT}/api/info`,
     timeout: 10 * 60_000,
     reuseExistingServer: !process.env.CI,

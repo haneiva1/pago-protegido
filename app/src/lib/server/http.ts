@@ -9,6 +9,7 @@ export async function handle(fn: () => Promise<unknown> | unknown): Promise<Resp
   } catch (e) {
     const status = e instanceof AppError ? e.status : e instanceof ChainError ? 422 : 500;
     if (status >= 500) console.error("[pp]", e);
+    else if (status === 422) console.warn("[pp] error de la red/contrato:", e instanceof Error ? e.message : e);
     const message = e instanceof Error ? e.message : "Error inesperado";
     return Response.json({ error: status >= 500 ? `Error del servidor: ${message}` : message }, { status });
   }

@@ -8,6 +8,12 @@ export const FRIENDBOT_URL = "https://friendbot.stellar.org";
 
 export type Mode = "direct" | "guardian";
 
+/** IDs en testnet (pago-protegido/contracts/deployments/testnet.json). */
+export const DEPLOYED = {
+  guardian: "CAOX6JZV3CJZFDD22J2XI3NKY5G4NRFOYRV7IA724MSVREYVRALW4OZU",
+  arbiter: "CBCDVLEPJ6PN7RDC3HFGML3IUT7SOQEYSGH3LE3SWXWZJO7Z2QG2PWGU",
+};
+
 function req(name: string): string {
   const v = process.env[name];
   if (!v) throw new Error(`Falta ${name} en .env.local (corre \`npm run setup\`)`);
@@ -36,7 +42,8 @@ let cached: Config | null = null;
 
 export function cfg(): Config {
   if (cached) return cached;
-  const mode: Mode = process.env.PP_MODE === "guardian" ? "guardian" : "direct";
+  // Modo guardián por defecto (contratos de pago-protegido/contracts/deployments/testnet.json).
+  const mode: Mode = process.env.PP_MODE === "direct" ? "direct" : "guardian";
   const c: Config = {
     mode,
     plataforma: Keypair.fromSecret(req("PLATAFORMA_SECRET")),
@@ -49,8 +56,8 @@ export function cfg(): Config {
     platformFeeBps: Number(process.env.PLATFORM_FEE_BPS || 200),
     fx: Number(process.env.FX_BS_PER_USD || 11.7),
     arbitroPanelKey: process.env.ARBITRO_PANEL_KEY || "",
-    guardianId: process.env.PP_GUARDIAN_ID || null,
-    arbiterId: process.env.PP_ARBITER_ID || null,
+    guardianId: process.env.PP_GUARDIAN_ID || DEPLOYED.guardian,
+    arbiterId: process.env.PP_ARBITER_ID || DEPLOYED.arbiter,
     extraWindowDays: 3,
   };
   if (mode === "guardian" && (!c.guardianId || !c.arbiterId)) {

@@ -18,9 +18,11 @@ import { FRIENDBOT_URL, HORIZON_URL, NETWORK_PASSPHRASE, RPC_URL, cfg } from "./
 
 export class ChainError extends Error {
   code?: number;
-  constructor(message: string, code?: number) {
+  raw?: string;
+  constructor(message: string, code?: number, raw?: string) {
     super(message);
     this.code = code;
+    this.raw = raw;
   }
 }
 
@@ -46,7 +48,7 @@ export function toChainError(raw: string): ChainError {
   const m = raw.match(/Error\(Contract, #(\d+)\)/);
   if (m) {
     const code = Number(m[1]);
-    return new ChainError(`${TW_ERRORS[code] ?? "El contrato rechazó la operación"} (código #${code})`, code);
+    return new ChainError(`${TW_ERRORS[code] ?? "El contrato rechazó la operación"} (código #${code})`, code, m[0]);
   }
   if (/Error\(Auth/.test(raw)) {
     return new ChainError("El contrato rechazó la firma: esa cuenta no tiene permiso para esta operación");
@@ -92,6 +94,14 @@ export async function withLock<T>(key: string, fn: () => Promise<T>): Promise<T>
     release();
     if (locks.get(key) === chained) locks.delete(key);
   }
+}
+
+/** Reescribe el mensaje de un error de contrato con el catálogo propio de ese contrato. */
+export function remapError(e: unknown, map: Record<number, string>, contract: string): never {
+  if (e instanceof ChainError && e.code != null && map[e.code]) {
+    throw new ChainError(`${map[e.code]} (${contract} #${e.code})`, e.code, e.raw);
+  }
+  throw e;
 }
 
 export const addr = (a: string) => new Address(a).toScVal();

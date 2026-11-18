@@ -1,9 +1,9 @@
 import { FeeBumpTransaction, StrKey, Transaction, TransactionBuilder } from "@stellar/stellar-sdk";
 import { randomBytes } from "node:crypto";
-import { bsToUnits, fmtBs, fmtUsd, releaseBreakdown, splitPreview } from "@/lib/format";
+import { bsToUnits, fmtBs, fmtUsd, releaseBreakdown, splitFromGross, splitPreview } from "@/lib/format";
 import { NETWORK_PASSPHRASE, cfg } from "./config";
 import { type OrderRow, kv, orders, pending, sellers, txs } from "./db";
-import { escrowService, type EscrowCtx, type EscrowProps, type UserAction } from "./escrow";
+import { escrowService, type EscrowCtx, type EscrowProps, type OnchainState, type UserAction, type Verification } from "./escrow";
 import { factoryId } from "./escrow/tw";
 import {
   ChainError,
@@ -31,6 +31,8 @@ export interface PreparedDto {
   action: string;
   step: string;
   label: string;
+  /** H-2: resultado de la verificación del escrow (solo en el fondeo). */
+  verification?: Verification;
 }
 
 const STEP_LABEL: Record<string, string> = {
@@ -68,7 +70,9 @@ function mustOrder(slug: string): OrderRow {
   return o;
 }
 
-const windowSecs = (o: OrderRow) => (o.delivery_days + cfg().extraWindowDays) * 86400;
+/** Plazo de liberación automática: días de entrega + 3 días, o 2 minutos en links de demo (?demo=1). */
+const windowSecs = (o: OrderRow) => o.window_secs ?? (o.delivery_days + cfg().extraWindowDays) * 86400;
+export const DEMO_WINDOW_SECS = 120;
 
 function ctxOf(o: OrderRow): EscrowCtx {
   if (!o.escrow_id || !o.escrow_json || !o.buyer_pubkey) throw new AppError("El pedido todavía no tiene contrato de pago", 409);
@@ -132,6 +136,7 @@ export function createLink(input: Record<string, unknown>) {
     amount_units: bsToUnits(price_bs_cents, fx).toString(),
     fx,
     delivery_days: days,
+    window_secs: input.demoWindow === true ? DEMO_WINDOW_SECS : null,
   });
   return orders.get(slug)!;
 }
@@ -201,8 +206,16 @@ export async function startPayment(slug: string, buyer: unknown): Promise<Prepar
       o = mustOrder(slug);
     }
 
+    // H-2: antes de pedir la firma, verificar por RPC el WASM de la instancia y sus roles.
+    const verification = await svc.verify(ctxOf(o));
+    orders.update(slug, { verify_json: JSON.stringify(verification) });
+    if (!verification.ok) {
+      const failed = verification.checks.filter((c) => !c.ok).map((c) => c.label).join("; ");
+      throw new AppError(`Pago bloqueado: el contrato del pedido no pasó la verificación (${failed})`, 409);
+    }
+
     const tx = await svc.prepareStep("fund", "fund", ctxOf(o), buyer, {});
-    return register(tx, { order_slug: slug, action: "fund", step: "fund", signer: buyer });
+    return { ...register(tx, { order_slug: slug, action: "fund", step: "fund", signer: buyer }), verification };
   });
 }
 
@@ -279,10 +292,17 @@ export async function submitSigned(signedXdr: unknown): Promise<{ hash: string; 
   const now = Date.now();
   const role = p.signer === o.seller_pubkey ? "vendedor" : "comprador";
   switch (p.step) {
-    case "fund":
-      orders.update(slug, { status: "pagado", funded_at: now, deadline: now + windowSecs(o) * 1000 });
+    case "fund": {
+      // Modo guardián: el plazo real es el que registró pp_guardian (timestamps del ledger).
+      const onchain = await escrowService().purchase(o.escrow_id!).catch(() => null);
+      orders.update(slug, {
+        status: "pagado",
+        funded_at: onchain?.fundedAt ?? now,
+        deadline: onchain?.deadline ?? now + windowSecs(o) * 1000,
+      });
       txs.add({ order_slug: slug, actor: "comprador", kind: "fondeo", label: `Pagaste ${fmtUsd(o.amount_units)} USD de prueba: quedaron guardados en el contrato`, hash: sent.hash });
       break;
+    }
     case "ship":
       orders.update(slug, { status: "enviado", shipped_evidence: params.evidence, shipped_at: now });
       txs.add({ order_slug: slug, actor: "vendedor", kind: "envio", label: `El vendedor marcó el pedido como enviado: ${params.evidence}`, hash: sent.hash });
@@ -359,6 +379,23 @@ export async function resolveDispute(slug: unknown, buyerBps: unknown) {
   });
 }
 
+/** Vista previa del slider: pp_arbiter.quote (modo guardián), con los netos que pagará TW. */
+export async function quoteDispute(slug: unknown, buyerBps: unknown) {
+  if (typeof slug !== "string") throw new AppError("Falta el pedido");
+  const bps = Number(buyerBps);
+  if (!Number.isInteger(bps) || bps < 0 || bps > 10000) throw new AppError("El porcentaje va de 0 a 100");
+  const o = mustOrder(slug);
+  const q = await escrowService().quote(ctxOf(o), bps);
+  const s = splitFromGross(BigInt(q.balance), BigInt(q.buyer_amount), BigInt(q.seller_amount), cfg().platformFeeBps);
+  return {
+    ...q,
+    buyer_net: s.buyer.net.toString(),
+    seller_net: s.seller.net.toString(),
+    platform: (s.buyer.platform + s.seller.platform).toString(),
+    tw: (s.buyer.tw + s.seller.tw).toString(),
+  };
+}
+
 export async function probeForeign(slug: unknown) {
   if (typeof slug !== "string") throw new AppError("Falta el pedido");
   const o = mustOrder(slug);
@@ -372,8 +409,24 @@ export async function probeForeign(slug: unknown) {
 // ---------- Vistas ----------
 
 function publicOrder(o: OrderRow) {
-  const { escrow_json: _e, ...rest } = o;
-  return rest;
+  const { escrow_json: _e, verify_json, ...rest } = o;
+  return { ...rest, verification: verify_json ? (JSON.parse(verify_json) as Verification) : null };
+}
+
+/**
+ * H-1: el estado on-chain manda. Si el escrow está liberado se muestra "Liberado" aunque también figure
+ * en disputa; si está resuelto, "Resuelto".
+ */
+function reconcile(o: OrderRow, st: OnchainState | null): OrderRow {
+  if (!st) return o;
+  if (st.flags.released && o.status !== "liberado") {
+    orders.update(o.slug, { status: "liberado", released_at: o.released_at ?? Date.now() });
+  } else if (st.flags.resolved && !st.flags.released && o.status !== "resuelto" && o.status !== "liberado") {
+    orders.update(o.slug, { status: "resuelto", resolved_at: o.resolved_at ?? Date.now() });
+  } else {
+    return o;
+  }
+  return mustOrder(o.slug);
 }
 
 function money(o: OrderRow) {
@@ -397,10 +450,11 @@ function money(o: OrderRow) {
 }
 
 export async function orderView(slug: string, withOnchain: boolean) {
-  const o = mustOrder(slug);
+  let o = mustOrder(slug);
   const s = sellers.get(o.seller_pubkey)!;
-  let onchain = null;
+  let onchain: OnchainState | null = null;
   if (withOnchain && o.escrow_id) onchain = await escrowService().readState(o.escrow_id).catch(() => null);
+  o = reconcile(o, onchain);
   return {
     order: publicOrder(o),
     seller: { store_name: s.store_name, whatsapp: s.whatsapp, pubkey: s.pubkey, completedSales: sellers.completedSales(s.pubkey) },
@@ -423,15 +477,14 @@ export async function sellerView(pubkey: string) {
 
 export async function disputesView() {
   const open = await Promise.all(
-    orders.byStatus("en_disputa").map(async (o) => ({
-      ...publicOrder(o),
-      seller: sellers.get(o.seller_pubkey),
-      txs: txs.forOrder(o.slug),
-      onchain: o.escrow_id ? await escrowService().readState(o.escrow_id).catch(() => null) : null,
-    })),
+    orders.byStatus("en_disputa").map(async (o) => {
+      const onchain = o.escrow_id ? await escrowService().readState(o.escrow_id).catch(() => null) : null;
+      return { ...publicOrder(reconcile(o, onchain)), seller: sellers.get(o.seller_pubkey), txs: txs.forOrder(o.slug), onchain };
+    }),
   );
+  const stillOpen = open.filter((d) => d.status === "en_disputa");
   const resolved = orders.recentResolved(10).map((o) => ({ ...publicOrder(o), txs: txs.forOrder(o.slug), ...money(o) }));
-  return { open, resolved, platformFeeBps: cfg().platformFeeBps, mode: cfg().mode };
+  return { open: stillOpen, resolved, platformFeeBps: cfg().platformFeeBps, mode: cfg().mode };
 }
 
 export async function info() {

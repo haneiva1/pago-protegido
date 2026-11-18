@@ -56,7 +56,7 @@ export function Spinner({ className = "h-4 w-4" }: { className?: string }) {
 export function ErrorBox({ error }: { error: string | null }) {
   if (!error) return null;
   return (
-    <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+    <div role="alert" data-testid="error" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
       {error}
     </div>
   );

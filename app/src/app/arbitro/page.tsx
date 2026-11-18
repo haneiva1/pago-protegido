@@ -109,11 +109,30 @@ function DisputeCard({ d, arbKey, platformFeeBps, onDone }: { d: DisputeItem; ar
   const [pct, setPct] = useState(50);
   const [busy, setBusy] = useState<"resolver" | "probar" | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [probe, setProbe] = useState<{ rejected: boolean; by: string; detail: string; foreign: string } | null>(null);
+  const [probe, setProbe] = useState<{ rejected: boolean; by: string; detail: string; foreign: string; call?: string; code?: number; raw?: string } | null>(null);
   const [hash, setHash] = useState<string | null>(null);
+  const [quote, setQuote] = useState<{ pct: number; source: string; buyer_net: string; seller_net: string; platform: string; tw: string } | null>(null);
   const balance = BigInt(d.onchain?.balance ?? d.amount_units);
-  const prev = splitPreview(balance, pct * 100, platformFeeBps);
+  const local = splitPreview(balance, pct * 100, platformFeeBps);
   const h = { "x-arbitro-key": arbKey };
+
+  // Vista previa del slider: pp_arbiter.quote (simulación de solo lectura), con un respiro de 300 ms.
+  useEffect(() => {
+    let alive = true;
+    const t = setTimeout(() => {
+      api<{ source: string; buyer_net: string; seller_net: string; platform: string; tw: string }>("/api/arbitro/quote", { slug: d.slug, buyerBps: pct * 100 }, { "x-arbitro-key": arbKey })
+        .then((q) => alive && setQuote({ pct, ...q }))
+        .catch(() => {});
+    }, 300);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [pct, d.slug, arbKey]);
+  const fresh = quote && quote.pct === pct ? quote : null;
+  const prev = fresh
+    ? { buyer: BigInt(fresh.buyer_net), seller: BigInt(fresh.seller_net), platform: BigInt(fresh.platform), tw: BigInt(fresh.tw) }
+    : { buyer: local.buyer.net, seller: local.seller.net, platform: local.buyer.platform + local.seller.platform, tw: local.buyer.tw + local.seller.tw };
 
   async function resolver() {
     setBusy("resolver");
@@ -211,15 +230,17 @@ function DisputeCard({ d, arbKey, platformFeeBps, onDone }: { d: DisputeItem; ar
         <div className="grid grid-cols-2 gap-2 text-center text-sm" data-testid="vista-previa">
           <div className="rounded-xl bg-violet-50 p-3">
             <p className="text-xs text-violet-800">Comprador recibe ({pct}%)</p>
-            <p className="text-xl font-bold text-violet-900">{fmtUsd(prev.buyer.net)}</p>
+            <p className="text-xl font-bold text-violet-900">{fmtUsd(prev.buyer)}</p>
           </div>
           <div className="rounded-xl bg-violet-50 p-3">
             <p className="text-xs text-violet-800">Vendedor recibe ({100 - pct}%)</p>
-            <p className="text-xl font-bold text-violet-900">{fmtUsd(prev.seller.net)}</p>
+            <p className="text-xl font-bold text-violet-900">{fmtUsd(prev.seller)}</p>
           </div>
           <p className="col-span-2 text-xs text-slate-500">
-            USD de prueba netos. Comisiones descontadas por el contrato: plataforma {fmtUsd(prev.buyer.platform + prev.seller.platform)} · Trustless Work{" "}
-            {fmtUsd(prev.buyer.tw + prev.seller.tw)}.
+            USD de prueba netos. Comisiones descontadas por el contrato: plataforma {fmtUsd(prev.platform)} · Trustless Work {fmtUsd(prev.tw)}.{" "}
+            <span data-testid="fuente-vista-previa">
+              {fresh ? `Vista previa: ${fresh.source === "pp_arbiter.quote" ? "pp_arbiter.quote (simulación, sin firma)" : "calculada en el servidor"}` : "Calculando…"}
+            </span>
           </p>
         </div>
       </div>
@@ -229,6 +250,12 @@ function DisputeCard({ d, arbKey, platformFeeBps, onDone }: { d: DisputeItem; ar
           <p className="font-semibold">
             {probe.rejected ? `🚫 Rechazado por el ${probe.by}` : "Atención"}: intento de mandar toda la plata a otra cuenta ({shortAddr(probe.foreign)})
           </p>
+          {probe.call && <p className="mt-1 font-mono text-xs">{probe.call}</p>}
+          {probe.raw && (
+            <p className="mt-1 text-xs">
+              Respuesta del contrato (simulación RPC, no se envió nada): <code className="font-mono font-semibold">{probe.raw}</code>
+            </p>
+          )}
           <p className="mt-1">{probe.detail}</p>
         </div>
       )}

@@ -2,6 +2,7 @@
 
 import { PollarClient } from "@pollar/core";
 import { PollarProvider, usePollar } from "@pollar/react";
+import "@pollar/react/styles.css";
 import { useEffect } from "react";
 import { setPollarState } from "@/lib/wallet/pollar";
 

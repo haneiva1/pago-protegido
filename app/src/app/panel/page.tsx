@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { Countdown } from "@/components/Guardian";
 import { Breakdown, SplitView, TxList } from "@/components/OrderBits";
 import { CopyButton, ErrorBox, ExplorerLink, Progress, Spinner, StatusBadge, useProgress } from "@/components/ui";
 import { WhatsAppBox } from "@/components/WhatsAppBox";
@@ -19,6 +20,7 @@ export default function Panel() {
   const [info, setInfo] = useState<InfoData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [primer, setPrimer] = useState(false);
+  const [demo, setDemo] = useState(false);
   const [created, setCreated] = useState<string | null>(null);
 
   const load = useCallback(async (p: string) => {
@@ -33,6 +35,7 @@ export default function Panel() {
     const p = getWallet("vendedor").publicKey();
     setPk(p);
     setPrimer(new URLSearchParams(window.location.search).has("primer"));
+    setDemo(new URLSearchParams(window.location.search).has("demo"));
     api<InfoData>("/api/info").then(setInfo).catch(() => {});
     if (!p) return;
     load(p);
@@ -84,6 +87,7 @@ export default function Panel() {
         sellerPubkey={seller.pubkey}
         fx={info?.fx ?? 11.7}
         title={firstLink ? "Tu primer link" : "Crear link"}
+        demo={demo}
         onCreated={(slug) => {
           setCreated(slug);
           load(seller.pubkey);
@@ -115,15 +119,16 @@ export default function Panel() {
         <h2 className="text-lg font-bold">Pedidos</h2>
         {orders.length === 0 && <p className="muted card">Todavía no tienes pedidos. Crea tu primer link y compártelo.</p>}
         {orders.map((o) => (
-          <OrderCard key={o.slug} o={o} store={seller.store_name} sellerPubkey={seller.pubkey} platformFeeBps={info?.platformFeeBps ?? 200} onChange={() => load(seller.pubkey)} />
+          <OrderCard key={o.slug} o={o} store={seller.store_name} sellerPubkey={seller.pubkey} platformFeeBps={info?.platformFeeBps ?? 200} mode={info?.mode ?? "guardian"} onChange={() => load(seller.pubkey)} />
         ))}
       </section>
     </div>
   );
 }
 
-function CreateLink({ sellerPubkey, fx, title, onCreated }: { sellerPubkey: string; fx: number; title: string; onCreated: (slug: string) => void }) {
+function CreateLink({ sellerPubkey, fx, title, demo, onCreated }: { sellerPubkey: string; fx: number; title: string; demo: boolean; onCreated: (slug: string) => void }) {
   const [f, setF] = useState({ product: "", description: "", photoUrl: "", priceBs: "", deliveryDays: "3" });
+  const [demoWindow, setDemoWindow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
@@ -134,7 +139,7 @@ function CreateLink({ sellerPubkey, fx, title, onCreated }: { sellerPubkey: stri
     setBusy(true);
     setError(null);
     try {
-      const o = await api<{ slug: string }>("/api/links", { ...f, sellerPubkey, deliveryDays: Number(f.deliveryDays) });
+      const o = await api<{ slug: string }>("/api/links", { ...f, sellerPubkey, deliveryDays: Number(f.deliveryDays), demoWindow: demo && demoWindow });
       setF({ product: "", description: "", photoUrl: "", priceBs: "", deliveryDays: "3" });
       onCreated(o.slug);
     } catch (err) {
@@ -186,6 +191,14 @@ function CreateLink({ sellerPubkey, fx, title, onCreated }: { sellerPubkey: stri
           </select>
         </div>
       </div>
+      {demo && (
+        <label className="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+          <input type="checkbox" className="mt-1" checked={demoWindow} onChange={(e) => setDemoWindow(e.target.checked)} />
+          <span>
+            <strong>Plazo corto de demo:</strong> liberación automática a los 2 minutos del pago (en vez de días de entrega + 3 días).
+          </span>
+        </label>
+      )}
       <ErrorBox error={error} />
       <button className="btn-primary w-full" disabled={busy}>
         {busy ? <Spinner /> : null} Crear link
@@ -194,7 +207,7 @@ function CreateLink({ sellerPubkey, fx, title, onCreated }: { sellerPubkey: stri
   );
 }
 
-function OrderCard({ o, store, sellerPubkey, platformFeeBps, onChange }: { o: SellerOrder; store: string; sellerPubkey: string; platformFeeBps: number; onChange: () => void }) {
+function OrderCard({ o, store, sellerPubkey, platformFeeBps, mode, onChange }: { o: SellerOrder; store: string; sellerPubkey: string; platformFeeBps: number; mode: "direct" | "guardian"; onChange: () => void }) {
   const [evidence, setEvidence] = useState("");
   const [reply, setReply] = useState(o.seller_reply ?? "");
   const [busy, setBusy] = useState(false);
@@ -276,6 +289,8 @@ function OrderCard({ o, store, sellerPubkey, platformFeeBps, onChange }: { o: Se
           <WhatsAppBox title="Avísale a tu cliente" text={waText("enviado", d)} />
         </>
       )}
+
+      <Countdown slug={o.slug} deadline={o.deadline} status={o.status} mode={mode} onReleased={onChange} />
 
       {o.status === "liberado" && (
         <>

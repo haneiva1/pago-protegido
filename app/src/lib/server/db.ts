@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS orders (
   dispute_photo TEXT,
   disputed_at INTEGER,
   seller_reply TEXT,
+  window_secs INTEGER,
+  verify_json TEXT,
   buyer_bps INTEGER,
   resolved_at INTEGER,
   released_at INTEGER,
@@ -101,6 +103,8 @@ export interface OrderRow {
   dispute_photo: string | null;
   disputed_at: number | null;
   seller_reply: string | null;
+  window_secs: number | null;
+  verify_json: string | null;
   buyer_bps: number | null;
   resolved_at: number | null;
   released_at: number | null;
@@ -140,6 +144,11 @@ export function db(): Database.Database {
   d.pragma("journal_mode = WAL");
   d.pragma("busy_timeout = 5000");
   d.exec(SCHEMA);
+  // Migración de bases creadas antes de la segunda ronda.
+  const cols = (d.prepare("PRAGMA table_info(orders)").all() as { name: string }[]).map((c) => c.name);
+  for (const [c, t] of [["window_secs", "INTEGER"], ["verify_json", "TEXT"]]) {
+    if (!cols.includes(c)) d.exec(`ALTER TABLE orders ADD COLUMN ${c} ${t}`);
+  }
   g.__ppDb = d;
   return d;
 }
@@ -167,12 +176,12 @@ export const sellers = {
 };
 
 export const orders = {
-  insert(o: Pick<OrderRow, "slug" | "seller_pubkey" | "product" | "description" | "photo_url" | "price_bs_cents" | "amount_units" | "fx" | "delivery_days">) {
+  insert(o: Pick<OrderRow, "slug" | "seller_pubkey" | "product" | "description" | "photo_url" | "price_bs_cents" | "amount_units" | "fx" | "delivery_days" | "window_secs">) {
     const t = now();
     db()
       .prepare(
-        `INSERT INTO orders (slug, seller_pubkey, product, description, photo_url, price_bs_cents, amount_units, fx, delivery_days, status, created_at, updated_at)
-         VALUES (@slug, @seller_pubkey, @product, @description, @photo_url, @price_bs_cents, @amount_units, @fx, @delivery_days, 'esperando_pago', @t, @t)`,
+        `INSERT INTO orders (slug, seller_pubkey, product, description, photo_url, price_bs_cents, amount_units, fx, delivery_days, window_secs, status, created_at, updated_at)
+         VALUES (@slug, @seller_pubkey, @product, @description, @photo_url, @price_bs_cents, @amount_units, @fx, @delivery_days, @window_secs, 'esperando_pago', @t, @t)`,
       )
       .run({ ...o, t });
   },

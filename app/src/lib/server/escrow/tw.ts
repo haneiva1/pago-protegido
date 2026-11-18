@@ -17,7 +17,7 @@ import {
   u32,
   withLock,
 } from "../stellar";
-import type { EscrowProps, OnchainState, Roles } from "./types";
+import type { EscrowProps, OnchainState, Roles, Verification } from "./types";
 
 const g = globalThis as unknown as { __ppSpecs?: Map<string, contract.Spec> };
 const specs = () => (g.__ppSpecs ??= new Map());
@@ -132,3 +132,21 @@ export function distributionsScVal(entries: { address: string; amount: bigint }[
 }
 
 export { tokenBalance };
+
+/**
+ * H-2: antes de pedirle al comprador que firme el fondeo, se verifica por RPC que la instancia
+ * ejecuta el WASM auditado de Trustless Work y que sus roles son los esperados.
+ */
+export async function verifyEscrowInstance(escrowId: string, expected: Roles, labels: { approver: string; resolver: string }): Promise<Verification> {
+  const [wasm, st] = await Promise.all([server().getContractWasmByContractId(escrowId), readEscrowState(escrowId)]);
+  const wasmHash = createHash("sha256").update(Buffer.from(wasm)).digest("hex");
+  const r = st.roles;
+  const checks = [
+    { label: "Ejecuta el código del escrow de Trustless Work", ok: wasmHash === cfg().wasmHash, detail: `WASM ${wasmHash.slice(0, 12)}…` },
+    { label: `Aprueba y libera: ${labels.approver}`, ok: r?.approver === expected.approver && r?.release_signer === expected.release_signer },
+    { label: `Resuelve reclamos: ${labels.resolver}`, ok: r?.dispute_resolver === expected.dispute_resolver },
+    { label: "Cobra: el vendedor", ok: r?.receiver === expected.receiver && r?.service_provider === expected.service_provider },
+    { label: "Comisión de la plataforma: la cuenta de Pago Protegido", ok: r?.platform === expected.platform },
+  ];
+  return { ok: checks.every((c) => c.ok), escrowId, wasmHash, checks, at: Date.now() };
+}

@@ -95,3 +95,48 @@ Integrado con `@pollar/react` y `@pollar/core` 0.12, siguiendo las páginas de `
     - El login real no se pudo probar porque Pollar solo acepta el origen `http://localhost:3000`, y en esta máquina ese puerto lo ocupa un contenedor de Docker (desde 3020, CORS bloquea `/v3/applications/config`).
     - Falta probarlo con `npm run dev` en el puerto 3000 libre, iniciando sesión con Google o email.
     - Riesgo a revisar en esa prueba: si la política de transacciones de la app en Pollar (Wallets → Transaction policy / Signing rules) restringe qué contratos Soroban puede firmar una billetera administrada, habrá que permitir el escrow (cada pedido es una instancia nueva del mismo WASM).
+
+## Segunda ronda: modo guardián por defecto
+
+34. **`PP_MODE=guardian` es el modo por defecto.**
+    - Usa `pp_guardian` `CAOX6JZV3CJZFDD22J2XI3NKY5G4NRFOYRV7IA724MSVREYVRALW4OZU` y `pp_arbiter` `CBCDVLEPJ6PN7RDC3HFGML3IUT7SOQEYSGH3LE3SWXWZJO7Z2QG2PWGU`, de `../contracts/deployments/testnet.json`.
+    - Los IDs quedan en `.env.local` (`npm run setup`) y como valor por defecto en `config.ts`.
+    - `PP_MODE=direct` sigue funcionando.
+    - La interfaz real coincide con SPEC §3 y además usa `purchase`, `quote` y el `Purchase` que devuelve `fund`.
+35. **H-2: verificación antes de pedir la firma del fondeo.**
+    - Por RPC se descarga el WASM de la instancia (`getContractWasmByContractId`) y su sha256 tiene que ser `1b367bc8…196660`.
+    - Con `get_escrow` se comparan los roles esperados: approver y release_signer = `pp_guardian`, dispute_resolver = `pp_arbiter`, receiver y service_provider = vendedor, platform = plataforma.
+    - Si algo falla, el servidor no arma la transacción y la pantalla muestra "Pago bloqueado". Si todo está bien, muestra el sello "Contrato verificado" con link a stellar.expert.
+    - El resultado queda en `orders.verify_json` y se sigue mostrando en el seguimiento.
+36. **H-1: el estado on-chain manda.**
+    - Al leer un pedido con su estado on-chain, `released` → "Liberado" (aunque también figure en disputa) y `resolved` → "Resuelto".
+    - El status de envío se escribe exactamente `"enviado"` (D-7 de contracts).
+37. **El plazo real es el del contrato.**
+    - Después del fondeo, la app lee `pp_guardian.purchase` y guarda `funded_at` y `deadline` (hora del ledger).
+    - "Liberar ahora (plazo vencido)" aparece con 5 s de margen después del deadline y solo si el pedido está "enviado", porque `auto_release` lo exige (#23).
+    - Lo llama la plataforma sin firmas de usuario (`auto_release` no requiere auth).
+38. **Plazo de demo: `?demo=1` en `/panel`.**
+    - Habilita "Plazo corto de demo" (2 minutos; el mínimo del guardián es 60 s).
+    - Queda en `orders.window_secs` y no se ofrece fuera de esa URL.
+39. **Árbitro:**
+    - La vista previa del slider llama `pp_arbiter.quote` (simulación de solo lectura) y muestra los netos con la fórmula de comisiones de TW.
+    - `resolve` usa `pp_arbiter.resolve`.
+    - El redondeo de la vista previa local y del modo directo se igualó al D-8 del árbitro: la unidad sobrante va al comprador.
+40. **Demo de desvío:**
+    - Se simula `escrow.resolve_dispute` firmado con la llave `arbitro` hacia una tercera cuenta (la de la plataforma, que tiene trustline).
+    - El escrow lo rechaza con `Error(Contract, #12)` `OnlyDisputeResolverCanExecuteThisFunction`, porque el dispute_resolver es `pp_arbiter`.
+    - La pantalla muestra la llamada, el error crudo del host y que fue una simulación (no se envía nada ni se cobra comisión).
+    - Además se revisa en el Spec que `pp_arbiter` no tenga funciones con destinos.
+41. **Errores propios del guardián y del árbitro** (tablas de `contracts/DECISIONES.md`) traducidos al español, con el contrato y el código: p. ej. "Todavía no venció el plazo de liberación automática (pp_guardian #19)".
+42. **Rutas de rampa de Pollar:**
+    - `docs-pp/pollar/rutas-api.json` se generó con `consultar-rutas.sh`, solo con lecturas (GET /health y /ramps/routes; sin `--cotizar-bob`).
+    - HTTP 200 en las tres consultas y **0 rutas** de on-ramp/off-ramp en la app de Test. La salida no contiene la clave.
+43. **Pollar en `localhost:3020`:**
+    - El modal de login carga sin errores de origen (verificado con Playwright).
+    - Faltaba `import "@pollar/react/styles.css"`, que indica POLLAR.md: sin él, el modal salía sin estilos al pie de la página.
+    - En 0.12.0 el modal está en inglés (sin `locale` en los tipos).
+44. **El e2e reintenta el pago hasta 3 veces si la red falla.**
+    - El pago encadena 3–4 transacciones en testnet: rampa, deploy del escrow y fondeo.
+    - En una corrida, el deploy del escrow falló una vez por la red. El flujo es idempotente (no vuelve a emitir la rampa y solo crea el escrow si falta), así que el test hace lo mismo que haría el usuario: ve el error y reintenta.
+    - El servidor ahora registra los errores de red o contrato (422) en el log.
+    - El error se busca por `data-testid="error"`: `role="alert"` también lo usa el route announcer de Next.js.

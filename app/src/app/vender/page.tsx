@@ -27,9 +27,10 @@ export default function Vender() {
     setError(null);
     try {
       const wallet = getWallet("vendedor");
-      progress.push("Creando tu billetera en este dispositivo");
+      const L = WALLET_KIND === "pollar" ? "Ingresando con tu cuenta (Pollar)" : "Creando tu billetera en este dispositivo";
+      progress.push(L);
       const pubkey = await wallet.connect();
-      progress.finish("Creando tu billetera en este dispositivo");
+      progress.finish(L);
       await activateWallet(wallet, progress.push);
       progress.push("Guardando tu tienda");
       await api("/api/sellers", { pubkey, storeName: store, whatsapp });

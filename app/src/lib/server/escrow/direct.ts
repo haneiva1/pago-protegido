@@ -9,7 +9,9 @@ import {
   tokenBalance,
 } from "./tw";
 import { i128 } from "../stellar";
-import type { EscrowCtx, EscrowProps, EscrowService, ProbeResult, Roles, UserAction } from "./types";
+import { splitPreview } from "@/lib/format";
+import { verifyEscrowInstance } from "./tw";
+import type { EscrowCtx, EscrowProps, EscrowService, ProbeResult, Quote, Roles, UserAction } from "./types";
 
 /**
  * Modo directo (temporal, hasta que existan pp_guardian y pp_arbiter):
@@ -63,7 +65,7 @@ export class DirectEscrowService implements EscrowService {
   async resolve(ctx: EscrowCtx, buyerBps: number) {
     // El servidor solo arma repartos entre comprador y vendedor, sobre el saldo real del contrato.
     const balance = await tokenBalance(ctx.escrowId);
-    const buyerAmount = (balance * BigInt(buyerBps)) / 10000n;
+    const buyerAmount = balance - (balance * BigInt(10000 - buyerBps)) / 10000n;
     const dist = distributionsScVal([
       { address: ctx.buyer, amount: buyerAmount },
       { address: ctx.seller, amount: balance - buyerAmount },
@@ -100,6 +102,20 @@ export class DirectEscrowService implements EscrowService {
 
   readState(escrowId: string) {
     return readEscrowState(escrowId);
+  }
+
+  verify(ctx: EscrowCtx) {
+    return verifyEscrowInstance(ctx.escrowId, this.roles(ctx.buyer, ctx.seller), { approver: "el comprador", resolver: "la cuenta del árbitro" });
+  }
+
+  async quote(ctx: EscrowCtx, buyerBps: number): Promise<Quote> {
+    const balance = await tokenBalance(ctx.escrowId);
+    const s = splitPreview(balance, buyerBps, cfg().platformFeeBps);
+    return { balance: balance.toString(), buyer_amount: s.buyer.gross.toString(), seller_amount: s.seller.gross.toString(), source: "servidor" };
+  }
+
+  async purchase() {
+    return null;
   }
 
   contracts() {

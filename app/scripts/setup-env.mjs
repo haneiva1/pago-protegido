@@ -37,7 +37,10 @@ for (const id of ["plataforma", "arbitro", "lab", "twfee"]) {
 
 const lines = [
   "# Generado por `npm run setup`. SOLO TESTNET. No se versiona.",
-  "PP_MODE=direct",
+  // Modo guardián por defecto (contratos de ../contracts/deployments/testnet.json). PP_MODE=direct sigue disponible.
+  "PP_MODE=guardian",
+  "PP_GUARDIAN_ID=CAOX6JZV3CJZFDD22J2XI3NKY5G4NRFOYRV7IA724MSVREYVRALW4OZU",
+  "PP_ARBITER_ID=CBCDVLEPJ6PN7RDC3HFGML3IUT7SOQEYSGH3LE3SWXWZJO7Z2QG2PWGU",
   "NEXT_PUBLIC_WALLET=local",
   `PLATAFORMA_SECRET=${ids.plataforma}`,
   `ARBITRO_SECRET=${ids.arbitro}`,
@@ -49,9 +52,6 @@ const lines = [
   "PLATFORM_FEE_BPS=200",
   "FX_BS_PER_USD=11.70",
   `ARBITRO_PANEL_KEY=${randomBytes(9).toString("base64url")}`,
-  "# Modo guardián (cuando existan los contratos): PP_MODE=guardian",
-  "# PP_GUARDIAN_ID=C...",
-  "# PP_ARBITER_ID=C...",
 ];
 
 const pollarFile = process.env.POLLAR_ENV_FILE ?? join(APP, "..", "..", "docs-pp", ".env.pollar");

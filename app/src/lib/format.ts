@@ -45,8 +45,14 @@ export function releaseBreakdown(amount: bigint, platformBps: number) {
 
 /** Vista previa del reparto del árbitro, igual que calculate_and_distribute_fees. */
 export function splitPreview(balance: bigint, buyerBps: number, platformBps: number) {
-  const buyerGross = (balance * BigInt(buyerBps)) / 10000n;
-  const sellerGross = balance - buyerGross;
+  // Igual que pp_arbiter (D-8): seller = floor(saldo × (10000 − bps) / 10000); el resto, al comprador.
+  const sellerGross = (balance * BigInt(10000 - buyerBps)) / 10000n;
+  const buyerGross = balance - sellerGross;
+  return splitFromGross(balance, buyerGross, sellerGross, platformBps);
+}
+
+/** Netos de cada parte a partir de los brutos del reparto (comisiones por destinatario, como TW). */
+export function splitFromGross(balance: bigint, buyerGross: bigint, sellerGross: bigint, platformBps: number) {
   const twTotal = (balance * TW_FEE_BPS) / 10000n;
   const pfTotal = (balance * BigInt(platformBps)) / 10000n;
   const part = (gross: bigint) => {

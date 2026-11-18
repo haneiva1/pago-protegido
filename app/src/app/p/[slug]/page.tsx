@@ -3,10 +3,11 @@
 import QRCode from "qrcode";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { Countdown, VerifiedSeal } from "@/components/Guardian";
 import { Breakdown, SplitView, Timeline, TxList } from "@/components/OrderBits";
 import { ErrorBox, ExplorerLink, Progress, Spinner, StatusBadge, useProgress } from "@/components/ui";
 import { WhatsAppBox } from "@/components/WhatsAppBox";
-import { explorer, fmtBs, fmtDate, fmtUsd } from "@/lib/format";
+import { explorer, fmtBs, fmtUsd } from "@/lib/format";
 import type { OrderView } from "@/lib/types";
 import { activateWallet, api, getWallet, signAndSubmit, type PreparedTx } from "@/lib/wallet";
 import { waLink, waText } from "@/lib/whatsapp";
@@ -68,15 +69,17 @@ export default function PaginaDePago() {
   const pagar = () =>
     run(async () => {
       const wallet = getWallet("comprador");
-      progress.push("Creando tu billetera en este dispositivo");
+      const LW = wallet.kind === "pollar" ? "Ingresando con tu cuenta (Pollar)" : "Creando tu billetera en este dispositivo";
+      progress.push(LW);
       const pk = await wallet.connect();
       setMe(pk);
-      progress.finish("Creando tu billetera en este dispositivo");
+      progress.finish(LW);
       await activateWallet(wallet, progress.push);
       const L = "Banco: pago simulado y contrato protegido creado";
       progress.push(L);
-      const prepared = await api<PreparedTx>(`/api/orders/${slug}/pay`, { buyer: pk });
+      const prepared = await api<PreparedTx & { verification?: { ok: boolean } }>(`/api/orders/${slug}/pay`, { buyer: pk });
       progress.finish(L);
+      if (prepared.verification?.ok) progress.push("Contrato verificado: código de Trustless Work y roles correctos", undefined), progress.finish("Contrato verificado: código de Trustless Work y roles correctos");
       await signAndSubmit(wallet, prepared, progress.push);
       setQrOpen(false);
     });
@@ -107,6 +110,7 @@ export default function PaginaDePago() {
           )}
           <Progress steps={progress.steps} />
           <ErrorBox error={error} />
+          <VerifiedSeal v={o.verification} />
         </>
       ) : (
         <>
@@ -132,13 +136,7 @@ export default function PaginaDePago() {
               <StatusBadge status={o.status} />
             </div>
             <Timeline order={o} txs={v.txs} />
-            {o.deadline && (o.status === "pagado" || o.status === "enviado") && (
-              <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600" data-testid="plazo">
-                ⏱️ Liberación automática: <strong>{fmtDate(o.deadline)}</strong>. Si para entonces no confirmas ni reportas un problema, la
-                plata se libera al vendedor.
-                {v.mode === "direct" && " (En esta versión de prueba la liberación automática todavía no está activa.)"}
-              </p>
-            )}
+            <Countdown slug={o.slug} deadline={o.deadline} status={o.status} mode={v.mode} onReleased={load} />
           </section>
 
           {o.status === "liberado" && (
@@ -164,6 +162,7 @@ export default function PaginaDePago() {
 
           <section className="card space-y-2">
             <h2 className="font-bold">Transparencia</h2>
+            <VerifiedSeal v={o.verification} />
             {o.escrow_id && (
               <p className="text-xs text-slate-600">
                 Contrato de este pedido: <ExplorerLink href={explorer.contract(o.escrow_id)}>{o.escrow_id}</ExplorerLink>

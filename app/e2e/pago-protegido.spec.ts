@@ -51,7 +51,7 @@ async function crearLink(page: Page, p: { producto: string; descripcion: string;
   await page.getByLabel("Producto").fill(p.producto);
   await page.getByLabel("Descripción corta").fill(p.descripcion);
   await page.getByLabel("Precio en Bs").fill(String(p.precio));
-  await page.getByLabel("Días de entrega").selectOption(String(p.dias));
+  await page.getByLabel("Días de entrega", { exact: true }).selectOption(String(p.dias));
   if (captura) await capturar(page, captura);
   await page.getByRole("button", { name: "Crear link" }).click();
   const url = (await page.getByTestId("link-url").textContent())!.trim();
@@ -69,9 +69,24 @@ async function pagar(browser: Browser, url: string, capturas: boolean) {
   await page.getByRole("button", { name: /Pagar protegido/ }).click();
   await expect(page.getByTestId("rampa-simulada")).toHaveText("Rampa simulada en testnet. En producción la hace una entidad certificada por ASFI.");
   if (capturas) await capturar(page, "07-comprador-qr-rampa-simulada");
-  await page.getByRole("button", { name: "Simular pago del banco (testnet)" }).click();
-  await expect(page.getByTestId("estado-pedido")).toContainText("Tu plata está protegida", CHAIN);
+  // El pago encadena varias transacciones en testnet (rampa, deploy del escrow, fondeo). Si la red falla,
+  // la pantalla muestra el error y se puede reintentar: el flujo es idempotente (no vuelve a emitir la rampa).
+  const simular = page.getByRole("button", { name: "Simular pago del banco (testnet)" });
+  const ok = page.getByTestId("estado-pedido");
+  const err = page.getByTestId("error"); // ojo: Next.js tiene un route announcer con role="alert"
+  for (let intento = 1; ; intento++) {
+    await simular.click();
+    await expect(ok.or(err).first()).toBeVisible(CHAIN);
+    if (await ok.isVisible()) break;
+    const msg = await err.first().innerText();
+    console.log(`[e2e] pago, intento ${intento} falló en la red: ${msg}`);
+    if (intento >= 3) throw new Error(`El pago falló 3 veces: ${msg}`);
+  }
+  await expect(ok).toContainText("Tu plata está protegida", CHAIN);
   await expect(page.locator(TX_LINK).first()).toBeVisible();
+  // H-2: la instancia ejecuta el WASM de Trustless Work y tiene los roles del modo guardián.
+  await expect(page.getByTestId("sello-verificado")).toContainText("Contrato verificado");
+  await expect(page.getByTestId("sello-verificado")).toContainText("pp_guardian");
   return page;
 }
 
@@ -173,9 +188,14 @@ test("disputa: reclamo del comprador y el árbitro reparte 70/30", async ({ brow
   await expect(dispute.getByTestId("estado-onchain")).toContainText("En disputa: sí");
   await dispute.getByTestId("slider").fill("70");
   await expect(dispute.getByTestId("pct")).toHaveText("70%");
+  // La vista previa sale de pp_arbiter.quote (simulación de solo lectura).
+  await expect(dispute.getByTestId("fuente-vista-previa")).toContainText("pp_arbiter.quote", { timeout: 60_000 });
   await expect(dispute.getByTestId("vista-previa")).toContainText("17,54"); // 70 % de 25,6410256 menos comisiones
+  await expect(dispute.getByTestId("vista-previa")).toContainText("7,52");
+  // Desvío: la llave del árbitro llama directo al escrow hacia una tercera cuenta y el CONTRATO lo rechaza.
   await dispute.getByRole("button", { name: "Probar: mandar la plata a otra cuenta" }).click();
-  await expect(dispute.getByTestId("resultado-desvio")).toContainText("Rechazado", { timeout: 60_000 });
+  await expect(dispute.getByTestId("resultado-desvio")).toContainText("Rechazado por el contrato", { timeout: 60_000 });
+  await expect(dispute.getByTestId("resultado-desvio")).toContainText("Error(Contract, #12)");
   await capturar(arb, "23-arbitro-70-30-desvio-rechazado");
   await dispute.getByRole("button", { name: "Resolver" }).click();
   await expect(arb.getByText("Resueltas recientemente")).toBeVisible(CHAIN);
@@ -196,4 +216,41 @@ test("disputa: reclamo del comprador y el árbitro reparte 70/30", async ({ brow
   await info.goto("/como-funciona");
   await expect(info.getByRole("heading", { level: 1 })).toHaveText("Cómo funciona");
   await capturar(info, "30-como-funciona");
+});
+
+test("liberación automática: plazo corto de demo (2 min) y pp_guardian.auto_release", async ({ browser }) => {
+  const seller = await nuevoVendedor(browser, "Bazar Express", "59170001111");
+  await seller.goto("/panel?demo=1");
+  await seller.getByLabel(/Plazo corto de demo/).check();
+  const { url, slug } = await crearLink(
+    seller,
+    { producto: "Audífonos Bluetooth", descripcion: "Con estuche de carga.", precio: 150, dias: 1 },
+    "40-panel-plazo-corto-demo",
+  );
+  const buyer = await pagar(browser, url, false);
+  await marcarEnviado(seller, slug, "BOA-77310");
+
+  // Cuenta regresiva en la página del comprador y en el panel del vendedor.
+  await buyer.reload();
+  await expect(buyer.getByTestId("cuenta-regresiva")).toBeVisible({ timeout: 60_000 });
+  await capturar(buyer, "41-comprador-cuenta-regresiva");
+  await seller.reload();
+  await expect(seller.getByTestId(`pedido-${slug}`).getByTestId("plazo")).toBeVisible({ timeout: 60_000 });
+  await capturar(seller, "42-vendedor-cuenta-regresiva");
+
+  // Vence el plazo: aparece "Liberar ahora (plazo vencido)" y llama a pp_guardian.auto_release (sin firmas).
+  const btn = buyer.getByRole("button", { name: /Liberar ahora \(plazo vencido\)/ });
+  await expect(btn).toBeVisible({ timeout: 5 * 60_000 });
+  await capturar(buyer, "43-comprador-plazo-vencido");
+  await expect(async () => {
+    if (await btn.isVisible()) await btn.click({ timeout: 5_000 }).catch(() => {});
+    await expect(buyer.getByTestId("estado-pedido")).toContainText("Pago liberado al vendedor", { timeout: 45_000 });
+  }).toPass({ timeout: 4 * 60_000, intervals: [5_000] });
+  await expect(buyer.getByTestId("desglose")).toBeVisible();
+  await expect(buyer.getByText("Venció el plazo: se liberó el pago al vendedor")).toBeVisible();
+  await capturar(buyer, "44-comprador-liberado-por-plazo");
+
+  await seller.reload();
+  await expect(seller.getByTestId(`pedido-${slug}`).getByTestId("estado")).toHaveText("Liberado", { timeout: 60_000 });
+  await capturar(seller, "45-vendedor-liberado-por-plazo");
 });

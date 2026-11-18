@@ -45,6 +45,28 @@ export interface ProbeResult {
   rejected: boolean;
   by: "contrato" | "servidor";
   detail: string;
+  /** Llamada que se intentó (solo simulación, no se envía nada). */
+  call?: string;
+  /** Código y error crudo del host, p. ej. "Error(Contract, #12)". */
+  code?: number;
+  raw?: string;
+}
+
+/** H-2: verificación de la instancia del escrow antes de pedir la firma del fondeo. */
+export interface Verification {
+  ok: boolean;
+  escrowId: string;
+  wasmHash: string;
+  checks: { label: string; ok: boolean; detail?: string }[];
+  at: number;
+}
+
+/** Reparto bruto (antes de comisiones), como Split de pp_arbiter. */
+export interface Quote {
+  balance: string;
+  buyer_amount: string;
+  seller_amount: string;
+  source: "pp_arbiter.quote" | "servidor";
 }
 
 /**
@@ -71,6 +93,12 @@ export interface EscrowService {
   /** Liberación por plazo vencido (solo modo guardián). */
   autoRelease(ctx: EscrowCtx): Promise<{ hash: string }>;
   readState(escrowId: string): Promise<OnchainState>;
+  /** H-2: WASM de la instancia y roles esperados, leídos por RPC. */
+  verify(ctx: EscrowCtx): Promise<Verification>;
+  /** Vista previa del reparto (modo guardián: pp_arbiter.quote, solo lectura). */
+  quote(ctx: EscrowCtx, buyerBps: number): Promise<Quote>;
+  /** Compra registrada on-chain (modo guardián: pp_guardian.purchase), tiempos en ms. */
+  purchase(escrowId: string): Promise<{ fundedAt: number; deadline: number } | null>;
   /** Contratos a mostrar en /como-funciona. */
   contracts(): { label: string; id: string; kind: "contract" | "account" }[];
 }

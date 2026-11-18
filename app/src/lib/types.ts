@@ -1,9 +1,9 @@
 import type { OrderRow, SellerRow, TxRow } from "@/lib/server/db";
-import type { OnchainState } from "@/lib/server/escrow/types";
+import type { OnchainState, Verification } from "@/lib/server/escrow/types";
 
-export type { OrderRow, SellerRow, TxRow, OnchainState };
+export type { OrderRow, SellerRow, TxRow, OnchainState, Verification };
 
-export type PublicOrder = Omit<OrderRow, "escrow_json">;
+export type PublicOrder = Omit<OrderRow, "escrow_json" | "verify_json"> & { verification: Verification | null };
 
 export interface MoneyView {
   breakdown?: { seller: string; platform: string; tw: string };
