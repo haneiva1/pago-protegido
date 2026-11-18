@@ -9,6 +9,11 @@
 //! exige `dispute_resolver.require_auth()` y el dispute_resolver es este
 //! contrato, nadie (ni el admin, ni la plataforma) puede llamar
 //! `resolve_dispute` del escrow por fuera de este código.
+//!
+//! v2: `refund_unshipped` usa el plazo de despacho firmado por el comprador
+//! (`funded_at + ship_secs`) y el envío registrado en pp_guardian. Este
+//! contrato NO es actualizable (no hay `update_current_contract_wasm`) y no
+//! tiene ninguna ruta a `withdraw_remaining_funds` de TW (TW-5).
 #![no_std]
 
 use soroban_sdk::{
@@ -19,10 +24,7 @@ use soroban_sdk::{
 mod escrow_iface {
     include!("../../shared/escrow_iface.rs");
 }
-pub use escrow_iface::{
-    is_shipped, Escrow, EscrowClient, Flags, Milestone, Purchase, Roles, Trustline,
-    SHIPPED_STATUS,
-};
+pub use escrow_iface::{Escrow, EscrowClient, Flags, Milestone, Purchase, Roles, Trustline};
 
 /// 100% en puntos básicos.
 pub const BPS_DENOMINATOR: u32 = 10_000;
@@ -147,15 +149,16 @@ impl PpArbiter {
     }
 
     /// Devuelve el 100% del saldo al comprador sin intervención del admin
-    /// (no requiere auth) si: el escrow está en disputa, el plazo de la compra
-    /// venció y el vendedor nunca marcó el hito como "enviado".
+    /// (no requiere auth) si: el escrow está en disputa, venció el plazo de
+    /// despacho (`funded_at + ship_secs`) y el vendedor nunca registró el envío
+    /// en pp_guardian (`shipped_at` vacío).
     pub fn refund_unshipped(env: Env, escrow: Address) -> Result<Split, Error> {
         let ctx = load(&env, &escrow, BPS_DENOMINATOR)?;
-        if env.ledger().timestamp() < ctx.purchase.deadline {
-            return Err(Error::DeadlineNotReached);
-        }
-        if is_shipped(&env, &ctx.escrow) {
+        if ctx.purchase.shipped_at.is_some() {
             return Err(Error::AlreadyShipped);
+        }
+        if env.ledger().timestamp() < ctx.purchase.funded_at + ctx.purchase.ship_secs {
+            return Err(Error::DeadlineNotReached);
         }
         execute(&env, &escrow, &ctx.split);
         RefundedUnshipped {
@@ -197,7 +200,6 @@ impl PpArbiter {
 }
 
 struct Ctx {
-    escrow: Escrow,
     purchase: Purchase,
     split: Split,
 }
@@ -249,7 +251,6 @@ fn load(env: &Env, escrow: &Address, buyer_bps: u32) -> Result<Ctx, Error> {
             buyer_amount,
             seller_amount,
         },
-        escrow: data,
         purchase,
     })
 }
