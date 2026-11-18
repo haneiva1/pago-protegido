@@ -162,3 +162,20 @@ Integrado con `@pollar/react` y `@pollar/core` 0.12, siguiendo las páginas de `
     - Avisa cada 3 s.
     - Si el bot no tiene `node_modules`, los instala.
     - Si una de las dos partes se cae, apaga todo.
+
+## Cuarta ronda: transparencia, reinicio y video
+
+51. **`/transparencia` calcula todo con eventos on-chain** (docs/METRICAS.md), no con la base privada de pedidos.
+    - La ingesta se hace al abrir la página (o `/api/transparencia`), con candado y como mucho cada 15 s. No hay un job aparte: para el MVP alcanza y no agrega procesos.
+    - Muestra todas las compras del guardián, incluidas las de scripts y pruebas: es lo que dice la red.
+52. **Las comisiones de /transparencia son nominales** (2% y 0,3% del volumen cerrado), como `metricas.sh`. El redondeo real por destinatario puede diferir en unidades.
+53. **`demo:reset` borra solo pedidos, tiendas, transacciones y pendientes locales.**
+    - Conserva `kv` (la fábrica del escrow, para no desplegar otra) y `pp_events` (para no reingerir).
+    - Siembra con billeteras locales de un solo uso. Esas llaves no se guardan, así que esos pedidos son solo historial.
+    - La tienda sembrada usa el número del simulador. Cuando el presentador crea la suya con `/vender?wa=`, el bot toma la más reciente (APP-ENDPOINTS §1).
+54. **Video:**
+    - Cada escena se graba como un clip en un contexto nuevo, para que el video no incluya las esperas de los otros actores.
+    - La billetera local pasa entre clips con `storageState`. La segunda compra se paga y se despacha fuera de cámara.
+    - Los subtítulos son un overlay que sobrevive a las navegaciones (sessionStorage) y no tapa la interacción (`pointer-events: none`).
+    - Se versiona solo el mp4 final; los clips se regeneran.
+55. **Playwright compartido:** `playwright.shared.ts` arma la app y el simulador para el e2e (3100/3130, `data/e2e.db`) y para el video (3200/3230, `data/video.db`, `slowMo` 120 ms).

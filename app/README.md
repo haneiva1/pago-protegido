@@ -65,6 +65,55 @@ Recorrido sugerido:
 
 Variables opcionales: `DEMO_APP_PORT`, `DEMO_SIM_PORT`, `DEMO_SELLER_PHONE` y `DEMO_BUYER_PHONE`.
 
+### Antes de presentar: `npm run demo:reset`
+
+```bash
+npm run demo:reset   # con la demo apagada
+```
+
+Deja la base local de la demo (`data/pp.db`) limpia y con dos pedidos históricos reales de testnet:
+
+- **"Tienda Sofi"** (+591 71234567): "Polera Adidas talla M" liberado por confirmación y "Audífonos Sony WH-1000" resuelto 70/30 por `pp_arbiter`.
+- Borra pedidos, tiendas y transacciones locales (por ejemplo, las disputas repetidas de pruebas).
+- Conserva la fábrica del escrow y los eventos on-chain ya ingeridos. Lo on-chain no se puede borrar y `/transparencia` lo sigue mostrando.
+- Levanta la app un momento en el 3098, siembra con billeteras locales de un solo uso (unos 2 minutos en testnet) y la apaga.
+- Si `npm run demo` está corriendo, se niega a borrar.
+
+### Video de la demo: `npm run demo:video`
+
+```bash
+npm run demo:video   # unos 4 minutos; deja pago-protegido/demo/video/pago-protegido-demo.mp4
+```
+
+- Graba con Playwright el recorrido completo en testnet (≈ 2:30, 1280x720), con subtítulos en español inyectados en la página:
+  1. La vendedora crea el link desde el simulador del bot.
+  2. El comprador paga en el celular y aparece "Contrato verificado".
+  3. La vendedora marca enviado desde el link del bot.
+  4. El comprador confirma y ella cobra al instante.
+  5. Segunda compra con reclamo, árbitro 70/30 y el contrato que rechaza el desvío (`Error(Contract, #12)`).
+  6. `/transparencia`.
+- Cada escena es un clip con su viewport: celular para el comprador, escritorio para el resto. La billetera pasa de un clip a otro con `storageState`.
+- `scripts/video-join.mjs` une los clips con ffmpeg en un mp4 de 1280x720; los de celular se centran sobre fondo oscuro.
+- Sin ffmpeg, quedan los `.webm` en `pago-protegido/demo/video/clips/` y el script imprime los comandos para unirlos.
+- Usa su propia app (3200), su propio simulador (3230) y una base nueva (`data/video.db`).
+
+## Transparencia: métricas on-chain
+
+`/transparencia` (y `GET /api/transparencia` en JSON) muestra métricas en vivo calculadas **solo con eventos públicos** de `pp_guardian` y `pp_arbiter`:
+
+- compras protegidas y volumen (USD de prueba y ≈ Bs);
+- liberadas por confirmación y por plazo, y tiempo promedio hasta que el vendedor cobra;
+- reclamos: quién los abrió y cómo se resolvieron;
+- comisiones;
+- últimas operaciones y compras con links a stellar.expert.
+
+Sigue `../docs/METRICAS.md`:
+
+- La ingesta es incremental: `getEvents` filtrado por los dos contratos, desde el ledger del despliegue, hacia la tabla `pp_events` de SQLite.
+- El cursor se guarda en `kv`. Corre al abrir la página, con candado y como mucho cada 15 s.
+- Si el cursor quedó fuera de la ventana del RPC (unos 7 días), retoma desde el ledger más antiguo disponible.
+- Las reglas son las de `contracts/scripts/metricas.sh`: el primer evento terminal define el estado de cada compra.
+
 ## Bot de WhatsApp: endpoints de la app
 
 La app implementa todo lo de [`../bot/APP-ENDPOINTS.md`](../bot/APP-ENDPOINTS.md), con las formas exactas:
@@ -86,7 +135,7 @@ npm run test:e2e
 ```
 
 - Hace su propio build en `.next-e2e/`, con la billetera local, y lo levanta en `http://localhost:3100` con una base aparte (`data/e2e.db`). No toca tu `npm run dev`.
-- Corre en **modo guardián**. Recorre cuatro escenarios con transacciones reales en testnet y tarda entre 10 y 14 minutos:
+- Corre en **modo guardián**. Recorre cinco escenarios con transacciones reales en testnet y tarda entre 10 y 14 minutos:
   1. **Caso feliz:** onboarding → link → pago con rampa simulada (sello "Contrato verificado") → enviado → "Recibí conforme". Verifica 37,58 / 0,77 / 0,12 USD de prueba.
   2. **Disputa:** pago → enviado → reclamo → versión del vendedor → vista previa con `pp_arbiter.quote` → intento de desvío rechazado por el contrato (`Error(Contract, #12)`) → `pp_arbiter.resolve` 70/30 (17,54 / 7,52).
   3. **Liberación automática:** link con plazo de demo de 2 minutos → pago → enviado → cuenta regresiva → "Liberar ahora (plazo vencido)" → `pp_guardian.auto_release`.
@@ -98,6 +147,7 @@ npm run test:e2e
      - "¿Te llegó?" en el chat del comprador → "Recibí conforme" → "¡Liberado!" con 37,58.
      - Verifica también que el WhatsApp del comprador no aparece en la API pública y que `/api/bot/*` exige la clave.
      - Capturas `e2e/capturas/bot-*.png`.
+  5. **Transparencia:** `/transparencia` con datos reales de testnet. Verifica que la suma de estados cuadre con las compras protegidas (captura `60-transparencia`).
 - Modo directo: `PP_MODE=direct npm run test:e2e`.
 - Guarda capturas en `e2e/capturas/` en tamaño celular (390 px, @2x) y escritorio (1280 px).
 - En cada captura verifica que la pantalla no diga "cripto".

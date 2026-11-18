@@ -36,6 +36,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/como-funciona" className="hover:text-slate-900">
                 Cómo funciona
               </Link>
+              <Link href="/transparencia" className="hover:text-slate-900">
+                Transparencia
+              </Link>
               <Link href="/panel" className="hidden hover:text-slate-900 sm:inline">
                 Mi panel
               </Link>

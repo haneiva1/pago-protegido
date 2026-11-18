@@ -69,6 +69,17 @@ CREATE TABLE IF NOT EXISTS pending (
   created_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL);
+-- Eventos on-chain de pp_guardian y pp_arbiter (métricas de /transparencia, docs/METRICAS.md).
+CREATE TABLE IF NOT EXISTS pp_events (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  escrow TEXT,
+  ledger INTEGER NOT NULL,
+  closed_at TEXT NOT NULL,
+  tx_hash TEXT NOT NULL,
+  data_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS pp_events_escrow ON pp_events(escrow);
 `;
 
 export interface SellerRow {

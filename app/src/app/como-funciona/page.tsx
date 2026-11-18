@@ -139,6 +139,12 @@ export default async function ComoFunciona() {
           <p className="muted">La configuración de la red no está disponible.</p>
         )}
         <p className="text-xs text-slate-500">Cada pedido muestra además el link a su propio contrato y a cada transacción.</p>
+        <p className="text-sm">
+          📊 Métricas en vivo de todas las compras protegidas, calculadas con eventos públicos de estos contratos:{" "}
+          <Link href="/transparencia" className="font-semibold text-brand-700 underline">
+            Transparencia
+          </Link>
+        </p>
       </section>
 
       <div className="flex flex-col gap-3 sm:flex-row">

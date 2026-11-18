@@ -330,3 +330,19 @@ test("bot de WhatsApp: vender por chat → pago con WhatsApp → enviado desde e
   await expect(botSays(chat, "Liberado")).toContainText("37,58");
   await capturar(chat, "bot-08-chat-liberado");
 });
+
+test("transparencia: métricas on-chain de pp_guardian y pp_arbiter (datos reales de testnet)", async ({ page, request }) => {
+  await page.goto("/transparencia");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Transparencia");
+  await expect(page.getByText("Estas cifras se calculan con datos públicos de la red Stellar (testnet). Cualquiera puede verificarlas.")).toBeVisible();
+  const compras = Number((await page.getByTestId("compras-protegidas").locator("p").nth(1).innerText()).replace(/\D/g, ""));
+  expect(compras).toBeGreaterThan(0);
+  await expect(page.getByTestId("ultimas-operaciones").locator('a[href*="stellar.expert/explorer/testnet/tx/"]').first()).toBeVisible();
+  // Las mismas cifras en JSON, y coherentes: cada compra está liberada, resuelta, reembolsada, en disputa o en curso.
+  const m = await (await request.get("/api/transparencia")).json();
+  expect(m.compras_protegidas).toBeGreaterThanOrEqual(compras);
+  expect(
+    m.liberadas_por_confirmacion + m.liberadas_por_plazo + m.disputas.resueltas_por_arbitro + m.disputas.reembolsos_sin_envio + m.disputas.pendientes + m.en_curso,
+  ).toBe(m.compras_protegidas);
+  await capturar(page, "60-transparencia");
+});
