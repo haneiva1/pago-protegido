@@ -19,7 +19,7 @@ Todo lo de este documento corre **solo en testnet**. Código: [`contracts/`](../
 **Supuestos:**
 - el escrow de TW es el WASM `1b367bc8…196660` (commit `f0b706e`);
 - Stellar/Soroban y el SAC de LABUSD funcionan según su especificación;
-- las llaves del comprador y del vendedor viven en sus dispositivos.
+- la plataforma no tiene las llaves del comprador ni del vendedor. En testnet las guarda la billetera embebida de Pollar, o una llave local en el navegador como alternativa.
 
 | Actor | Qué podría intentar | Qué lo impide | Evidencia |
 |---|---|---|---|
@@ -133,5 +133,5 @@ El red team revisó el código vendorizado de TW (commit `f0b706e`). La v2 de lo
 | **Bug H-1 de TW** | Reportado (borrador) | Esperar el fix de TW o mantener la guarda en el guardián (ya existe). |
 | **Comisiones en reembolsos** | TW cobra 2,3% también al devolver | Decisión de producto (H-4): `platform_fee` diferenciado u otro mecanismo. |
 | **Moneda** | LABUSD de prueba | USDC real, verificando su SAC. |
-| **Actualizaciones** | Los contratos no son actualizables (no exponen `update_current_contract_wasm`) | Mantenerlos así (es más seguro) y versionar con despliegues nuevos. |
+| **Actualizaciones** | Los contratos no son actualizables (no exponen `update_current_contract_wasm`) | Mantenerlos así (es más prudente) y versionar con despliegues nuevos. |
 | **Monitoreo** | Script de métricas sobre `getEvents` (ventana de ~7 días del RPC) | Un indexador persistente y alertas ante disputas, resoluciones atípicas y cambios de admin. |
