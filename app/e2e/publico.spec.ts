@@ -124,8 +124,12 @@ test("perfil verificable de la tienda (/tienda/<slug>): mismos números que la t
   // Una cuenta de vendedor de las pruebas del equipo con ventas reales en testnet. Se registra como tienda solo en esta
   // base local (crear la tienda no firma nada, DECISIONES 15): sus números salen del registro público.
   const t = (await (await request.get("/api/transparencia")).json()) as { compras: { seller: string; state: string }[] };
-  const vendedor = t.compras.find((c) => c.state === "liberada_confirmacion" || c.state === "liberada_plazo")?.seller;
-  expect(vendedor, "una compra pagada al vendedor en testnet").toBeTruthy();
+  // Que todavía no sea tienda en esta base: con `npm run test:e2e` corre después del flujo con pagos, que ya registró
+  // sus tiendas, y el slug se asigna una sola vez y no cambia al renombrar (DECISIONES 93).
+  const pagadas = [...new Set(t.compras.filter((c) => c.state === "liberada_confirmacion" || c.state === "liberada_plazo").map((c) => c.seller))];
+  let vendedor: string | undefined;
+  for (const s of pagadas) if ((await request.get(`/api/sellers/${s}`)).status() === 404) { vendedor = s; break; }
+  expect(vendedor, "una compra pagada en testnet a una cuenta que todavía no es tienda en esta base").toBeTruthy();
   expect((await request.post("/api/sellers", { data: { pubkey: vendedor, storeName: "Calzados Sofi", whatsapp: TIENDA_WA, city: "Cochabamba" } })).ok()).toBe(true);
   const link = (await (await request.post("/api/links", { data: { sellerPubkey: vendedor, product: "Zapatillas urbanas talla 40", priceBs: 450, deliveryDays: 3 } })).json()) as {
     slug: string;
