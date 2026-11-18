@@ -1,0 +1,72 @@
+# Pago Protegido: app + bot + Caddy (HTTPS automático). SOLO TESTNET.
+#
+#   cd pago-protegido/deploy
+#   cp .env.example .env && cp app.env.example app.env && cp bot.env.example bot.env   # y completa
+#   docker compose up -d --build                 # app + Caddy
+#   docker compose --profile bot up -d --build   # + bot de WhatsApp
+#
+# La app y el bot NO publican puertos en el host: solo Caddy (80/443).
+name: pago-protegido
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/app.Dockerfile
+      args:
+        NEXT_PUBLIC_WALLET: ${NEXT_PUBLIC_WALLET:-local}
+        NEXT_PUBLIC_POLLAR_PUBLISHABLE_KEY: ${NEXT_PUBLIC_POLLAR_PUBLISHABLE_KEY:-}
+    env_file:
+      - path: app.env
+        required: false
+    environment:
+      PP_DB_PATH: /data/pp.db
+    volumes:
+      - app-data:/data          # SQLite (data/pp.db)
+    expose:
+      - "3000"
+    restart: unless-stopped
+
+  bot:
+    profiles: ["bot"]
+    build:
+      context: ..
+      dockerfile: deploy/bot.Dockerfile
+    env_file:
+      - path: bot.env
+        required: false
+    environment:
+      PP_APP_URL: http://app:3000                 # API de la app por la red interna
+      PP_PUBLIC_URL: https://${APP_DOMAIN:-localhost}
+      BOT_STATE_FILE: /data/bot-state.json
+    volumes:
+      - bot-data:/data
+    expose:
+      - "3040"
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.10-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:-localhost}
+      BOT_DOMAIN: ${BOT_DOMAIN:-bot.localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data        # certificados
+      - caddy-config:/config
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  app-data:
+  bot-data:
+  caddy-data:
+  caddy-config:

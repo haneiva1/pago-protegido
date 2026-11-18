@@ -95,6 +95,24 @@ La evidencia queda en `scripts/out/flujo/`:
 - `escrow-*.json` y `purchase-*.json`;
 - `fallo-*.txt`: el stderr completo de cada rechazo.
 
+## Datos de ejemplo y métricas
+
+```bash
+bash scripts/compras-demo.sh             # 6 compras de Bs 120 a 900 con desenlaces distintos (deployer: ppdemo)
+bash scripts/metricas.sh > m.json        # métricas desde los eventos pp_* (getEvents del RPC, solo lectura)
+bash scripts/gen-deployed.sh             # regenera DEPLOYED.md
+```
+
+- **`compras-demo.sh`:**
+  - incluye la reproducción on-chain del bug H-1 de TW;
+  - usa la identidad `ppdemo` (se crea con friendbot) para desplegar e inicializar, así no choca con la secuencia de `plataforma` que usa la app;
+  - deja la evidencia en `scripts/out/demo/`.
+- **Métricas:** formato de salida y cómo las consume la app (página `/transparencia`) en [`../docs/METRICAS.md`](../docs/METRICAS.md). Salida de ejemplo en `scripts/out/metricas/metricas-ejemplo.json`.
+- **Más documentación:**
+  - arquitectura y diagramas: [`../docs/ARQUITECTURA.md`](../docs/ARQUITECTURA.md);
+  - seguridad: [`../docs/SEGURIDAD.md`](../docs/SEGURIDAD.md);
+  - borrador del reporte a Trustless Work: [`../docs/reporte-trustless-work.md`](../docs/reporte-trustless-work.md).
+
 ## Bindings TypeScript
 
 ```bash
