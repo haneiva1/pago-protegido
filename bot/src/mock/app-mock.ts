@@ -22,6 +22,8 @@ export interface MockOptions {
   botKey?: string;
   fx?: number;
   now?: () => number;
+  /** Plazo de liberación automática desde el pago. Por defecto (días de entrega + 3) días, como la app. */
+  windowMs?: (deliveryDays: number) => number;
 }
 
 export type DemoAction = "pagar" | "enviar" | "recordar" | "confirmar" | "reclamar" | "resolver";
@@ -100,7 +102,7 @@ export async function startMockApp(opts: MockOptions = {}) {
   }
 
   /** Simula lo que pasa en la web (comprador, firma del vendedor, árbitro) sobre un pedido. */
-  function advance(slug: string, action: DemoAction, extra: { evidence?: string; buyerPhone?: string | null } = {}): Order {
+  function advance(slug: string, action: DemoAction, extra: { evidence?: string; buyerPhone?: string | null; deadline?: number } = {}): Order {
     const o = orders.get(slug);
     if (!o) throw Object.assign(new Error("No encontramos ese link de pago"), { status: 404 });
     const t = now();
@@ -110,7 +112,7 @@ export async function startMockApp(opts: MockOptions = {}) {
     switch (action) {
       case "pagar":
         need(o.status === "esperando_pago", "ya fue pagado");
-        Object.assign(o, { status: "pagado", buyer_pubkey: "GCOMPRADORDEMO", funded_at: t, deadline: t + (o.delivery_days + 3) * 86_400_000, buyer_whatsapp: extra.buyerPhone === undefined ? DEMO_BUYER_PHONE : extra.buyerPhone });
+        Object.assign(o, { status: "pagado", buyer_pubkey: "GCOMPRADORDEMO", funded_at: t, deadline: t + (opts.windowMs ?? ((d: number) => (d + 3) * 86_400_000))(o.delivery_days), buyer_whatsapp: extra.buyerPhone === undefined ? DEMO_BUYER_PHONE : extra.buyerPhone });
         break;
       case "enviar":
         need(o.status === "pagado", "solo se envía un pedido pagado");
@@ -118,7 +120,7 @@ export async function startMockApp(opts: MockOptions = {}) {
         break;
       case "recordar":
         need(o.status === "enviado", "el recordatorio es para pedidos enviados");
-        o.deadline = t + 2 * 3_600_000;
+        o.deadline = extra.deadline ?? t + 2 * 3_600_000;
         break;
       case "confirmar":
         need(o.status === "pagado" || o.status === "enviado", "no se puede confirmar");

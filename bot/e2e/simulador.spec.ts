@@ -31,7 +31,7 @@ test("vender zapatillas 450 → devuelve un link de pago, y avisa cuando pagan",
 
   // El comprador paga en la web: el poller lo ve en /api/bot/changes y avisa al vendedor.
   expect((await request.post(`${MOCK}/__mock/advance`, { data: { slug, action: "pagar" } })).ok()).toBe(true);
-  await expect(lastBot(page)).toContainText("¡Te pagaron!", { timeout: 15_000 });
+  await expect(lastBot(page)).toContainText("el pago está GUARDADO", { timeout: 15_000 });
   await expect(lastBot(page)).toContainText(`enviado ${slug.slice(-6)}`);
 
   expect(await page.locator("body").innerText()).not.toMatch(/cripto/i);

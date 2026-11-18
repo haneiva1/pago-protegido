@@ -89,12 +89,21 @@
       <div class="demo">
         <button type="button" data-demo="pagar">💸 El cliente pagó</button>
         <button type="button" data-demo="enviar">📦 El vendedor firmó el envío</button>
-        <button type="button" data-demo="recordar">⏰ Faltan 2 h para liberar</button>
+        <button type="button" data-demo="recordar">⏰ Adelantar al próximo recordatorio</button>
         <button type="button" data-demo="confirmar">✅ El cliente confirmó</button>
         <button type="button" data-demo="reclamar">⚠️ El cliente abrió un reclamo</button>
         <button type="button" data-demo="resolver">⚖️ El árbitro resolvió 70/30</button>
       </div>
       <p class="note">App de mentira (modo <code>--mock</code>). Cada botón cambia el último pedido; el bot lo detecta y avisa.</p>
+    </div>
+    <div class="card" id="verify-card">
+      <h2>Verificador de links</h2>
+      <div class="demo">
+        <button type="button" data-verify="real">✅ Reenviar el último link (auténtico)</button>
+        <button type="button" data-verify="fake">🎭 Reenviar un link con dominio parecido</button>
+        <button type="button" data-verify="short">✂️ Reenviar un link acortado</button>
+      </div>
+      <p class="note">Lo manda el chat activo, como si reenviaras el mensaje. También puedes escribir <code>verificar &lt;link&gt;</code> o <code>reportar &lt;link&gt;</code>.</p>
     </div>
     <p class="note" id="app-url"></p>
   </section>
@@ -210,6 +219,18 @@ async function main() {
       if (r.error) alertPill(r.error);
     };
   }
+  for (const b of document.querySelectorAll("[data-verify]")) {
+    b.onclick = () => {
+      const slug = lastSlug();
+      if (!slug && b.dataset.verify === "real") return alertPill("Primero crea un link en el chat del vendedor");
+      const s = slug ?? "zapatillas-a1b2c3";
+      send({
+        real: `${cfg.appUrl}/p/${s}`,
+        fake: `Hola, para que te llegue más rápido paga aquí 👉 https://pago-protegido.co/p/${s}`,
+        short: `verificar https://bit.ly/pago-${s.slice(-6)}`,
+      }[b.dataset.verify]);
+    };
+  }
   $("#form").onsubmit = (e) => { e.preventDefault(); send($("#msg").value); };
   setInterval(() => ($("#clock").textContent = hhmm(Date.now())), 10_000);
   $("#clock").textContent = hhmm(Date.now());
@@ -222,6 +243,15 @@ async function main() {
     if (it.phone === me) bubble(it);
     else { unread[it.phone] = (unread[it.phone] ?? 0) + 1; badges(); }
   };
+}
+// Último link de pago que mandó el bot, en cualquiera de los dos chats.
+function lastSlug() {
+  const re = new RegExp(cfg.appUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "/p/([a-z0-9-]+)", "g");
+  let found = null;
+  for (const it of Object.values(chats).flat().filter((x) => x.from === "bot").sort((a, b) => a.id - b.id)) {
+    for (const m of it.text.matchAll(re)) found = m[1];
+  }
+  return found;
 }
 function alertPill(text) {
   chat.insertAdjacentHTML("beforeend", `<div class="pill">${esc(text)}</div>`);

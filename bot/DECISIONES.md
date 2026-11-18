@@ -60,3 +60,51 @@ Criterio: cuando el SPEC no decide algo, se elige **la opción más simple que r
 24. **Puertos:** simulador 3030, app de mentira 3031, webhook 3040. El e2e usa 3130 y 3131 para no chocar con `npm run sim`.
 25. **El simulador manda todo por Server-Sent Events,** tanto las respuestas como los avisos del poller. Muestra dos chats, vendedor y comprador, para ver los dos lados de los avisos.
 26. **App de mentira (`src/mock/app-mock.ts`):** imita las rutas reales (mismas formas, mismos errores en español y mismo cálculo de comisiones) y las propuestas. Sirve para los tests, para el e2e y para `npm run sim:demo`, que suma botones para simular al comprador, al vendedor firmando y al árbitro.
+
+## Anti-fraude (ronda 2)
+
+27. **Auténtico = dominio canónico exacto + `/p/<slug>` + el pedido existe.**
+    - Canónicos: el host (con puerto) de `PP_APP_URL` y el de `PP_PUBLIC_URL`. Si no, los links que el bot da por un túnel saldrían como falsos.
+    - Se ignoran el esquema (http/https), la query y el `#`. El slug tiene que tener la forma de `slugify` de la app (hasta 4 palabras, 32 caracteres, más 6 hex). Si no, el bot ni consulta la app.
+    - Todo lo demás es `⚠️ Este link NO es de Pago Protegido. No pagues.`, incluso un link real de la app que no es de pago (`/panel`, `/vender`): el pedido dice "en cualquier otro caso".
+28. **El motivo va en una segunda línea:** acortador, dominio que imita a la marca, `usuario@` escondido, otro dominio, ruta que no es de pago, slug inválido o pedido inexistente. Solo cambia la explicación, nunca el veredicto.
+    - Imitación: se compara un "esqueleto" del dominio (sin tildes, guiones ni puntos; 0→o, 1/i→l, rn→m, letras cirílicas y griegas → latinas) con "pagoprotegido" y con el nombre del dominio canónico. Contenerlo o estar a 1–2 letras cuenta como imitación.
+29. **Si la app no responde,** el bot no dice ni auténtico ni falso: "No pagues hasta que te confirme". Decir "falso" de un link real también rompe la confianza.
+30. **Un link reenviado se verifica solo,** para cualquier número y antes de buscar la tienda. Excepción: la guía de un envío (`enviado <código> <link de la foto>` o la respuesta a "¿con qué guía?"). Máximo 3 links por mensaje, una respuesta por link.
+31. **El verificador muestra lo mismo que la página pública** `/p/<slug>` (tienda, producto, precio, estado). Los estados se dicen para el comprador ("Pagado", no "Pagado (despacha)"). Si el pedido ya está pagado, agrega: "si te piden pagarlo otra vez, es estafa".
+32. **Reportes en un archivo JSONL** (`REPORTS_FILE`, por defecto `data/reportes.jsonl`, ignorado por git), no en SQLite: es lo más simple y no suma dependencias. Cada línea guarda fecha, número de quien reporta, link, host, veredicto del verificador y el mensaje (500 caracteres como máximo).
+33. **Anti-presión al comprador, con el texto exacto del pedido.**
+    - Al pagar, va en un mensaje propio, con el código y el monto.
+    - Al marcar enviado, va dentro de "¿Te llegó?". Es un mensaje menos y la acción ("Recibí conforme") queda última en el chat.
+    - Si el comprador deja su WhatsApp después de que el bot vio el cambio de estado, le llega igual, una vez por etapa.
+34. **Recordatorios 48 h, 24 h y 2 h antes del `deadline` que reporta la app.**
+    - El pedido dice "el plazo arranca cuando se marca enviado", pero la app cuenta el plazo desde el fondeo (DECISIONES 4 de la app), y ese es el que ejecuta el contrato. El bot no calcula otro plazo: le diría al comprador una hora distinta de la real, y la plata se liberaría antes de lo que él cree.
+    - Lo que arranca al marcar enviado son los recordatorios: un hito que cae antes del envío no se manda.
+    - Si se juntan varios hitos (el bot estuvo apagado), va solo el más urgente.
+    - Si la app cambia el plazo para que cuente desde el envío, el bot no cambia.
+35. **Modo demo `DEMO_MINUTES=1`:** cada "hora" de los recordatorios dura un minuto. En `sim:demo` también se escala el plazo de la app de mentira: (días + 3) × 24 minutos. El texto dice el tiempo que de verdad falta ("unas 20 h" o "unos 48 min"). El botón "Adelantar al próximo recordatorio" mueve el plazo al siguiente hito.
+36. **"Tengo un problema" y "Necesito más tiempo" llevan a la página del pedido.**
+    - Van como link en el texto y como botones de respuesta: WhatsApp no deja poner URLs en los botones de respuesta, y el botón con URL (CTA) admite uno solo. Al tocar un botón, el bot contesta con el link.
+    - La app no tiene prórroga. "Necesito más tiempo" explica que la única forma de frenar la liberación es abrir un reclamo antes de la hora y que nadie alarga el plazo por chat. Un estafador podría ofrecer "más tiempo" a cambio de que confirmes.
+37. **Aviso de registro al vendedor.** El registro pasa en la web, así que el bot lo dice:
+    - al invitar a registrarse;
+    - al vincular el número;
+    - la primera vez que una tienda le escribe, una sola vez (`greeted` en `BOT_STATE_FILE`).
+38. **"Ojo: el QR de pago nunca está a nombre de una persona"** va en el primer mensaje del link, el del vendedor, no en el texto que se reenvía al cliente.
+
+## Ajustes del capataz (consejo de mercado)
+
+39. **Aplicados:**
+    - Nunca "¡Te pagaron!": "tu cliente pagó Bs X y el pago está GUARDADO, todavía no en tu cuenta… Cobras cuando tu cliente confirme o el <fecha>. Vale tu panel, no una captura."
+    - El código del pedido va en todos los avisos.
+    - El reclamo también le llega al comprador ("sube tus pruebas").
+    - El recordatorio suma "Sí, todo bien".
+    - Test de palabras prohibidas: cripto, token, stablecoin, wallet, llave, blockchain, garantía, seguro y custodia. "La llave de tu billetera" pasó a ser "solo tú confirmas, desde tu billetera".
+40. **No aplicados todavía, y por qué:**
+    - **Código "PP-4821":** la app identifica el pedido por los 6 hex del slug. Un número propio lo tiene que generar y guardar la app (APP-ENDPOINTS.md §7). Mientras tanto, el bot usa el código hex en todos los mensajes.
+    - **Botones del recordatorio [Sí, todo bien] [Todavía no llegó] [Tengo un problema]:** el pedido de esta ronda pide "Tengo un problema" y "Necesito más tiempo", y WhatsApp admite 3 botones. Quedó [Sí, todo bien] [Tengo un problema] [Necesito más tiempo]. "Todavía no llegó", escrito, equivale a "Necesito más tiempo".
+    - **"Si no lo envían hasta el <fecha>, te lo devolvemos automáticamente" y el aviso "No enviado (ambos)":** hoy no es cierto. `pp_arbiter.refund_unshipped` exige un reclamo abierto y el plazo vencido, y la app no tiene un estado de devolución. El bot no promete lo que el contrato no hace (APP-ENDPOINTS.md §8).
+    - **"Ya puedes retirar Bs 450 a tu banco o dejarlos en dólares digitales":** en testnet no hay retiro a banco y la moneda es "USD de prueba" (DECISIONES 1). Sigue "Te llegaron X USD de prueba".
+    - **"Despacha antes del <fecha>" y "suban sus pruebas hasta el <fecha>":** la app no tiene fecha límite de despacho ni de pruebas. Se omite la fecha.
+    - **Texto para el cliente ("Te vendo con Pago Protegido: pagas con QR…"):** se mantiene el de `waText("link")` de la app (DECISIONES 8), para que la web y el bot digan lo mismo. Hay que cambiarlo en los dos lados a la vez.
+    - **Quién paga la protección:** necesita el campo en `POST /api/links` (APP-ENDPOINTS.md §6). Preguntarlo antes de crear el link rompe DECISIONES 2 (link sin confirmación, demo de 30 segundos), y el bot no podría aplicarlo. Queda especificado para cuando la app lo acepte.
