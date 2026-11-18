@@ -88,6 +88,11 @@ export default async function Transparencia() {
           desde el ledger {nf(m.desde_ledger)} hasta el {nf(m.hasta_ledger)} · {m.eventos} eventos · USD de prueba a Bs {nf(m.tipo_cambio, 2)}.
         </p>
         {warning && <p className="mt-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{warning}</p>}
+        <p className="mt-2 text-sm">
+          <Link className="font-semibold text-brand-700 underline" href="/metricas" data-testid="link-metricas">
+            Ver métricas en vivo: compras, reclamos y tiempos por día →
+          </Link>
+        </p>
       </header>
 
       <section className="card space-y-1 ring-2 ring-brand-200" data-testid="piloto">

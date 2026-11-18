@@ -41,6 +41,12 @@ export default function Home() {
             </Link>
             .
           </p>
+          <p className="mt-2 text-xs text-slate-500">
+            <Link href="/metricas" className="font-semibold text-brand-700 underline" data-testid="link-metricas">
+              Métricas en vivo
+            </Link>
+            : compras protegidas, reclamos y tiempos de cobro, con el registro público de cada compra.
+          </p>
         </div>
 
         <div className="mx-auto w-full max-w-sm">

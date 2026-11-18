@@ -20,6 +20,8 @@ import { type OrderRow, evidence, kv, orders, pending, pilot, sellers, txs } fro
 import { linkAmounts as amountsFor } from "@/lib/format";
 import { escrowService, type EscrowCtx, type EscrowProps, type OnchainState, type UserAction, type Verification } from "./escrow";
 import { factoryId } from "./escrow/tw";
+import { sellerKpis } from "./kpis";
+import { ingestEvents } from "./metrics";
 import {
   ChainError,
   ensureFunded,
@@ -145,6 +147,7 @@ export function saveSeller(input: { pubkey?: unknown; storeName?: unknown; whats
   const pilotRow = typeof input.pilotId === "string" ? pilot.get(input.pilotId) : undefined;
   sellers.upsert({ pubkey: input.pubkey, store_name, whatsapp, city: city || null, pilot: Boolean(pilotRow) });
   if (pilotRow) pilot.linkSeller(pilotRow.id, input.pubkey);
+  sellers.ensureSlug(input.pubkey);
   return sellers.get(input.pubkey)!;
 }
 
@@ -540,7 +543,7 @@ export function botSellerByPhone(phoneParam: string | null) {
   if (phone.length < 7) throw new AppError("Número inválido");
   const s = sellers.allNewestFirst().find((x) => normPhone(x.whatsapp) === phone);
   if (!s) throw new AppError("Tienda no encontrada", 404);
-  return { seller: { ...s, completedSales: sellers.completedSales(s.pubkey) } };
+  return { seller: { ...s, slug: sellers.ensureSlug(s.pubkey), completedSales: sellers.completedSales(s.pubkey) } };
 }
 
 /** APP-ENDPOINTS §2: cambios desde `since`; `now` se toma antes de consultar. */
@@ -777,11 +780,14 @@ function sellerCard(pubkey: string) {
     completedSales: sellers.completedSales(s.pubkey),
     claims: sellers.claimStats(s.pubkey),
     verification: "pendiente" as const,
+    slug: sellers.ensureSlug(s.pubkey),
+    kpis: sellerKpis(s.pubkey),
   };
 }
 
 export async function orderView(slug: string, withOnchain: boolean) {
   void sweepOverdue();
+  void ingestEvents().catch(() => null); // KPIs de la tarjeta del vendedor (el RPC, como mucho cada 15 s)
   let o = mustOrder(slug);
   let onchain: OnchainState | null = null;
   if (withOnchain && o.escrow_id) onchain = await escrowService().readState(o.escrow_id).catch(() => null);
@@ -807,7 +813,14 @@ export async function sellerView(pubkey: string) {
   void sweepOverdue();
   const list = orders.bySeller(pubkey).map((o) => ({ ...sellerOrder(o), txs: txs.forOrder(o.slug), ...money(o) }));
   const balance = await tokenBalance(pubkey);
-  return { seller: { ...s, completedSales: sellers.completedSales(pubkey) }, orders: list, balance: balance.toString(), fx: cfg().fx };
+  void ingestEvents().catch(() => null); // KPIs del panel (el RPC, como mucho cada 15 s)
+  return {
+    seller: { ...s, slug: sellers.ensureSlug(pubkey), completedSales: sellers.completedSales(pubkey) },
+    kpis: sellerKpis(pubkey),
+    orders: list,
+    balance: balance.toString(),
+    fx: cfg().fx,
+  };
 }
 
 export async function disputesView() {

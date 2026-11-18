@@ -15,7 +15,8 @@
     "demo:reset": "node scripts/demo-reset.mjs",
     "demo:video": "playwright test -c playwright.video.config.ts",
     "demo:video:join": "node scripts/video-join.mjs",
-    "piloto:csv": "node scripts/piloto-csv.mjs"
+    "piloto:csv": "node scripts/piloto-csv.mjs",
+    "test:e2e:publico": "playwright test -c playwright.publico.config.ts"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",

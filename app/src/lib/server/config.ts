@@ -60,19 +60,41 @@ export interface Config {
 
 let cached: Config | null = null;
 
+const once = <T>(f: () => T) => {
+  let v: T | undefined;
+  return () => (v ??= f());
+};
+
 export function cfg(): Config {
   if (cached) return cached;
   // Modo guardián por defecto (contratos de pago-protegido/contracts/deployments/testnet.json).
   const mode: Mode = process.env.PP_MODE === "direct" ? "direct" : "guardian";
+  // Las claves y los IDs del servidor se leen al usarlos: las páginas públicas de solo lectura (/metricas, /tienda,
+  // la vista del pedido) no las necesitan. Si falta una, el error es el mismo de siempre, en la primera firma.
+  const plataforma = once(() => Keypair.fromSecret(req("PLATAFORMA_SECRET")));
+  const arbitro = once(() => Keypair.fromSecret(req("ARBITRO_SECRET")));
+  const lab = once(() => Keypair.fromSecret(req("LAB_SECRET")));
   const c: Config = {
     mode,
-    plataforma: Keypair.fromSecret(req("PLATAFORMA_SECRET")),
-    arbitro: Keypair.fromSecret(req("ARBITRO_SECRET")),
-    lab: Keypair.fromSecret(req("LAB_SECRET")),
-    twfee: req("TWFEE_ADDRESS"),
+    get plataforma() {
+      return plataforma();
+    },
+    get arbitro() {
+      return arbitro();
+    },
+    get lab() {
+      return lab();
+    },
+    get twfee() {
+      return req("TWFEE_ADDRESS");
+    },
     labusdCode: process.env.LABUSD_CODE || "LABUSD",
-    labusdSac: req("LABUSD_SAC"),
-    wasmHash: req("ESCROW_WASM_HASH"),
+    get labusdSac() {
+      return req("LABUSD_SAC");
+    },
+    get wasmHash() {
+      return req("ESCROW_WASM_HASH");
+    },
     platformFeeBps: Number(process.env.PLATFORM_FEE_BPS || 200),
     fx: Number(process.env.FX_BS_PER_USD || 11.7),
     arbitroPanelKey: process.env.ARBITRO_PANEL_KEY || "",

@@ -78,7 +78,7 @@ export async function ingestEvents(force = false): Promise<{ added: number; late
   });
 }
 
-function loadEvents(): PpEvent[] {
+export function loadEvents(): PpEvent[] {
   const rows = db().prepare(`SELECT * FROM pp_events ORDER BY ledger ASC, id ASC`).all() as (Omit<PpEvent, "data"> & { data_json: string })[];
   return rows.map(({ data_json, ...r }) => ({ ...r, data: (JSON.parse(data_json) ?? {}) as Record<string, unknown> }));
 }

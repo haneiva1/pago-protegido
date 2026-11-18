@@ -6,6 +6,8 @@ import { useCallback, useEffect, useState } from "react";
 import { ShipDeadline, Countdown, PublicRecord, fmtLeft, useNow } from "@/components/Guardian";
 import { Breakdown, SplitView, Timeline, TxList } from "@/components/OrderBits";
 import { ErrorBox, Progress, Spinner, StatusBadge, useProgress } from "@/components/ui";
+import { NumerosTienda } from "@/components/Kpis";
+import { desdeTexto } from "@/lib/kpi-format";
 import { WhatsAppBox } from "@/components/WhatsAppBox";
 import {
   CIUDADES,
@@ -318,8 +320,8 @@ function ProductCard({ v, compact }: { v: OrderView; compact?: boolean }) {
 
 function SellerCard({ v }: { v: OrderView }) {
   const s = v.seller;
-  const c = s.claims;
-  const since = new Intl.DateTimeFormat("es-BO", { month: "long", year: "numeric", timeZone: "America/La_Paz" }).format(new Date(s.since));
+  // Los mismos números del perfil público /tienda/<slug>, calculados con el registro público.
+  const k = s.kpis;
   const initials = s.store_name
     .split(/\s+/)
     .slice(0, 2)
@@ -335,24 +337,30 @@ function SellerCard({ v }: { v: OrderView }) {
             {s.city ? ` · ${s.city}` : ""}
           </p>
           <p className="text-xs text-slate-600">
-            {s.completedSales} {s.completedSales === 1 ? "venta protegida" : "ventas protegidas"}, {c.total} {c.total === 1 ? "reclamo" : "reclamos"}
+            {k.pagadas_al_vendedor} {k.pagadas_al_vendedor === 1 ? "venta protegida" : "ventas protegidas"}, {k.reclamos.total} {k.reclamos.total === 1 ? "reclamo" : "reclamos"}
           </p>
         </div>
         <a className="btn-secondary flex-none !px-3 !py-2 text-sm" href={waLink("Hola, te escribo por tu link de Pago Protegido", s.whatsapp)} target="_blank" rel="noreferrer">
           Escribir
         </a>
       </div>
+      <NumerosTienda k={k} compacto />
       <ul className="space-y-0.5 text-xs text-slate-600">
-        <li>Vende con Pago Protegido desde {since}</li>
-        {c.total > 0 && (
+        <li>{desdeTexto(k, s.since)}</li>
+        {k.reclamos.total > 0 && (
           <li>
-            Reclamos: {c.a_favor_comprador} a favor del comprador · {c.a_favor_vendedor} a favor del vendedor · {c.repartidos} repartidos
-            {c.pendientes ? ` · ${c.pendientes} en revisión` : ""}
+            Reclamos: {k.reclamos.a_favor_comprador} a favor del comprador · {k.reclamos.a_favor_vendedor} a favor del vendedor · {k.reclamos.repartidos} repartidos
+            {k.reclamos.en_revision ? ` · ${k.reclamos.en_revision} en revisión` : ""}
           </li>
         )}
         <li>Verificación de identidad: pendiente (modo práctica)</li>
         <li>WhatsApp {s.whatsapp}</li>
       </ul>
+      {s.slug && (
+        <a className="inline-block text-sm font-semibold text-brand-700 underline" href={`/tienda/${s.slug}`} data-testid="link-perfil-tienda">
+          Ver el perfil de la tienda y su historial →
+        </a>
+      )}
     </section>
   );
 }

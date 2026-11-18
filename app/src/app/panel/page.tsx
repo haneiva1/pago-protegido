@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Countdown, ShipDeadline } from "@/components/Guardian";
 import { Breakdown, SplitView, TxList } from "@/components/OrderBits";
 import { CopyButton, ErrorBox, ExplorerLink, Progress, Spinner, StatusBadge, useProgress } from "@/components/ui";
+import { Stat } from "@/components/Kpis";
+import { fmtDuracion, fmtProporcion, nf as nfKpi } from "@/lib/kpi-format";
 import { WhatsAppBox } from "@/components/WhatsAppBox";
 import {
   CATEGORIAS,
@@ -105,6 +107,38 @@ export default function Panel() {
         🛡️ <strong>Para cobrar no tienes que abrir ningún link.</strong> Lo que vendes te llega solo cuando el comprador confirma. Nadie de Pago
         Protegido te va a pedir códigos ni contraseñas.
       </p>
+
+      <section className="card space-y-3" data-testid="kpis-vendedor">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-bold">Tus números</h2>
+          {seller.slug && (
+            <Link href={`/tienda/${seller.slug}`} className="text-sm font-semibold text-brand-700 underline" data-testid="link-mi-perfil">
+              Ver y compartir mi perfil público →
+            </Link>
+          )}
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <Stat
+            testId="kpi-ventas"
+            value={nfKpi(data.kpis.pagadas_al_vendedor)}
+            label={data.kpis.pagadas_al_vendedor === 1 ? "venta protegida" : "ventas protegidas"}
+            sub={data.kpis.en_curso ? `${data.kpis.en_curso} en curso` : undefined}
+          />
+          <Stat
+            testId="kpi-sin-reclamo"
+            value={fmtProporcion(data.kpis.ventas_sin_reclamo, data.kpis.cerradas)}
+            label="sin reclamo"
+            sub={data.kpis.cerradas ? `${data.kpis.ventas_sin_reclamo} de ${data.kpis.cerradas} cerradas` : "sin compras cerradas"}
+          />
+          <Stat
+            testId="kpi-cobro"
+            value={fmtDuracion(data.kpis.cobro_mediana_s)}
+            label="hasta el cobro"
+            sub={data.kpis.cobro_muestras ? "mediana desde el pago" : "todavía sin cobros"}
+          />
+        </div>
+        <p className="text-xs text-slate-500">Calculados con el registro público de tus ventas: son los mismos que ven tus clientes en tu perfil.</p>
+      </section>
 
       <CreateLink
         sellerPubkey={seller.pubkey}

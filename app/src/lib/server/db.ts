@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { OrderStatus } from "@/lib/format";
@@ -113,6 +114,8 @@ const MIGRATIONS: Record<string, [string, string][]> = {
     ["city", "TEXT"],
     ["pilot", "INTEGER NOT NULL DEFAULT 0"],
     ["pressure_reports", "INTEGER NOT NULL DEFAULT 0"],
+    // Perfil público /tienda/<slug>: se asigna una vez y no cambia aunque cambie el nombre de la tienda.
+    ["slug", "TEXT"],
   ],
   orders: [
     ["window_secs", "INTEGER"],
@@ -153,6 +156,7 @@ export interface SellerRow {
   city: string | null;
   pilot: number;
   pressure_reports: number;
+  slug: string | null;
 }
 
 export interface OrderRow {
@@ -300,6 +304,7 @@ export function db(): Database.Database {
     for (const [c, t] of cols) if (!have.includes(c)) d.exec(`ALTER TABLE ${table} ADD COLUMN ${c} ${t}`);
   }
   d.exec(`CREATE UNIQUE INDEX IF NOT EXISTS orders_code ON orders(code)`);
+  d.exec(`CREATE UNIQUE INDEX IF NOT EXISTS sellers_slug ON sellers(slug)`);
   g.__ppDb = d;
   return d;
 }
@@ -325,6 +330,35 @@ export const sellers = {
   },
   pilotPubkeys(): Set<string> {
     return new Set((db().prepare(`SELECT pubkey FROM sellers WHERE pilot = 1`).all() as { pubkey: string }[]).map((r) => r.pubkey));
+  },
+  bySlug(slug: string): SellerRow | undefined {
+    return db().prepare(`SELECT * FROM sellers WHERE slug = ?`).get(slug) as SellerRow | undefined;
+  },
+  /** Slug del perfil público: nombre de la tienda + 4 hex al azar (único). Se asigna una sola vez. */
+  ensureSlug(pubkey: string): string | null {
+    const s = sellers.get(pubkey);
+    if (!s) return null;
+    if (s.slug) return s.slug;
+    const base =
+      s.store_name
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .split("-")
+        .filter(Boolean)
+        .slice(0, 4)
+        .join("-")
+        .slice(0, 28) || "tienda";
+    for (let i = 0; i < 20; i++) {
+      try {
+        db().prepare(`UPDATE sellers SET slug = ? WHERE pubkey = ? AND slug IS NULL`).run(`${base}-${randomBytes(2).toString("hex")}`, pubkey);
+        break;
+      } catch {
+        // Choque con el slug de otra tienda (índice único): se prueba otro sufijo.
+      }
+    }
+    return sellers.get(pubkey)?.slug ?? null;
   },
   flagPressure(pubkey: string) {
     db().prepare(`UPDATE sellers SET pressure_reports = pressure_reports + 1 WHERE pubkey = ?`).run(pubkey);
