@@ -1,0 +1,136 @@
+ok [prep/P1] lab (emisor) envía 400 LABUSD al comprador  https://stellar.expert/explorer/testnet/tx/371e706dfafe8724734474319ddf11712016af250cd65fbf970f984db18fe7e7  6.82s  fee=100
+== (f) Celular reacondicionado (nunca se envía)
+ok [f/f1] deploy instancia del escrow (ppdemo)  https://stellar.expert/explorer/testnet/tx/26b48462fb66a282464d8d8295febe9bfb6e04fb163b0de06cbe955ec093fbf7  8.06s  fee=16100
+ok [f/f2] initialize_escrow (ppdemo), roles modo guardián v2  https://stellar.expert/explorer/testnet/tx/dd5a2041caaa99a533dbdb891eb65bf7e607e03119cce20b3372dfe7a877ba00  8.54s  fee=136204
+   [f/f3] error de RPC (ℹ️  Simulating transaction… ❌ error: Request timeout ), reintento 1/3 en 10 s
+ok [f/f3] pp_guardian.fund 50 LABUSD (despacho 60 s, revisión 3600 s)  https://stellar.expert/explorer/testnet/tx/b86fd9abda26ccc33f3e7ab3eb99eea904a4b076005c2806c6967f1cf9db6360  79.87s  fee=1090395
+ok [f/f4] comprador abre disputa (no llega el envío)  https://stellar.expert/explorer/testnet/tx/2ff2f3b575b3e3fcd094cd4241676d347bc62c5d542644d863b0ff76124f4a0a  3.75s  fee=8087
+ok (rechazado como se esperaba) [f/f5] refund_unshipped antes del plazo de despacho -> Error(Contract, #7)
+== (c) Audífonos (liberación automática)
+ok [c/c1] deploy instancia del escrow (ppdemo)  https://stellar.expert/explorer/testnet/tx/5409e9333c3a962fcb194e1ccc3bbdd207e9707193c195e46121f74bd936f558  8.31s  fee=16100
+   [c/c2] error de RPC (❌ error: Request timeout ), reintento 1/3 en 10 s
+ok [c/c2] initialize_escrow (ppdemo), roles modo guardián v2  https://stellar.expert/explorer/testnet/tx/a548bfc4f903d90c868d6a50028c60a1768fde9ecc6f38570f35fda3fd9c699b  81.55s  fee=135272
+ok [c/c3] pp_guardian.fund 50 LABUSD (despacho 3600 s, revisión 60 s)  https://stellar.expert/explorer/testnet/tx/0a59edf7aecb505384aecc548aa4bfafdfa3b36bbcca2a08190ac88e45fb4a82  5.91s  fee=1090341
+ok [c/c4] pp_guardian.mark_shipped (vendedor, evidencia)  https://stellar.expert/explorer/testnet/tx/44e7ef2fbbe1015df195384b85ff1aea0d0c34f26cb5d56c95543526648b1a5e  8.84s  fee=119505
+ok (rechazado como se esperaba) [c/c5] tercero llama auto_release antes de release_at -> Error(Contract, #19)
+== (e) Mochila (el comprador extiende la revisión)
+ok [e/e1] deploy instancia del escrow (ppdemo)  https://stellar.expert/explorer/testnet/tx/d3a3a2b7a385204bcb102bc998d8e4a0e6321a08c24361af9f81460ebb7b25bc  8.36s  fee=16100
+ok [e/e2] initialize_escrow (ppdemo), roles modo guardián v2  https://stellar.expert/explorer/testnet/tx/0acacc43dcf59858beb9d8e8f9ca00c79d98d5ee41305afb29fb46e4e2782c7f  5.53s  fee=136204
+ok [e/e3] pp_guardian.fund 50 LABUSD (despacho 3600 s, revisión 60 s)  https://stellar.expert/explorer/testnet/tx/5a5fb3e11872e1710027288c70c5e1eb0ea75091e5a5c51daf5ddc4a8587101f  13.34s  fee=1090395
+ok [e/e4] pp_guardian.mark_shipped (vendedor, evidencia)  https://stellar.expert/explorer/testnet/tx/d18b74220739175a78ce955def11c45d3d507e5563c492e6e2e98cd076e05d80  8.56s  fee=119527
+ok [e/e5] pp_guardian.extend (comprador): release_at + 60 s  https://stellar.expert/explorer/testnet/tx/ace187c507ce2d6ccb0c0014a970b07818b108e60bb692fa10356292bd79d963  9.10s  fee=5902
+   ledger en 1794989501 (≥ 1794989499): pasó el release_at original (1794989496)
+ok (rechazado como se esperaba) [e/e6] auto_release después del plazo ORIGINAL y antes del extendido -> Error(Contract, #19)
+ok (rechazado como se esperaba) [e/e7] segundo extend (solo una vez) -> Error(Contract, #27)
+   ledger en 1794989556 (≥ 1794989556): pasó el release_at extendido (1794989556)
+  comprador   3993191881
+  vendedor    9221748297
+  plataforma  448162361
+  twfee       73974328
+  tercero     0
+  escrow      500000000
+ok [e/e8] pp_guardian.auto_release tras el plazo extendido (tercero)  https://stellar.expert/explorer/testnet/tx/73348764f4638bb293115dc6c2b2392707b1f632ed7fbc33012156bb17558855  5.53s  fee=18715
+  comprador   3993191881
+  vendedor    9710248297
+  plataforma  458162361
+  twfee       75474328
+  tercero     0
+  escrow      0
+   ledger en 1794989641 (≥ 1794989456): pasó release_at de c (1794989456)
+  comprador   3993191881
+  vendedor    9710248297
+  plataforma  458162361
+  twfee       75474328
+  tercero     0
+  escrow      500000000
+ok [c/c6] pp_guardian.auto_release (tercero, sin firmas)  https://stellar.expert/explorer/testnet/tx/4a6feb28078c8404d88947730aadea7c32c42d2a400ee1fb21e2cd937633644a  8.37s  fee=18694
+  comprador   3993191881
+  vendedor    10198748297
+  plataforma  468162361
+  twfee       76974328
+  tercero     0
+  escrow      0
+   ledger en 1794989731 (≥ 1794989336): venció el plazo de despacho de f (1794989336)
+ok (rechazado como se esperaba) [f/f6] el vendedor intenta marcar enviado tarde -> Error(Contract, #26)
+  comprador   3993191881
+  vendedor    10198748297
+  plataforma  468162361
+  twfee       76974328
+  tercero     0
+  escrow      500000000
+ok [f/f7] pp_arbiter.refund_unshipped (tercero, sin firmas): 100% al comprador  https://stellar.expert/explorer/testnet/tx/fdff2f9bb7ce10a0cf02f2d2dbbf299c38681bdea4db872bc98caec2713de0ee  8.80s  fee=19237
+  comprador   4481691881
+  vendedor    10198748297
+  plataforma  478162361
+  twfee       78474328
+  tercero     0
+  escrow      0
+== (a) Zapatillas Nike talla 40
+ok [a/a1] deploy instancia del escrow (ppdemo)  https://stellar.expert/explorer/testnet/tx/362fb8aec532af41e6fc6ddf4b6c56c7455cd2ea024a6f045626920afe6866a4  8.16s  fee=16090
+ok [a/a2] initialize_escrow (ppdemo), roles modo guardián v2  https://stellar.expert/explorer/testnet/tx/a80776022d159a882a132da12f5f2c2e5a3667f5032e6fc67dc03583351f093a  8.66s  fee=133768
+ok [a/a3] pp_guardian.fund 50 LABUSD (despacho 3600 s, revisión 3600 s)  https://stellar.expert/explorer/testnet/tx/5143ee1b7b4c076782172248a5e2e52740fcaf5fa633347207f8b38ffe68fd57  8.56s  fee=1089310
+ok (rechazado como se esperaba) [a/a4] confirm antes de mark_shipped -> Error(Contract, #23)
+ok [a/a5] pp_guardian.mark_shipped (vendedor, evidencia)  https://stellar.expert/explorer/testnet/tx/00082803f6f9521016c7f12496c8276e2ac509b5c7f765e5c9cdc87416d9f0c3  8.64s  fee=119373
+  comprador   3981691881
+  vendedor    10198748297
+  plataforma  478162361
+  twfee       78474328
+  tercero     0
+  escrow      500000000
+ok [a/a6] pp_guardian.confirm: aprueba todos los hitos y libera  https://stellar.expert/explorer/testnet/tx/0d3cb6aa042da56b562c3490f5c45311b08af66d4fcf2eb80e742026aeefaba9  8.59s  fee=19209
+  comprador   3981691881
+  vendedor    10687248297
+  plataforma  488162361
+  twfee       79974328
+  tercero     0
+  escrow      0
+== (b) Polera Adidas talla M
+ok [b/b1] deploy instancia del escrow (ppdemo)  https://stellar.expert/explorer/testnet/tx/1c59c38de54a26fed8ce3c9790b76d6c1ae8af610033e305c5babee3b89b853d  5.29s  fee=16090
+ok [b/b2] initialize_escrow (ppdemo), roles modo guardián v2  https://stellar.expert/explorer/testnet/tx/f506777d858adc8f904b86741ab833b8582e3e04b6143bd40611f86342fe30ba  5.96s  fee=133768
+ok [b/b3] pp_guardian.fund 50 LABUSD (despacho 3600 s, revisión 3600 s)  https://stellar.expert/explorer/testnet/tx/ca01c07e2d67537f1eb4cf32eff13d96d0e90953cdae852ce949e484e2447500  33.22s  fee=1089310
+ok [b/b4] pp_guardian.mark_shipped (vendedor, evidencia)  https://stellar.expert/explorer/testnet/tx/5dc57d0b5103131aec922dc5939f6aabf260628133cb15fe7b23c6d1ff29d3e9  3.96s  fee=119373
+ok [b/b5] pp_guardian.dispute (comprador)  https://stellar.expert/explorer/testnet/tx/6066d76eb51478558eae7f8d1bdd3be7aa042061ebaaf3d58dfa138e2de732b9  5.58s  fee=8123
+  comprador   3481691881
+  vendedor    10687248297
+  plataforma  488162361
+  twfee       79974328
+  tercero     0
+  escrow      500000000
+ok [b/b6] pp_arbiter.resolve(7000) firmado por arbitro  https://stellar.expert/explorer/testnet/tx/68ba9ed24755a4c401a28bfa122b5a48fee7929a1d9ae9256bb7f4e1b2ff889d  5.69s  fee=22640
+  comprador   3823641881
+  vendedor    10833798297
+  plataforma  498162361
+  twfee       81474328
+  tercero     0
+  escrow      0
+== (d) Chamarra (intentos de desvío)
+ok [d/d1] deploy instancia del escrow (ppdemo)  https://stellar.expert/explorer/testnet/tx/4ca89963eb6b3c4ea788da45d1b3c3dbfdc46dc0617f5f2aac886ed0d91c56ba  5.40s  fee=16080
+ok [d/d2] initialize_escrow (ppdemo), roles modo guardián v2  https://stellar.expert/explorer/testnet/tx/6a83c6f81ff47ee2b2c880f902322d099cec8257d4958b6864942d276cab9065  5.60s  fee=134588
+ok [d/d3] pp_guardian.fund 50 LABUSD (despacho 3600 s, revisión 3600 s)  https://stellar.expert/explorer/testnet/tx/a75720ad5bb6e6c37c2494f01c3bd78bcc4d082f9ca93ed32b2b8ba504f5fcee  8.36s  fee=1088408
+ok [d/d4] pp_guardian.mark_shipped (vendedor, evidencia)  https://stellar.expert/explorer/testnet/tx/c1218e5f59d82ed72b007d52a530bd556c39e4ed82ab611015e9efe999c964da  30.28s  fee=119298
+ok [d/d5] pp_guardian.dispute (vendedor)  https://stellar.expert/explorer/testnet/tx/2670470fab94cf4ab6d3019ef3a427e54493193d34a8488b7e3fe445bc026878  5.62s  fee=8147
+ok (rechazado como se esperaba) [d/d6] tercero llama pp_arbiter.resolve (falta la firma del admin) -> error: Missing signing key for account GBCSZ6TJSQD5FCOPGDQGTGWLLICPKE3DTHRMRVLYSDA4RQDOQMAUDRJT
+ok (rechazado como se esperaba) [d/d7] tercero: escrow.resolve_dispute como dispute_resolver -> Error(Contract, #12)
+ok (rechazado como se esperaba) [d/d8] tercero: escrow.resolve_dispute en nombre de pp_arbiter -> error: Contract addresses are not supported to sign auth entries CDTEA424AWSIIHEQ4FIQHFQOTWS3XAVLQHX7FI3MU6JZP4OPMTEVU5UA
+ok (rechazado como se esperaba) [d/d9] admin (arbitro): escrow.resolve_dispute en nombre de pp_arbiter hacia tercero -> error: Contract addresses are not supported to sign auth entries CDTEA424AWSIIHEQ4FIQHFQOTWS3XAVLQHX7FI3MU6JZP4OPMTEVU5UA
+ok (rechazado como se esperaba) [d/d10] TW-5: tercero: withdraw_remaining_funds como dispute_resolver -> Error(Contract, #12)
+ok (rechazado como se esperaba) [d/d11] TW-5: admin: withdraw_remaining_funds en nombre de pp_arbiter -> error: Contract addresses are not supported to sign auth entries CDTEA424AWSIIHEQ4FIQHFQOTWS3XAVLQHX7FI3MU6JZP4OPMTEVU5UA
+ok (rechazado como se esperaba) [d/d12] platform: update_escrow con receiver = tercero (solo simulación) -> Error(Contract, #16)
+ok (rechazado como se esperaba) [d/d13] tercero: mark_shipped haciéndose pasar por vendedor -> Error(Contract, #24)
+ok (rechazado como se esperaba) [d/d14] tercero: extend haciéndose pasar por comprador -> Error(Contract, #7)
+  comprador   3323641881
+  vendedor    10833798297
+  plataforma  498162361
+  twfee       81474328
+  tercero     0
+  escrow      500000000
+   [d/d15] error de RPC (❌ error: Request timeout ), reintento 1/3 en 10 s
+ok [d/d15] cierre legítimo: pp_arbiter.resolve(5000) firmado por arbitro  https://stellar.expert/explorer/testnet/tx/71a5d5fba9547815375fdee6f414ce3efe209eb8a47e4ac8b53307e39c1e2d2c  80.20s  fee=22662
+  comprador   3567891881
+  vendedor    11078048297
+  plataforma  512729861
+  twfee       84145481
+  tercero     0
+  escrow      0
+OK: flujo v2 completo en testnet (a, b, c, e, f, d)
+EXIT=0

@@ -63,7 +63,8 @@ pub struct Trustline {
     pub address: Address,
 }
 
-/// Compra registrada por `pp_guardian` para un escrow.
+/// Compra registrada por `pp_guardian` (v2) para un escrow. Tiempos en
+/// segundos (timestamp del ledger).
 #[contracttype]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Purchase {
@@ -71,19 +72,42 @@ pub struct Purchase {
     pub buyer: Address,
     /// `roles.receiver` del escrow en el momento del fondeo.
     pub seller: Address,
-    /// Timestamp del ledger (segundos) en que se fondeó.
+    /// Monto fondeado (= `escrow.amount`).
+    pub amount: i128,
     pub funded_at: u64,
-    /// `funded_at + window_secs`: desde aquí se puede llamar `auto_release`.
-    pub deadline: u64,
+    /// Plazo máximo para despachar, firmado por el comprador al fondear.
+    pub ship_secs: u64,
+    /// Ventana de revisión después del envío, firmada por el comprador.
+    pub inspect_secs: u64,
+    /// `funded_at + ship_secs`: después de esto ya no se puede `mark_shipped`
+    /// y, con disputa, procede `refund_unshipped`.
+    pub ship_deadline: u64,
+    /// Momento de `mark_shipped` (una sola vez).
+    pub shipped_at: Option<u64>,
+    /// `shipped_at + inspect_secs` (+ `inspect_secs` si el comprador extendió).
+    /// Desde aquí procede `auto_release`.
+    pub release_at: Option<u64>,
+    /// `extend` ya se usó.
+    pub extended: bool,
+    /// Evidencia de envío registrada por el guardián (inmutable, TW-3).
+    pub evidence: Option<String>,
 }
 
 /// Solo las funciones del escrow que usan pp_guardian y pp_arbiter.
 /// Si el escrow devuelve un error, la invocación completa se revierte.
+/// No incluye `withdraw_remaining_funds` (TW-5) ni `update_escrow`.
 #[allow(dead_code)]
 #[contractclient(name = "EscrowClient")]
 pub trait EscrowInterface {
     fn get_escrow(e: Env) -> Escrow;
     fn fund_escrow(e: Env, signer: Address, expected_escrow: Escrow, amount: i128);
+    fn change_milestone_status(
+        e: Env,
+        milestone_index: u32,
+        new_status: String,
+        new_evidence: Option<String>,
+        service_provider: Address,
+    );
     fn approve_milestone(e: Env, milestone_index: u32, approver: Address);
     fn release_funds(e: Env, release_signer: Address, trustless_work_address: Address);
     fn dispute_escrow(e: Env, signer: Address);
@@ -95,13 +119,6 @@ pub trait EscrowInterface {
     );
 }
 
-/// Estado del hito que habilita `auto_release` (lo escribe el vendedor con
-/// `change_milestone_status`).
+/// Status que `pp_guardian.mark_shipped` escribe en el hito 0 del escrow.
+#[allow(dead_code)]
 pub const SHIPPED_STATUS: &str = "enviado";
-
-pub fn is_shipped(env: &Env, escrow: &Escrow) -> bool {
-    match escrow.milestones.get(0) {
-        Some(m) => m.status == String::from_str(env, SHIPPED_STATUS),
-        None => false,
-    }
-}

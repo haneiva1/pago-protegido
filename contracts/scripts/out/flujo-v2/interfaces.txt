@@ -1,0 +1,2 @@
+["__constructor","auto_release","config","confirm","dispute","extend","fund","mark_shipped","purchase","set_arbiter"]
+["__constructor","config","quote","refund_unshipped","resolve","set_admin"]

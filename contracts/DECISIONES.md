@@ -2,7 +2,77 @@
 
 Regla aplicada: cuando SPEC.md no decidía algo, tomé la opción más segura para el comprador y para los fondos, y la anoto aquí. Las secciones marcadas **⚠ INTERFAZ** cambian o amplían la interfaz de SPEC §3 y le importan a la sesión de la app.
 
-## ⚠ INTERFAZ: diferencias con SPEC §3
+## ⚠ INTERFAZ v2 (ronda 4, red team): lo que cambia para la app
+
+v2 se desplegó con **IDs nuevos**, que están en `deployments/testnet.json` (`version: "v2"`); los IDs de v1 se conservan en `v1`. Los bindings de `bindings/` ya son v2. v1 sigue on-chain, pero **no se debe usar para compras nuevas**.
+
+| Qué | v1 | v2 |
+|---|---|---|
+| Constructor del guardián | `(admin, tw_fee, min_window_secs, max_window_secs)` | `(admin, tw_fee, min_ship_secs, max_ship_secs, min_inspect_secs, max_inspect_secs)`. En testnet, las dos ventanas van de 60 s a 30 días. |
+| `fund` | `fund(escrow, buyer, expected_escrow, amount, window_secs)` | **`fund(escrow, buyer, expected_escrow, amount, ship_secs, inspect_secs)`**. El comprador firma los dos plazos. |
+| Marcar enviado | El vendedor llamaba directo a `escrow.change_milestone_status` | **`pp_guardian.mark_shipped(escrow, seller, evidence)`**. Lo firma el vendedor, con auth anidada para `change_milestone_status`. Funciona una sola vez y antes de `ship_deadline`. Para entrega en persona, la evidencia es "entregado en persona". |
+| `confirm` | Aprobaba el hito 0 y liberaba | Exige envío registrado (si no, `#23 NotShipped`). Aprueba **todos** los hitos pendientes y libera. |
+| `auto_release` | `now ≥ deadline` y hito en "enviado" (status de TW) | Exige envío registrado en el guardián y `now ≥ release_at`. Lee los flags reales de TW, así que cualquier disputa bloquea. Aprueba todos los hitos. |
+| `extend` | — | **`extend(escrow, buyer)`**: una sola vez, antes de `release_at` y sin disputa. Suma `inspect_secs` a `release_at`. |
+| `refund_unshipped` (árbitro) | Disputa + `deadline` vencido + status distinto de "enviado" en TW | Disputa + `now ≥ funded_at + ship_secs` + `shipped_at` vacío. El "enviado" escrito directo en TW **no cuenta**. |
+| `Purchase` | `{buyer, seller, funded_at, deadline}` | `{buyer, seller, amount, funded_at, ship_secs, inspect_secs, ship_deadline, shipped_at?, release_at?, extended, evidence?}` |
+| `GuardianConfig` | `min_window_secs`, `max_window_secs` | `min_ship_secs`, `max_ship_secs`, `min_inspect_secs`, `max_inspect_secs` |
+| Eventos | `pp_funded {buyer, seller, amount, deadline}` | `pp_funded {buyer, seller, amount, ship_deadline, inspect_secs}`. Nuevos: **`pp_shipped {evidence, release_at}`** y **`pp_extended {release_at}`**. |
+
+**Errores del guardián nuevos o cambiados:**
+
+| Código | Error | Cambio |
+|---|---|---|
+| #4 | `ShipWindowOutOfRange` | antes era `WindowOutOfRange` |
+| #23 | `NotShipped` | ahora significa "falta `mark_shipped`" |
+| #24 | `NotSeller` | nuevo |
+| #25 | `AlreadyShipped` | nuevo |
+| #26 | `ShipDeadlinePassed` | nuevo |
+| #27 | `AlreadyExtended` | nuevo |
+| #28 | `ReleaseWindowClosed` | nuevo |
+| #29 | `MilestoneNotApprovable` | nuevo |
+| #30 | `InspectWindowOutOfRange` | nuevo |
+| #31 | `InvalidEvidence` | nuevo |
+
+El árbitro mantiene sus códigos.
+
+### Decisiones de v2
+
+**D-17. Evidencia inmutable en el guardián (TW-3).**
+- El vendedor sigue siendo `service_provider` en TW (SPEC §2), así que puede sobrescribir status y evidencia directo en el escrow.
+- Por eso `mark_shipped` guarda en `Purchase` su propia copia de la evidencia, junto con `shipped_at` y `release_at`. **Esa copia es la que cuenta**: TW solo la refleja.
+- La evidencia debe tener entre 1 y 256 bytes (`MAX_EVIDENCE_LEN`).
+- **v3 posible:** que el guardián también sea `service_provider`, para que solo él pueda escribir el hito. Eso cambia los roles de SPEC §2 y lo que arma la app.
+
+**D-18. Plazos mutuamente excluyentes.**
+- `mark_shipped` exige `now < ship_deadline`, y `refund_unshipped` exige `now ≥ ship_deadline`. En el mismo instante no pueden valer las dos.
+- `mark_shipped` se permite con una disputa abierta, porque es evidencia nueva para el árbitro, pero siempre dentro del plazo.
+
+**D-19. `extend` exige envío registrado.**
+- SPEC dice "antes de `release_at`", y `release_at` solo existe después de `mark_shipped`.
+- También exige el escrow abierto: sin disputa, sin liberar y sin resolver.
+
+**D-20. Aprobar todos los hitos (TW-2) tiene un límite.**
+- TW no deja aprobar un hito con status vacío (`#30`). Si la plataforma agrega uno así, `confirm` y `auto_release` responden `#29 MilestoneNotApprovable`, sin tocar nada.
+- En ese caso queda la vía de disputa y árbitro, que paga solo al comprador y al vendedor. El vendedor también puede ponerle un status a ese hito con `change_milestone_status`.
+- **Costo:** TW admite hasta 50 hitos, y aprobar 50 en una invocación puede superar el presupuesto de CPU de Soroban. También en ese caso queda la disputa.
+
+**D-21. TTL.**
+- **Operaciones del guardián:** cada una que toca una `Purchase` (`fund`, `mark_shipped`, `confirm`, `extend`, `dispute` y `auto_release`) le extiende el TTL a 120 días.
+- **Lecturas:** la vista `purchase`, que el árbitro usa en `resolve`, `quote` y `refund_unshipped`, no extiende el TTL. No le hace falta: antes de que el árbitro pueda actuar siempre hubo una `dispute`, que sí lo extendió.
+- **Instancia:** se extiende a 30 días en cada llamada.
+- **Cobertura:** lo prueba el test `ttl_de_purchase_se_extiende_en_cada_operacion`.
+
+**D-22. No actualizables.**
+- Ninguno de los dos contratos llama a `update_current_contract_wasm`, despliega código ni tiene una función de admin que cambie su WASM.
+- Tampoco tienen ruta a `withdraw_remaining_funds` ni a `update_escrow` de TW.
+- Lo verifica el test `contratos_no_actualizables_y_sin_rutas_peligrosas`, que inspecciona el código fuente y la lista exacta de funciones públicas. En testnet, `flujo-v2-testnet.sh` compara la interfaz on-chain con esa misma lista.
+
+**D-23. Deployer `ppdemo`.**
+- v2 y los escrows del flujo v2 los despliega e inicializa `ppdemo`, para no competir por la secuencia de `plataforma` con la app.
+- `plataforma` sigue siendo el rol `platform`, el que cobra el 2%.
+
+## ⚠ INTERFAZ (v1): diferencias con SPEC §3
 
 Todo lo de SPEC §3 existe con los mismos nombres y argumentos. Lo nuevo es aditivo:
 

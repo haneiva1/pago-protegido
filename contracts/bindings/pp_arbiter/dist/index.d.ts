@@ -7,7 +7,7 @@ export * as rpc from "@stellar/stellar-sdk/rpc";
 export declare const networks: {
     readonly testnet: {
         readonly networkPassphrase: "Test SDF Network ; September 2015";
-        readonly contractId: "CBCDVLEPJ6PN7RDC3HFGML3IUT7SOQEYSGH3LE3SWXWZJO7Z2QG2PWGU";
+        readonly contractId: "CDTEA424AWSIIHEQ4FIQHFQOTWS3XAVLQHX7FI3MU6JZP4OPMTEVU5UA";
     };
 };
 export declare const Errors: {
@@ -120,8 +120,9 @@ export interface Client {
     /**
      * Construct and simulate a refund_unshipped transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
      * Devuelve el 100% del saldo al comprador sin intervención del admin
-     * (no requiere auth) si: el escrow está en disputa, el plazo de la compra
-     * venció y el vendedor nunca marcó el hito como "enviado".
+     * (no requiere auth) si: el escrow está en disputa, venció el plazo de
+     * despacho (`funded_at + ship_secs`) y el vendedor nunca registró el envío
+     * en pp_guardian (`shipped_at` vacío).
      */
     refund_unshipped: ({ escrow }: {
         escrow: string;

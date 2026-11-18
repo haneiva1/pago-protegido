@@ -53,7 +53,7 @@ Las capturas son de `app/e2e/capturas/`, generadas por el e2e contra testnet, y 
 | **1:30–1:50** | Celular: liberado (`11-comprador-liberado-celular`) → laptop (`12-vendedor-liberado-*`) | Tocas **"Recibí conforme"** | "Una sola transacción: nuestro contrato `pp_guardian` aprueba y libera a la vez, así que no queda ventana para trampas. El vendedor recibe 37,58, la plataforma 0,77 (2%) y Trustless Work 0,12 (0,3%)." |
 | **1:50–2:35** | `/arbitro` (`23-arbitro-70-30-desvio-rechazado-escritorio`) → resuelto (`24-arbitro-resuelto-*`, `25-comprador-resuelto-*`) | Abres la disputa preparada y mueves el slider al **70%** (vista previa: comprador 17,54, vendedor 7,52). Tocas **"Probar: mandar la plata a otra cuenta"** y aparece el recuadro rojo con `Error(Contract, #12)`. Tocas **"Resolver"**. | "Si hay un problema, un árbitro decide. Pero mira el aviso: *el árbitro solo puede repartir entre comprador y vendedor*. Si intento mandar la plata a otra cuenta, aunque sea con la llave del árbitro, el contrato lo rechaza. Resuelvo 70/30, y cada uno recibe su parte al instante." |
 | **2:35–2:50** | "Cómo funciona" (`30-como-funciona-*`) + stellar.expert | Muestras los links de los contratos | "Todo es público y verificable: los contratos están en Stellar y las métricas salen de la red. Llevamos 14 compras protegidas en testnet, con 27 tests de seguridad." |
-| **2:50–3:00** | Landing | — | "Pago Protegido: el comprador paga tranquilo, el vendedor cobra seguro, y nadie, ni siquiera nosotros, puede llevarse la plata." |
+| **2:50–3:00** | Landing | — | "Pago Protegido: pago contra confirmación de entrega. El vendedor cobra apenas el comprador confirma, y el pago solo puede ir al vendedor o volver al comprador; nadie más, ni siquiera nosotros, puede llevárselo." |
 
 **Si sobra tiempo o preguntan por la liberación automática:**
 1. Entra a `/panel?demo=1`, crea un link con "Plazo corto de demo" (2 minutos), págalo y márcalo como enviado (`40`–`42`).
@@ -61,7 +61,7 @@ Las capturas son de `app/e2e/capturas/`, generadas por el e2e contra testnet, y 
 
 ### Frases de apoyo, por si preguntan
 
-- **Custodia:** "No custodiamos. La llave del comprador vive en su celular, con Pollar (login con Google) o una llave local. El servidor solo paga la comisión de red con *fee bump*."
+- **¿Quién tiene las llaves?** "Nosotros no tenemos las llaves del comprador ni del vendedor. En testnet, la billetera embebida de Pollar (login con Google) guarda la llave; la alternativa es una llave local en el navegador. El servidor solo paga la comisión de red con *fee bump*."
 - **Trustless Work:** "Usamos su escrow sin modificarlo y le pusimos dos contratos propios en los roles críticos. Además encontramos un bug en su contrato y preparamos el fix con su test."
 - **Seguridad:** "Hay 9 invariantes con tests contra el WASM real y 5 ataques reales en testnet rechazados" → `docs/SEGURIDAD.md`.
 
