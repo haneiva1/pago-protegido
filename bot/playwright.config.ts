@@ -39,6 +39,7 @@ export default defineConfig({
         PP_BOT_KEY: "clave-e2e",
         POLL_INTERVAL_MS: "400",
         BOT_STATE_FILE: "",
+        REPORTS_FILE: "",
       },
       reuseExistingServer: false,
     },

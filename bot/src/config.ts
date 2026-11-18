@@ -23,7 +23,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     simPort: Number(env.SIM_PORT ?? 3030),
     mockPort: Number(env.MOCK_PORT ?? 3031),
     pollMs: Number(env.POLL_INTERVAL_MS ?? 10_000),
-    reminderHours: Number(env.REMINDER_HOURS ?? 24),
+    /** Recordatorios al comprador: horas antes de la liberación automática ("48,24,2"). */
+    reminderHours: (env.REMINDER_HOURS ?? "48,24,2").split(",").map(Number).filter((n) => n > 0),
+    /** Modo demo: las horas de los recordatorios (y el plazo de la app de mentira) se cuentan en minutos. */
+    demoMinutes: env.DEMO_MINUTES === "1" || env.DEMO_MINUTES === "true",
+    /** Reportes de links ("reportar <link>"), una línea JSON por reporte. "" = solo en memoria. */
+    reportsFile: env.REPORTS_FILE ?? "data/reportes.jsonl",
     stateFile: env.BOT_STATE_FILE ?? "data/bot-state.json",
     simSellerPhone: env.SIM_SELLER_PHONE ?? "59171234567",
     simBuyerPhone: env.SIM_BUYER_PHONE ?? "59176543210",

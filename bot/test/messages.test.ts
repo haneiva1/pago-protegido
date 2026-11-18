@@ -27,6 +27,14 @@ function everyMessage(): OutMsg[] {
     msg.askEvidence("Polera"), msg.cannotShip({ ...order, status: "esperando_pago" }), msg.shipLink(u, order, "OLV-1"), msg.balance(u, data),
     msg.appError("x"), msg.linked("Tienda Demo"), notice.paid(d), notice.shippedSeller(d), notice.arrived(d), notice.released(d),
     notice.dispute(d), notice.resolved(d, "vendedor"), notice.resolved(d, "comprador"), notice.reminder(d, Date.UTC(2026, 10, 24, 0)),
+    // Anti-fraude
+    msg.sellerWelcome("Tienda Demo"), msg.verifyOk(view), msg.verifyOk({ ...view, order: { ...order, status: "esperando_pago" } }),
+    ...(["shortener", "lookalike", "hidden", "other", "bad_path", "bad_slug", "not_found", "invalid"] as const).map((r) =>
+      msg.verifyFake("https://pago-protegido.co/p/x-a1b2c3", "pago-protegido.co", r, u),
+    ),
+    msg.verifyAsk(), msg.verifyUnavailable(), msg.reportThanks("bit.ly"), msg.reportAsk(),
+    msg.buyerHelp("problema", u), msg.buyerHelp("tiempo", u), msg.buyerHelp("ok", null),
+    notice.disputeBuyer(d), notice.antiPressure(d), notice.reminder(d, Date.UTC(2026, 10, 24, 14, 30)),
   ];
 }
 
@@ -38,6 +46,17 @@ describe("mensajes", () => {
       expect(m.buttons?.length ?? 0).toBeLessThanOrEqual(3);
       for (const b of m.buttons ?? []) expect([...b.title].length).toBeLessThanOrEqual(20);
     }
+  });
+
+  it("palabras prohibidas: cripto, token, stablecoin, wallet, llave, blockchain, garantía, seguro, custodia", () => {
+    const banned = /\b(cripto\w*|crypto\w*|tokens?|stablecoins?|wallets?|llaves?|blockchain|garant[ií]as?|segur[oa]s?|custodi\w*)\b/i;
+    for (const m of everyMessage()) {
+      for (const t of [m.text, ...(m.buttons ?? []).map((b) => b.title)]) expect(t, t).not.toMatch(banned);
+    }
+  });
+
+  it("nunca dicen '¡Te pagaron!': la plata sigue guardada hasta que se libera", () => {
+    for (const m of everyMessage()) expect(m.text).not.toMatch(/(?<!no )te pagaron/i);
   });
 
   it("formatea montos como la app (Bs y USD de prueba en es-BO)", () => {

@@ -151,6 +151,34 @@ Hoy la app no guarda el número del comprador (DECISIONES 10). Sin él, el bot s
 
 El bot manda a los números sin tienda a `/vender?wa=59171234567`. Si viene `wa`, `/vender` puede precargar el campo WhatsApp del paso 2. Hoy el parámetro se ignora y el registro funciona igual.
 
+## Ronda 2 (anti-fraude): nada nuevo obligatorio
+
+El verificador de links usa `GET /api/orders/:slug`, que ya es pública. Los reportes quedan en un archivo local del bot. Los recordatorios usan el `deadline` de `/api/bot/changes` + `GET /api/orders/:slug`. Lo que sigue sale de los ajustes del capataz (DECISIONES 39–40) y es opcional.
+
+## §6. Quién paga la protección (campo nuevo en `POST /api/links`)
+
+```json
+{ "sellerPubkey": "G…", "product": "Zapatillas Nike 40", "priceBs": 450, "deliveryDays": 3, "proteccion": "comprador" }
+```
+
+- `proteccion`: `"comprador"` (por defecto, si falta) o `"vendedor"` ("Yo la regalo").
+- Monto: 1,5 % del precio, con mínimo Bs 5 y máximo Bs 50. Ej.: Bs 450 → Bs 6,75; Bs 100 → Bs 5; Bs 5.000 → Bs 50.
+- `OrderRow` y la vista pública suman `proteccion` y `proteccion_bs_cents`. Si la paga el comprador, la página de pago muestra el total.
+- Error: `400 { "error": "Elige quién paga la protección" }` si viene otro valor.
+- **Bot, cuando exista:** con producto, precio y días, crea el link con `"comprador"` y ofrece los botones [La paga mi cliente] [Yo la regalo]. "Yo la regalo" necesita cambiar el link, así que hace falta `PATCH /api/links/:slug { proteccion }` mientras el pedido esté en `esperando_pago`, o preguntar antes de crear el link (cambia DECISIONES 2).
+
+## §7. Código corto del pedido "PP-4821" (opcional)
+
+- Columna `orders.code TEXT UNIQUE`: "PP-" + 4 dígitos al azar, con reintento si choca.
+- El bot lo recibe en `OrderRow.code` y lo acepta en `estado` y `enviado`. Mientras tanto usa el sufijo hex del slug.
+
+## §8. Devolución por no envío (opcional)
+
+Para avisar "PP-4821: no se marcó el envío a tiempo. Devolvimos Bs <total> al comprador" a los dos lados, hace falta:
+
+- que la devolución pase sin reclamo: hoy `pp_arbiter.refund_unshipped` exige uno;
+- un estado nuevo, por ejemplo `devuelto` con `refunded_at`, que aparezca en `/api/bot/changes`.
+
 ## Resumen
 
 | # | Qué | Tipo | Sin esto |
@@ -161,3 +189,6 @@ El bot manda a los números sin tienda a `/vender?wa=59171234567`. Si viene `wa`
 | 3 | `/panel?enviar=&evidencia=` | parámetros de página | abre `/panel` |
 | 4 | `buyer_whatsapp` + `POST /api/orders/:slug/buyer-contact` | columna + endpoint | sin avisos al comprador |
 | 5 | `/vender?wa=` | parámetro de página | el vendedor escribe su número |
+| 6 | `proteccion` en `POST /api/links` | campo nuevo | la protección la paga siempre el cliente |
+| 7 | `orders.code` ("PP-4821") | columna | código = sufijo hex del slug |
+| 8 | estado `devuelto` + devolución sin reclamo | contrato + estado | sin aviso de "no enviado" |

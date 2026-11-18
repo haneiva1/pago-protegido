@@ -2,6 +2,7 @@
 // las respuestas inmediatas y, si hace falta la app, un comando para que lo ejecute el runtime (bot.ts).
 
 import { msg, type OutMsg } from "./messages.ts";
+import { findLinks, parseLink } from "./links.ts";
 import { clean, fold, parseSell, type SellDraft } from "./parse.ts";
 
 export type Step = "idle" | "ask_product" | "ask_price" | "ask_days" | "ask_evidence";
@@ -39,7 +40,19 @@ export type Intent =
   | { kind: "shipped"; code?: string; evidence?: string }
   | { kind: "balance" }
   | { kind: "link"; pubkey: string }
+  | { kind: "verify"; arg: string }
+  | { kind: "report"; arg: string }
+  | { kind: "buyerHelp"; action: BuyerAction; slug?: string }
   | { kind: "none" };
+
+export type BuyerAction = "problema" | "tiempo" | "ok";
+
+/** Comandos que atiende el bot a cualquier número, tenga tienda o no (compradores incluidos). */
+export type PublicCommand =
+  /** Sin links: hay que pedirlos. */
+  | { kind: "verify"; links: string[] }
+  | { kind: "report"; link?: string; note: string }
+  | { kind: "buyerHelp"; action: BuyerAction; slug?: string };
 
 /** Una conversación guiada se olvida a los 30 minutos sin respuesta. */
 export const SESSION_TTL_MS = 30 * 60_000;
@@ -55,6 +68,19 @@ export function detectIntent(text: string): Intent {
 
   const link = /^vincular\s+(G[A-Z2-7]{55})$/i.exec(raw);
   if (link) return { kind: "link", pubkey: link[1].toUpperCase() };
+
+  const verify = /^(?:verificar|verifica|verifique|verificame|verificalo|chequear|chequea|comprobar|es real)\b[\s:]*([\s\S]*)$/.exec(fold(raw));
+  if (verify) return { kind: "verify", arg: raw.slice(raw.length - verify[1].length).trim() };
+  const report = /^(?:reportar|reporta|reporto|reportalo|denunciar|denuncio)\b[\s:]*([\s\S]*)$/.exec(fold(raw));
+  if (report) return { kind: "report", arg: raw.slice(raw.length - report[1].length).trim() };
+
+  // Botones del recordatorio (llevan el slug) o el mismo texto escrito a mano.
+  const help = /^(problema|tiempo|todo bien)\s+([a-z0-9-]{8,40})$/.exec(t);
+  if (help) return { kind: "buyerHelp", action: help[1] === "problema" ? "problema" : help[1] === "tiempo" ? "tiempo" : "ok", slug: help[2] };
+  if (/^(tengo un problema|necesito mas tiempo|todavia no (me )?llego)$/.test(t)) {
+    return { kind: "buyerHelp", action: t.startsWith("tengo") ? "problema" : "tiempo" };
+  }
+  if (/^(si )?todo bien$/.test(t)) return { kind: "buyerHelp", action: "ok" };
 
   if (/^(cancelar|cancela|cancelalo|salir|olvidalo|olvida|nada|ya no|stop)$/.test(t)) return { kind: "cancel" };
 
@@ -158,6 +184,38 @@ export function step(prev: Session | undefined, text: string, now: number, ctx: 
   if (intent.kind === "thanks") return done(reset, [msg.thanks()]);
   if (intent.kind === "help") return done(reset, [msg.help(ctx.store)]);
   return done(reset, [msg.unknown()]);
+}
+
+/** Links del argumento de "verificar"/"reportar": los que tengan forma de link, o la primera palabra si parece un dominio. */
+function argLinks(arg: string): string[] {
+  const found = findLinks(arg);
+  if (found.length) return found;
+  const first = arg.split(/\s+/)[0] ?? "";
+  return first && parseLink(first) ? [first] : [];
+}
+
+/**
+ * ¿Es un mensaje para el verificador, los reportes o los botones del comprador? Lo atiende el bot a cualquier
+ * número, antes de buscar la tienda. Un link reenviado se verifica solo, salvo que sea la guía de un envío
+ * ("enviado <código> <link de la foto>" o la respuesta a "¿con qué guía?"). Pura.
+ */
+export function routePublic(text: string, session: Session | undefined, now: number): PublicCommand | null {
+  const intent = detectIntent(text);
+  switch (intent.kind) {
+    case "verify":
+      return { kind: "verify", links: argLinks(intent.arg).slice(0, 3) };
+    case "report":
+      return { kind: "report", link: argLinks(intent.arg)[0], note: text.trim().slice(0, 500) };
+    case "buyerHelp":
+      return { kind: "buyerHelp", action: intent.action, slug: intent.slug };
+    case "shipped":
+    case "link":
+      return null;
+  }
+  const awaitingEvidence = session?.step === "ask_evidence" && now - session.updatedAt <= SESSION_TTL_MS;
+  if (awaitingEvidence) return null;
+  const links = findLinks(text);
+  return links.length ? { kind: "verify", links: links.slice(0, 3) } : null;
 }
 
 /** El runtime pide la guía cuando el vendedor escribió "enviado <código>" sin ella. */

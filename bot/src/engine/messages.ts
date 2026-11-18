@@ -2,6 +2,7 @@
 // la moneda es "USD de prueba". Funciones puras.
 
 import { STATUS_LABEL, type Order, type OrderStatus, type OrderView, type SellerData } from "../app/types.ts";
+import type { FakeReason } from "./links.ts";
 import { shortCode } from "./parse.ts";
 
 export interface Button {
@@ -60,6 +61,45 @@ export const shipUrl = (appUrl: string, slug: string, evidence: string) =>
   `${appUrl}/panel?enviar=${encodeURIComponent(slug)}&evidencia=${encodeURIComponent(evidence)}`;
 export const registerUrl = (appUrl: string, phone: string) => `${appUrl}/vender?wa=${encodeURIComponent(phone)}`;
 
+// ---------- Anti-fraude: textos fijos ----------
+
+/** Al vendedor, en el registro. */
+export const SELLER_NO_LINK = "Para cobrar no tienes que abrir ningún link: el pago te llega solo. Un mensaje que diga 'entra aquí para cobrar' es falso.";
+/** Al vendedor, cada vez que recibe un link de pago. */
+export const QR_WARNING = "Ojo: el QR de pago nunca está a nombre de una persona.";
+/** Al comprador, al pagar y otra vez cuando el vendedor marca enviado. */
+export const ANTI_PRESSURE =
+  "Tu plata está bloqueada en un contrato público. Nadie necesita que confirmes para enviar: ni el vendedor, ni la flota, ni el courier. Si te lo piden, es la señal número 1 de estafa. Puedes verificar cualquier link reenviándolo a este número.";
+/** Respuesta del verificador a todo lo que no sea un link auténtico. */
+export const VERIFY_FAKE = "⚠️ Este link NO es de Pago Protegido. No pagues.";
+
+/** Estado para quien no es el vendedor (comprador que verifica un link). */
+export const STATUS_PUBLIC: Record<OrderStatus, string> = {
+  esperando_pago: "Esperando pago",
+  pagado: "Pagado",
+  enviado: "Enviado",
+  liberado: "Liberado",
+  en_disputa: "En disputa",
+  resuelto: "Resuelto",
+};
+
+const FAKE_WHY: Record<FakeReason, (host: string) => string> = {
+  shortener: (h) => `Es un link acortado (${h}): esconde a dónde te lleva.`,
+  lookalike: (h) => `${h} imita nuestro nombre, pero no es nuestro dominio.`,
+  hidden: () => "El link esconde su verdadero destino.",
+  other: (h) => `${h} no es nuestro dominio.`,
+  bad_path: () => "No es un link de pago.",
+  bad_slug: () => "Ese link de pago no es válido.",
+  not_found: () => "Ese pedido no existe.",
+  invalid: () => "No pude leerlo como link.",
+};
+
+/** "unas 20 h" o, si falta menos de una hora (o en modo demo), "unos 48 min". */
+export function timeLeft(ms: number): string {
+  if (ms < 3_600_000) return `unos ${Math.max(1, Math.round(ms / 60_000))} min`;
+  return `unas ${Math.max(1, Math.round(ms / 3_600_000))} h`;
+}
+
 const HOW_TO = [
   "Escríbeme nomás:",
   "• *vendo zapatillas nike 40 a 450 bs entrega 3 días*",
@@ -79,7 +119,7 @@ export const msg = {
 
   notRegistered(appUrl: string, phone: string): OutMsg {
     return {
-      text: `¡Hola! 👋 Este número todavía no tiene tienda en *Pago Protegido*.\nCréala en 1 minuto (nombre, WhatsApp y listo):\n👉 ${registerUrl(appUrl, phone)}\n\nCuando termines, escríbeme *hola*.`,
+      text: `¡Hola! 👋 Este número todavía no tiene tienda en *Pago Protegido*.\nCréala en 1 minuto (nombre, WhatsApp y listo):\n👉 ${registerUrl(appUrl, phone)}\n\nCuando termines, escríbeme *hola*.\n\n🔒 ${SELLER_NO_LINK}\n\n¿Te mandaron un link para pagar? Reenvíamelo y te digo si es de verdad.`,
     };
   },
 
@@ -131,7 +171,7 @@ export const msg = {
     const days = o.delivery_days === 1 ? "1 día" : `${o.delivery_days} días`;
     return [
       {
-        text: `¡Listo! ✅ Tu link de pago protegido:\n*${o.product}* · ${fmtBs(o.price_bs_cents)} (≈ ${fmtUsd(o.amount_units)} USD de prueba) · entrega en ${days}\n👉 ${url}\n\nCódigo: *${shortCode(o.slug)}*. Es para un solo cliente. Te aviso apenas pague.`,
+        text: `¡Listo! ✅ Tu link de pago protegido:\n*${o.product}* · ${fmtBs(o.price_bs_cents)} (≈ ${fmtUsd(o.amount_units)} USD de prueba) · entrega en ${days}\n👉 ${url}\n\nCódigo: *${shortCode(o.slug)}*. Es para un solo cliente. Te aviso apenas pague.\n\n⚠️ ${QR_WARNING}`,
         buttons: [BTN.otro, BTN.ventas],
       },
       { text: "Reenvíale esto a tu cliente 👇" },
@@ -210,7 +250,7 @@ export const msg = {
 
   shipLink(appUrl: string, o: Order, evidence: string): OutMsg {
     return {
-      text: `📦 Para marcar *${o.product}* como enviado con *${evidence}*, confírmalo con tu billetera aquí:\n👉 ${shipUrl(appUrl, o.slug, evidence)}\n\n🔐 Yo no puedo firmar por ti: la llave de tu billetera solo vive en tu celular.`,
+      text: `📦 Para marcar *${o.product}* como enviado con *${evidence}*, confírmalo con tu billetera aquí:\n👉 ${shipUrl(appUrl, o.slug, evidence)}\n\n🔐 Yo no puedo firmar por ti: solo tú confirmas, desde tu billetera.`,
     };
   },
 
@@ -229,7 +269,56 @@ export const msg = {
   },
 
   linked(store: string): OutMsg {
-    return { text: `¡Listo! 🔗 Este número quedó vinculado a *${store}*.`, buttons: [BTN.vender, BTN.ventas, BTN.saldo] };
+    return { text: `¡Listo! 🔗 Este número quedó vinculado a *${store}*.\n\n🔒 ${SELLER_NO_LINK}`, buttons: [BTN.vender, BTN.ventas, BTN.saldo] };
+  },
+
+  /** La primera vez que una tienda registrada le escribe al bot. */
+  sellerWelcome(store: string): OutMsg {
+    return { text: `🔒 *${store}*, antes de empezar: ${SELLER_NO_LINK}` };
+  },
+
+  // ---------- Verificador y reportes (para cualquiera, tenga tienda o no) ----------
+
+  verifyOk(v: OrderView): OutMsg {
+    const o = v.order;
+    const after =
+      o.status === "esperando_pago"
+        ? "Puedes pagar en ese link: tu plata queda bloqueada hasta que confirmes que recibiste."
+        : "Este pedido ya fue pagado: si te piden pagarlo otra vez, es estafa.";
+    return { text: `✅ Auténtico: ${v.seller.store_name}, ${o.product}, ${fmtBs(o.price_bs_cents)}, pedido ${shortCode(o.slug)}. Estado: ${STATUS_PUBLIC[o.status]}\n\n${after}` };
+  },
+
+  verifyFake(link: string, host: string, reason: FakeReason, appUrl: string): OutMsg {
+    return {
+      text: `${VERIFY_FAKE}\n\n${FAKE_WHY[reason](host)} Los links de pago reales empiezan con ${appUrl}/p/\n\nPara avisarnos, escribe *reportar* y el link:\nreportar ${link.slice(0, 200)}`,
+    };
+  },
+
+  verifyAsk(): OutMsg {
+    return { text: "🔎 Mándame el link para revisarlo. Ej.: *verificar https://…/p/…*\nTambién puedes reenviarme el mensaje tal cual." };
+  },
+
+  verifyUnavailable(): OutMsg {
+    return { text: "😕 No pude verificar ese link ahora. *No pagues* hasta que te confirme: intenta de nuevo en un ratito." };
+  },
+
+  reportThanks(host: string): OutMsg {
+    return { text: `🙏 ¡Gracias por avisar! Guardé tu reporte de *${host}* para revisarlo y alertar a más gente.\nRecuerda: nadie de Pago Protegido te pide pagar fuera de nuestro link ni confirmar antes de recibir.` };
+  },
+
+  reportAsk(): OutMsg {
+    return { text: "¿Qué link quieres reportar? Escribe *reportar <link>* o reenvíame el mensaje con el link." };
+  },
+
+  /** Botones del recordatorio (o el texto escrito): siempre llevan a la página del pedido. */
+  buyerHelp(action: "problema" | "tiempo" | "ok", url: string | null): OutMsg {
+    const where = url ? `\n👉 ${url}` : "\nBusca el link de tu pedido en el chat con el vendedor. Si dudas de un link, reenvíamelo y lo verifico.";
+    const text = {
+      problema: "⚠️ Abre tu pedido y toca *Tengo un problema*: el pago queda congelado y decide un árbitro.",
+      tiempo: "⏳ Si todavía no te llegó, abre tu pedido y toca *Tengo un problema* antes de la hora límite: así el pago no se libera. Nadie puede alargar el plazo por chat.",
+      ok: "✅ ¡Qué bueno! Abre tu pedido y toca *Recibí conforme* para liberar el pago al vendedor.",
+    }[action];
+    return { text: text + where };
   },
 };
 
@@ -245,20 +334,20 @@ export const notice = {
   paid({ appUrl, view }: NoticeData): OutMsg {
     const o = view.order;
     return {
-      text: `💸 ¡Te pagaron! *${o.product}* (${fmtBs(o.price_bs_cents)}). La plata quedó protegida en el contrato.\n\nDespacha y marca enviado: escríbeme *enviado ${shortCode(o.slug)} <código de encomienda>*\nSeguimiento: ${linkUrl(appUrl, o.slug)}`,
+      text: `💸 ${shortCode(o.slug)}: tu cliente pagó ${fmtBs(o.price_bs_cents)} por *${o.product}* y el pago está GUARDADO, todavía no en tu cuenta.\n\nDespacha y marca enviado: escríbeme *enviado ${shortCode(o.slug)} <código de encomienda>*\nCobras cuando tu cliente confirme${o.deadline ? ` o, si no dice nada, el ${fmtDate(o.deadline)}` : ""}. Vale tu panel, no una captura.\nSeguimiento: ${linkUrl(appUrl, o.slug)}`,
     };
   },
 
   /** Al vendedor cuando su envío quedó registrado on-chain. */
   shippedSeller({ view }: NoticeData): OutMsg {
-    return { text: `📦 Listo, *${view.order.product}* figura como enviado. Te aviso cuando se libere tu plata.` };
+    return { text: `📦 ${shortCode(view.order.slug)}: listo, *${view.order.product}* figura como enviado. Te aviso cuando se libere tu plata.` };
   },
 
   /** Al comprador (si tenemos su número) cuando el vendedor despacha. */
   arrived({ appUrl, view }: NoticeData): OutMsg {
     const o = view.order;
     return {
-      text: `📦 ¡Hola! ${view.seller.store_name} ya envió tu *${o.product}*${o.shipped_evidence ? ` (guía: ${o.shipped_evidence})` : ""}.\n\n¿Te llegó? Si está todo bien, toca *Recibí conforme* para liberar el pago. Si hay un problema, toca *Tengo un problema*:\n👉 ${linkUrl(appUrl, o.slug)}`,
+      text: `📦 ${shortCode(o.slug)}: ¡Hola! ${view.seller.store_name} ya envió tu *${o.product}*${o.shipped_evidence ? ` (guía: ${o.shipped_evidence})` : ""}.\n\n¿Te llegó? Revísalo antes de confirmar. Si está todo bien, toca *Recibí conforme* para liberar el pago. Si hay un problema, toca *Tengo un problema*:\n👉 ${linkUrl(appUrl, o.slug)}\n\n🛡️ ${ANTI_PRESSURE}`,
     };
   },
 
@@ -266,7 +355,7 @@ export const notice = {
   released({ view }: NoticeData): OutMsg {
     const o = view.order;
     const amount = view.breakdown ? ` Te llegaron *${fmtUsd(view.breakdown.seller)} USD de prueba*` : " La plata ya está en tu billetera";
-    return { text: `✅ ¡Liberado! Tu cliente recibió *${o.product}*.${amount}. ¡Gracias por vender protegido! 🙌`, buttons: [BTN.otro, BTN.saldo] };
+    return { text: `✅ ${shortCode(o.slug)}: ¡Liberado! Tu cliente recibió *${o.product}*.${amount}. ¡Gracias por vender protegido! 🙌`, buttons: [BTN.otro, BTN.saldo] };
   },
 
   /** Al vendedor cuando se abre un reclamo. */
@@ -278,20 +367,43 @@ export const notice = {
     };
   },
 
+  /** Al comprador cuando hay un reclamo: el pago queda congelado. */
+  disputeBuyer({ appUrl, view }: NoticeData): OutMsg {
+    const o = view.order;
+    return {
+      text: `⚠️ ${shortCode(o.slug)}: hay un reclamo en *${o.product}*${o.dispute_reason ? ` (“${o.dispute_reason}”)` : ""} y el pago queda congelado hasta que decida el árbitro. Sube tus pruebas aquí:\n👉 ${linkUrl(appUrl, o.slug)}`,
+    };
+  },
+
+  /** Al comprador (si dejó su WhatsApp) al pagar. Al marcar enviado, el mismo texto va dentro de "¿Te llegó?". */
+  antiPressure({ view }: NoticeData): OutMsg {
+    const o = view.order;
+    return { text: `🛡️ ${shortCode(o.slug)}: tu pago de ${fmtBs(o.price_bs_cents)} por *${o.product}* está guardado.\n\n${ANTI_PRESSURE}` };
+  },
+
   /** Al vendedor (y al comprador si tenemos su número) cuando el árbitro resuelve. */
   resolved({ appUrl, view }: NoticeData, to: "vendedor" | "comprador"): OutMsg {
     const o = view.order;
     const b = (o.buyer_bps ?? 0) / 100;
     const mine = to === "vendedor" ? `${100 - b}% para ti y ${b}% para el comprador` : `${b}% para ti y ${100 - b}% para el vendedor`;
-    return { text: `⚖️ El árbitro resolvió el reclamo de *${o.product}*: ${mine}. El contrato ya hizo los pagos.\n${linkUrl(appUrl, o.slug)}` };
+    return { text: `⚖️ ${shortCode(o.slug)}: el árbitro resolvió el reclamo de *${o.product}*: ${mine}. El contrato ya hizo los pagos.\n${linkUrl(appUrl, o.slug)}` };
   },
 
-  /** Al comprador antes de la liberación automática. */
+  /**
+   * Al comprador antes de la liberación automática (48 h, 24 h y 2 h). Ofrece "Tengo un problema" y
+   * "Necesito más tiempo", con el link a la página del pedido en el texto y como botones.
+   */
   reminder({ appUrl, view }: NoticeData, now: number): OutMsg {
     const o = view.order;
-    const hours = Math.max(1, Math.round(((o.deadline ?? now) - now) / 3_600_000));
+    const url = linkUrl(appUrl, o.slug);
+    const deadline = o.deadline ?? now;
     return {
-      text: `⏰ Recordatorio: el pago de *${o.product}* se libera solo al vendedor en unas ${hours} h (${fmtDate(o.deadline ?? now)}).\n¿Te llegó bien? Si hay un problema, avisa antes aquí: ${linkUrl(appUrl, o.slug)}`,
+      text: `⏰ ${shortCode(o.slug)}: el pago de *${o.product}* se libera solo al vendedor en ${timeLeft(deadline - now)} (${fmtDate(deadline)}). ¿Ya lo tienes?\n\n⚠️ *Tengo un problema* → ${url}\n⏳ *Necesito más tiempo* → ${url}\n\nSi todo llegó bien, no tienes que hacer nada.`,
+      buttons: [
+        { id: `todo bien ${o.slug}`, title: "Sí, todo bien" },
+        { id: `problema ${o.slug}`, title: "Tengo un problema" },
+        { id: `tiempo ${o.slug}`, title: "Necesito más tiempo" },
+      ],
     };
   },
 };

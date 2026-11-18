@@ -3,9 +3,11 @@
 
 import { AppError, MissingEndpoint, type AppClient } from "./app/client.ts";
 import type { Order, Seller, SellerData } from "./app/types.ts";
-import { askEvidenceSession, detectIntent, step, type Command, type Session } from "./engine/engine.ts";
-import { msg, registerUrl, type OutMsg } from "./engine/messages.ts";
+import { askEvidenceSession, detectIntent, routePublic, step, type Command, type PublicCommand, type Session } from "./engine/engine.ts";
+import { SLUG_RE, checkLink, hostOf } from "./engine/links.ts";
+import { linkUrl, msg, registerUrl, type OutMsg } from "./engine/messages.ts";
 import { matchOrder, normPhone } from "./engine/parse.ts";
+import { ReportStore } from "./reports.ts";
 
 export interface BotDeps {
   client: AppClient;
@@ -20,11 +22,24 @@ export interface BotDeps {
   onPhoneLinked?: (phone: string, pubkey: string) => void;
   /** Avisa al poller de cada pedido que el bot ve (para el plan B sin /api/bot/changes). */
   onOrderSeen?: (order: Order, sellerPhone: string) => void;
+  /**
+   * Dominios (host con puerto) de los links auténticos. Por defecto, el de `appUrl`.
+   * main.ts pasa los de PP_APP_URL y PP_PUBLIC_URL.
+   */
+  canonicalHosts?: string[];
+  /** Dónde se guardan los "reportar <link>". Por defecto, en memoria. */
+  reports?: ReportStore;
+  /** Tiendas que ya recibieron el aviso de registro ("para cobrar no tienes que abrir ningún link"). */
+  greeted?: Set<string>;
+  onGreeted?: (phone: string) => void;
 }
 
 export class Bot {
   readonly sessions = new Map<string, Session>();
   readonly phoneLinks: Map<string, string>;
+  readonly reports: ReportStore;
+  readonly greeted: Set<string>;
+  readonly canonicalHosts: string[];
   private readonly appUrl: string;
   private readonly now: () => number;
 
@@ -32,6 +47,9 @@ export class Bot {
     this.appUrl = d.appUrl.replace(/\/+$/, "");
     this.now = d.now ?? Date.now;
     this.phoneLinks = d.phoneLinks ?? new Map();
+    this.reports = d.reports ?? new ReportStore();
+    this.greeted = d.greeted ?? new Set();
+    this.canonicalHosts = [...new Set((d.canonicalHosts ?? [this.appUrl]).map(hostOf))];
   }
 
   /** Procesa un mensaje entrante y devuelve las respuestas, en orden. */
@@ -41,17 +59,65 @@ export class Bot {
       const intent = detectIntent(text);
       if (intent.kind === "link") return [await this.link(phone, intent.pubkey)];
 
+      // Verificador, reportes y botones del comprador: para cualquier número, tenga tienda o no.
+      const pub = routePublic(text, this.sessions.get(phone), this.now());
+      if (pub) return await this.runPublic(pub, phone);
+
       const seller = await this.findSeller(phone);
       if (!seller) return [msg.notRegistered(this.appUrl, phone)];
 
+      // Aviso de registro, una sola vez por tienda: nadie cobra abriendo un link.
+      const welcome: OutMsg[] = [];
+      if (!this.greeted.has(phone)) {
+        this.greeted.add(phone);
+        this.d.onGreeted?.(phone);
+        welcome.push(msg.sellerWelcome(seller.store_name));
+      }
+
       const r = step(this.sessions.get(phone), text, this.now(), { store: seller.store_name });
       this.sessions.set(phone, r.session);
-      if (!r.command) return r.replies;
-      return [...r.replies, ...(await this.run(r.command, seller, phone))];
+      if (!r.command) return [...welcome, ...r.replies];
+      return [...welcome, ...r.replies, ...(await this.run(r.command, seller, phone))];
     } catch (e) {
       const m = e instanceof AppError ? e.message : e instanceof MissingEndpoint ? e.message : "la app no responde";
       if (!(e instanceof AppError)) console.error("[bot]", e);
       return [msg.appError(m)];
+    }
+  }
+
+  private async runPublic(c: PublicCommand, phone: string): Promise<OutMsg[]> {
+    switch (c.kind) {
+      case "verify":
+        if (!c.links.length) return [msg.verifyAsk()];
+        return Promise.all(c.links.map((l) => this.verify(l)));
+      case "report": {
+        if (!c.link) return [msg.reportAsk()];
+        const check = checkLink(c.link, this.canonicalHosts);
+        this.reports.add({
+          at: new Date(this.now()).toISOString(),
+          from: phone,
+          link: c.link.slice(0, 500),
+          host: check.host,
+          verdict: check.ok ? "autentico" : check.reason,
+          note: c.note,
+        });
+        return [msg.reportThanks(check.host)];
+      }
+      case "buyerHelp":
+        return [msg.buyerHelp(c.action, c.slug && SLUG_RE.test(c.slug) ? linkUrl(this.appUrl, c.slug) : null)];
+    }
+  }
+
+  /** Auténtico solo si el dominio es exactamente el canónico, la ruta es /p/<slug> y la app tiene ese pedido. */
+  private async verify(link: string): Promise<OutMsg> {
+    const check = checkLink(link, this.canonicalHosts);
+    if (!check.ok) return msg.verifyFake(link, check.host, check.reason, this.appUrl);
+    try {
+      return msg.verifyOk(await this.d.client.order(check.slug));
+    } catch (e) {
+      if (e instanceof AppError && e.status === 404) return msg.verifyFake(link, check.host, "not_found", this.appUrl);
+      console.error("[verificador]", e instanceof Error ? e.message : e);
+      return msg.verifyUnavailable();
     }
   }
 
@@ -75,6 +141,10 @@ export class Bot {
     }
     this.phoneLinks.set(phone, pubkey);
     this.d.onPhoneLinked?.(phone, pubkey);
+    if (!this.greeted.has(phone)) {
+      this.greeted.add(phone); // msg.linked ya trae el aviso de registro
+      this.d.onGreeted?.(phone);
+    }
     return msg.linked(data.seller.store_name);
   }
 

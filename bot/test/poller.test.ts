@@ -32,15 +32,19 @@ describe("avisos por cambio de estado (GET /api/bot/changes)", () => {
     poller = await setup();
   });
 
-  it("pagado → al vendedor: ¡Te pagaron! Despacha y marca enviado", async () => {
+  it("pagado → al vendedor: pago GUARDADO, despacha y marca enviado; al comprador, el aviso anti-presión", async () => {
     const o = link();
     step();
     expect(await poller.tick()).toEqual([]); // link nuevo: nada que avisar
     app.advance(o.slug, "pagar");
     step();
     const sent = await poller.tick();
-    expect(sent.map((s) => [s.to, s.kind])).toEqual([[DEMO_SELLER.whatsapp, "pagado"]]);
-    expect(sent[0].msg.text).toMatch(/¡Te pagaron!/);
+    expect(sent.map((s) => [s.to, s.kind])).toEqual([
+      [DEMO_SELLER.whatsapp, "pagado"],
+      [DEMO_BUYER_PHONE, "anti_presion"],
+    ]);
+    expect(sent[0].msg.text).toMatch(/tu cliente pagó Bs 450,00 .* el pago está GUARDADO, todavía no en tu cuenta/);
+    expect(sent[0].msg.text).not.toMatch(/te pagaron/i);
     expect(sent[0].msg.text).toMatch(new RegExp(`Despacha y marca enviado: escríbeme \\*enviado ${o.slug.slice(-6)}`));
     step();
     expect(await poller.tick()).toEqual([]); // no repite

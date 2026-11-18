@@ -11,12 +11,14 @@ import { loadConfig } from "./config.ts";
 import type { OutMsg } from "./engine/messages.ts";
 import { DEMO_BUYER_PHONE, DEMO_SELLER, startMockApp, type DemoAction } from "./mock/app-mock.ts";
 import { Poller, type PollerState } from "./notify/poller.ts";
+import { ReportStore } from "./reports.ts";
 import { createSimulator } from "./transports/simulator.ts";
 import { GraphSender, createWebhookServer } from "./transports/whatsapp.ts";
 
 interface Saved {
   poller?: PollerState;
   phoneLinks?: Record<string, string>;
+  greeted?: string[];
 }
 
 const args = new Set(process.argv.slice(2));
@@ -27,8 +29,15 @@ const useSim = args.has("--sim") || !args.has("--whatsapp");
 let apiUrl = cfg.appUrl;
 let publicUrl = cfg.publicUrl;
 let mock: Awaited<ReturnType<typeof startMockApp>> | undefined;
+// Modo demo: una "hora" de los recordatorios dura un minuto.
+const unitMs = cfg.demoMinutes ? 60_000 : 3_600_000;
 if (useMock) {
-  mock = await startMockApp({ port: cfg.mockPort, botKey: cfg.botKey || undefined });
+  mock = await startMockApp({
+    port: cfg.mockPort,
+    botKey: cfg.botKey || undefined,
+    // En modo demo, el plazo de la app de mentira también se escala: (días + 3) × 24 minutos.
+    windowMs: cfg.demoMinutes ? (d) => (d + 3) * 24 * unitMs : undefined,
+  });
   apiUrl = publicUrl = mock.url;
   console.log(`App de mentira en ${mock.url} (tienda "${DEMO_SELLER.store_name}", WhatsApp +${DEMO_SELLER.whatsapp})`);
 }
@@ -39,7 +48,7 @@ const saved: Saved = persistOn && existsSync(cfg.stateFile) ? JSON.parse(readFil
 const persist = () => {
   if (!persistOn) return;
   mkdirSync(dirname(cfg.stateFile), { recursive: true });
-  writeFileSync(cfg.stateFile, JSON.stringify({ poller: poller.state, phoneLinks: Object.fromEntries(bot.phoneLinks) }, null, 2));
+  writeFileSync(cfg.stateFile, JSON.stringify({ poller: poller.state, phoneLinks: Object.fromEntries(bot.phoneLinks), greeted: [...bot.greeted] }, null, 2));
 };
 
 const client = new HttpAppClient(apiUrl, cfg.botKey);
@@ -50,6 +59,7 @@ const poller = new Poller({
   appUrl: publicUrl,
   send: (to, m) => send(to, m),
   reminderHours: cfg.reminderHours,
+  reminderUnitMs: unitMs,
   state: saved.poller,
   save: persist,
 });
@@ -60,6 +70,11 @@ const bot = new Bot({
   phoneLinks: new Map(Object.entries(saved.phoneLinks ?? {})),
   onPhoneLinked: persist,
   onOrderSeen: (o, phone) => poller.track(o, phone),
+  // Auténticos: los links al dominio exacto de la app (API y pública, que puede ser un túnel).
+  canonicalHosts: [apiUrl, publicUrl],
+  reports: new ReportStore(cfg.reportsFile),
+  greeted: new Set(saved.greeted ?? []),
+  onGreeted: persist,
 });
 const handle = (from: string, text: string) => bot.handle(from, text);
 
@@ -73,7 +88,15 @@ if (useSim) {
       ? async (action, sellerPhone) => {
           const o = mock!.latestOf(sellerPhone);
           if (!o) throw new Error("Primero crea un link en el chat");
-          mock!.advance(o.slug, action as DemoAction);
+          let deadline: number | undefined;
+          if (action === "recordar") {
+            // Adelanta el reloj al próximo recordatorio (48 → 24 → 2 h, o minutos en modo demo).
+            const left = (o.deadline ?? Infinity) - Date.now();
+            const next = [...cfg.reminderHours].sort((a, b) => b - a).find((h) => h * unitMs < left - 1000);
+            if (next == null) throw new Error("Ya no quedan recordatorios para este pedido");
+            deadline = Date.now() + next * unitMs - 1000;
+          }
+          mock!.advance(o.slug, action as DemoAction, { deadline });
           await poller.tick(); // aviso inmediato, sin esperar la próxima vuelta
           return o.slug;
         }
