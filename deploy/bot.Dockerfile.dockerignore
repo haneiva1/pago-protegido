@@ -1,0 +1,6 @@
+# Ignore específico de deploy/bot.Dockerfile (contexto pago-protegido/).
+**
+!bot/package.json
+!bot/package-lock.json
+!bot/tsconfig.json
+!bot/src/**

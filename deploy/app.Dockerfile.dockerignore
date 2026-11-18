@@ -1,0 +1,13 @@
+# Ignore específico de deploy/app.Dockerfile (BuildKit lo usa cuando el contexto es pago-protegido/).
+**
+!app/**
+app/node_modules
+app/.next
+app/.next-e2e
+app/data
+app/test-results
+app/playwright-report
+app/e2e/capturas
+app/.env
+app/.env.*
+app/tsconfig.tsbuildinfo

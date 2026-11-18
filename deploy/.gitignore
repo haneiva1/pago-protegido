@@ -1,0 +1,4 @@
+# Nunca versionar los archivos con valores reales.
+.env
+app.env
+bot.env

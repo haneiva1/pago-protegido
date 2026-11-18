@@ -1,0 +1,16 @@
+# HTTPS automático (Let's Encrypt) para cada dominio que apunte a este servidor.
+# APP_DOMAIN y BOT_DOMAIN vienen de deploy/.env (docker compose).
+{
+	email {$ACME_EMAIL}
+}
+
+# App web: links de pago, paneles y API.
+{$APP_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:3000
+}
+
+# Webhook de WhatsApp Cloud API (solo si corre el perfil "bot").
+{$BOT_DOMAIN} {
+	reverse_proxy bot:3040
+}
