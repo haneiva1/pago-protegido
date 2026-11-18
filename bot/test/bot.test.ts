@@ -24,6 +24,13 @@ describe("bot contra la API (mock)", () => {
     expect(out).toContain("https://pp.test/vender?wa=59170000000");
   });
 
+  it("mi perfil → link del perfil público (/tienda/<slug>) para la bio, sin el teléfono", async () => {
+    const out = await texts(SELLER, "mi perfil");
+    expect(out).toContain(`https://pp.test/tienda/${DEMO_SELLER.slug}`);
+    expect(out).toContain("Vendo con Pago Protegido");
+    expect(out).not.toContain(SELLER);
+  });
+
   it("vender en un mensaje crea el link real (POST /api/links) y lo devuelve", async () => {
     const out = await texts(SELLER, "vendo zapatillas nike 40 a 450 bs entrega 3 días");
     const order = [...app.orders.values()][0];

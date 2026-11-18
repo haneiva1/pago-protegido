@@ -12,6 +12,7 @@ export const DEMO_SELLER: Seller = {
   store_name: "Tienda Demo",
   whatsapp: "59171234567",
   created_at: Date.UTC(2026, 10, 1),
+  slug: "tienda-demo-1a2b",
 };
 export const DEMO_BUYER_PHONE = "59176543210";
 

@@ -183,6 +183,8 @@ export class Bot {
         for (const o of d.orders) this.d.onOrderSeen?.(o, phone);
         return [msg.orders(this.appUrl, d)];
       }
+      case "profile":
+        return [msg.profile(this.appUrl, seller)];
       case "balance":
         return [msg.balance(this.appUrl, await this.data(seller))];
       case "status": {

@@ -25,6 +25,7 @@ export type Command =
   | { kind: "status"; code: string }
   | { kind: "shipped"; code: string; evidence?: string }
   | { kind: "balance" }
+  | { kind: "profile" }
   | { kind: "link"; pubkey: string };
 
 export interface StepResult {
@@ -42,6 +43,7 @@ export type Intent =
   | { kind: "status"; code?: string }
   | { kind: "shipped"; code?: string; evidence?: string }
   | { kind: "balance" }
+  | { kind: "profile" }
   | { kind: "link"; pubkey: string }
   | { kind: "proteccion"; who: Proteccion; code?: string }
   | { kind: "verify"; arg: string }
@@ -101,6 +103,9 @@ export function detectIntent(text: string): Intent {
     const evidence = words.slice(skip + 1).join(" ").trim();
     return { kind: "shipped", code: code || undefined, evidence: evidence || undefined };
   }
+
+  // "mi perfil": link del perfil público de la tienda (/tienda/<slug>). Antes de "ver <código>".
+  if (/^(ver |quiero |pasame |mandame |dame )?(mi )?perfil( publico)?( de (la |mi )?tienda)?$|\bmi perfil\b|^(link|enlace) de mi (perfil|tienda)$/.test(t)) return { kind: "profile" };
 
   const status = /^(estado|ver|pedido|seguimiento|como va)(?:\s+(?:del?\s+)?(?:pedido\s+)?(\S+))?$/.exec(t);
   if (status) return { kind: "status", code: status[2] };
@@ -163,6 +168,8 @@ export function step(prev: Session | undefined, text: string, now: number, ctx: 
       return done(reset, [], { kind: "myOrders" });
     case "balance":
       return done(reset, [], { kind: "balance" });
+    case "profile":
+      return done(reset, [], { kind: "profile" });
     case "status":
       return intent.code ? done(reset, [], { kind: "status", code: intent.code }) : done(reset, [msg.askCode("estado")]);
     case "shipped":

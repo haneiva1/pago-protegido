@@ -26,6 +26,8 @@ export interface Seller {
   whatsapp: string;
   created_at: number;
   completedSales?: number;
+  /** Perfil público /tienda/<slug> (la app lo asigna al crear la tienda). */
+  slug?: string | null;
 }
 
 /** Fila `orders` sin `escrow_json` ni `verify_json` (PublicOrder de la app). Un link es el pedido. */

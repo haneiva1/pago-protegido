@@ -69,6 +69,7 @@ export const protButtons = (slug: string): Button[] => [
 ];
 
 export const linkUrl = (appUrl: string, slug: string) => `${appUrl}/p/${slug}`;
+export const profileUrl = (appUrl: string, slug: string) => `${appUrl}/tienda/${slug}`;
 export const shipUrl = (appUrl: string, slug: string, evidence: string) =>
   `${appUrl}/panel?enviar=${encodeURIComponent(slug)}&evidencia=${encodeURIComponent(evidence)}`;
 export const registerUrl = (appUrl: string, phone: string) => `${appUrl}/vender?wa=${encodeURIComponent(phone)}`;
@@ -120,6 +121,7 @@ const HOW_TO = [
   "• *estado PP-4821*",
   "• *enviado PP-4821 <guía>*",
   "• *saldo*",
+  "• *mi perfil*",
 ].join("\n");
 
 export const msg = {
@@ -288,6 +290,15 @@ export const msg = {
   shipLink(appUrl: string, o: Order, evidence: string): OutMsg {
     return {
       text: `📦 Para marcar *${o.product}* (${orderCode(o)}) como enviado con *${evidence}*, confírmalo con tu billetera aquí:\n👉 ${shipUrl(appUrl, o.slug, evidence)}\n\n🔐 Yo no puedo firmar por ti: solo tú confirmas, desde tu billetera.`,
+    };
+  },
+
+  /** "mi perfil": link del perfil público, listo para la bio. Sin teléfono ni dirección. */
+  profile(appUrl: string, s: { store_name: string; slug?: string | null }): OutMsg {
+    if (!s.slug) return { text: `Tu perfil público todavía no está listo. Ábrelo desde tu panel: ${appUrl}/panel` };
+    const url = profileUrl(appUrl, s.slug);
+    return {
+      text: `🛡️ Tu perfil público de *${s.store_name}*:\n${url}\n\nAhí tus clientes ven tus ventas protegidas, cuántas terminaron sin reclamo y cuánto tardas en despachar, calculado con el registro público de cada compra. No muestra tu teléfono ni tu dirección.\n\nPégalo en la bio de tu Instagram o TikTok:\n*Vendo con Pago Protegido ✅ ${url}*`,
     };
   },
 

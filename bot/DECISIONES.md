@@ -132,3 +132,10 @@ Criterio: cuando el SPEC no decide algo, se elige **la opción más simple que r
     - El recordatorio ya no ofrece el botón si el comprador lo usó.
 45. **Categoría "Celular" inferida del producto.** Si el producto menciona celular, teléfono, Samsung, Galaxy, iPhone, Xiaomi, Redmi, Poco, Motorola, Huawei, Honor, Realme, Oppo, Tecno o Infinix, el link se crea con `category: "Celular"` y la app pide el IMEI al despachar. Si no, "Otro". La frase del guion del video, "vendo celular Samsung A54 a 1800 bs entrega 3 días", crea el link de una (test en `engine.test.ts` y `bot.test.ts`).
 46. **"Revisor" en lugar de "árbitro" y "Pagar al vendedor" en lugar de "Recibí conforme"**, como la app (DECISIONES 61 de la app). El test de textos suma las palabras prohibidas legales que faltaban: árbitro, arbitraje, garantizado, 100%, plataforma de pagos y pasarela.
+
+## Perfil público de la tienda
+
+47. **"mi perfil" (también "perfil", "perfil de mi tienda", "link de mi tienda")** responde con el link del perfil público (`<app>/tienda/<slug>`) y un texto listo para la bio de Instagram o TikTok.
+   - El `slug` viene en `GET /api/bot/sellers` (la app lo asigna al crear la tienda).
+   - Si la app no lo manda (una versión vieja), el bot pide abrir el panel.
+   - El mensaje no repite los números (cambian con cada venta: el perfil los muestra en vivo) ni el teléfono.
