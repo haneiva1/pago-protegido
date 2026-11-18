@@ -1,0 +1,33 @@
+{
+  "name": "pago-protegido-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pago Protegido: links de pago con escrow de Trustless Work en Stellar testnet",
+  "scripts": {
+    "setup": "node scripts/setup-env.mjs",
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@stellar/stellar-sdk": "^17.4.0",
+    "better-sqlite3": "^13.2.0",
+    "next": "^16.4.6",
+    "qrcode": "^1.5.4",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "@tailwindcss/postcss": "^4.3.5",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^22.20.5",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "tailwindcss": "^4.3.5",
+    "typescript": "^5.9.3"
+  }
+}

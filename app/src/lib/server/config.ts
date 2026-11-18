@@ -1,0 +1,61 @@
+import { Keypair, Networks } from "@stellar/stellar-sdk";
+
+// SOLO TESTNET: la red está fija y no se puede cambiar por configuración.
+export const NETWORK_PASSPHRASE = Networks.TESTNET;
+export const RPC_URL = "https://soroban-testnet.stellar.org";
+export const HORIZON_URL = "https://horizon-testnet.stellar.org";
+export const FRIENDBOT_URL = "https://friendbot.stellar.org";
+
+export type Mode = "direct" | "guardian";
+
+function req(name: string): string {
+  const v = process.env[name];
+  if (!v) throw new Error(`Falta ${name} en .env.local (corre \`npm run setup\`)`);
+  return v;
+}
+
+export interface Config {
+  mode: Mode;
+  plataforma: Keypair;
+  arbitro: Keypair;
+  lab: Keypair;
+  twfee: string;
+  labusdCode: string;
+  labusdSac: string;
+  wasmHash: string;
+  platformFeeBps: number;
+  fx: number;
+  arbitroPanelKey: string;
+  guardianId: string | null;
+  arbiterId: string | null;
+  /** Días extra sobre los días de entrega para la liberación automática. */
+  extraWindowDays: number;
+}
+
+let cached: Config | null = null;
+
+export function cfg(): Config {
+  if (cached) return cached;
+  const mode: Mode = process.env.PP_MODE === "guardian" ? "guardian" : "direct";
+  const c: Config = {
+    mode,
+    plataforma: Keypair.fromSecret(req("PLATAFORMA_SECRET")),
+    arbitro: Keypair.fromSecret(req("ARBITRO_SECRET")),
+    lab: Keypair.fromSecret(req("LAB_SECRET")),
+    twfee: req("TWFEE_ADDRESS"),
+    labusdCode: process.env.LABUSD_CODE || "LABUSD",
+    labusdSac: req("LABUSD_SAC"),
+    wasmHash: req("ESCROW_WASM_HASH"),
+    platformFeeBps: Number(process.env.PLATFORM_FEE_BPS || 200),
+    fx: Number(process.env.FX_BS_PER_USD || 11.7),
+    arbitroPanelKey: process.env.ARBITRO_PANEL_KEY || "",
+    guardianId: process.env.PP_GUARDIAN_ID || null,
+    arbiterId: process.env.PP_ARBITER_ID || null,
+    extraWindowDays: 3,
+  };
+  if (mode === "guardian" && (!c.guardianId || !c.arbiterId)) {
+    throw new Error("PP_MODE=guardian necesita PP_GUARDIAN_ID y PP_ARBITER_ID en .env.local");
+  }
+  cached = c;
+  return c;
+}
