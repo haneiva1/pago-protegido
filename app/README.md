@@ -51,13 +51,16 @@ npm run dev     # http://localhost:3000
 1. `/vender`: nombre de la tienda, WhatsApp y "Crear mi billetera". Te lleva a "Tu primer link". Crea "Zapatillas Nike talla 40", Bs 450, 3 días.
 2. Abre el link en el celular (o en otra ventana privada): "Pagar protegido" → QR de ejemplo → "Simular pago del banco (testnet)". Cada paso muestra su "Ver en Stellar".
    - Antes de pedir la firma del pago, la app verifica por RPC que el contrato del pedido ejecuta el WASM de Trustless Work (`1b367bc8…`) y tiene los roles `pp_guardian`/`pp_arbiter`. Si todo está bien, muestra el sello **"Contrato verificado"** con link a stellar.expert; si algo falla, bloquea el pago.
-3. En `/panel`, marca "enviado" con el código de encomienda.
-4. En el link, toca "Recibí conforme": `pp_guardian.confirm` aprueba y libera en una sola operación. Se ven los montos del vendedor (97,7 %), de la plataforma (2 %) y de Trustless Work (0,3 %).
-5. Con un segundo link, toca "Tengo un problema" y luego entra a `/arbitro`. La clave es `ARBITRO_PANEL_KEY`, que está en `.env.local`.
+3. En `/panel`, marca "enviado" con empresa, guía, peso (e IMEI si es un celular): `pp_guardian.mark_shipped` registra el envío una sola vez, antes del plazo de despacho, y desde ahí corre la ventana de revisión.
+4. En el link, toca "Pagar al vendedor (irreversible)" y responde la pregunta obligatoria: `pp_guardian.confirm` aprueba y libera en una sola operación. Se ven los montos del vendedor, de la plataforma y de Trustless Work (0,3 %).
+5. Con un segundo link, toca "Tengo un problema" y luego entra a `/revisor`. La clave es `ARBITRO_PANEL_KEY`, que está en `.env.local`.
    - El slider muestra la vista previa de `pp_arbiter.quote`. Ponlo en 70 %.
-   - "Probar: mandar la plata a otra cuenta" simula `escrow.resolve_dispute` con la llave del árbitro hacia una tercera cuenta. **El contrato lo rechaza**: `Error(Contract, #12)`.
+   - "Probar: mandar la plata a otra cuenta" simula `escrow.resolve_dispute` con la cuenta del revisor hacia una tercera cuenta. **El contrato lo rechaza**: `Error(Contract, #12)`.
    - "Resolver" llama `pp_arbiter.resolve`.
-6. **Liberación automática:** entra a `/panel?demo=1` y marca "Plazo corto de demo" (2 minutos). Paga, marca enviado y espera la cuenta regresiva. Al vencer aparece **"Liberar ahora (plazo vencido)"**, que llama a `pp_guardian.auto_release`, sin firmas.
+6. **Plazos v2:** entra a `/panel?demo=1` y marca "Plazo corto de demo" (despacho y revisión de 2 minutos).
+   - Paga y marca enviado: corre la revisión. El comprador puede tocar **"Necesito más tiempo"** una sola vez (`pp_guardian.extend`, `POST /api/orders/:slug/extend`). Al vencer aparece **"Liberar ahora (plazo vencido)"**, que llama a `pp_guardian.auto_release` sin firmas; si hay un reclamo, no se intenta.
+   - Paga y **no** marques enviado: al vencer el despacho, la app abre la disputa como plataforma y `pp_arbiter.refund_unshipped` devuelve el pago al comprador (estado "Devuelto (no se despachó)").
+   - Sin navegador: `BASE_URL=http://localhost:3000 npm run smoke -- extend` y `npm run smoke -- devolucion`.
 
 ## Demo para la presentación: `npm run demo`
 
@@ -74,10 +77,10 @@ Levanta todo listo para presentar (Ctrl+C apaga todo):
 Recorrido sugerido:
 
 1. Crea la tienda en `http://localhost:3020/vender?wa=59171234567` (el número del vendedor del simulador; llega precargado).
-2. En el simulador escribe *vendo zapatillas nike 40 a 450 bs entrega 3 días*. El bot crea el link en la app real.
-3. Abre el link, deja el WhatsApp del comprador (opcional) y paga. En el chat llega **"¡Te pagaron!"**.
+2. En el simulador escribe *vendo celular Samsung A54 a 1800 bs entrega 3 días*. El bot crea el link en la app real (con código PP-#### y categoría Celular).
+3. Abre el link, deja el WhatsApp del comprador (opcional) y paga. En el chat llega el aviso de pago con la fecha límite de despacho.
 4. Escribe *enviado <código> <guía>*. El bot responde con el link `/panel?enviar=…&evidencia=…`, que abre el pedido con la guía precargada; el vendedor firma.
-5. En la pestaña **Comprador** del simulador llega "¿Te llegó?". Toca "Recibí conforme" en la app y en el chat del vendedor llega **"¡Liberado!"** con el monto.
+5. En la pestaña **Comprador** del simulador llega "¿Te llegó?". Toca "Pagar al vendedor" en la app y en el chat del vendedor llega **"¡Liberado!"** con el monto.
 
 Variables opcionales: `DEMO_APP_PORT`, `DEMO_SIM_PORT`, `DEMO_SELLER_PHONE` y `DEMO_BUYER_PHONE`.
 
@@ -87,18 +90,19 @@ Variables opcionales: `DEMO_APP_PORT`, `DEMO_SIM_PORT`, `DEMO_SELLER_PHONE` y `D
 npm run demo:reset   # con la demo apagada
 ```
 
-Deja la base local de la demo (`data/pp.db`) limpia y con dos pedidos históricos reales de testnet:
+Deja la base local de la demo (`data/pp.db`) limpia y con tres pedidos históricos reales de testnet, sobre los contratos v2:
 
-- **"Tienda Sofi"** (+591 71234567): "Polera Adidas talla M" liberado por confirmación y "Audífonos Sony WH-1000" resuelto 70/30 por `pp_arbiter`.
-- Borra pedidos, tiendas y transacciones locales (por ejemplo, las disputas repetidas de pruebas).
+- **"Tienda Sofi"** (+591 71234567): "Polera Adidas talla M" liberado por confirmación, "Audífonos Sony WH-1000" resuelto 70/30 por `pp_arbiter` y "Celular Motorola G24" devuelto porque no se despachó a tiempo (`refund_unshipped`).
+- Borra pedidos, tiendas, transacciones y evidencias locales (por ejemplo, las disputas repetidas de pruebas) y el estado del bot de la demo (`../bot/data/bot-state.json`).
+- Verifica que la app esté en modo guardián v2 antes de sembrar.
 - Conserva la fábrica del escrow y los eventos on-chain ya ingeridos. Lo on-chain no se puede borrar y `/transparencia` lo sigue mostrando.
-- Levanta la app un momento en el 3098, siembra con billeteras locales de un solo uso (unos 2 minutos en testnet) y la apaga.
+- Levanta la app un momento en el 3098, siembra con cuentas locales de un solo uso (unos 3 minutos en testnet) y la apaga.
 - Si `npm run demo` está corriendo, se niega a borrar.
 
 ### Video de la demo: `npm run demo:video`
 
 ```bash
-npm run demo:video        # graba (~4 min en testnet) y arma pago-protegido/demo/video/pago-protegido-demo.mp4
+npm run demo:video        # graba (~6 min en testnet) y arma pago-protegido/demo/v2/pago-protegido-demo-v2.mp4 + 6 capturas clave
 npm run demo:video:join   # solo vuelve a armar el mp4 con los clips ya grabados
 ```
 

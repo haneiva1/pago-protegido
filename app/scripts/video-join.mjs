@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// Arma pago-protegido/demo/video/pago-protegido-demo.mp4 (1280x720, 30 fps, H.264) a partir de los clips de
-// npm run demo:video (pago-protegido/demo/video/clips/*.webm):
+// Arma pago-protegido/demo/v2/pago-protegido-demo-v2.mp4 (1280x720, 30 fps, H.264) a partir de los clips de
+// npm run demo:video (pago-protegido/demo/v2/clips/*.webm). Con PP_VIDEO_DIR se usa otra carpeta.
 //   1. Normaliza cada clip a 1280x720 (los de celular se centran sobre fondo oscuro).
 //   2. Acorta las esperas a testnet: detecta tramos sin cambios (freezedetect) y, si duran más de LONG s,
 //      deja HEAD s a velocidad normal (para leer el subtítulo), acelera el resto y deja TAIL s al final.
 //   3. Ajusta la velocidad general para que el video quede cerca de TARGET s.
 //   4. Agrega una placa inicial (3 s) y una final (4 s), renderizadas desde HTML con el logo.
-//   5. Genera la lámina de cuadros pago-protegido/demo/video/lamina.png.
+//   5. Genera la lámina de cuadros pago-protegido/demo/v2/lamina.png.
 // Reproducible: npm run demo:video:join (sin volver a grabar). Requiere ffmpeg/ffprobe.
 import { chromium } from "@playwright/test";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -15,12 +15,12 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const APP = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const VIDEO = resolve(APP, "..", "demo", "video");
+const VIDEO = process.env.PP_VIDEO_DIR ? resolve(process.env.PP_VIDEO_DIR) : resolve(APP, "..", "demo", "v2");
 const CLIPS = join(VIDEO, "clips");
 const WORK = join(CLIPS, "work");
-const OUT = join(VIDEO, "pago-protegido-demo.mp4");
+const OUT = join(VIDEO, "pago-protegido-demo-v2.mp4");
 const SHEET = join(VIDEO, "lamina.png");
-const TARGET = Number(process.env.VIDEO_TARGET_S || 112); // objetivo: 1:45–2:00
+const TARGET = Number(process.env.VIDEO_TARGET_S || 108); // objetivo: 2 minutos o menos, con las placas
 const INTRO_S = 3;
 const OUTRO_S = 4;
 const LONG = 4.5; // tramos quietos más largos que esto se acortan
@@ -100,8 +100,8 @@ const INTRO = plate(`<div><div style="width:150px;height:150px;margin:0 auto 22p
   <div style="font-size:26px;margin-top:26px;opacity:.75">sobre Stellar</div></div>`);
 const chip = (t) => `<span style="display:inline-block;margin:8px;padding:12px 24px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);font-size:30px;font-weight:600">${t}</span>`;
 const OUTRO = plate(`<div><div style="width:110px;height:110px;margin:0 auto 18px">${logo}</div>
-  <div style="font-size:46px;font-weight:800">Contratos en Stellar testnet</div>
-  <div style="margin-top:26px">${["pp_guardian", "pp_arbiter", "Trustless Work", "Pollar"].map(chip).join("")}</div>
+  <div style="font-size:46px;font-weight:800">Contratos v2 en Stellar testnet</div>
+  <div style="margin-top:26px">${["pp_guardian v2", "pp_arbiter v2", "Trustless Work"].map(chip).join("")}</div>
   <div style="font-size:24px;margin-top:30px;opacity:.75">Pago Protegido · demo en testnet con USD de prueba</div></div>`);
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });

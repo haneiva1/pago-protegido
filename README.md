@@ -20,7 +20,7 @@ flowchart LR
   V["Vendedor<br/>crea el link"] --> C["Comprador paga<br/>(QR → USD de prueba)"]
   C --> E[("Contrato de pago<br/>escrow Trustless Work<br/>+ pp_guardian / pp_arbiter")]
   V -->|"registra el envío<br/>con la guía"| E
-  E -->|"Recibí conforme<br/>o vence la revisión"| S["Vendedor cobra<br/>97,7%"]
+  E -->|"Pagar al vendedor<br/>o vence la revisión"| S["Vendedor cobra<br/>97,7%"]
   E -->|"Tengo un problema"| A["Árbitro elige el %<br/>solo comprador o vendedor"]
   A --> S
   A --> B["El pago vuelve<br/>al comprador"]
@@ -32,7 +32,7 @@ flowchart LR
    - Al fondear acepta dos plazos: el del despacho y el de revisión después del envío.
    - Antes de pedir la firma, la app verifica on-chain que el contrato es el de Trustless Work con nuestros roles ("Contrato verificado").
 3. **El vendedor registra el envío** con el código de encomienda (`mark_shipped`). Lo hace una sola vez, dentro del plazo, y la evidencia queda fija.
-4. **El comprador toca "Recibí conforme".** En una sola transacción, `pp_guardian` aprueba y libera:
+4. **El comprador toca "Pagar al vendedor"** y responde la pregunta obligatoria ("¿Tienes el producto en tus manos y lo revisaste?"). En una sola transacción, `pp_guardian` aprueba y libera:
 
    | Quién | Parte |
    |---|---|
@@ -65,8 +65,8 @@ Diagramas de secuencia, máquina de estados y "quién puede hacer qué": [docs/A
 | **Contratos v2** (Soroban), desplegados en testnet | `pp_guardian` [`CDKYF7OA…UOATOT`](https://stellar.expert/explorer/testnet/contract/CDKYF7OAJTACP4JNJSGGXDRA3DHE442R26CT5ZE5DJHNSHH7XJUOATOT) y `pp_arbiter` [`CDTEA424…TEVU5UA`](https://stellar.expert/explorer/testnet/contract/CDTEA424AWSIIHEQ4FIQHFQOTWS3XAVLQHX7FI3MU6JZP4OPMTEVU5UA). Incorporan los hallazgos del red team sobre Trustless Work (TW-1, TW-2, TW-3, TW-5). IDs, hashes, transacciones y comisiones reales en [contracts/DEPLOYED.md](contracts/DEPLOYED.md). |
 | **Tests de contratos** | **38 tests** (`cargo test`) contra el **WASM real** de Trustless Work: los 9 invariantes de seguridad y el red team. Los contratos **no son actualizables**. |
 | **Flujo v2 real en testnet** | `contracts/scripts/flujo-v2-testnet.sh`, 6 escenarios, terminó con código 0:<br>• caso feliz;<br>• disputa 70/30;<br>• liberación automática 60 s después del envío;<br>• extensión de la revisión, verificada con la hora del ledger;<br>• devolución por falta de envío;<br>• **9 desvíos rechazados**: nadie, ni el admin del árbitro ni la plataforma, pudo mandar el pago a un tercero. |
-| **App web** (Next.js, mobile-first, en español) | Panel del vendedor, link del comprador, panel del árbitro y "Cómo funciona". Tiene e2e con Playwright contra testnet en 3 escenarios, con capturas en `app/e2e/capturas/`. **Hoy la app usa los contratos v1**; la integración de v2 está pendiente (ver [CHANGELOG](CHANGELOG.md)). |
-| **Bot de WhatsApp** | Crea links desde el chat y avisa en cada paso. Tiene 69 tests unitarios y 2 e2e del simulador. |
+| **App web** (Next.js, mobile-first, en español) | Panel del vendedor, link del comprador, panel del revisor y "Cómo funciona". **Usa los contratos v2**: los dos plazos en `fund`, `mark_shipped`, "Necesito más tiempo" (`extend`), la devolución automática si no se despacha (`refund_unshipped`) y `auto_release`, que respeta la disputa. El e2e con Playwright contra testnet cubre el flujo v2 (incluidos `extend` y la devolución), con capturas en `app/e2e/capturas/`. Video y capturas clave de la demo v2: [demo/v2/](demo/v2/). |
+| **Bot de WhatsApp** | Crea links desde el chat (con código PP-#### y quién paga la protección), verifica links, avisa en cada paso y recuerda desde el envío con la hora que da la app. Tiene 169 tests unitarios y 4 e2e del simulador. |
 | **Métricas on-chain** | `contracts/scripts/metricas.sh` las calcula solo con eventos públicos (`getEvents`). Hasta ahora suma **47 compras** en v1 y v2, por ≈ USD 2.227 de prueba (≈ Bs 26.052), con liberaciones, extensiones, disputas y devoluciones. Detalle en [docs/METRICAS.md](docs/METRICAS.md). |
 | **Bug reportable en Trustless Work (H-1)** | Reproducido en testnet, con el fix y el test validados: [docs/reporte-trustless-work.md](docs/reporte-trustless-work.md) (borrador). |
 | **v1** (retirado para compras nuevas) | Contratos v1 con 27 tests y un flujo con 5 ataques rechazados: [contracts/DEPLOYED-v1.md](contracts/DEPLOYED-v1.md). |

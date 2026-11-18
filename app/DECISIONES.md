@@ -259,3 +259,50 @@ Integrado con `@pollar/react` y `@pollar/core` 0.12, siguiendo las páginas de `
     - Con los IDs v2 se activan las capacidades y se implementan `extend`/`markShipped` en `GuardianEscrowService`.
 75. **El e2e borra `data/e2e.db` en cada corrida**, para que las pantallas no muestren textos viejos de corridas anteriores (por ejemplo, el antiguo "árbitro" en movimientos guardados). La fábrica del escrow se vuelve a desplegar una vez por corrida. La limpieza corre solo en el proceso principal de Playwright (sin `TEST_WORKER_INDEX`): cada worker vuelve a evaluar la config y borraría la base con el servidor ya corriendo. Lo mismo vale para `data/video.db`.
 76. **El video de la demo (`npm run demo:video`) no se volvió a grabar en esta ronda.** Su script usa los textos de la ronda 5; hay que actualizarlo después de integrar los contratos v2.
+
+## Séptima ronda: contratos v2 integrados (rama `worktree-pp-v2-integracion`)
+
+Las decisiones 74 y 76 quedan reemplazadas por las de esta sección.
+
+77. **Plazos v2 que firma el comprador en `pp_guardian.fund(…, ship_secs, inspect_secs)`.**
+    - **Despacho (`ship_secs`)** = los días de entrega que prometió el vendedor, contados desde el pago.
+    - **Revisión (`inspect_secs`)** = días de entrega + 3 días, contados desde que el vendedor registra el envío (`release_at`).
+    - Es la opción más conservadora: el comprador nunca tiene menos tiempo que en v1 (antes, días + 3 contados desde el pago) y el vendedor no puede retener la plata sin despachar más allá de lo que prometió.
+    - Links de demo (`/panel?demo=1`): los dos plazos duran 2 minutos (el mínimo del guardián es 60 s).
+    - Antes del envío no hay cuenta regresiva de liberación (`deadline` es `null`): se muestra el plazo de despacho. Después del envío, `deadline` = `release_at` leído de `pp_guardian.purchase` (hora del ledger).
+78. **IDs v2 sin tocar la `.env.local` de las rondas anteriores.**
+    - `config.ts` usa por defecto `pp_guardian` v2 `CDKYF7OA…UOATOT` y `pp_arbiter` v2 `CDTEA424…TEVU5UA` (`contracts/deployments/testnet.json`).
+    - Si `PP_GUARDIAN_ID` o `PP_ARBITER_ID` apuntan a los IDs de v1 (retirados para compras nuevas), se ignoran con un aviso en el log y se usa v2. Cualquier otro ID se respeta.
+    - `npm run setup` ya escribe los IDs v2.
+    - `/transparencia` lee los eventos de v1 (historial) y de v2, con un cursor nuevo (`events:cursor:v1v2`) para no saltarse los de v2.
+79. **Devolución automática si el vendedor no despacha a tiempo.**
+    - Condición: pedido pagado (o en reclamo) sin envío registrado y `now ≥ ship_deadline + 10 s` (margen sobre la hora del ledger).
+    - La plataforma abre la disputa directo en el escrow con su rol `platform` de Trustless Work (`dispute_escrow`, ver H-6 y TW-1 en contracts) y llama `pp_arbiter.refund_unshipped`, que no pide firmas y valida en el contrato que no haya envío y que el plazo haya vencido. Los dos hashes quedan en la línea de tiempo.
+    - **Cuándo corre:** cada vez que alguien consulta (página del pedido, panel del vendedor, panel del revisor y el feed del bot), como mucho cada 15 s y sin bloquear la respuesta. No hay un proceso aparte, igual que la ingesta de /transparencia (51). Con el bot o una página abierta, la devolución pasa en menos de un minuto.
+    - **Estado nuevo `devuelto`** ("Devuelto (no se despachó)"), con `refunded_at`, `buyer_bps = 10000` y motivo "No despachó a tiempo". Si el comprador ya había abierto un reclamo y nada se despachó, también se devuelve: es el mismo resultado que la política da para "No envió".
+    - Como en cualquier reembolso de Trustless Work, se cobran las comisiones (2% o el `platform_fee` del pedido, más 0,3%): el comprador recibe el total menos eso (DECISIONES 7). La pantalla muestra el reparto.
+    - `POST /api/orders/:slug/refund-unshipped` hace lo mismo a pedido, sin firmas.
+80. **"Necesito más tiempo" = `pp_guardian.extend`, una sola vez.**
+    - Lo firma el comprador. `POST /api/orders/:slug/extend` (antes 501) devuelve la transacción armada y se envía por `/api/tx/submit`, como el resto.
+    - Solo con el pedido "enviado", antes de `release_at`, sin reclamo y si no se usó antes. El servidor lo valida y el contrato también (`#27`, `#28`).
+    - Al confirmarse, la app relee `release_at` del contrato. El botón desaparece y el vendedor ve "El comprador ya pidió más tiempo una vez".
+81. **`auto_release` respeta la disputa en los dos lados.** Antes de llamarlo, la app lee el flag `disputed` real del escrow y, si hay reclamo, no lo intenta. El contrato también lo rechaza (`#20`). Sigue siendo un botón que cualquiera puede tocar al vencer la revisión ("Liberar ahora (plazo vencido)"), no un barrido automático. Pagar solo al vendedor es irreversible; devolver al comprador (79) es la dirección segura y por eso sí es automática.
+82. **Envío por `pp_guardian.mark_shipped`.**
+    - La evidencia on-chain sigue siendo `empresa|guía|peso|hash-foto` (65), recortada a 256 bytes (`MAX_EVIDENCE_LEN`). La copia del guardián es la que cuenta (D-17 de contracts).
+    - El IMEI y los datos de entrega no van on-chain: se quedan en el servidor.
+    - Ya no se escribe "enviado" directo en el escrow: en v2 eso no cuenta para `confirm`, `auto_release` ni `refund_unshipped`.
+83. **API para el bot (APP-ENDPOINTS §6–§8 del bot).**
+    - `POST /api/links` acepta `proteccion: "comprador" | "vendedor"` (igual a `feePayer`) y responde la vista pública del pedido.
+    - `PATCH /api/links/:slug { sellerPubkey, proteccion }` cambia quién paga la protección mientras nadie empezó a pagar (409 si ya hay comprador o contrato).
+    - La vista pública suma `proteccion` y `proteccion_bs_cents` (lo que la paga el comprador, o el 2,3% que regala el vendedor).
+    - `/api/bot/changes` suma `code`, `deadline`, `ship_deadline`, `shipped_at` y `extended`.
+    - `/api/info` → `capabilities: { extend, clockFromShipping, refundUnshipped, proteccionPatch }`.
+84. **`npm run demo:reset` para v2.**
+    - Borra pedidos, tiendas, transacciones, evidencias y pendientes de `data/pp.db`, y el estado del bot de la demo (`../bot/data/bot-state.json`).
+    - Conserva la fábrica del escrow, los eventos on-chain y la lista de espera del piloto (son datos de personas).
+    - Verifica que la app esté en modo guardián v2 y siembra 3 pedidos reales en testnet: liberado, resuelto 70/30 y devuelto por no despacho (este último corre en paralelo y tarda unos 2 minutos).
+85. **Video y capturas v2** (`npm run demo:video`, `pago-protegido/demo/v2/`).
+    - Guion de 6 escenas: bot → link, pago con la rampa simulada en pantalla, envío con empresa, guía e IMEI, pregunta obligatoria, cobro con link al registro público, y desvío del revisor rechazado por el contrato.
+    - La compra con reclamo para la última escena se arma fuera de cámara, por API y con cuentas locales de un solo uso.
+    - Los subtítulos también pasan por la lista de palabras prohibidas.
+    - Se versionan el mp4, la lámina y las 6 capturas clave; los clips se regeneran.

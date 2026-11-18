@@ -6,22 +6,25 @@ import {
   createEscrowTx,
   distributionsScVal,
   propsToNative,
-  prepareShip,
   readEscrowState,
   tokenBalance,
   verifyEscrowInstance,
 } from "./tw";
-import type { EscrowCtx, EscrowProps, EscrowService, ProbeResult, Quote, Roles, UserAction } from "./types";
+import type { EscrowCtx, EscrowProps, EscrowService, ProbeResult, PurchaseInfo, Quote, Roles, UserAction } from "./types";
 
 /**
- * Modo guardián (por defecto). Contratos de pago-protegido/contracts (deployments/testnet.json):
- *   pp_guardian.fund(escrow, buyer, expected_escrow, amount, window_secs) -> Purchase
- *   pp_guardian.confirm(escrow, buyer)         -> approve_milestone + release_funds en la misma invocación
+ * Modo guardián (por defecto) con los contratos v2 de pago-protegido/contracts (deployments/testnet.json,
+ * interfaz en contracts/DECISIONES.md §"INTERFAZ v2"):
+ *   pp_guardian.fund(escrow, buyer, expected_escrow, amount, ship_secs, inspect_secs) -> Purchase
+ *   pp_guardian.mark_shipped(escrow, seller, evidence) -> Purchase   (una vez, antes de ship_deadline; fija release_at)
+ *   pp_guardian.confirm(escrow, buyer)          -> exige envío; aprueba todos los hitos y libera
+ *   pp_guardian.extend(escrow, buyer) -> Purchase (una vez, antes de release_at y sin disputa: suma inspect_secs)
  *   pp_guardian.dispute(escrow, caller)
- *   pp_guardian.auto_release(escrow)           -> sin auth, pasado el plazo y con el hito en "enviado"
+ *   pp_guardian.auto_release(escrow)            -> sin auth; envío registrado, now ≥ release_at y sin disputa
  *   pp_guardian.purchase(escrow) -> Option<Purchase>
  *   pp_arbiter.quote(escrow, buyer_bps) -> Split  (solo lectura: vista previa del slider)
- *   pp_arbiter.resolve(escrow, buyer_bps) -> Split (firmado por el admin del árbitro)
+ *   pp_arbiter.resolve(escrow, buyer_bps) -> Split (firmado por el admin del revisor)
+ *   pp_arbiter.refund_unshipped(escrow) -> Split  (sin auth; con disputa, sin envío y vencido el despacho)
  * Los argumentos se convierten con el Spec leído de la red (equivale a los bindings de contracts/bindings).
  */
 const ARGS = {
@@ -30,17 +33,20 @@ const ARGS = {
     buyer,
     expected_escrow: propsToNative(ctx.props),
     amount: BigInt(ctx.props.amount),
-    window_secs: BigInt(ctx.windowSecs),
+    ship_secs: BigInt(ctx.shipSecs),
+    inspect_secs: BigInt(ctx.inspectSecs),
   }),
+  markShipped: (ctx: EscrowCtx, seller: string, evidence: string) => ({ escrow: ctx.escrowId, seller, evidence }),
+  extend: (ctx: EscrowCtx, buyer: string) => ({ escrow: ctx.escrowId, buyer }),
   confirm: (ctx: EscrowCtx, buyer: string) => ({ escrow: ctx.escrowId, buyer }),
   dispute: (ctx: EscrowCtx, caller: string) => ({ escrow: ctx.escrowId, caller }),
   escrow: (escrowId: string) => ({ escrow: escrowId }),
   bps: (ctx: EscrowCtx, buyerBps: number) => ({ escrow: ctx.escrowId, buyer_bps: buyerBps }),
 };
 
-// Errores propios (DECISIONES.md de contracts, sección ⚠ INTERFAZ).
+// Errores propios (DECISIONES.md de contracts, secciones ⚠ INTERFAZ y ⚠ INTERFAZ v2).
 const GUARDIAN_ERRORS: Record<number, string> = {
-  4: "El plazo de liberación está fuera del rango permitido",
+  4: "El plazo de despacho está fuera del rango permitido",
   5: "Este pedido ya fue pagado",
   7: "Solo el comprador de este pedido puede hacerlo",
   8: "Solo el comprador o el vendedor pueden abrir un reclamo",
@@ -53,14 +59,31 @@ const GUARDIAN_ERRORS: Record<number, string> = {
   21: "El pago ya fue liberado",
   22: "El reclamo ya fue resuelto",
   23: "El vendedor todavía no marcó el envío",
+  24: "Solo el vendedor de este pedido puede registrar el envío",
+  25: "El envío ya estaba registrado",
+  26: "Venció el plazo de despacho: ya no se puede registrar el envío",
+  27: "Ya pediste más tiempo una vez",
+  28: "La revisión ya terminó",
+  29: "El pedido tiene un paso sin estado: decide el revisor",
+  30: "La ventana de revisión está fuera del rango permitido",
+  31: "La evidencia del envío no es válida (1 a 256 caracteres)",
 };
 const ARBITER_ERRORS: Record<number, string> = {
   1: "El porcentaje no es válido",
   2: "El pago no está en disputa",
   5: "El contrato no tiene saldo",
-  7: "Todavía no venció el plazo",
+  7: "Todavía no venció el plazo de despacho",
   8: "El vendedor ya marcó el envío",
 };
+
+/** Evidencia on-chain: entre 1 y 256 bytes (MAX_EVIDENCE_LEN de pp_guardian v2). */
+function clampEvidence(e: string): string {
+  let out = e.trim() || "enviado";
+  while (Buffer.byteLength(out, "utf8") > 256) out = out.slice(0, -1);
+  return out;
+}
+
+const ms = (v: bigint | number | null | undefined) => (v == null ? null : Number(v) * 1000);
 
 export class GuardianEscrowService implements EscrowService {
   readonly mode = "guardian" as const;
@@ -103,7 +126,10 @@ export class GuardianEscrowService implements EscrowService {
         case "fund":
           return await prepareInvoke(signer, g, "fund", await this.args(g, "fund", ARGS.fund(ctx, signer)));
         case "ship":
-          return await prepareShip(ctx.escrowId, signer, params.evidence ?? "");
+          // v2: el envío se registra en pp_guardian (evidencia inmutable, D-17) y fija release_at.
+          return await prepareInvoke(signer, g, "mark_shipped", await this.args(g, "mark_shipped", ARGS.markShipped(ctx, signer, clampEvidence(params.evidence ?? ""))));
+        case "extend":
+          return await prepareInvoke(signer, g, "extend", await this.args(g, "extend", ARGS.extend(ctx, signer)));
         case "confirm":
           return await prepareInvoke(signer, g, "confirm", await this.args(g, "confirm", ARGS.confirm(ctx, signer)));
         case "dispute":
@@ -112,7 +138,7 @@ export class GuardianEscrowService implements EscrowService {
           throw new ChainError(`Paso desconocido: ${action}/${step}`);
       }
     } catch (e) {
-      return step === "ship" ? Promise.reject(e) : remapError(e, GUARDIAN_ERRORS, "pp_guardian");
+      return remapError(e, GUARDIAN_ERRORS, "pp_guardian");
     }
   }
 
@@ -135,10 +161,46 @@ export class GuardianEscrowService implements EscrowService {
     }
   }
 
-  async purchase(escrowId: string) {
+  async purchase(escrowId: string): Promise<PurchaseInfo | null> {
     const v = await simulate(this.guardian, "purchase", await this.args(this.guardian, "purchase", ARGS.escrow(escrowId)));
-    const p = scValToNative(v) as { funded_at: bigint; deadline: bigint } | null | undefined;
-    return p ? { fundedAt: Number(p.funded_at) * 1000, deadline: Number(p.deadline) * 1000 } : null;
+    const p = scValToNative(v) as
+      | { funded_at: bigint; ship_deadline: bigint; shipped_at?: bigint | null; release_at?: bigint | null; extended: boolean; evidence?: string | null }
+      | null
+      | undefined;
+    if (!p) return null;
+    return {
+      fundedAt: ms(p.funded_at)!,
+      shipDeadline: ms(p.ship_deadline)!,
+      shippedAt: ms(p.shipped_at),
+      releaseAt: ms(p.release_at),
+      extended: Boolean(p.extended),
+      evidence: p.evidence ?? null,
+    };
+  }
+
+  async refundUnshipped(ctx: EscrowCtx) {
+    const p = await this.purchase(ctx.escrowId);
+    if (!p) throw new ChainError("El contrato no tiene registrada esta compra");
+    if (p.shippedAt) throw new ChainError("El vendedor ya registró el envío");
+    const st = await readEscrowState(ctx.escrowId);
+    let disputeHash: string | null = null;
+    if (!st.flags.disputed) {
+      // TW-1/H-6: la plataforma tiene rol `platform` en el escrow y puede abrir la disputa directo.
+      // Solo congela los fondos: el reparto lo hace pp_arbiter, que paga al comprador o al vendedor.
+      const plat = cfg().plataforma;
+      try {
+        disputeHash = (await invokeAs(plat, ctx.escrowId, "dispute_escrow", [addr(plat.publicKey())])).hash;
+      } catch (e) {
+        return remapError(e, {}, "escrow");
+      }
+    }
+    try {
+      const args = await this.args(this.arbiter, "refund_unshipped", ARGS.escrow(ctx.escrowId));
+      const sent = await invokeAs(cfg().plataforma, this.arbiter, "refund_unshipped", args);
+      return { disputeHash, hash: sent.hash };
+    } catch (e) {
+      return remapError(e, ARBITER_ERRORS, "pp_arbiter");
+    }
   }
 
   /**
@@ -194,8 +256,8 @@ export class GuardianEscrowService implements EscrowService {
   contracts() {
     const c = cfg();
     return [
-      { label: "pp_guardian (confirma y libera en una sola operación)", id: this.guardian, kind: "contract" as const },
-      { label: "pp_arbiter (solo reparte entre comprador y vendedor)", id: this.arbiter, kind: "contract" as const },
+      { label: "pp_guardian v2 (plazos de despacho y revisión, envío, confirmación y liberación)", id: this.guardian, kind: "contract" as const },
+      { label: "pp_arbiter v2 (solo reparte entre comprador y vendedor; devuelve si no se despachó)", id: this.arbiter, kind: "contract" as const },
       { label: "Moneda de prueba (USD de prueba, LABUSD)", id: c.labusdSac, kind: "contract" as const },
       { label: "Plataforma (patrocina comisiones)", id: c.plataforma.publicKey(), kind: "account" as const },
     ];

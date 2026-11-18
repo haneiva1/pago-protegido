@@ -1,7 +1,7 @@
-import { handle } from "@/lib/server/http";
-import { extendDeadline } from "@/lib/server/orders";
+import { body, handle } from "@/lib/server/http";
+import { prepareExtend } from "@/lib/server/orders";
 export const dynamic = "force-dynamic";
 
-/** "Necesito más tiempo" (pp_guardian v2, extend). Responde 501 hasta que se integren los contratos v2. */
-export const POST = (_req: Request, ctx: { params: Promise<{ slug: string }> }) =>
-  handle(async () => extendDeadline((await ctx.params).slug));
+/** "Necesito más tiempo" (pp_guardian v2 `extend`, una sola vez): devuelve la transacción que firma el comprador. */
+export const POST = (req: Request, ctx: { params: Promise<{ slug: string }> }) =>
+  handle(async () => prepareExtend((await ctx.params).slug, await body(req)));

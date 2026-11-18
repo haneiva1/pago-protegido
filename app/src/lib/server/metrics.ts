@@ -1,5 +1,5 @@
 import { rpc, scValToNative } from "@stellar/stellar-sdk";
-import { cfg } from "./config";
+import { RETIRED_V1, cfg } from "./config";
 import { db, kv } from "./db";
 import { server, withLock } from "./stellar";
 
@@ -11,6 +11,8 @@ import { server, withLock } from "./stellar";
 
 /** Ledger del despliegue de los contratos (contracts/deployments/testnet.json). */
 export const DEPLOY_LEDGER = 5790662;
+/** Cursor propio de v1+v2: con el filtro nuevo se vuelve a leer desde el inicio (los repetidos se ignoran). */
+const CURSOR_KEY = "events:cursor:v1v2";
 const PAGE = 200;
 
 export interface PpEvent {
@@ -31,12 +33,14 @@ export async function ingestEvents(force = false): Promise<{ added: number; late
     const lastRun = Number(kv.get("events:last_run") ?? 0);
     if (!force && Date.now() - lastRun < 15_000) return { added: 0, latestLedger: Number(kv.get("events:latest") ?? 0) };
     const c = cfg();
-    const filters: rpc.Api.EventFilter[] = [{ type: "contract", contractIds: [c.guardianId!, c.arbiterId!] }];
+    // v2 (compras nuevas) + v1 (historial): docs/METRICAS.md lee los dos.
+    const ids = [...new Set([c.guardianId!, c.arbiterId!, RETIRED_V1.guardian, RETIRED_V1.arbiter])];
+    const filters: rpc.Api.EventFilter[] = [{ type: "contract", contractIds: ids }];
     const s = server();
     const insert = db().prepare(
       `INSERT OR IGNORE INTO pp_events (id, kind, escrow, ledger, closed_at, tx_hash, data_json) VALUES (?, ?, ?, ?, ?, ?, ?)`,
     );
-    let cursor = kv.get("events:cursor");
+    let cursor = kv.get(CURSOR_KEY);
     let added = 0;
     let latest = 0;
     for (let page = 0; page < 100; page++) {
@@ -64,7 +68,7 @@ export async function ingestEvents(force = false): Promise<{ added: number; late
       }
       if (res.cursor) {
         cursor = res.cursor;
-        kv.set("events:cursor", cursor);
+        kv.set(CURSOR_KEY, cursor);
       }
       if (res.events.length < PAGE) break;
     }

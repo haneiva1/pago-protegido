@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Countdown } from "@/components/Guardian";
+import { Countdown, ShipDeadline } from "@/components/Guardian";
 import { Breakdown, SplitView, TxList } from "@/components/OrderBits";
 import { CopyButton, ErrorBox, ExplorerLink, Progress, Spinner, StatusBadge, useProgress } from "@/components/ui";
 import { WhatsAppBox } from "@/components/WhatsAppBox";
@@ -287,7 +287,7 @@ function OrderCard({
   store: string;
   sellerPubkey: string;
   mode: "direct" | "guardian";
-  capabilities?: { extend: boolean; clockFromShipping: boolean };
+  capabilities?: { extend: boolean; clockFromShipping: boolean; refundUnshipped?: boolean };
   prefill: string | null;
   onChange: () => void;
 }) {
@@ -360,7 +360,13 @@ function OrderCard({
           <WhatsAppBox title="Avísale a tu cliente" text={waText("enviado", d)} />
         </>
       )}
-      <Countdown slug={o.slug} deadline={o.deadline} status={o.status} mode={mode} onReleased={onChange} capabilities={capabilities} role="vendedor" />
+      <ShipDeadline shipDeadline={o.ship_deadline} status={o.status} role="vendedor" />
+      <Countdown slug={o.slug} deadline={o.deadline} status={o.status} mode={mode} onReleased={onChange} capabilities={capabilities} role="vendedor" extended={o.extended} />
+      {o.status === "devuelto" && (
+        <p data-testid="devuelto-vendedor" className="text-sm font-medium text-rose-800">
+          ↩️ No registraste el envío antes del {o.ship_deadline ? new Date(o.ship_deadline).toLocaleString("es-BO", { timeZone: "America/La_Paz" }) : "plazo"}: el pago volvió al comprador.
+        </p>
+      )}
 
       {o.status === "liberado" && (
         <>

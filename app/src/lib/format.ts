@@ -64,7 +64,7 @@ export function splitFromGross(balance: bigint, buyerGross: bigint, sellerGross:
   return { buyer: part(buyerGross), seller: part(sellerGross) };
 }
 
-export type OrderStatus = "esperando_pago" | "pagado" | "enviado" | "liberado" | "en_disputa" | "resuelto";
+export type OrderStatus = "esperando_pago" | "pagado" | "enviado" | "liberado" | "en_disputa" | "resuelto" | "devuelto";
 
 export const STATUS_LABEL: Record<OrderStatus, string> = {
   esperando_pago: "Esperando pago",
@@ -73,6 +73,7 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   liberado: "Liberado",
   en_disputa: "En disputa",
   resuelto: "Resuelto",
+  devuelto: "Devuelto (no se despachó)",
 };
 
 export function fmtDate(ms: number | null | undefined): string {

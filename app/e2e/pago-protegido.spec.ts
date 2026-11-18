@@ -312,7 +312,7 @@ test("presión para confirmar abre un reclamo; el vendedor regala la protección
   await capturar(info, "30-como-funciona", "tecnica");
 });
 
-test("celular: IMEI obligatorio al enviar, el comprador lo ve, y liberación automática con plazo corto", async ({ browser }) => {
+test("celular (v2): IMEI obligatorio, revisión desde el envío, «Necesito más tiempo» una vez y liberación automática", async ({ browser }) => {
   const seller = await nuevoVendedor(browser, "Bazar Express", "59170001111", "Cochabamba");
   const { url, slug } = await crearLink(
     seller,
@@ -320,6 +320,9 @@ test("celular: IMEI obligatorio al enviar, el comprador lo ve, y liberación aut
     "40-panel-plazo-corto-demo",
   );
   const buyer = await pagar(browser, url, { ciudad: "Cochabamba" });
+  // v2: antes del envío corre el plazo de despacho (no la revisión).
+  await expect(buyer.getByTestId("plazo-despacho")).toContainText("El vendedor tiene que despachar antes del");
+  await expect(buyer.getByTestId("cuenta-regresiva")).toHaveCount(0);
 
   // Sin IMEI no se puede marcar enviado.
   await seller.reload();
@@ -337,12 +340,22 @@ test("celular: IMEI obligatorio al enviar, el comprador lo ve, y liberación aut
   await expect(buyer.getByTestId("imei")).toContainText("Marca *#06# en el equipo y compara");
   await expect(buyer.getByTestId("cuenta-regresiva")).toBeVisible({ timeout: 60_000 });
   await capturar(buyer, "41-comprador-imei-cuenta-regresiva");
+
+  // "Necesito más tiempo" (pp_guardian.extend): una sola vez, firmado por el comprador; suma otra ventana de revisión.
+  const plazoAntes = await buyer.getByTestId("plazo").locator(".text-xs").first().innerText();
+  await buyer.getByRole("button", { name: "Necesito más tiempo" }).click();
+  await expect(buyer.getByTestId("extendido")).toContainText("ya pidió más tiempo una vez", CHAIN);
+  await expect(buyer.getByText(/Pediste más tiempo para revisar/)).toBeVisible();
+  await expect(buyer.getByRole("button", { name: "Necesito más tiempo" })).toHaveCount(0);
+  expect(await buyer.getByTestId("plazo").locator(".text-xs").first().innerText()).not.toBe(plazoAntes);
+  await capturar(buyer, "41b-comprador-pidio-mas-tiempo");
   await seller.reload();
   await expect(seller.getByTestId(`pedido-${slug}`).getByTestId("plazo")).toBeVisible({ timeout: 60_000 });
+  await expect(seller.getByTestId(`pedido-${slug}`).getByTestId("extendido")).toBeVisible();
   await capturar(seller, "42-vendedor-cuenta-regresiva");
 
   const btn = buyer.getByRole("button", { name: /Liberar ahora \(plazo vencido\)/ });
-  await expect(btn).toBeVisible({ timeout: 5 * 60_000 });
+  await expect(btn).toBeVisible({ timeout: 6 * 60_000 });
   await capturar(buyer, "43-comprador-plazo-vencido");
   await expect(async () => {
     if (await btn.isVisible()) await btn.click({ timeout: 5_000 }).catch(() => {});
@@ -353,6 +366,29 @@ test("celular: IMEI obligatorio al enviar, el comprador lo ve, y liberación aut
   await seller.reload();
   await expect(seller.getByTestId(`pedido-${slug}`).getByTestId("estado")).toHaveText("Liberado", { timeout: 60_000 });
   await capturar(seller, "45-vendedor-liberado-por-plazo");
+});
+
+test("devolución automática (v2): el vendedor no despacha a tiempo y el pago vuelve al comprador sin reclamo", async ({ browser }) => {
+  const seller = await nuevoVendedor(browser, "Tienda Lenta", "59170002222", "Oruro");
+  const { url, slug } = await crearLink(seller, { producto: "Celular Xiaomi Redmi 13", descripcion: "Nuevo.", precio: 900, dias: 1, categoria: "Celular", demo: true });
+  const buyer = await pagar(browser, url, { ciudad: "Sucre" });
+  await expect(buyer.getByTestId("plazo-despacho")).toContainText("te devolvemos el pago automáticamente");
+  await seller.reload();
+  const card = seller.getByTestId(`pedido-${slug}`);
+  await expect(card.getByTestId("plazo-despacho")).toContainText("Despacha antes del", { timeout: 60_000 });
+  await capturar(seller, "46-vendedor-plazo-de-despacho");
+
+  // Nadie toca nada: al vencer el plazo de despacho (2 min en demo), la app abre la disputa como plataforma
+  // y pp_arbiter.refund_unshipped devuelve el pago. La página del comprador se actualiza sola.
+  await expect(buyer.getByTestId("estado-pedido")).toContainText("Te devolvimos tu pago", { timeout: 6 * 60_000 });
+  await expect(buyer.getByTestId("devolucion")).toContainText("El vendedor no registró el envío antes del plazo");
+  await expect(buyer.getByText("Se devolvió el pago al comprador: el vendedor no despachó a tiempo")).toBeVisible();
+  await expect(buyer.locator(TX_LINK).last()).toBeVisible();
+  await capturar(buyer, "47-comprador-devuelto-sin-despacho");
+  await seller.reload();
+  await expect(card.getByTestId("estado")).toHaveText("Devuelto (no se despachó)", { timeout: 60_000 });
+  await expect(card.getByTestId("devuelto-vendedor")).toBeVisible();
+  await capturar(seller, "48-vendedor-devuelto-sin-despacho");
 });
 
 // ---------- Bot de WhatsApp (simulador) contra la app real en testnet ----------
@@ -397,7 +433,7 @@ test("bot de WhatsApp: vender por chat → pago con datos de entrega → enviado
   expect(publico).not.toContain("Rosa Quispe");
   expect((await request.get(`/api/bot/changes?since=0`)).status()).toBe(401);
 
-  await expect(botSays(chat, "¡Te pagaron!")).toBeVisible({ timeout: 90_000 });
+  await expect(botSays(chat, "el pago está GUARDADO")).toBeVisible({ timeout: 90_000 });
   await capturar(chat, "bot-03-chat-te-pagaron", "chat");
 
   await say(chat, `enviado ${slug.slice(-6)} SRV-2026-555001`);

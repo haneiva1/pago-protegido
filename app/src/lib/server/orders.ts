@@ -17,6 +17,7 @@ import {
 } from "@/lib/format";
 import { NETWORK_PASSPHRASE, cfg } from "./config";
 import { type OrderRow, evidence, kv, orders, pending, pilot, sellers, txs } from "./db";
+import { linkAmounts as amountsFor } from "@/lib/format";
 import { escrowService, type EscrowCtx, type EscrowProps, type OnchainState, type UserAction, type Verification } from "./escrow";
 import { factoryId } from "./escrow/tw";
 import {
@@ -57,6 +58,7 @@ const STEP_LABEL: Record<string, string> = {
   release: "Pagar al vendedor",
   confirm: "Pagar al vendedor",
   dispute: "Abrir un reclamo",
+  extend: "Pedir más tiempo para revisar",
 };
 
 /** Teléfono a solo dígitos; 8 dígitos (celular boliviano) → con 591 adelante. */
@@ -95,9 +97,17 @@ function mustOrder(slug: string): OrderRow {
   return o;
 }
 
-/** Plazo de liberación automática: días de entrega + 3 días, o 2 minutos en links de demo (?demo=1). */
-const windowSecs = (o: OrderRow) => o.window_secs ?? (o.delivery_days + cfg().extraWindowDays) * 86400;
+/**
+ * Plazos v2 que el comprador firma en `fund` (DECISIONES 77):
+ * - despacho (`ship_secs`): los días de entrega que prometió el vendedor, contados desde el pago;
+ * - revisión (`inspect_secs`): días de entrega + 3 días, contados desde que se registra el envío.
+ * En links de demo (?demo=1) los dos duran 2 minutos (el mínimo del guardián es 60 s).
+ */
+const shipSecs = (o: OrderRow) => o.ship_secs ?? o.window_secs ?? o.delivery_days * 86400;
+const inspectSecs = (o: OrderRow) => o.inspect_secs ?? o.window_secs ?? (o.delivery_days + cfg().extraWindowDays) * 86400;
 export const DEMO_WINDOW_SECS = 120;
+/** Margen sobre la hora del ledger antes de actuar por un plazo vencido. */
+const CHAIN_MARGIN_MS = 10_000;
 /** Modo demo (PP_DEMO=1): "Pagar al vendedor" se habilita 1 minuto después del envío. */
 export const demoTimers = () => process.env.PP_DEMO === "1";
 
@@ -116,7 +126,8 @@ function ctxOf(o: OrderRow): EscrowCtx {
     props: JSON.parse(o.escrow_json) as EscrowProps,
     buyer: o.buyer_pubkey,
     seller: o.seller_pubkey,
-    windowSecs: windowSecs(o),
+    shipSecs: shipSecs(o),
+    inspectSecs: inspectSecs(o),
   };
 }
 
@@ -174,7 +185,8 @@ export function createLink(input: Record<string, unknown>) {
   if (!Number.isFinite(priceBs) || priceBs < 1 || priceBs > 100000) throw new AppError("El precio tiene que estar entre Bs 1 y Bs 100.000");
   if (!Number.isInteger(days) || days < 1 || days > 15) throw new AppError("Los días de entrega van de 1 a 15");
   if (!inList(CATEGORIAS, category)) throw new AppError("Elige la categoría de la lista");
-  const fee_payer = input.feePayer === "vendedor" ? "vendedor" : "comprador";
+  // `proteccion` (APP-ENDPOINTS §6 del bot) y `feePayer` (panel) son lo mismo.
+  const fee_payer = (input.proteccion ?? input.feePayer) === "vendedor" ? "vendedor" : "comprador";
   const fx = cfg().fx;
   const price_bs_cents = Math.round(priceBs * 100);
   const a = linkAmounts(price_bs_cents, fx, fee_payer);
@@ -190,13 +202,26 @@ export function createLink(input: Record<string, unknown>) {
     fx,
     delivery_days: days,
     window_secs: input.demoWindow === true ? DEMO_WINDOW_SECS : null,
+    ship_secs: input.demoWindow === true ? DEMO_WINDOW_SECS : days * 86400,
+    inspect_secs: input.demoWindow === true ? DEMO_WINDOW_SECS : (days + cfg().extraWindowDays) * 86400,
     code: newCode(),
     category,
     fee_payer,
     price_units: a.price.toString(),
     platform_bps: a.platformBps,
   });
-  return orders.get(slug)!;
+  return publicOrder(orders.get(slug)!);
+}
+
+/** APP-ENDPOINTS §6: cambiar quién paga la protección mientras nadie empezó a pagar el link. */
+export function patchLink(slug: string, input: Record<string, unknown>) {
+  const o = mustOrder(slug);
+  if (input.sellerPubkey !== o.seller_pubkey) throw new AppError("Solo el vendedor puede cambiar su link", 403);
+  if (o.status !== "esperando_pago" || o.buyer_pubkey || o.escrow_id) throw new AppError("Este link ya se está pagando: no se puede cambiar", 409);
+  if (input.proteccion !== "comprador" && input.proteccion !== "vendedor") throw new AppError("proteccion tiene que ser comprador o vendedor");
+  const a = amountsFor(o.price_bs_cents, o.fx, input.proteccion);
+  orders.update(slug, { fee_payer: input.proteccion, amount_units: a.amount.toString(), price_units: a.price.toString(), platform_bps: a.platformBps });
+  return publicOrder(mustOrder(slug));
 }
 
 // ---------- Cuenta (billetera local o Pollar) ----------
@@ -340,6 +365,9 @@ export async function prepareAction(slug: string, body: Record<string, unknown>)
     if (!o.confirm_after || Date.now() < o.confirm_after) {
       throw new AppError(`Podrás pagar al vendedor desde el ${fmtWhen(o.confirm_after ?? Date.now())}`, 409);
     }
+  } else if (action === "extend") {
+    if (signer !== o.buyer_pubkey) throw new AppError("Solo el comprador puede pedir más tiempo", 403);
+    checkExtend(o);
   } else if (action === "dispute") {
     const isBuyer = signer === o.buyer_pubkey;
     if (!isBuyer && signer !== o.seller_pubkey) throw new AppError("Solo el comprador o el vendedor pueden reclamar", 403);
@@ -366,6 +394,18 @@ export async function prepareAction(slug: string, body: Record<string, unknown>)
   }
   const tx = await svc.prepareStep(action, steps[0], ctx, signer, params);
   return register(tx, { order_slug: slug, action, step: steps[0], signer, params });
+}
+
+function checkExtend(o: OrderRow) {
+  if (!CAPABILITIES_FOR().extend) throw new AppError("“Necesito más tiempo” solo existe con el contrato guardián", 409);
+  if (o.status !== "enviado") throw new AppError("Puedes pedir más tiempo cuando el vendedor ya registró el envío", 409);
+  if (o.extended) throw new AppError("Ya pediste más tiempo una vez: si algo está mal, abre un reclamo", 409);
+  if (!o.deadline || Date.now() >= o.deadline) throw new AppError("La revisión ya terminó", 409);
+}
+
+/** "Necesito más tiempo" (pp_guardian v2 `extend`): arma la transacción que firma el comprador. */
+export async function prepareExtend(slug: string, body: Record<string, unknown>): Promise<PreparedDto> {
+  return prepareAction(slug, { ...body, action: "extend" });
 }
 
 /**
@@ -401,21 +441,26 @@ export async function submitSigned(signedXdr: unknown): Promise<{ hash: string; 
   const role = p.signer === o.seller_pubkey ? "vendedor" : "comprador";
   switch (p.step) {
     case "fund": {
-      // Modo guardián: el plazo real es el que registró pp_guardian (timestamps del ledger).
+      // Modo guardián v2: los plazos reales son los que registró pp_guardian (hora del ledger).
+      // La revisión (deadline) recién existe cuando se registra el envío.
       const onchain = await escrowService().purchase(o.escrow_id!).catch(() => null);
       orders.update(slug, {
         status: "pagado",
         funded_at: onchain?.fundedAt ?? now,
-        deadline: onchain?.deadline ?? now + windowSecs(o) * 1000,
+        ship_deadline: onchain?.shipDeadline ?? now + shipSecs(o) * 1000,
+        deadline: null,
       });
       txs.add({ order_slug: slug, actor: "comprador", kind: "fondeo", label: `Pagaste ${fmtBsUnits(o.amount_units, o.fx)}: quedó guardado en el contrato`, hash: sent.hash });
       break;
     }
     case "ship": {
+      // v2: release_at = shipped_at + inspect_secs, ambos con la hora del ledger (pp_guardian.mark_shipped).
+      const onchain = await escrowService().purchase(o.escrow_id!).catch(() => null);
       orders.update(slug, {
         status: "enviado",
         shipped_evidence: params.evidence,
-        shipped_at: now,
+        shipped_at: onchain?.shippedAt ?? now,
+        deadline: onchain?.releaseAt ?? (onchain?.shippedAt ?? now) + inspectSecs(o) * 1000,
         ship_company: params.company,
         ship_tracking: params.tracking || null,
         ship_weight: params.weight,
@@ -429,6 +474,13 @@ export async function submitSigned(signedXdr: unknown): Promise<{ hash: string; 
         .join(" · ");
       evidence.add({ order_slug: slug, actor: "vendedor", kind: "envio", summary, data: params });
       txs.add({ order_slug: slug, actor: "vendedor", kind: "envio", label: `El vendedor registró el envío: ${summary}`, hash: sent.hash });
+      break;
+    }
+    case "extend": {
+      const onchain = await escrowService().purchase(o.escrow_id!).catch(() => null);
+      const releaseAt = onchain?.releaseAt ?? (o.deadline ?? now) + inspectSecs(o) * 1000;
+      orders.update(slug, { extended: 1, deadline: releaseAt });
+      txs.add({ order_slug: slug, actor: "comprador", kind: "extension", label: `Pediste más tiempo para revisar: si no reclamas, se paga al vendedor el ${fmtWhen(releaseAt)}`, hash: sent.hash });
       break;
     }
     case "approve":
@@ -494,6 +546,7 @@ export function botSellerByPhone(phoneParam: string | null) {
 /** APP-ENDPOINTS §2: cambios desde `since`; `now` se toma antes de consultar. */
 export function botChanges(sinceParam: string | null) {
   const since = Number(sinceParam ?? 0) || 0;
+  void sweepOverdue();
   const now = Date.now();
   return { now, changes: orders.changesSince(since) };
 }
@@ -514,6 +567,9 @@ export async function autoRelease(slug: string) {
     const o = mustOrder(slug);
     if (o.status !== "enviado") throw new AppError("Solo se libera por plazo un pedido enviado", 409);
     if (!o.deadline || Date.now() < o.deadline) throw new AppError("Todavía no venció el plazo", 409);
+    // auto_release respeta cualquier disputa (TW-1): el contrato la rechaza (#20) y la app tampoco la intenta.
+    const st = await escrowService().readState(o.escrow_id!).catch(() => null);
+    if (st?.flags.disputed) throw new AppError("Hay un reclamo abierto: no se paga por plazo, decide el revisor", 409);
     const { hash } = await escrowService().autoRelease(ctxOf(o));
     orders.update(slug, { status: "liberado", released_at: Date.now() });
     txs.add({ order_slug: slug, actor: "plataforma", kind: "liberacion", label: "Venció el plazo: se pagó al vendedor", hash });
@@ -521,9 +577,48 @@ export async function autoRelease(slug: string) {
   });
 }
 
-/** Contratos v2 (pp_guardian con mark_shipped y extend): la interfaz ya está lista, falta el ID. */
-export function extendDeadline(_slug: string): never {
-  throw new AppError("“Necesito más tiempo” llega con pp_guardian v2 (extend): todavía no está activo", 501);
+/**
+ * Devolución automática por falta de despacho (v2): si el vendedor no registró el envío antes de
+ * `ship_deadline`, la plataforma abre la disputa en el escrow y `pp_arbiter.refund_unshipped` le devuelve
+ * el pago al comprador (con las comisiones de siempre). No necesita reclamo ni firmas de usuarios.
+ */
+export async function refundUnshipped(slug: string) {
+  return withLock(`order:${slug}`, async () => {
+    const o = mustOrder(slug);
+    if (o.status === "devuelto") return { hash: null, already: true };
+    if (o.status !== "pagado" && o.status !== "en_disputa") throw new AppError("Este pedido no se puede devolver por falta de despacho", 409);
+    if (o.shipped_at) throw new AppError("El vendedor ya registró el envío", 409);
+    if (!o.ship_deadline || Date.now() < o.ship_deadline + CHAIN_MARGIN_MS) throw new AppError("Todavía no venció el plazo de despacho", 409);
+    const { disputeHash, hash } = await escrowService().refundUnshipped(ctxOf(o));
+    const now = Date.now();
+    if (disputeHash) {
+      txs.add({ order_slug: slug, actor: "plataforma", kind: "disputa", label: "El vendedor no registró el envío a tiempo: se congeló el pago para devolverlo", hash: disputeHash });
+    }
+    orders.update(slug, { status: "devuelto", refunded_at: now, resolved_at: now, buyer_bps: 10000, resolution_reason: "No despachó a tiempo" });
+    txs.add({ order_slug: slug, actor: "plataforma", kind: "devolucion", label: "Se devolvió el pago al comprador: el vendedor no despachó a tiempo", hash });
+    return { hash, already: false };
+  });
+}
+
+let lastSweep = 0;
+let sweeping = false;
+/**
+ * Barre los pedidos con el despacho vencido y los devuelve. Corre cuando alguien consulta (páginas, panel,
+ * feed del bot), como mucho cada 15 s y sin bloquear la respuesta (DECISIONES 79).
+ */
+export function sweepOverdue(force = false): Promise<void> {
+  if (cfg().mode !== "guardian" || sweeping || (!force && Date.now() - lastSweep < 15_000)) return Promise.resolve();
+  sweeping = true;
+  lastSweep = Date.now();
+  return (async () => {
+    try {
+      for (const o of orders.overdueUnshipped(Date.now() - CHAIN_MARGIN_MS)) {
+        await refundUnshipped(o.slug).catch((e) => console.error(`[devolución] ${o.slug}: ${(e as Error).message}`));
+      }
+    } finally {
+      sweeping = false;
+    }
+  })();
 }
 
 // ---------- Revisor ----------
@@ -622,7 +717,11 @@ export function verifyCode(codeParam: string | null) {
 /** Vista pública del pedido: sin WhatsApp ni datos de entrega del comprador. */
 function publicOrder(o: OrderRow) {
   const { escrow_json: _e, verify_json, buyer_whatsapp: _w, recipient_name: _r, dest_city: _c, pref_agency: _a, ...rest } = o;
-  return { ...rest, verification: verify_json ? (JSON.parse(verify_json) as Verification) : null };
+  const proteccion = o.fee_payer ?? "comprador";
+  // Lo que cuesta la protección: la paga el comprador (sobre el precio) o la regala el vendedor (2,3% de la venta).
+  const proteccion_bs_cents =
+    proteccion === "comprador" ? amountsFor(o.price_bs_cents, o.fx, "comprador").protectionBsCents : Math.round(o.price_bs_cents * 0.023);
+  return { ...rest, proteccion, proteccion_bs_cents, verification: verify_json ? (JSON.parse(verify_json) as Verification) : null };
 }
 
 /** Lo que ve el vendedor (y el revisor): incluye los datos de entrega. */
@@ -635,7 +734,7 @@ function sellerOrder(o: OrderRow) {
  * en disputa; si está resuelto, "Resuelto".
  */
 function reconcile(o: OrderRow, st: OnchainState | null): OrderRow {
-  if (!st) return o;
+  if (!st || o.status === "devuelto") return o;
   if (st.flags.released && o.status !== "liberado") {
     orders.update(o.slug, { status: "liberado", released_at: o.released_at ?? Date.now() });
   } else if (st.flags.resolved && !st.flags.released && o.status !== "resuelto" && o.status !== "liberado") {
@@ -654,7 +753,7 @@ function money(o: OrderRow) {
     const b = releaseBreakdown(amount, bps);
     out.breakdown = { seller: b.seller.toString(), platform: b.platform.toString(), tw: b.tw.toString() };
   }
-  if (o.status === "resuelto" && o.buyer_bps != null) {
+  if ((o.status === "resuelto" || o.status === "devuelto") && o.buyer_bps != null) {
     const s = splitPreview(amount, o.buyer_bps, bps);
     out.split = {
       buyer: s.buyer.net.toString(),
@@ -682,6 +781,7 @@ function sellerCard(pubkey: string) {
 }
 
 export async function orderView(slug: string, withOnchain: boolean) {
+  void sweepOverdue();
   let o = mustOrder(slug);
   let onchain: OnchainState | null = null;
   if (withOnchain && o.escrow_id) onchain = await escrowService().readState(o.escrow_id).catch(() => null);
@@ -695,7 +795,7 @@ export async function orderView(slug: string, withOnchain: boolean) {
     onchain,
     confirmDelay: confirmDelay(o).label,
     demoTimers: demoTimers(),
-    capabilities: CAPABILITIES,
+    capabilities: CAPABILITIES_FOR(),
     ...money(o),
   };
 }
@@ -704,12 +804,14 @@ export async function sellerView(pubkey: string) {
   if (!isPubkey(pubkey)) throw new AppError("Cuenta inválida");
   const s = sellers.get(pubkey);
   if (!s) throw new AppError("Tienda no encontrada", 404);
+  void sweepOverdue();
   const list = orders.bySeller(pubkey).map((o) => ({ ...sellerOrder(o), txs: txs.forOrder(o.slug), ...money(o) }));
   const balance = await tokenBalance(pubkey);
   return { seller: { ...s, completedSales: sellers.completedSales(pubkey) }, orders: list, balance: balance.toString(), fx: cfg().fx };
 }
 
 export async function disputesView() {
+  void sweepOverdue();
   const open = await Promise.all(
     orders.byStatus("en_disputa").map(async (o) => {
       const onchain = o.escrow_id ? await escrowService().readState(o.escrow_id).catch(() => null) : null;
@@ -727,8 +829,11 @@ export async function disputesView() {
   return { open: stillOpen, resolved, platformFeeBps: cfg().platformFeeBps, mode: cfg().mode };
 }
 
-/** Lo que trae pp_guardian v2 (mark_shipped, reloj desde "enviado", extend). Se activa con los IDs v2. */
-export const CAPABILITIES = { extend: false, clockFromShipping: false };
+/** Lo que trae pp_guardian v2: mark_shipped, reloj desde "enviado", extend y devolución por falta de despacho. */
+export function CAPABILITIES_FOR() {
+  const v2 = cfg().mode === "guardian";
+  return { extend: v2, clockFromShipping: v2, refundUnshipped: v2, proteccionPatch: true };
+}
 
 export async function info() {
   const c = cfg();
@@ -741,7 +846,7 @@ export async function info() {
     wasmHash: c.wasmHash,
     factory,
     contracts: svc.contracts(),
-    capabilities: CAPABILITIES,
+    capabilities: CAPABILITIES_FOR(),
     demoTimers: demoTimers(),
   };
 }

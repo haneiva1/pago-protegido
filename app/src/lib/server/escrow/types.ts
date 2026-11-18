@@ -29,10 +29,24 @@ export interface EscrowCtx {
   props: EscrowProps;
   buyer: string;
   seller: string;
-  windowSecs: number;
+  /** Plazo de despacho (pp_guardian v2 `ship_secs`), contado desde el fondeo. */
+  shipSecs: number;
+  /** Ventana de revisión (pp_guardian v2 `inspect_secs`), contada desde el envío; `extend` suma otra igual una vez. */
+  inspectSecs: number;
 }
 
-export type UserAction = "fund" | "ship" | "confirm" | "dispute";
+export type UserAction = "fund" | "ship" | "confirm" | "dispute" | "extend";
+
+/** `Purchase` de pp_guardian v2, con tiempos en ms (hora del ledger). */
+export interface PurchaseInfo {
+  fundedAt: number;
+  shipDeadline: number;
+  shippedAt: number | null;
+  /** Fin de la revisión: existe solo después de `mark_shipped`. */
+  releaseAt: number | null;
+  extended: boolean;
+  evidence: string | null;
+}
 
 export interface OnchainState {
   balance: string;
@@ -92,13 +106,18 @@ export interface EscrowService {
   probeForeignDestination(ctx: EscrowCtx, foreign: string): Promise<ProbeResult>;
   /** Liberación por plazo vencido (solo modo guardián). */
   autoRelease(ctx: EscrowCtx): Promise<{ hash: string }>;
+  /**
+   * Devolución por falta de despacho (solo modo guardián v2): la plataforma abre la disputa en el escrow
+   * (rol `platform` de TW) y `pp_arbiter.refund_unshipped` devuelve todo al comprador. Sin firmas de usuario.
+   */
+  refundUnshipped(ctx: EscrowCtx): Promise<{ disputeHash: string | null; hash: string }>;
   readState(escrowId: string): Promise<OnchainState>;
   /** H-2: WASM de la instancia y roles esperados, leídos por RPC. */
   verify(ctx: EscrowCtx): Promise<Verification>;
   /** Vista previa del reparto (modo guardián: pp_arbiter.quote, solo lectura). */
   quote(ctx: EscrowCtx, buyerBps: number): Promise<Quote>;
   /** Compra registrada on-chain (modo guardián: pp_guardian.purchase), tiempos en ms. */
-  purchase(escrowId: string): Promise<{ fundedAt: number; deadline: number } | null>;
+  purchase(escrowId: string): Promise<PurchaseInfo | null>;
   /** Contratos a mostrar en /como-funciona. */
   contracts(): { label: string; id: string; kind: "contract" | "account" }[];
 }

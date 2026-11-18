@@ -3,7 +3,7 @@
 import QRCode from "qrcode";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Countdown, PublicRecord, fmtLeft, useNow } from "@/components/Guardian";
+import { ShipDeadline, Countdown, PublicRecord, fmtLeft, useNow } from "@/components/Guardian";
 import { Breakdown, SplitView, Timeline, TxList } from "@/components/OrderBits";
 import { ErrorBox, Progress, Spinner, StatusBadge, useProgress } from "@/components/ui";
 import { WhatsAppBox } from "@/components/WhatsAppBox";
@@ -110,10 +110,12 @@ export default function PaginaDePago() {
       setQrOpen(false);
     });
 
-  const accion = (action: "confirm" | "dispute", extra: Record<string, string> = {}) =>
+  const accion = (action: "confirm" | "dispute" | "extend", extra: Record<string, string> = {}) =>
     run(async () => {
       const wallet = getWallet("comprador");
-      const prepared = await api<PreparedTx>(`/api/orders/${slug}/action`, { action, signer: wallet.publicKey(), ...extra });
+      // "Necesito más tiempo" tiene su propia ruta (pp_guardian v2 `extend`, una sola vez).
+      const path = action === "extend" ? `/api/orders/${slug}/extend` : `/api/orders/${slug}/action`;
+      const prepared = await api<PreparedTx>(path, { action, signer: wallet.publicKey(), ...extra });
       await signAndSubmit(wallet, prepared, progress.push);
       setProblem(false);
       setAsk(false);
@@ -223,7 +225,18 @@ export default function PaginaDePago() {
               <StatusBadge status={o.status} />
             </div>
             <Timeline order={o} txs={v.txs} />
-            <Countdown slug={o.slug} deadline={o.deadline} status={o.status} mode={v.mode} onReleased={load} capabilities={v.capabilities} role="comprador" />
+            <ShipDeadline shipDeadline={o.ship_deadline} status={o.status} role="comprador" />
+            <Countdown
+              slug={o.slug}
+              deadline={o.deadline}
+              status={o.status}
+              mode={v.mode}
+              onReleased={load}
+              capabilities={v.capabilities}
+              role="comprador"
+              extended={o.extended}
+              onExtend={isBuyer ? () => accion("extend") : undefined}
+            />
           </section>
 
           {o.status === "liberado" && (
@@ -235,6 +248,13 @@ export default function PaginaDePago() {
           {o.status === "resuelto" && (
             <section className="card space-y-3">
               <h2 className="font-bold">Decisión del revisor</h2>
+              <SplitView money={v} buyerBps={o.buyer_bps} fx={o.fx} />
+            </section>
+          )}
+          {o.status === "devuelto" && (
+            <section className="card space-y-3" data-testid="devolucion">
+              <h2 className="font-bold">Devolución por falta de despacho</h2>
+              <p className="text-sm text-slate-600">El vendedor no registró el envío antes del plazo. El contrato devolvió el pago al comprador.</p>
               <SplitView money={v} buyerBps={o.buyer_bps} fx={o.fx} />
             </section>
           )}
@@ -520,6 +540,7 @@ function StatusHero({ v }: { v: OrderView }) {
     liberado: { t: "Se pagó al vendedor", d: "Confirmaste que lo recibiste bien. ¡Gracias por comprar protegido!", c: "bg-brand-700" },
     en_disputa: { t: "Reclamo abierto", d: "La plata quedó congelada en el contrato. Un revisor va a ver el caso.", c: "bg-amber-500" },
     resuelto: { t: "Reclamo resuelto", d: "El revisor repartió la plata entre comprador y vendedor.", c: "bg-violet-600" },
+    devuelto: { t: "Te devolvimos tu pago", d: "El vendedor no despachó a tiempo, así que el contrato te devolvió la plata.", c: "bg-rose-600" },
     esperando_pago: { t: "", d: "", c: "" },
   }[o.status];
   return (

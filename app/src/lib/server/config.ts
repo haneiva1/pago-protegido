@@ -8,11 +8,31 @@ export const FRIENDBOT_URL = "https://friendbot.stellar.org";
 
 export type Mode = "direct" | "guardian";
 
-/** IDs en testnet (pago-protegido/contracts/deployments/testnet.json). */
+/** IDs v2 en testnet (pago-protegido/contracts/deployments/testnet.json, `version: "v2"`). */
 export const DEPLOYED = {
+  guardian: "CDKYF7OAJTACP4JNJSGGXDRA3DHE442R26CT5ZE5DJHNSHH7XJUOATOT",
+  arbiter: "CDTEA424AWSIIHEQ4FIQHFQOTWS3XAVLQHX7FI3MU6JZP4OPMTEVU5UA",
+};
+
+/**
+ * v1 está retirado para compras nuevas (contracts/DEPLOYED.md): su `fund` no tiene plazo de despacho ni
+ * `mark_shipped`/`extend`. Si una `.env.local` vieja todavía apunta a v1, se ignora y se usa v2.
+ * Sus eventos se siguen leyendo en /transparencia (historial).
+ */
+export const RETIRED_V1 = {
   guardian: "CAOX6JZV3CJZFDD22J2XI3NKY5G4NRFOYRV7IA724MSVREYVRALW4OZU",
   arbiter: "CBCDVLEPJ6PN7RDC3HFGML3IUT7SOQEYSGH3LE3SWXWZJO7Z2QG2PWGU",
 };
+
+function contractId(envName: string, retired: string, v2: string): string {
+  const v = process.env[envName];
+  if (!v) return v2;
+  if (v === retired) {
+    console.warn(`[config] ${envName} apunta a v1 (retirado para compras nuevas): se usa v2 ${v2}`);
+    return v2;
+  }
+  return v;
+}
 
 function req(name: string): string {
   const v = process.env[name];
@@ -34,7 +54,7 @@ export interface Config {
   arbitroPanelKey: string;
   guardianId: string | null;
   arbiterId: string | null;
-  /** Días extra sobre los días de entrega para la liberación automática. */
+  /** Días extra sobre los días de entrega para la ventana de revisión (contada desde el envío). */
   extraWindowDays: number;
 }
 
@@ -56,8 +76,8 @@ export function cfg(): Config {
     platformFeeBps: Number(process.env.PLATFORM_FEE_BPS || 200),
     fx: Number(process.env.FX_BS_PER_USD || 11.7),
     arbitroPanelKey: process.env.ARBITRO_PANEL_KEY || "",
-    guardianId: process.env.PP_GUARDIAN_ID || DEPLOYED.guardian,
-    arbiterId: process.env.PP_ARBITER_ID || DEPLOYED.arbiter,
+    guardianId: contractId("PP_GUARDIAN_ID", RETIRED_V1.guardian, DEPLOYED.guardian),
+    arbiterId: contractId("PP_ARBITER_ID", RETIRED_V1.arbiter, DEPLOYED.arbiter),
     extraWindowDays: 3,
   };
   if (mode === "guardian" && (!c.guardianId || !c.arbiterId)) {

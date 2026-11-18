@@ -1,12 +1,15 @@
 #!/usr/bin/env node
-// npm run demo:reset: deja la base LOCAL de la demo (data/pp.db) limpia y con 2 pedidos históricos coherentes,
-// hechos de verdad en TESTNET: uno liberado por confirmación y uno resuelto 70/30 por el árbitro.
-// - Borra pedidos, tiendas, transacciones y pendientes locales (las disputas repetidas de pruebas).
+// npm run demo:reset: deja la base LOCAL de la demo (data/pp.db) limpia y con 3 pedidos históricos coherentes,
+// hechos de verdad en TESTNET con los contratos v2: uno liberado por confirmación, uno resuelto 70/30 por el
+// revisor y uno devuelto porque el vendedor no despachó a tiempo (refund_unshipped).
+// - Borra pedidos, tiendas, transacciones, evidencias y pendientes locales (las disputas repetidas de pruebas).
+// - Borra el estado del bot de la demo (../bot/data/bot-state.json): sin avisos viejos ni números vinculados.
+// - Conserva la lista de espera del piloto (pilot_waitlist): son datos de personas, no de la demo.
 // - Conserva la fábrica del escrow (kv) y los eventos on-chain ya ingeridos (pp_events): lo on-chain no se borra.
 // - Levanta la app un momento en otro puerto, siembra los pedidos con billeteras locales de un solo uso y la apaga.
 import { Keypair, Networks, TransactionBuilder } from "@stellar/stellar-sdk";
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -48,12 +51,19 @@ if (existsSync(DB)) {
   const Database = createRequire(import.meta.url)("better-sqlite3");
   const d = new Database(DB);
   const tables = new Set(d.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all().map((r) => r.name));
-  for (const t of ["pending", "txs", "orders", "sellers"]) {
+  for (const t of ["pending", "txs", "evidence", "orders", "sellers"]) {
     if (tables.has(t)) console.log(`  ${t}: ${d.prepare(`DELETE FROM ${t}`).run().changes} filas borradas`);
   }
   d.close();
 } else {
   console.log("  (no había base local; se crea de cero)");
+}
+
+// Estado del bot de la demo (npm run demo levanta el simulador con data/bot-state.json).
+const BOT_STATE = resolve(APP, "..", "bot", process.env.BOT_STATE_FILE || join("data", "bot-state.json"));
+if (existsSync(BOT_STATE)) {
+  rmSync(BOT_STATE);
+  console.log(`  estado del bot: ${BOT_STATE} borrado`);
 }
 
 // 2) App temporal para sembrar.
@@ -120,15 +130,36 @@ async function sale(seller, p) {
       console.log(`    reintento del pago (${e.message})`);
     }
   }
+  if (!p.ship) return { slug: link.slug, buyer };
   await sign(seller, await api(`/api/orders/${link.slug}/action`, { action: "ship", signer: seller.publicKey(), ...p.ship }));
   return { slug: link.slug, buyer };
 }
 
 try {
+  // La demo tiene que correr sobre los contratos v2 (fund con dos plazos, mark_shipped, extend, refund_unshipped).
+  const info = await api("/api/info");
+  if (info.mode !== "guardian" || !info.capabilities?.extend || !info.capabilities?.refundUnshipped) {
+    throw new Error(`la app no está en modo guardián v2 (mode=${info.mode})`);
+  }
+  console.log(`Contratos: ${info.contracts.filter((c) => c.kind === "contract").map((c) => `${c.label.split(" ")[0]} ${c.id}`).join(" · ")}`);
   console.log("Sembrando:");
   const seller = Keypair.random();
   await activate(seller);
   await api("/api/sellers", { pubkey: seller.publicKey(), storeName: "Tienda Sofi", whatsapp: SELLER_WA, city: "Santa Cruz" });
+
+  // (c) Devolución por no despacho: link con plazos de demo (2 min) que nadie despacha. Se paga primero y
+  // corre en paralelo con (a) y (b); al vencer el despacho, la app la devuelve sola (disputa de plataforma +
+  // pp_arbiter.refund_unshipped).
+  const c = await sale(seller, {
+    product: "Celular Motorola G24",
+    description: "Nuevo, en caja.",
+    priceBs: 950,
+    deliveryDays: 2,
+    category: "Celular",
+    demoWindow: true,
+    recipient: "Carla Mamani",
+    city: "Tarija",
+  });
 
   const a = await sale(seller, {
     product: "Polera Adidas talla M",
@@ -176,11 +207,24 @@ try {
   const r = await api("/api/arbitro/resolve", { slug: b.slug, buyerBps: 7000, reason: "Dañado o distinto a lo descrito" }, { "x-arbitro-key": env.ARBITRO_PANEL_KEY });
   console.log(`    ✓ El revisor repartió 70/30  https://stellar.expert/explorer/testnet/tx/${r.hash}`);
 
+  // Consultar el pedido dispara el barrido de devoluciones (como haría la página o el bot).
+  let vc = await api(`/api/orders/${c.slug}`);
+  console.log(`  · esperando la devolución de "${vc.order.product}" (despacho hasta ${new Date(vc.order.ship_deadline).toLocaleTimeString("es-BO")})…`);
+  for (let i = 0; vc.order.status !== "devuelto"; i++) {
+    if (i > 80) throw new Error(`"${vc.order.product}" no se devolvió (estado ${vc.order.status})`);
+    await new Promise((r) => setTimeout(r, 5000));
+    vc = await api(`/api/orders/${c.slug}`);
+  }
+  for (const t of vc.txs.filter((t) => t.actor === "plataforma" && t.kind !== "escrow")) {
+    console.log(`    ✓ ${t.label}  https://stellar.expert/explorer/testnet/tx/${t.hash}`);
+  }
+
   const [va, vb] = await Promise.all([api(`/api/orders/${a.slug}`), api(`/api/orders/${b.slug}`)]);
   console.log(`\nListo. Base local ${DB}:`);
-  console.log(`  Tienda Sofi (+${SELLER_WA}): "${va.order.product}" ${va.order.status} · "${vb.order.product}" ${vb.order.status}`);
+  console.log(`  Tienda Sofi (+${SELLER_WA}): "${va.order.product}" ${va.order.status} · "${vb.order.product}" ${vb.order.status} · "${vc.order.product}" ${vc.order.status}`);
   console.log(`  El panel del revisor muestra 1 reclamo resuelto y ninguno abierto. /transparencia conserva todo lo on-chain.`);
-  console.log(`  Para la demo: npm run demo y crea tu tienda en http://localhost:${DEMO_PORT}/vender?wa=${SELLER_WA}`);
+  console.log(`  Para grabar en vivo: npm run demo y crea tu tienda en http://localhost:${DEMO_PORT}/vender?wa=${SELLER_WA}`);
+  console.log(`  Para regenerar el video y las capturas de la demo v2: npm run demo:video && npm run demo:video:join`);
 } catch (e) {
   console.error(`\ndemo:reset falló: ${e.message}`);
   process.exitCode = 1;

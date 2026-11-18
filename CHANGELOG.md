@@ -13,8 +13,21 @@ Estado al momento de la entrega: los contratos v2 están desplegados y probados,
 | 1 | **20 pilotos** con vendedores del segmento inicial (celulares y electrónica, Bs 1.000–7.000, envío por encomienda) | Filas con "¿Piloto? = sí" en [docs/USUARIOS.md](docs/USUARIOS.md) y compras en las métricas on-chain | 0 / 20 |
 | 2 | **Despliegue público** de la app y el bot | Una URL HTTPS estable, con [deploy/DEPLOY.md](deploy/DEPLOY.md) | pendiente: el build de Docker no se pudo probar porque la imagen base no terminó de descargarse en la Mac |
 | 3 | **WhatsApp real** | El bot responde desde un número real conectado a WhatsApp Cloud API | pendiente: hoy funciona con el simulador y el número de prueba de Meta |
-| 4 | **Integración de v2 en la app** | La app usa `pp_guardian` y `pp_arbiter` v2 (`mark_shipped`, `extend`, los dos plazos) y su e2e pasa contra v2 | pendiente: la interfaz está en [contracts/DECISIONES.md](contracts/DECISIONES.md) §v2 y los bindings ya son v2 |
+| 4 | **Integración de v2 en la app** | La app usa `pp_guardian` y `pp_arbiter` v2 (`mark_shipped`, `extend`, los dos plazos) y su e2e pasa contra v2 | hecho en la rama `worktree-pp-v2-integracion` (ver la entrada "18-nov, tarde") |
 | 5 | **Carta de intención con una ETF** para la rampa en bolivianos | Una carta firmada | pendiente |
+
+## 18-nov, tarde: v2 de punta a punta (app, bot y demo)
+
+- **App sobre los contratos v2** ([app/DECISIONES.md](app/DECISIONES.md) §77–85):
+  - `fund` con plazo de despacho (los días de entrega) y ventana de revisión (días + 3) contada desde el envío;
+  - envío por `pp_guardian.mark_shipped` con empresa, guía, peso y foto (el IMEI queda en el servidor);
+  - "Necesito más tiempo" → `extend`, una sola vez (`POST /api/orders/:slug/extend`);
+  - devolución automática si el vendedor no despacha a tiempo: disputa de la plataforma + `pp_arbiter.refund_unshipped`, con estado `devuelto`;
+  - `auto_release` no se intenta si hay disputa (y el contrato también lo rechaza);
+  - sigue verificando el hash del WASM de Trustless Work y los roles antes de pedir la firma del pago.
+- **Bot alineado:** "revisor" y "Pagar al vendedor", código PP-####, `proteccion` en `POST /api/links` (y `PATCH` para "Yo la regalo"), recordatorios desde el envío y aviso de devolución a los dos lados.
+- **`npm run demo:reset`** deja la demo lista para grabar, con 3 pedidos reales en v2: liberado, 70/30 y devuelto.
+- **Video y capturas de la demo v2** en [demo/v2/](demo/v2/).
 
 ## 18-nov, mañana: v2 a partir de los consejos
 

@@ -25,10 +25,41 @@ export function useNow(intervalMs = 1000) {
   return now;
 }
 
+type Caps = { extend: boolean; clockFromShipping: boolean; refundUnshipped?: boolean };
+
 /**
- * Cuenta regresiva de la liberación automática (pp_guardian.auto_release). Al vencer, con el pedido
- * en "enviado", aparece "Liberar ahora (plazo vencido)": cualquiera puede llamarlo, sin firmas.
- * Con pp_guardian v2 (capabilities.extend / clockFromShipping) se suma "Necesito más tiempo" y el reloj corre desde el envío.
+ * v2: plazo de despacho (`ship_deadline` de pp_guardian). Si vence sin envío registrado, la app abre la
+ * devolución automática (refund_unshipped): el pago vuelve al comprador.
+ */
+export function ShipDeadline({ shipDeadline, status, role }: { shipDeadline: number | null; status: OrderStatus; role: "comprador" | "vendedor" }) {
+  const now = useNow();
+  if (!shipDeadline || status !== "pagado") return null;
+  const left = shipDeadline - now;
+  return (
+    <div data-testid="plazo-despacho" className="space-y-1 rounded-xl bg-slate-50 p-3 text-sm text-slate-700 ring-1 ring-slate-200">
+      {left > 0 ? (
+        <p>
+          📦 {role === "vendedor" ? "Despacha antes del" : "El vendedor tiene que despachar antes del"} <strong>{fmtDate(shipDeadline)}</strong>{" "}
+          <span className="text-xs text-slate-500 tabular-nums">(faltan {fmtLeft(left)})</span>
+        </p>
+      ) : (
+        <p>
+          📦 <strong>Venció el plazo de despacho</strong> ({fmtDate(shipDeadline)}). Estamos devolviendo el pago al comprador.
+        </p>
+      )}
+      <p className="text-xs text-slate-500">
+        {role === "vendedor"
+          ? "Si no registras el envío a tiempo, el pago vuelve automáticamente al comprador."
+          : "Si no lo despacha a tiempo, te devolvemos el pago automáticamente."}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Cuenta regresiva de la revisión (pp_guardian v2: `release_at`, contado desde el envío). Al vencer, con el
+ * pedido en "enviado" y sin reclamo, aparece "Liberar ahora (plazo vencido)": cualquiera puede llamarlo, sin firmas.
+ * El comprador puede pedir más tiempo una sola vez (`extend`): suma otra ventana de revisión igual.
  */
 export function Countdown({
   slug,
@@ -38,20 +69,26 @@ export function Countdown({
   onReleased,
   capabilities,
   role,
+  extended,
+  onExtend,
 }: {
   slug: string;
   deadline: number | null;
   status: OrderStatus;
   mode: "direct" | "guardian";
   onReleased: () => void;
-  capabilities?: { extend: boolean; clockFromShipping: boolean };
+  capabilities?: Caps;
   role?: "comprador" | "vendedor";
+  /** El comprador ya usó "Necesito más tiempo". */
+  extended?: boolean | number;
+  /** Firma de `extend` con la cuenta del comprador (la arma /api/orders/:slug/extend). */
+  onExtend?: () => void;
 }) {
   const now = useNow();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hash, setHash] = useState<string | null>(null);
-  if (!deadline || (status !== "pagado" && status !== "enviado")) return null;
+  if (!deadline || status !== "enviado") return null;
   const left = deadline - now;
   const expired = left <= 0;
   // Margen de 5 s: el plazo on-chain usa la hora del ledger.
@@ -87,13 +124,16 @@ export function Countdown({
         </p>
       )}
       <p className="text-xs text-slate-500">
-        {status === "enviado"
-          ? "Si para entonces el comprador no confirma ni reclama, se le paga al vendedor. Te avisamos un día antes."
-          : "La liberación automática solo corre si el vendedor registró el envío."}
+        Si para entonces el comprador no paga ni reclama, se le paga al vendedor. El plazo corre desde que se registró el envío. Te avisamos un día antes.
         {mode === "direct" && " En modo directo la liberación automática no está activa."}
       </p>
-      {capabilities?.extend && role === "comprador" && !expired && (
-        <button className="btn-secondary w-full" disabled={busy} onClick={() => call(`/api/orders/${slug}/extend`)}>
+      {Boolean(extended) && (
+        <p data-testid="extendido" className="text-xs font-medium text-slate-600">
+          ⏳ El comprador ya pidió más tiempo una vez.
+        </p>
+      )}
+      {capabilities?.extend && role === "comprador" && !expired && !extended && onExtend && (
+        <button className="btn-secondary w-full" disabled={busy} onClick={onExtend}>
           Necesito más tiempo
         </button>
       )}

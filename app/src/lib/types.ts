@@ -31,7 +31,7 @@ export interface OrderView extends MoneyView {
   seller: SellerCard;
   confirmDelay: string;
   demoTimers: boolean;
-  capabilities: { extend: boolean; clockFromShipping: boolean };
+  capabilities: { extend: boolean; clockFromShipping: boolean; refundUnshipped?: boolean; proteccionPatch?: boolean };
   txs: TxRow[];
   platformFeeBps: number;
   mode: "direct" | "guardian";
@@ -68,6 +68,6 @@ export interface InfoData {
   wasmHash: string;
   factory: string | null;
   contracts: { label: string; id: string; kind: "contract" | "account" }[];
-  capabilities: { extend: boolean; clockFromShipping: boolean };
+  capabilities: { extend: boolean; clockFromShipping: boolean; refundUnshipped?: boolean; proteccionPatch?: boolean };
   demoTimers: boolean;
 }

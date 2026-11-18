@@ -136,6 +136,12 @@ const MIGRATIONS: Record<string, [string, string][]> = {
     ["confirm_after", "INTEGER"],
     ["dispute_video", "TEXT"],
     ["resolution_reason", "TEXT"],
+    // Contratos v2: plazo de despacho y ventana de revisión (desde el envío), extend y devolución.
+    ["ship_secs", "INTEGER"],
+    ["inspect_secs", "INTEGER"],
+    ["ship_deadline", "INTEGER"],
+    ["extended", "INTEGER NOT NULL DEFAULT 0"],
+    ["refunded_at", "INTEGER"],
   ],
 };
 
@@ -168,6 +174,7 @@ export interface OrderRow {
   escrow_json: string | null;
   ramp_hash: string | null;
   funded_at: number | null;
+  /** Fin de la revisión (`release_at` de pp_guardian v2): existe recién cuando se registra el envío. */
   deadline: number | null;
   shipped_evidence: string | null;
   shipped_at: number | null;
@@ -201,6 +208,15 @@ export interface OrderRow {
   ship_city: string | null;
   ship_imei: string | null;
   confirm_after: number | null;
+  /** v2: plazo de despacho y ventana de revisión firmados por el comprador en `fund` (segundos). */
+  ship_secs: number | null;
+  inspect_secs: number | null;
+  /** v2: hasta cuándo puede registrar el envío el vendedor (hora del ledger, ms). */
+  ship_deadline: number | null;
+  /** v2: el comprador ya usó "Necesito más tiempo" (extend, una sola vez). */
+  extended: number;
+  /** v2: devolución por falta de despacho (refund_unshipped). */
+  refunded_at: number | null;
   dispute_video: string | null;
   resolution_reason: string | null;
   buyer_bps: number | null;
@@ -208,6 +224,19 @@ export interface OrderRow {
   released_at: number | null;
   created_at: number;
   updated_at: number;
+}
+
+/** Feed del bot (APP-ENDPOINTS §2), con los tiempos de v2. */
+export interface BotChange {
+  slug: string;
+  status: string;
+  updated_at: number;
+  buyer_whatsapp: string | null;
+  code: string | null;
+  deadline: number | null;
+  ship_deadline: number | null;
+  shipped_at: number | null;
+  extended: number;
 }
 
 export interface TxRow {
@@ -339,6 +368,8 @@ type NewOrder = Pick<
   | "fee_payer"
   | "price_units"
   | "platform_bps"
+  | "ship_secs"
+  | "inspect_secs"
 >;
 
 export const orders = {
@@ -366,10 +397,20 @@ export const orders = {
     return db().prepare(`SELECT * FROM orders WHERE status = ? ORDER BY updated_at ASC`).all(status) as OrderRow[];
   },
   /** Feed del bot (APP-ENDPOINTS §2). */
-  changesSince(since: number): { slug: string; status: string; updated_at: number; buyer_whatsapp: string | null }[] {
+  changesSince(since: number): BotChange[] {
     return db()
-      .prepare(`SELECT slug, status, updated_at, buyer_whatsapp FROM orders WHERE updated_at >= ? ORDER BY updated_at ASC LIMIT 500`)
-      .all(since) as { slug: string; status: string; updated_at: number; buyer_whatsapp: string | null }[];
+      .prepare(
+        `SELECT slug, status, updated_at, buyer_whatsapp, code, deadline, ship_deadline, shipped_at, extended FROM orders WHERE updated_at >= ? ORDER BY updated_at ASC LIMIT 500`,
+      )
+      .all(since) as BotChange[];
+  },
+  /** v2: pedidos pagados (o en reclamo) sin envío registrado y con el plazo de despacho vencido. */
+  overdueUnshipped(now: number): OrderRow[] {
+    return db()
+      .prepare(
+        `SELECT * FROM orders WHERE status IN ('pagado', 'en_disputa') AND shipped_at IS NULL AND ship_deadline IS NOT NULL AND ship_deadline <= ? AND escrow_id IS NOT NULL`,
+      )
+      .all(now) as OrderRow[];
   },
   recentResolved(limit = 10): OrderRow[] {
     return db()

@@ -10,6 +10,7 @@ const STATUS_STYLE: Record<OrderStatus, string> = {
   liberado: "bg-brand-50 text-brand-800 ring-brand-200",
   en_disputa: "bg-amber-50 text-amber-800 ring-amber-200",
   resuelto: "bg-violet-50 text-violet-800 ring-violet-200",
+  devuelto: "bg-rose-50 text-rose-800 ring-rose-200",
 };
 
 export function StatusBadge({ status }: { status: OrderStatus }) {

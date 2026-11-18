@@ -118,6 +118,10 @@ export class DirectEscrowService implements EscrowService {
     return null;
   }
 
+  async refundUnshipped(): Promise<{ disputeHash: string | null; hash: string }> {
+    throw new ChainError("La devolución por falta de despacho solo existe en modo guardián (pp_arbiter.refund_unshipped)");
+  }
+
   contracts() {
     const c = cfg();
     return [

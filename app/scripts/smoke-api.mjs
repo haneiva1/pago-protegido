@@ -42,16 +42,17 @@ async function activate(kp) {
   if (r.prepared) await signRun(kp, r.prepared);
 }
 
-async function setupOrder(product, priceBs, days) {
+async function setupOrder(product, priceBs, days, opts = {}) {
   const seller = Keypair.random();
   const buyer = Keypair.random();
   await activate(seller);
   await api("/api/sellers", { pubkey: seller.publicKey(), storeName: "Tienda Humo", whatsapp: "59171234567", city: "Santa Cruz" });
-  const link = await api("/api/links", { sellerPubkey: seller.publicKey(), product, priceBs, deliveryDays: days });
+  const link = await api("/api/links", { sellerPubkey: seller.publicKey(), product, priceBs, deliveryDays: days, demoWindow: Boolean(opts.demo) });
   console.log(`link /p/${link.slug}  ${link.amount_units} unidades`);
   await activate(buyer);
   const fund = await api(`/api/orders/${link.slug}/pay`, { buyer: buyer.publicKey(), recipient: "Ana Pérez", city: "Cochabamba" });
   await signRun(buyer, fund);
+  if (opts.noShip) return { seller, buyer, slug: link.slug };
   const ship = await api(`/api/orders/${link.slug}/action`, { action: "ship", signer: seller.publicKey(), company: "Trans Copacabana (encomiendas)", tracking: "SRV-2026-118734", weight: "1" });
   await signRun(seller, ship);
   return { seller, buyer, slug: link.slug };
@@ -90,6 +91,47 @@ async function disputa() {
   console.log("estado:", v.order.status, "reparto:", v.split, "on-chain:", v.onchain?.flags, v.onchain?.balance);
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** v2: "Necesito más tiempo" (extend, una vez) y liberación automática al vencer la revisión extendida. */
+async function extend() {
+  console.log("== extend + auto_release (v2, plazos de demo de 2 min) ==");
+  const { buyer, slug } = await setupOrder("Celular de prueba extend", 500, 3, { demo: true });
+  let v = await api(`/api/orders/${slug}`);
+  const before = v.order.deadline;
+  await signRun(buyer, await api(`/api/orders/${slug}/extend`, { signer: buyer.publicKey() }));
+  v = await api(`/api/orders/${slug}`);
+  console.log("revisión:", new Date(before).toISOString(), "→", new Date(v.order.deadline).toISOString(), "extended:", v.order.extended);
+  try {
+    await api(`/api/orders/${slug}/extend`, { signer: buyer.publicKey() });
+    throw new Error("un segundo extend no debía prepararse");
+  } catch (e) {
+    console.log("  ✓ segundo extend rechazado:", e.message);
+  }
+  while (Date.now() < v.order.deadline + 8000) await sleep(5000);
+  const r = await api(`/api/orders/${slug}/auto-release`, {});
+  console.log(`  ✓ auto_release https://stellar.expert/explorer/testnet/tx/${r.hash}`);
+  v = await api(`/api/orders/${slug}?onchain=1`);
+  console.log("estado:", v.order.status, "on-chain:", v.onchain?.flags, v.onchain?.balance);
+}
+
+/** v2: el vendedor no despacha a tiempo → disputa de la plataforma + refund_unshipped, sin firmas de usuarios. */
+async function devolucion() {
+  console.log("== devolución por no despacho (v2, plazo de demo de 2 min) ==");
+  const { slug } = await setupOrder("Celular que nunca se envía", 500, 3, { demo: true, noShip: true });
+  let v = await api(`/api/orders/${slug}`);
+  console.log("despachar antes de:", new Date(v.order.ship_deadline).toISOString());
+  while (v.order.status !== "devuelto") {
+    await sleep(5000);
+    v = await api(`/api/orders/${slug}`);
+  }
+  v = await api(`/api/orders/${slug}?onchain=1`);
+  console.log("estado:", v.order.status, "reparto:", v.split, "on-chain:", v.onchain?.flags, v.onchain?.balance);
+  for (const t of v.txs.slice(-2)) console.log(`  ✓ ${t.label}  https://stellar.expert/explorer/testnet/tx/${t.hash}`);
+}
+
 const which = process.argv[2];
+if (which === "extend") await extend();
+if (which === "devolucion") await devolucion();
 if (!which || which === "feliz") await feliz();
 if (!which || which === "disputa") await disputa();

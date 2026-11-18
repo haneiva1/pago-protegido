@@ -5,7 +5,9 @@
 1. el vendedor crea un link;
 2. el comprador paga y su plata queda protegida;
 3. al confirmar, el vendedor cobra al instante;
-4. en una disputa, el árbitro reparte, y el contrato **rechaza** mandar la plata a otra cuenta.
+4. en una disputa, el revisor reparte, y el contrato **rechaza** mandar la plata a otra cuenta.
+
+> **Demo v2 (contratos v2):** el video grabado y las 6 capturas clave están en [`../demo/v2/`](../demo/v2/). Guion: el vendedor escribe al bot "vendo celular Samsung A54 a 1800 bs entrega 3 días" y recibe el link → el comprador paga (la rampa simulada lo dice en pantalla) → el vendedor marca enviado con empresa, guía e IMEI → el comprador confirma con la pregunta obligatoria → se le paga al vendedor y se ve el link al registro público → el revisor intenta mandar la plata a una tercera cuenta y el contrato lo rechaza. Antes de grabar en vivo: `npm run demo:reset` y `npm run demo` (en `app/`). La tabla de abajo es el guion de la ronda anterior.
 
 Las capturas son de `app/e2e/capturas/`, generadas por el e2e contra testnet, y de `bot/docs/simulador.png`. Los nombres de archivo de este guion se refieren a esa carpeta.
 
