@@ -102,7 +102,7 @@ Deja la base local de la demo (`data/pp.db`) limpia y con tres pedidos históric
 ### Video de la demo: `npm run demo:video`
 
 ```bash
-npm run demo:video        # graba (~6 min en testnet) y arma pago-protegido/demo/v2/pago-protegido-demo-v2.mp4 + 6 capturas clave
+npm run demo:video        # graba (~4 min en testnet) y arma pago-protegido/demo/v2/pago-protegido-demo-v2.mp4 + 6 capturas clave
 npm run demo:video:join   # solo vuelve a armar el mp4 con los clips ya grabados
 ```
 

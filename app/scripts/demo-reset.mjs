@@ -224,7 +224,7 @@ try {
   console.log(`  Tienda Sofi (+${SELLER_WA}): "${va.order.product}" ${va.order.status} · "${vb.order.product}" ${vb.order.status} · "${vc.order.product}" ${vc.order.status}`);
   console.log(`  El panel del revisor muestra 1 reclamo resuelto y ninguno abierto. /transparencia conserva todo lo on-chain.`);
   console.log(`  Para grabar en vivo: npm run demo y crea tu tienda en http://localhost:${DEMO_PORT}/vender?wa=${SELLER_WA}`);
-  console.log(`  Para regenerar el video y las capturas de la demo v2: npm run demo:video && npm run demo:video:join`);
+  console.log(`  Para regenerar el video y las capturas de la demo v2: npm run demo:video (arma el mp4 al final)`);
 } catch (e) {
   console.error(`\ndemo:reset falló: ${e.message}`);
   process.exitCode = 1;
