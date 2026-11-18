@@ -1,0 +1,13 @@
+{
+  "amount": "500000000",
+  "buyer": "GCKLFHB5HAFKF7NXLCVA4W2UTMHMJAKS5M2LPZVP7MKAM3NZ6WVQHYGD",
+  "evidence": "Encomienda OLVA-20261118-080609-c",
+  "extended": false,
+  "funded_at": 1794989386,
+  "inspect_secs": 60,
+  "release_at": 1794989456,
+  "seller": "GAKG5N3HI34WELUVISY56P3FWZTHJLE3I47GK3XWG3GGXE7ZZZWTCZQQ",
+  "ship_deadline": 1794992986,
+  "ship_secs": 3600,
+  "shipped_at": 1794989396
+}

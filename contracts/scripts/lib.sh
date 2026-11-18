@@ -94,7 +94,7 @@ view() { # view <contrato> <función> [args...]: lectura simulada, sin enviar.
   # ve el ledger de la transacción anterior).
   local id="$1" o i; shift
   for i in 1 2 3 4 5; do
-    o=$(stellar contract invoke --id "$id" --source plataforma --send=no -- "$@" 2>/dev/null) \
+    o=$(stellar contract invoke --id "$id" --source "${VIEW_SOURCE:-ppdemo}" --send=no -- "$@" 2>/dev/null) \
       && [ -n "$o" ] && { echo "$o"; return 0; }
     sleep 3
   done
@@ -102,7 +102,7 @@ view() { # view <contrato> <función> [args...]: lectura simulada, sin enviar.
 }
 sim() { # sim <contrato> <función> [args...]: simula una sola vez; código de salida = éxito
   local id="$1"; shift
-  stellar contract invoke --id "$id" --source plataforma --send=no -- "$@" >/dev/null 2>&1
+  stellar contract invoke --id "$id" --source "${VIEW_SOURCE:-ppdemo}" --send=no -- "$@" >/dev/null 2>&1
 }
 
 bal() { view "$LABUSD_SAC" balance --id "$1" | tr -d '"'; }

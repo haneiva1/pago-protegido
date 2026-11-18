@@ -1,0 +1,5 @@
+deploy-v2	D1	upload WASM pp_guardian v2	55f62c8b724dddfd071c9e5fac7931d4c7be6b9bdae82f06583ebd251e62f18b	8.87	13157956
+deploy-v2	D2	upload WASM pp_arbiter v2	7315e8025e06ef78680d5bb517d67512c2740767dbdecbc65041cef77decd2a6	3.69	8599633
+deploy-v2	D3	deploy pp_guardian v2 (admin=arbitro, tw_fee=twfee, despacho y revisión 60 s..30 d)	3248bb6a40cf0c103a2670b4533b04725fad4d345e0f962d0f7d96065bbd8fde	5.25	43228752
+deploy-v2	D4	deploy pp_arbiter v2 (admin=arbitro, guardian v2, tw_fee=twfee)	cc87089b3725821fd57f32e1d223e6c9966b672360efed1449eaa4a395923cda	3.51	28297673
+deploy-v2	D5	pp_guardian.set_arbiter(pp_arbiter v2) firmado por arbitro	a6d158342c4ec1e7a7c9f489046421c69a0a4bcc18779e8fd0bcafc42d156649	5.69	35512

@@ -34,7 +34,7 @@ if (typeof window !== "undefined") {
 export const networks = {
   testnet: {
     networkPassphrase: "Test SDF Network ; September 2015",
-    contractId: "CBCDVLEPJ6PN7RDC3HFGML3IUT7SOQEYSGH3LE3SWXWZJO7Z2QG2PWGU",
+    contractId: "CDTEA424AWSIIHEQ4FIQHFQOTWS3XAVLQHX7FI3MU6JZP4OPMTEVU5UA",
   }
 } as const
 
@@ -134,8 +134,9 @@ export interface Client {
   /**
    * Construct and simulate a refund_unshipped transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Devuelve el 100% del saldo al comprador sin intervención del admin
-   * (no requiere auth) si: el escrow está en disputa, el plazo de la compra
-   * venció y el vendedor nunca marcó el hito como "enviado".
+   * (no requiere auth) si: el escrow está en disputa, venció el plazo de
+   * despacho (`funded_at + ship_secs`) y el vendedor nunca registró el envío
+   * en pp_guardian (`shipped_at` vacío).
    */
   refund_unshipped: ({escrow}: {escrow: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<Split>>>
 
@@ -170,7 +171,7 @@ export class Client extends ContractClient {
         "AAAAAAAAAUNSZXN1ZWx2ZSBsYSBkaXNwdXRhOiBgYnV5ZXJfYnBzYCBkZWwgc2FsZG8gYWwgY29tcHJhZG9yIHkgZWwgcmVzdG8gYWwKdmVuZGVkb3IuIFNvbG8gZWwgYWRtaW4geSBzb2xvIGNvbiBlbCBlc2Nyb3cgZW4gZGlzcHV0YS4KClJlZG9uZGVvOiBgc2VsbGVyX2Ftb3VudCA9IGZsb29yKGJhbGFuY2UgKiAoMTAwMDAgLSBidXllcl9icHMpIC8gMTAwMDApYAp5IGBidXllcl9hbW91bnQgPSBiYWxhbmNlIC0gc2VsbGVyX2Ftb3VudGA7IGxhIHVuaWRhZCBzb2JyYW50ZSAoc2kgbGEKaGF5KSBxdWVkYSBwYXJhIGVsIGNvbXByYWRvciwgbnVuY2EgcGFyYSB1biB0ZXJjZXJvLgAAAAAHcmVzb2x2ZQAAAAACAAAAAAAAAAZlc2Nyb3cAAAAAABMAAAAAAAAACWJ1eWVyX2JwcwAAAAAAAAQAAAABAAAD6QAAB9AAAAAFU3BsaXQAAAAAAAAD",
         "AAAAAAAAAC1DYW1iaWEgZWwgYWRtaW4uIEV4aWdlIGF1dGggZGVsIGFkbWluIGFjdHVhbC4AAAAAAAAJc2V0X2FkbWluAAAAAAAAAQAAAAAAAAAJbmV3X2FkbWluAAAAAAAAEwAAAAA=",
         "AAAAAAAAAAAAAAANX19jb25zdHJ1Y3RvcgAAAAAAAAMAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAAIZ3VhcmRpYW4AAAATAAAAAAAAAAZ0d19mZWUAAAAAABMAAAAA",
-        "AAAAAAAAAMdEZXZ1ZWx2ZSBlbCAxMDAlIGRlbCBzYWxkbyBhbCBjb21wcmFkb3Igc2luIGludGVydmVuY2nDs24gZGVsIGFkbWluCihubyByZXF1aWVyZSBhdXRoKSBzaTogZWwgZXNjcm93IGVzdMOhIGVuIGRpc3B1dGEsIGVsIHBsYXpvIGRlIGxhIGNvbXByYQp2ZW5jacOzIHkgZWwgdmVuZGVkb3IgbnVuY2EgbWFyY8OzIGVsIGhpdG8gY29tbyAiZW52aWFkbyIuAAAAABByZWZ1bmRfdW5zaGlwcGVkAAAAAQAAAAAAAAAGZXNjcm93AAAAAAATAAAAAQAAA+kAAAfQAAAABVNwbGl0AAAAAAAAAw==" ]),
+        "AAAAAAAAAPtEZXZ1ZWx2ZSBlbCAxMDAlIGRlbCBzYWxkbyBhbCBjb21wcmFkb3Igc2luIGludGVydmVuY2nDs24gZGVsIGFkbWluCihubyByZXF1aWVyZSBhdXRoKSBzaTogZWwgZXNjcm93IGVzdMOhIGVuIGRpc3B1dGEsIHZlbmNpw7MgZWwgcGxhem8gZGUKZGVzcGFjaG8gKGBmdW5kZWRfYXQgKyBzaGlwX3NlY3NgKSB5IGVsIHZlbmRlZG9yIG51bmNhIHJlZ2lzdHLDsyBlbCBlbnbDrW8KZW4gcHBfZ3VhcmRpYW4gKGBzaGlwcGVkX2F0YCB2YWPDrW8pLgAAAAAQcmVmdW5kX3Vuc2hpcHBlZAAAAAEAAAAAAAAABmVzY3JvdwAAAAAAEwAAAAEAAAPpAAAH0AAAAAVTcGxpdAAAAAAAAAM=" ]),
       options
     )
   }

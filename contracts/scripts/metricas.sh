@@ -17,7 +17,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/deployments/testnet.env"
 RPC="${RPC_URL:-https://soroban-testnet.stellar.org}"
 TC="${TIPO_CAMBIO:-11.70}"
-START="${START_LEDGER:-${DEPLOY_LEDGER:-0}}"
+# Lee v1 y v2 juntos (los IDs de v1 se conservan en testnet.env como *_V1_ID).
+START="${START_LEDGER:-${DEPLOY_LEDGER_V1:-${DEPLOY_LEDGER:-0}}}"
+[ -z "$START" ] && START="${DEPLOY_LEDGER:-0}"
 LIMIT=200
 
 rpc() { curl -sS -m 30 -X POST "$RPC" -H 'Content-Type: application/json' -d "$1"; }
@@ -27,7 +29,8 @@ oldest=$(rpc '{"jsonrpc":"2.0","id":1,"method":"getHealth"}' | jq -r '.result.ol
 [ "$START" -lt "$oldest" ] && START=$oldest
 
 EV=$(mktemp); trap 'rm -f "$EV"' EXIT
-filters=$(jq -nc --arg g "$GUARDIAN_ID" --arg a "$ARBITER_ID" '[{type:"contract", contractIds:[$g,$a]}]')
+filters=$(jq -nc --arg g "$GUARDIAN_ID" --arg a "$ARBITER_ID" --arg g1 "${GUARDIAN_V1_ID:-}" --arg a1 "${ARBITER_V1_ID:-}" \
+  '[{type:"contract", contractIds:([$g,$a,$g1,$a1] | map(select(. != "")))}]')
 cursor=""; latest=0
 for page in $(seq 1 200); do
   if [ -z "$cursor" ]; then
@@ -62,7 +65,13 @@ def first_of($k; $e): map(select(.kind == $k and .escrow == $e)) | first;
       escrow: $e, escrow_url: "\($x)/contract/\($e)",
       monto_unidades: ($f.d.amount | tonumber), monto_labusd: ($f.d.amount | tonumber | ./1e7 | lab),
       comprador: $f.d.buyer, vendedor: $f.d.seller,
-      fondeada_en: $f.at, deadline: ($f.d.deadline | tonumber | todate), tx_fondeo: "\($x)/tx/\($f.tx)",
+      version: (if $f.d.ship_deadline then "v2" else "v1" end),
+      fondeada_en: $f.at,
+      plazo: (($f.d.ship_deadline // $f.d.deadline) | tonumber | todate),
+      tx_fondeo: "\($x)/tx/\($f.tx)",
+      enviada: (($ev | first_of("pp_shipped"; $e)) as $s | if $s then {en: $s.at, evidencia: $s.d.evidence,
+                 libera_desde: ($s.d.release_at | tonumber | todate), tx: "\($x)/tx/\($s.tx)"} else null end),
+      extendida: (($ev | first_of("pp_extended"; $e)) != null),
       _t0: $f.t,
       _conf: ($ev | first_of("pp_confirmed"; $e)), _auto: ($ev | first_of("pp_auto_released"; $e)),
       _disp: ($ev | first_of("pp_disputed"; $e)), _res: ($ev | first_of("pp_resolved"; $e)),
@@ -73,7 +82,8 @@ def first_of($k; $e): map(select(.kind == $k and .escrow == $e)) | first;
        elif ._disp then "en_disputa" else "en_curso" end) as $estado
     | (._conf // ._auto) as $rel
     | (._res // ._ref) as $fin
-    | {escrow, escrow_url, monto_labusd, monto_unidades, comprador, vendedor, fondeada_en, deadline, tx_fondeo,
+    | {escrow, escrow_url, version, monto_labusd, monto_unidades, comprador, vendedor, fondeada_en, plazo,
+       tx_fondeo, enviada, extendida,
        estado: $estado,
        liberada_en: ($rel.at // null), tx_liberacion: (if $rel then "\($x)/tx/\($rel.tx)" else null end),
        segundos_hasta_liberacion: (if $rel then ($rel.t - ._t0) else null end),
@@ -93,13 +103,16 @@ def first_of($k; $e): map(select(.kind == $k and .escrow == $e)) | first;
 | {
     red: "testnet",
     generado_en: (now | floor | todate),
-    contratos: {pp_guardian: $g, pp_arbiter: $a},
+    contratos: {pp_guardian: $g, pp_arbiter: $a, v1: "incluidos los eventos de pp_guardian/pp_arbiter v1"},
     ledgers: {desde: $desde, hasta: $hasta},
     tipo_cambio_bs_por_usd: $tc,
     compras_protegidas: ($c | length),
     volumen: {labusd: ($vol / 1e7 | lab), unidades: $vol, bs_aprox: ($vol / 1e7 * $tc | . * 100 | round / 100)},
     liberadas_por_confirmacion: ($c | map(select(.estado == "confirmada")) | length),
     liberadas_automaticamente: ($c | map(select(.estado == "liberada_automaticamente")) | length),
+    por_version: ($c | group_by(.version) | map({key: .[0].version, value: length}) | from_entries),
+    enviadas_con_evidencia_v2: ($c | map(select(.enviada != null)) | length),
+    revisiones_extendidas_v2: ($c | map(select(.extendida)) | length),
     en_curso: ($c | map(select(.estado == "en_curso")) | length),
     disputas: {
       total: ($c | map(select(.disputa != null)) | length),

@@ -1,0 +1,16 @@
+d	d0	interfaces on-chain v2: sin upgrade, sin destinos elegibles, sin withdraw	-	guardian=["__constructor","auto_release","config","confirm","dispute","extend","fund","mark_shipped","purchase","set_arbiter"] arbiter=["__constructor","config","quote","refund_unshipped","resolve","set_admin"]
+f	f5	refund_unshipped antes del plazo de despacho	0.88	Error(Contract, #7)
+c	c5	tercero llama auto_release antes de release_at	0.89	Error(Contract, #19)
+e	e6	auto_release después del plazo ORIGINAL y antes del extendido	0.85	Error(Contract, #19)
+e	e7	segundo extend (solo una vez)	0.78	Error(Contract, #27)
+f	f6	el vendedor intenta marcar enviado tarde	0.86	Error(Contract, #26)
+a	a4	confirm antes de mark_shipped	1.04	Error(Contract, #23)
+d	d6	tercero llama pp_arbiter.resolve (falta la firma del admin)	2.05	error: Missing signing key for account GBCSZ6TJSQD5FCOPGDQGTGWLLICPKE3DTHRMRVLYSDA4RQDOQMAUDRJT
+d	d7	tercero: escrow.resolve_dispute como dispute_resolver	0.81	Error(Contract, #12)
+d	d8	tercero: escrow.resolve_dispute en nombre de pp_arbiter	2.28	error: Contract addresses are not supported to sign auth entries CDTEA424AWSIIHEQ4FIQHFQOTWS3XAVLQHX7FI3MU6JZP4OPMTEVU5UA
+d	d9	admin (arbitro): escrow.resolve_dispute en nombre de pp_arbiter hacia tercero	2.08	error: Contract addresses are not supported to sign auth entries CDTEA424AWSIIHEQ4FIQHFQOTWS3XAVLQHX7FI3MU6JZP4OPMTEVU5UA
+d	d10	TW-5: tercero: withdraw_remaining_funds como dispute_resolver	0.85	Error(Contract, #12)
+d	d11	TW-5: admin: withdraw_remaining_funds en nombre de pp_arbiter	2.43	error: Contract addresses are not supported to sign auth entries CDTEA424AWSIIHEQ4FIQHFQOTWS3XAVLQHX7FI3MU6JZP4OPMTEVU5UA
+d	d12	platform: update_escrow con receiver = tercero (solo simulación)	0.83	Error(Contract, #16)
+d	d13	tercero: mark_shipped haciéndose pasar por vendedor	0.77	Error(Contract, #24)
+d	d14	tercero: extend haciéndose pasar por comprador	0.87	Error(Contract, #7)

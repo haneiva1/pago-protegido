@@ -15,12 +15,12 @@ contracts/
 ├── shared/escrow_iface.rs     tipos Escrow/Roles/… + cliente mínimo del escrow de TW (include! en ambos contratos)
 ├── pp_guardian/src/lib.rs
 ├── pp_arbiter/src/lib.rs
-├── integration-tests/tests/   27 tests con el WASM REAL de TW (invariantes de SPEC §4)
+├── integration-tests/tests/   38 tests (v2) con el WASM REAL de TW: invariantes + red team
 ├── wasm/escrow.wasm           WASM de TW (sha256 1b367bc8…196660), versionado con git add -f
 ├── scripts/
 │   ├── lib.sh                 helpers (tx con hash/fee, expect_fail, saldos)
 │   ├── deploy-testnet.sh      despliega guardián + árbitro y los conecta
-│   ├── flujo-testnet.sh       escenarios a–d en testnet, un escrow por escenario
+│   ├── flujo-v2-testnet.sh    escenarios v2 en testnet (flujo-testnet.sh: v1)
 │   ├── bindings.sh            bindings TypeScript
 │   └── out/                   evidencia de cada corrida (tsv, json, resumen.md)
 ├── deployments/testnet.env    IDs (lo leen los scripts)
@@ -53,18 +53,14 @@ cargo test
 - `mock_all_auths` se usa solo para preparar el escenario;
 - las aserciones de autorización usan `set_auths(&[])` o `mock_auths` con una dirección concreta (auth real).
 
-| Invariante (SPEC §4) | Tests |
-|---|---|
-| I1: el árbitro solo paga a comprador y vendedor | `resolve_nunca_paga_a_terceros`, `no_existe_via_directa_al_escrow`, `hito_agregado_por_plataforma_no_desvia_fondos`, `disputa_directa_tras_liberar_es_inofensiva` |
-| I2: `resolve` solo admin, solo en disputa | `resolve_solo_admin`, `resolve_solo_con_disputa_abierta`, `resolve_bps_invalido_y_montos_cero`, `set_admin_transfiere_el_poder` |
-| I3: `confirm` solo el comprador; liberado sin ventana | `confirm_solo_comprador_registrado`, `sin_disputa_despues_de_confirm`, `arboles_de_auth_de_fund_y_confirm`, `caso_feliz_confirm_libera_con_comisiones_exactas` |
-| I4: `auto_release` falla antes del deadline, con disputa o sin "enviado" | `auto_release_falla_antes_del_deadline`, `auto_release_falla_si_no_esta_enviado`, `auto_release_falla_con_disputa`, `auto_release_tras_deadline_sin_auth` |
-| I5: `fund` una vez, ventana en [min, max] | `fund_una_sola_vez`, `fund_ventana_dentro_de_min_max`, `fund_exige_firma_del_comprador`, `fund_otras_validaciones` |
-| I6: disputa solo comprador o vendedor | `disputa_solo_comprador_o_vendedor` |
-| I7: sin roles del modo guardián, `fund` falla | `fund_falla_sin_roles_del_modo_guardian`, `fund_otras_validaciones` |
-| I8: el reparto suma el saldo y el redondeo nunca favorece a terceros | `redondeo_nunca_favorece_a_terceros`, `resolve_nunca_paga_a_terceros`, `resolve_70_30_montos_exactos` |
-| I9: comisiones de 2% y 0,3% con números reales | `caso_feliz_confirm_libera_con_comisiones_exactas`, `resolve_70_30_montos_exactos`, `auto_release_tras_deadline_sin_auth` |
-| Extra | `refund_unshipped_reglas`, `set_arbiter_una_vez_y_solo_admin`, `constructor_rechaza_ventanas_invalidas` |
+**38 tests (v2)** en dos archivos:
+
+| Archivo | Tests | Qué cubre |
+|---|---:|---|
+| `tests/invariantes.rs` | 26 | Los 9 invariantes de SPEC §4 sobre la interfaz v2 |
+| `tests/red_team_v2.rs` | 12 | TW-1, TW-2, TW-3 y TW-5; `mark_shipped`; `extend`; `refund_unshipped` por plazo de despacho; TTL de `Purchase`; contratos no actualizables |
+
+Qué test cubre cada invariante y cada hallazgo: [`../docs/SEGURIDAD.md`](../docs/SEGURIDAD.md), §2 y §4b.
 
 ## Desplegar en testnet
 
@@ -74,17 +70,28 @@ bash scripts/deploy-testnet.sh          # una vez; FORCE=1 para redesplegar
 
 El script:
 
-- usa `plataforma` como deployer, `arbitro` como admin de ambos contratos y `twfee` como `tw_fee`;
-- configura en el guardián una ventana mínima de 60 s y una máxima de 2 592 000 s (30 días);
+- usa `ppdemo` como deployer (v2), `arbitro` como admin de ambos contratos y `twfee` como `tw_fee`;
+- configura en el guardián el plazo de despacho y la ventana de revisión, cada uno entre 60 s y 2 592 000 s (30 días);
+- conserva los IDs de v1 como `*_V1_ID`;
 - sube los dos WASM, despliega el guardián, despliega el árbitro con el ID del guardián y llama `set_arbiter` firmado por `arbitro`;
 - escribe `deployments/testnet.env` y `deployments/testnet.json`.
 
 ## Flujo real en testnet
 
 ```bash
-bash scripts/flujo-testnet.sh            # a, b, c y d (≈ 6 min; c espera 60 s de ledger)
-bash scripts/flujo-testnet.sh b          # un solo escenario
+bash scripts/flujo-v2-testnet.sh         # v2: a, b, c, e, f y d (≈ 10 min; espera por la hora del ledger)
 ```
+
+| Escenario v2 | Qué prueba |
+|---|---|
+| (a) | `fund` → `mark_shipped` → `confirm` |
+| (b) | Disputa resuelta 70/30 |
+| (c) | `auto_release` 60 s después del envío |
+| (e) | `extend`: pasado el plazo original no libera, y pasado el nuevo sí |
+| (f) | `refund_unshipped` |
+| (d) | 9 desvíos rechazados, incluido `withdraw_remaining_funds`, y la interfaz on-chain sin upgrade |
+
+`flujo-testnet.sh` es el flujo de v1. Ya no funciona contra v2, pero su evidencia se conserva en `scripts/out/flujo/` y en DEPLOYED-v1.md.
 
 En cada escenario el script despliega una instancia nueva del escrow con el WASM ya subido (`1b367bc8…`) y la inicializa con los roles del modo guardián. Después verifica los roles con `get_escrow`. El script termina con código ≠ 0 si una transacción falla o si un intento que debía fallar no falla, o falla con otro error.
 
@@ -133,20 +140,23 @@ bash scripts/bindings.sh --build        # regenera bindings/ y compila cada paqu
    - despliega una instancia del escrow (`wasmHashes.tw_escrow`);
    - la inicializa con `approver = release_signer = pp_guardian`, `dispute_resolver = pp_arbiter`, `service_provider = receiver = vendedor`, `platform = plataforma`, `platform_fee = 200` y un hito `"Entrega del producto"` con status `"pendiente"`. El tipo `Escrow` está en `bindings/pp_guardian`.
    - Antes de pedir firmas, verificar con RPC que la instancia ejecuta el WASM `1b367bc8…` (ver DECISIONES.md, H-2).
-2. **Comprador:** `pp_guardian.fund({escrow, buyer, expected_escrow, amount, window_secs})`.
+2. **Comprador:** `pp_guardian.fund({escrow, buyer, expected_escrow, amount, ship_secs, inspect_secs})`.
    - `expected_escrow` debe ser idéntico al `get_escrow` guardado.
    - `amount` debe ser igual a `escrow.amount`.
-   - La ventana debe estar entre 60 s y 30 días.
-   - El comprador firma el árbol de auth `fund → fund_escrow → transfer`.
-3. **Vendedor:** `escrow.change_milestone_status(0, "enviado", evidencia, vendedor)`, directo en el escrow. Lo firma el vendedor.
+   - Cada plazo debe estar entre 60 s y 30 días.
+   - El comprador firma el árbol de auth `fund → fund_escrow → transfer`, que incluye los dos plazos.
+3. **Vendedor:** `pp_guardian.mark_shipped({escrow, seller, evidence})`. Lo firma el vendedor, una sola vez y antes de `ship_deadline`.
+   - La evidencia es el código de encomienda, la URL de una foto o "entregado en persona".
+   - **Ya no se usa** `escrow.change_milestone_status` directo: lo que se escriba así no cuenta.
 4. **Cierre de la compra.** Ocurre una de estas cosas:
-   - **Confirmación:** el comprador llama `pp_guardian.confirm({escrow, buyer})`, que aprueba y libera.
+   - **Confirmación:** el comprador llama `pp_guardian.confirm({escrow, buyer})`. Exige el envío registrado; aprueba todos los hitos y libera.
+   - **Más tiempo para revisar:** el comprador llama `pp_guardian.extend({escrow, buyer})`, una vez y antes de `release_at`.
    - **Disputa:** el comprador o el vendedor llaman `pp_guardian.dispute({escrow, caller})`.
-   - **Liberación automática:** pasado el plazo, cualquiera llama `pp_guardian.auto_release({escrow})`, sin firmas.
+   - **Liberación automática:** desde `release_at`, cualquiera llama `pp_guardian.auto_release({escrow})`, sin firmas.
 5. **Árbitro:** previsualiza con `pp_arbiter.quote({escrow, buyer_bps})` (solo lectura) y resuelve con `pp_arbiter.resolve({escrow, buyer_bps})`, firmado por `arbitro`.
-6. **Reembolso sin envío:** si hay disputa, venció el plazo y el hito no está en `"enviado"`, cualquiera puede llamar `pp_arbiter.refund_unshipped({escrow})`.
+6. **Reembolso sin envío:** si hay disputa, venció `funded_at + ship_secs` y no hubo `mark_shipped`, cualquiera puede llamar `pp_arbiter.refund_unshipped({escrow})`.
 7. **Consultas:**
-   - `pp_guardian.purchase({escrow})` devuelve `{buyer, seller, funded_at, deadline}` o `null`;
+   - `pp_guardian.purchase({escrow})` devuelve `{buyer, seller, amount, funded_at, ship_secs, inspect_secs, ship_deadline, shipped_at, release_at, extended, evidence}` o `null`;
    - `pp_guardian.config()` y `pp_arbiter.config()` devuelven la configuración.
 
 Errores de cada contrato: enum `Errors` en los bindings, o `Error` en `pp_guardian/src/lib.rs` y `pp_arbiter/src/lib.rs`.

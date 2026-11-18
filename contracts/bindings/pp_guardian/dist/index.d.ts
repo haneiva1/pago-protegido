@@ -7,12 +7,12 @@ export * as rpc from "@stellar/stellar-sdk/rpc";
 export declare const networks: {
     readonly testnet: {
         readonly networkPassphrase: "Test SDF Network ; September 2015";
-        readonly contractId: "CAOX6JZV3CJZFDD22J2XI3NKY5G4NRFOYRV7IA724MSVREYVRALW4OZU";
+        readonly contractId: "CDKYF7OAJTACP4JNJSGGXDRA3DHE442R26CT5ZE5DJHNSHH7XJUOATOT";
     };
 };
 export declare const Errors: {
     /**
-     * Constructor: `min_window_secs` debe ser > 0 y ≤ `max_window_secs`.
+     * Constructor: mínimos > 0 y mínimo ≤ máximo en ambas ventanas.
      */
     1: {
         message: string;
@@ -30,7 +30,7 @@ export declare const Errors: {
         message: string;
     };
     /**
-     * `window_secs` fuera de [min_window_secs, max_window_secs].
+     * `ship_secs` fuera de [min_ship_secs, max_ship_secs].
      */
     4: {
         message: string;
@@ -48,7 +48,7 @@ export declare const Errors: {
         message: string;
     };
     /**
-     * Solo el comprador registrado puede confirmar.
+     * Solo el comprador registrado (confirm, extend).
      */
     7: {
         message: string;
@@ -78,7 +78,7 @@ export declare const Errors: {
         message: string;
     };
     /**
-     * El escrow debe tener exactamente un hito.
+     * Al fondear, el escrow debe tener exactamente un hito.
      */
     12: {
         message: string;
@@ -120,13 +120,13 @@ export declare const Errors: {
         message: string;
     };
     /**
-     * `auto_release` antes del plazo.
+     * `auto_release` antes de `release_at`.
      */
     19: {
         message: string;
     };
     /**
-     * El escrow está en disputa.
+     * El escrow de TW está en disputa (la haya abierto quien sea).
      */
     20: {
         message: string;
@@ -144,9 +144,58 @@ export declare const Errors: {
         message: string;
     };
     /**
-     * `auto_release` exige que el hito 0 esté en "enviado".
+     * Falta `mark_shipped` (confirm, auto_release, extend).
      */
     23: {
+        message: string;
+    };
+    /**
+     * Solo el vendedor registrado puede `mark_shipped`.
+     */
+    24: {
+        message: string;
+    };
+    /**
+     * `mark_shipped` solo una vez.
+     */
+    25: {
+        message: string;
+    };
+    /**
+     * `mark_shipped` después de `ship_deadline`.
+     */
+    26: {
+        message: string;
+    };
+    /**
+     * `extend` solo una vez.
+     */
+    27: {
+        message: string;
+    };
+    /**
+     * `extend` después de `release_at`.
+     */
+    28: {
+        message: string;
+    };
+    /**
+     * Hay un hito con status vacío: TW no permite aprobarlo (#30). Queda la
+     * vía de disputa y árbitro.
+     */
+    29: {
+        message: string;
+    };
+    /**
+     * `inspect_secs` fuera de [min_inspect_secs, max_inspect_secs].
+     */
+    30: {
+        message: string;
+    };
+    /**
+     * La evidencia de envío está vacía o supera `MAX_EVIDENCE_LEN`.
+     */
+    31: {
         message: string;
     };
 };
@@ -157,8 +206,10 @@ export interface GuardianConfig {
    * admin llame `set_arbiter` (una sola vez).
    */
     arbiter: Option<string>;
-    max_window_secs: u64;
-    min_window_secs: u64;
+    max_inspect_secs: u64;
+    max_ship_secs: u64;
+    min_inspect_secs: u64;
+    min_ship_secs: u64;
     tw_fee: string;
 }
 export interface Flags {
@@ -190,25 +241,53 @@ export interface Escrow {
     trustline: Trustline;
 }
 /**
- * Compra registrada por `pp_guardian` para un escrow.
+ * Compra registrada por `pp_guardian` (v2) para un escrow. Tiempos en
+ * segundos (timestamp del ledger).
  */
 export interface Purchase {
+    /**
+   * Monto fondeado (= `escrow.amount`).
+   */
+    amount: i128;
     /**
    * Quien fondeó el escrow a través del guardián.
    */
     buyer: string;
     /**
-   * `funded_at + window_secs`: desde aquí se puede llamar `auto_release`.
+   * Evidencia de envío registrada por el guardián (inmutable, TW-3).
    */
-    deadline: u64;
+    evidence: Option<string>;
     /**
-   * Timestamp del ledger (segundos) en que se fondeó.
+   * `extend` ya se usó.
    */
+    extended: boolean;
     funded_at: u64;
+    /**
+   * Ventana de revisión después del envío, firmada por el comprador.
+   */
+    inspect_secs: u64;
+    /**
+   * `shipped_at + inspect_secs` (+ `inspect_secs` si el comprador extendió).
+   * Desde aquí procede `auto_release`.
+   */
+    release_at: Option<u64>;
     /**
    * `roles.receiver` del escrow en el momento del fondeo.
    */
     seller: string;
+    /**
+   * `funded_at + ship_secs`: después de esto ya no se puede `mark_shipped`
+   * y, con disputa, procede `refund_unshipped`.
+   */
+    ship_deadline: u64;
+    /**
+   * Plazo máximo para despachar, firmado por el comprador al fondear.
+   */
+    ship_secs: u64;
+    /**
+   * Momento de `mark_shipped` (una sola vez).
+   */
+    shipped_at: Option<u64>;
 }
 export interface Milestone {
     approved: boolean;
@@ -222,18 +301,16 @@ export interface Trustline {
 export interface Client {
     /**
      * Construct and simulate a fund transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-     * El comprador fondea `escrow` a través del guardián.
-     *
-     * Valida la ventana y los roles del modo guardián, registra la compra y
-     * llama `escrow.fund_escrow(buyer, expected_escrow, amount)`. El árbol de
-     * auth que firma el comprador es: `fund` → `fund_escrow` → `transfer`.
+     * El comprador fondea `escrow` a través del guardián y firma los plazos.
+     * Árbol de auth del comprador: `fund` → `fund_escrow` → `transfer`.
      */
-    fund: ({ escrow, buyer, expected_escrow, amount, window_secs }: {
+    fund: ({ escrow, buyer, expected_escrow, amount, ship_secs, inspect_secs }: {
         escrow: string;
         buyer: string;
         expected_escrow: Escrow;
         amount: i128;
-        window_secs: u64;
+        ship_secs: u64;
+        inspect_secs: u64;
     }, options?: MethodOptions) => Promise<AssembledTransaction<Result<Purchase>>>;
     /**
      * Construct and simulate a config transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -241,9 +318,18 @@ export interface Client {
      */
     config: (options?: MethodOptions) => Promise<AssembledTransaction<GuardianConfig>>;
     /**
+     * Construct and simulate a extend transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+     * El comprador alarga una vez la ventana de revisión (`release_at +=
+     * inspect_secs`), antes de `release_at` y sin disputa.
+     */
+    extend: ({ escrow, buyer }: {
+        escrow: string;
+        buyer: string;
+    }, options?: MethodOptions) => Promise<AssembledTransaction<Result<Purchase>>>;
+    /**
      * Construct and simulate a confirm transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-     * "Recibí conforme": aprueba el hito 0 y libera en la misma invocación.
-     * Solo el comprador registrado.
+     * "Recibí conforme": exige envío registrado; aprueba TODOS los hitos
+     * pendientes (TW-2) y libera en la misma invocación.
      */
     confirm: ({ escrow, buyer }: {
         escrow: string;
@@ -260,7 +346,7 @@ export interface Client {
     }, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>;
     /**
      * Construct and simulate a purchase transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-     * Compra registrada para `escrow`, si existe.
+     * Compra registrada para `escrow`, si existe (solo lectura).
      */
     purchase: ({ escrow }: {
         escrow: string;
@@ -274,24 +360,37 @@ export interface Client {
     }, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>;
     /**
      * Construct and simulate a auto_release transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-     * Liberación automática al vendedor. No requiere auth: cualquiera puede
-     * llamarla (p. ej. un cron de la plataforma), pero solo funciona si venció
-     * el plazo, no hay disputa, no está liberado/resuelto y el hito 0 está en
-     * "enviado".
+     * Liberación automática al vendedor. Sin auth (la puede disparar un cron),
+     * solo con envío registrado, `now >= release_at` y el escrow de TW sin
+     * disputa, sin liberar y sin resolver. Aprueba todos los hitos y libera.
      */
     auto_release: ({ escrow }: {
         escrow: string;
     }, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>;
+    /**
+     * Construct and simulate a mark_shipped transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+     * El vendedor registra el envío con evidencia (código de encomienda, URL de
+     * foto o "entregado en persona"). Una sola vez y antes de `ship_deadline`.
+     * Escribe "enviado" + evidencia en el hito 0 de TW (auth anidada del
+     * vendedor como service_provider) y fija `release_at`.
+     */
+    mark_shipped: ({ escrow, seller, evidence }: {
+        escrow: string;
+        seller: string;
+        evidence: string;
+    }, options?: MethodOptions) => Promise<AssembledTransaction<Result<Purchase>>>;
 }
 export declare class Client extends ContractClient {
     readonly options: ContractClientOptions;
     static deploy<T = Client>(
     /** Constructor/Initialization Args for the contract's `__constructor` method */
-    { admin, tw_fee, min_window_secs, max_window_secs }: {
+    { admin, tw_fee, min_ship_secs, max_ship_secs, min_inspect_secs, max_inspect_secs }: {
         admin: string;
         tw_fee: string;
-        min_window_secs: u64;
-        max_window_secs: u64;
+        min_ship_secs: u64;
+        max_ship_secs: u64;
+        min_inspect_secs: u64;
+        max_inspect_secs: u64;
     }, 
     /** Options for initializing a Client as well as for calling a method, with extras specific to deploying. */
     options: MethodOptions & Omit<ContractClientOptions, "contractId"> & {
@@ -306,10 +405,12 @@ export declare class Client extends ContractClient {
     readonly fromJSON: {
         fund: (json: string) => AssembledTransaction<Result<Purchase, import("@stellar/stellar-sdk/contract").ErrorMessage>>;
         config: (json: string) => AssembledTransaction<GuardianConfig>;
+        extend: (json: string) => AssembledTransaction<Result<Purchase, import("@stellar/stellar-sdk/contract").ErrorMessage>>;
         confirm: (json: string) => AssembledTransaction<Result<void, import("@stellar/stellar-sdk/contract").ErrorMessage>>;
         dispute: (json: string) => AssembledTransaction<Result<void, import("@stellar/stellar-sdk/contract").ErrorMessage>>;
         purchase: (json: string) => AssembledTransaction<Option<Purchase>>;
         set_arbiter: (json: string) => AssembledTransaction<Result<void, import("@stellar/stellar-sdk/contract").ErrorMessage>>;
         auto_release: (json: string) => AssembledTransaction<Result<void, import("@stellar/stellar-sdk/contract").ErrorMessage>>;
+        mark_shipped: (json: string) => AssembledTransaction<Result<Purchase, import("@stellar/stellar-sdk/contract").ErrorMessage>>;
     };
 }

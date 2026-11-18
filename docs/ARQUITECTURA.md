@@ -5,6 +5,15 @@ Pago Protegido usa el escrow single-release de **Trustless Work** (TW) sin modif
 - **`pp_guardian`** ocupa los roles *approver* y *release_signer*: el comprador fondea a través de él, confirma con aprobación y liberación atómicas, y se libera solo automáticamente si vence el plazo.
 - **`pp_arbiter`** ocupa el rol *dispute_resolver*: un árbitro acotado que solo puede repartir entre el comprador registrado y el vendedor.
 
+> **v2 (ronda 4, red team), con contratos nuevos:**
+> - el envío se registra con `pp_guardian.mark_shipped`, una vez y con evidencia inmutable;
+> - el comprador firma dos plazos al fondear: despacho (`ship_secs`) y revisión (`inspect_secs`);
+> - `confirm` y `auto_release` aprueban **todos** los hitos;
+> - `extend` alarga la revisión una vez;
+> - `refund_unshipped` usa el plazo de despacho.
+>
+> Detalle en [`contracts/DECISIONES.md`](../contracts/DECISIONES.md) §v2 y [SEGURIDAD.md](SEGURIDAD.md) §4b.
+
 Cada compra es una instancia nueva del escrow de TW. Los IDs y transacciones reales están en [`contracts/DEPLOYED.md`](../contracts/DEPLOYED.md) y el código en [`contracts/`](../contracts/).
 
 | Pieza | Testnet |
@@ -86,15 +95,20 @@ sequenceDiagram
   G->>G: registra Purchase {buyer, seller, funded_at, deadline}
   G->>E: fund_escrow(buyer, expected_escrow, amount)
   E->>T: transfer(comprador → escrow)
-  V->>E: change_milestone_status(0, "enviado", guía de encomienda)
+  V->>G: mark_shipped(escrow, vendedor, guía de encomienda)
+  G->>E: change_milestone_status(0, "enviado", guía) con la auth del vendedor
+  G->>G: registra shipped_at, release_at y la evidencia (inmutable)
   C->>G: confirm(escrow, buyer)
-  G->>E: approve_milestone(0, guardián)
+  G->>E: approve_milestone de TODOS los hitos pendientes
   G->>E: release_funds(guardián, twfee)
   E->>T: 0,3% a twfee, 2% a plataforma, el resto al vendedor
   Note over G,E: aprobar y liberar ocurren en la misma invocación
-  alt el comprador no confirma y vence el plazo con el hito en "enviado"
+  opt el comprador pide más tiempo, una vez, antes de release_at
+    C->>G: extend(escrow, buyer), release_at más inspect_secs
+  end
+  alt el comprador no confirma y llega release_at sin disputa
     S->>G: auto_release(escrow), sin firma de nadie
-    G->>E: approve_milestone + release_funds
+    G->>E: approve_milestone de todos + release_funds
   end
 ```
 
@@ -169,7 +183,8 @@ Correspondencia con los flags on-chain del escrow:
 |---|:-:|:-:|:-:|:-:|:-:|
 | Desplegar e inicializar el escrow | — | — | ✅ ¹ | — | ✅ ¹ |
 | `pp_guardian.fund` (fondear) | ✅ con su firma | ❌ `BuyerIsSeller` | ✅ ² | ✅ ² | ✅ ² |
-| Marcar "enviado" (`change_milestone_status`) | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Registrar el envío (`pp_guardian.mark_shipped`, v2) | ❌ | ✅ una vez, antes del plazo de despacho | ❌ | ❌ | ❌ `NotSeller` |
+| `pp_guardian.extend` (v2) | ✅ una vez, antes de `release_at` | ❌ | ❌ | ❌ | ❌ `NotBuyer` |
 | `pp_guardian.confirm` (aprobar + liberar) | ✅ solo el registrado | ❌ `NotBuyer` | ❌ | ❌ | ❌ |
 | Aprobar o liberar directo en el escrow | ❌ ³ | ❌ ³ | ❌ ³ | ❌ ³ | ❌ ³ |
 | `pp_guardian.dispute` | ✅ | ✅ | ❌ `NotBuyerOrSeller` | ❌ | ❌ |

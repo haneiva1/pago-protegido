@@ -32,17 +32,24 @@ START_LEDGER=… RPC_URL=… TIPO_CAMBIO=11.70 bash scripts/metricas.sh
 
 Salida de ejemplo: [`contracts/scripts/out/metricas/metricas-ejemplo.json`](../contracts/scripts/out/metricas/metricas-ejemplo.json). Los eventos crudos están en `eventos-ejemplo.jsonl`.
 
-Es una corrida real en testnet del 2026-11-18, ledgers 5790662 → 5791278. Incluye:
-- las compras de `flujo-testnet.sh` (a–d);
-- las 6 de `compras-demo.sh` (Bs 120 a 900);
-- las que la app ya hizo en modo guardián.
+Es una corrida real en testnet del 2026-11-18, después del despliegue de v2. Lee juntos los eventos de **v1 y v2**, porque los IDs de v1 se conservan en `testnet.env`. Incluye:
+- el flujo v1 (a–d);
+- las 6 compras de `compras-demo.sh`;
+- el flujo v2 (a, b, c, e, f, d);
+- las compras que la app hizo en paralelo.
 
-Resultado: **14 compras**, 1087,61 USD de prueba (≈ Bs 12 725). Hubo 6 confirmaciones, 2 liberaciones automáticas y 6 disputas. De las disputas:
-- 4 las abrió el comprador y 2 el vendedor;
-- 5 las resolvió el árbitro: 1 a favor del comprador, 1 a favor del vendedor y 3 con reparto parcial;
-- 1 terminó en reembolso por falta de envío.
+Resultado:
 
-En el JSON, el reembolso cuenta como 100% comprador. Por eso suma 4 en `repartos_parciales` y 1 en `a_favor_del_comprador`.
+| Métrica | Valor |
+|---|---|
+| Compras | **47** (41 en v1, 6 en v2) |
+| Confirmadas | 19 |
+| Liberadas automáticamente | 8 |
+| Disputas | 18, de las cuales 2 terminaron en reembolso sin envío |
+| Envíos registrados con evidencia (v2) | 5 |
+| Revisiones extendidas (v2) | 1 |
+
+v2 agrega a cada compra los campos `version`, `plazo` (`ship_deadline` en v2, `deadline` en v1), `enviada` (evidencia, hora del envío y `libera_desde`) y `extendida`. También agrega los totales `por_version`, `enviadas_con_evidencia_v2` y `revisiones_extendidas_v2`.
 
 ### Campos
 

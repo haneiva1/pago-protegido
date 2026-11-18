@@ -1,0 +1,34 @@
+prep	P1	lab (emisor) envía 400 LABUSD al comprador	371e706dfafe8724734474319ddf11712016af250cd65fbf970f984db18fe7e7	6.82	100
+f	f1	deploy instancia del escrow (ppdemo)	26b48462fb66a282464d8d8295febe9bfb6e04fb163b0de06cbe955ec093fbf7	8.06	16100
+f	f2	initialize_escrow (ppdemo), roles modo guardián v2	dd5a2041caaa99a533dbdb891eb65bf7e607e03119cce20b3372dfe7a877ba00	8.54	136204
+f	f3	pp_guardian.fund 50 LABUSD (despacho 60 s, revisión 3600 s)	b86fd9abda26ccc33f3e7ab3eb99eea904a4b076005c2806c6967f1cf9db6360	79.87	1090395
+f	f4	comprador abre disputa (no llega el envío)	2ff2f3b575b3e3fcd094cd4241676d347bc62c5d542644d863b0ff76124f4a0a	3.75	8087
+c	c1	deploy instancia del escrow (ppdemo)	5409e9333c3a962fcb194e1ccc3bbdd207e9707193c195e46121f74bd936f558	8.31	16100
+c	c2	initialize_escrow (ppdemo), roles modo guardián v2	a548bfc4f903d90c868d6a50028c60a1768fde9ecc6f38570f35fda3fd9c699b	81.55	135272
+c	c3	pp_guardian.fund 50 LABUSD (despacho 3600 s, revisión 60 s)	0a59edf7aecb505384aecc548aa4bfafdfa3b36bbcca2a08190ac88e45fb4a82	5.91	1090341
+c	c4	pp_guardian.mark_shipped (vendedor, evidencia)	44e7ef2fbbe1015df195384b85ff1aea0d0c34f26cb5d56c95543526648b1a5e	8.84	119505
+e	e1	deploy instancia del escrow (ppdemo)	d3a3a2b7a385204bcb102bc998d8e4a0e6321a08c24361af9f81460ebb7b25bc	8.36	16100
+e	e2	initialize_escrow (ppdemo), roles modo guardián v2	0acacc43dcf59858beb9d8e8f9ca00c79d98d5ee41305afb29fb46e4e2782c7f	5.53	136204
+e	e3	pp_guardian.fund 50 LABUSD (despacho 3600 s, revisión 60 s)	5a5fb3e11872e1710027288c70c5e1eb0ea75091e5a5c51daf5ddc4a8587101f	13.34	1090395
+e	e4	pp_guardian.mark_shipped (vendedor, evidencia)	d18b74220739175a78ce955def11c45d3d507e5563c492e6e2e98cd076e05d80	8.56	119527
+e	e5	pp_guardian.extend (comprador): release_at + 60 s	ace187c507ce2d6ccb0c0014a970b07818b108e60bb692fa10356292bd79d963	9.10	5902
+e	e8	pp_guardian.auto_release tras el plazo extendido (tercero)	73348764f4638bb293115dc6c2b2392707b1f632ed7fbc33012156bb17558855	5.53	18715
+c	c6	pp_guardian.auto_release (tercero, sin firmas)	4a6feb28078c8404d88947730aadea7c32c42d2a400ee1fb21e2cd937633644a	8.37	18694
+f	f7	pp_arbiter.refund_unshipped (tercero, sin firmas): 100% al comprador	fdff2f9bb7ce10a0cf02f2d2dbbf299c38681bdea4db872bc98caec2713de0ee	8.80	19237
+a	a1	deploy instancia del escrow (ppdemo)	362fb8aec532af41e6fc6ddf4b6c56c7455cd2ea024a6f045626920afe6866a4	8.16	16090
+a	a2	initialize_escrow (ppdemo), roles modo guardián v2	a80776022d159a882a132da12f5f2c2e5a3667f5032e6fc67dc03583351f093a	8.66	133768
+a	a3	pp_guardian.fund 50 LABUSD (despacho 3600 s, revisión 3600 s)	5143ee1b7b4c076782172248a5e2e52740fcaf5fa633347207f8b38ffe68fd57	8.56	1089310
+a	a5	pp_guardian.mark_shipped (vendedor, evidencia)	00082803f6f9521016c7f12496c8276e2ac509b5c7f765e5c9cdc87416d9f0c3	8.64	119373
+a	a6	pp_guardian.confirm: aprueba todos los hitos y libera	0d3cb6aa042da56b562c3490f5c45311b08af66d4fcf2eb80e742026aeefaba9	8.59	19209
+b	b1	deploy instancia del escrow (ppdemo)	1c59c38de54a26fed8ce3c9790b76d6c1ae8af610033e305c5babee3b89b853d	5.29	16090
+b	b2	initialize_escrow (ppdemo), roles modo guardián v2	f506777d858adc8f904b86741ab833b8582e3e04b6143bd40611f86342fe30ba	5.96	133768
+b	b3	pp_guardian.fund 50 LABUSD (despacho 3600 s, revisión 3600 s)	ca01c07e2d67537f1eb4cf32eff13d96d0e90953cdae852ce949e484e2447500	33.22	1089310
+b	b4	pp_guardian.mark_shipped (vendedor, evidencia)	5dc57d0b5103131aec922dc5939f6aabf260628133cb15fe7b23c6d1ff29d3e9	3.96	119373
+b	b5	pp_guardian.dispute (comprador)	6066d76eb51478558eae7f8d1bdd3be7aa042061ebaaf3d58dfa138e2de732b9	5.58	8123
+b	b6	pp_arbiter.resolve(7000) firmado por arbitro	68ba9ed24755a4c401a28bfa122b5a48fee7929a1d9ae9256bb7f4e1b2ff889d	5.69	22640
+d	d1	deploy instancia del escrow (ppdemo)	4ca89963eb6b3c4ea788da45d1b3c3dbfdc46dc0617f5f2aac886ed0d91c56ba	5.40	16080
+d	d2	initialize_escrow (ppdemo), roles modo guardián v2	6a83c6f81ff47ee2b2c880f902322d099cec8257d4958b6864942d276cab9065	5.60	134588
+d	d3	pp_guardian.fund 50 LABUSD (despacho 3600 s, revisión 3600 s)	a75720ad5bb6e6c37c2494f01c3bd78bcc4d082f9ca93ed32b2b8ba504f5fcee	8.36	1088408
+d	d4	pp_guardian.mark_shipped (vendedor, evidencia)	c1218e5f59d82ed72b007d52a530bd556c39e4ed82ab611015e9efe999c964da	30.28	119298
+d	d5	pp_guardian.dispute (vendedor)	2670470fab94cf4ab6d3019ef3a427e54493193d34a8488b7e3fe445bc026878	5.62	8147
+d	d15	cierre legítimo: pp_arbiter.resolve(5000) firmado por arbitro	71a5d5fba9547815375fdee6f414ce3efe209eb8a47e4ac8b53307e39c1e2d2c	80.20	22662
