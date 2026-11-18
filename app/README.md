@@ -281,3 +281,10 @@ PP_ARBITER_ID=C...
 7. Verificado automáticamente con Playwright en `PORT=3020`: el modal de login carga sin errores de origen ni CORS (captura `e2e/capturas/50-pollar-modal-login-3020-celular.png`). El modal de Pollar 0.12.0 aparece en inglés; el idioma se configura en el dashboard de Pollar o con `locale` desde la 0.12.1.
 - `LocalWallet` (llave en el navegador) es la alternativa y la que usa el e2e.
 - Código: `src/lib/wallet/pollar.ts` y `src/components/PollarProviders.tsx`. Estado y pendientes: `DECISIONES.md`, sección Pollar.
+
+## Métricas en vivo y perfil de la tienda
+
+- `/metricas`: KPIs con datos públicos de testnet (eventos de los contratos v2). Piloto y pruebas del equipo, siempre por separado. Cada número abre `/metricas/<equipo|piloto>/<kpi>` con las operaciones y sus links a stellar.expert. JSON en `/api/metricas`.
+- `/tienda/<slug>`: perfil verificable del vendedor, sin teléfono ni dirección, con la insignia "Vende con Pago Protegido" (imagen OG y `/tienda/<slug>/insignia`). La tarjeta del vendedor en la página de pago enlaza ahí, y el bot responde "mi perfil" con el link.
+- `npm run test:e2e:publico`: e2e de solo lectura contra testnet, sin claves (puerto 3140). `npm run test:e2e` incluye además los pasos con pagos.
+- Detalle y definiciones: DECISIONES 86–99.

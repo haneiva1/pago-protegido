@@ -306,3 +306,45 @@ Las decisiones 74 y 76 quedan reemplazadas por las de esta sección.
     - La compra con reclamo para la última escena se arma fuera de cámara, por API y con cuentas locales de un solo uso.
     - Los subtítulos también pasan por la lista de palabras prohibidas.
     - Se versionan el mp4, la lámina y las 6 capturas clave; los clips se regeneran.
+
+## Octava ronda: métricas en vivo y perfil verificable de la tienda (rama `worktree-pp-metricas-tienda`)
+
+Los contratos no cambian. Todo sale de los eventos on-chain que ya ingería `/transparencia` (51, 78).
+
+86. **`/metricas` y `/api/metricas` solo usan eventos on-chain** de `pp_guardian` y `pp_arbiter` (v1 y v2): `pp_funded`, `pp_shipped`, `pp_extended`, `pp_disputed` y el primer evento terminal, con las reglas de `contracts/scripts/metricas.sh` (`src/lib/server/kpis.ts`).
+    - **Pruebas del equipo y piloto se calculan por separado** (`sellers.pilot`, igual que en 72) y nunca se suman. El e2e compara cada grupo con `/api/transparencia`.
+    - Enlazada desde la landing y desde `/transparencia`.
+87. **Definiciones (la opción más conservadora en cada caso):**
+    - **Compras protegidas** = `pp_funded`. **Monto protegido** = suma de los montos, en Bs con el tipo de cambio actual.
+    - **% confirmadas sin reclamo** = `pp_confirmed` sin `pp_disputed`, sobre **todas** las compras cerradas (también las devueltas y las resueltas). La liberación por plazo vencido no cuenta como confirmación: se muestra aparte.
+    - **Del pago al cobro del vendedor** = mediana de `pp_funded` → `pp_confirmed`/`pp_auto_released`.
+    - **Reclamos** = `pp_disputed`, separados en "en revisión" y "resueltos" (cerrados). Las **devoluciones por no despacho** (`pp_refunded_unshipped`) van aparte y no cuentan como reclamo. **Pedidos de "más tiempo"** = `pp_extended`.
+    - Extra: **del pago al despacho** = promedio de `pp_funded` → `pp_shipped`.
+    - Los porcentajes se redondean hacia abajo. Si son todas, la pantalla dice **"Todas"**: "100%" está en la lista de palabras prohibidas.
+88. **Caché corta.** El RPC se consulta como mucho cada 15 s (`ingestEvents`, ya existía) y el cálculo se guarda 30 s en memoria (5 s si el RPC falló, para reintentar pronto). La hora que se muestra es la de la última lectura exitosa de la red (`kv events:last_run`). **Si el RPC falla**, la página avisa y muestra los últimos datos guardados con esa hora.
+89. **Cada número enlaza a la lista de compras que lo forman** (`/metricas/<equipo|piloto>/<kpi>`), y cada compra tiene su link a stellar.expert por paso: pago, envío, más tiempo, reclamo, cierre y contrato. Se listan hasta 200; el resto está en el JSON.
+90. **Gráfico por día sin dependencias:** SVG propio con dos series separadas (compras y monto, sin doble eje), 30 días en hora de Bolivia, más una tabla plegable con los datos.
+91. **`/metricas`, `/tienda/<slug>` y el detalle son pantallas de usuarios:** pasan la lista estricta de palabras (sin "Stellar": dicen "registro público (red de prueba)").
+92. **Panel del vendedor ("Tus números"):** ventas protegidas, % sin reclamo y mediana hasta el cobro, calculados con el registro público. La ingesta no bloquea la respuesta.
+93. **Slug del perfil** = nombre de la tienda + 4 hex al azar (único). Se asigna una sola vez y no cambia si la tienda se renombra. A las tiendas viejas se les asigna al leerlas. El sufijo evita que otra tienda con el mismo nombre ocupe el mismo link.
+94. **Perfil público `/tienda/<slug>`:**
+    - **Ventas protegidas** = compras pagadas al vendedor (confirmadas o por plazo), no todas las fondeadas: no cuenta lo que todavía puede terminar en reclamo (como en 6).
+    - **% sin reclamo** = pagadas al vendedor sin reclamo, sobre las cerradas (las devoluciones bajan el porcentaje).
+    - **Tiempo promedio de despacho** = `pp_funded` → `pp_shipped`.
+    - **Reclamos que perdió** = `pp_resolved` con algo para el comprador (`buyer_bps > 0`, **incluidos los repartos**) + devoluciones por no despachar. Se muestra el desglose.
+    - **Desde cuándo vende** = la primera compra protegida; si no hay, "Tienda creada en … · todavía sin ventas protegidas".
+    - **Verificación de identidad: pendiente (modo práctica).**
+    - **Sin datos personales:** muestra nombre, ciudad y la cuenta pública de la tienda (para verificar). No muestra el teléfono, la dirección ni nada del comprador (tampoco su cuenta). El e2e revisa el HTML.
+    - Las tiendas que no son del piloto dicen "Datos de práctica en la red de prueba".
+95. **Insignia para la bio:** la imagen OG del perfil es la insignia ("Vende con Pago Protegido", nombre, ciudad y tres números), de 1200×630, y se descarga en `/tienda/<slug>/insignia`. El perfil trae el link y un texto listo para la bio. No se hizo un formato cuadrado: en la bio de Instagram o TikTok va el link.
+96. **Tarjeta del vendedor en la página de pago:**
+    - Muestra los mismos cuatro números del perfil (mismo componente `NumerosTienda` y misma función `sellerKpis`) y enlaza al perfil.
+    - Antes esos números salían de la base local; ahora salen del registro público, igual que el perfil.
+    - **Se mantiene el WhatsApp del vendedor en la tarjeta** (69). El comprador ya lo tiene, porque el vendedor le mandó el link, y lo usa para "Escribir". El perfil público no lo muestra.
+97. **Claves del servidor perezosas.** `cfg()` lee `PLATAFORMA_SECRET`, `ARBITRO_SECRET`, `LAB_SECRET`, `TWFEE_ADDRESS`, `LABUSD_SAC` y `ESCROW_WASM_HASH` al usarlas (getters). Las páginas públicas de solo lectura no las necesitan. Con `.env.local` el comportamiento es el mismo; sin ella, el error de siempre aparece en la primera firma.
+98. **e2e:**
+    - **`npm run test:e2e:publico`** (`playwright.publico.config.ts`, puerto 3140, `data/publico.db`): solo lectura contra testnet, sin claves ni transacciones. Cubre `/metricas` (grupos, links, gráfico, detalle, JSON) y la tarjeta del vendedor → `/tienda/<slug>` (mismos números, insignia OG, sin teléfono).
+    - Para ver un perfil con ventas reales, registra en la base local (sin firmar, como en 15) una cuenta de vendedor de las pruebas del equipo, tomada de `/api/transparencia`, con el nombre "Calzados Sofi".
+    - **`npm run test:e2e`** corre lo mismo y además, en el caso feliz, verifica la tarjeta después de la venta (1 venta, "Todas" sin reclamo), el perfil de Tienda Sofi y "Tus números" del panel. El barrido de palabras suma `/metricas` y sus detalles.
+    - **En esta ronda no se corrió `npm run test:e2e`:** necesita las claves de `.env.local`, y esta sesión no tuvo acceso a ellas (regla: no tocar credenciales ni archivos `.env`).
+99. **Capturas nuevas:** `70-metricas`, `71-metricas-operaciones`, `72-comprador-tarjeta-vendedor`, `73-tienda-perfil` (celular y escritorio) y `og-tienda.png`. Las del flujo con pagos (`75`–`77`) salen al correr `npm run test:e2e`. Las 4 claves están en `pago-protegido/demo/v2/` (07–10).
