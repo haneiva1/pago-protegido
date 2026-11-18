@@ -105,7 +105,7 @@ export class DirectEscrowService implements EscrowService {
   }
 
   verify(ctx: EscrowCtx) {
-    return verifyEscrowInstance(ctx.escrowId, this.roles(ctx.buyer, ctx.seller), { approver: "el comprador", resolver: "la cuenta del árbitro" });
+    return verifyEscrowInstance(ctx.escrowId, this.roles(ctx.buyer, ctx.seller), { approver: "el comprador", resolver: "la cuenta del revisor" });
   }
 
   async quote(ctx: EscrowCtx, buyerBps: number): Promise<Quote> {
@@ -122,7 +122,7 @@ export class DirectEscrowService implements EscrowService {
     const c = cfg();
     return [
       { label: "Moneda de prueba (USD de prueba, LABUSD)", id: c.labusdSac, kind: "contract" as const },
-      { label: "Árbitro (cuenta, modo directo)", id: c.arbitro.publicKey(), kind: "account" as const },
+      { label: "Revisor (cuenta, modo directo)", id: c.arbitro.publicKey(), kind: "account" as const },
       { label: "Plataforma (patrocina comisiones)", id: c.plataforma.publicKey(), kind: "account" as const },
     ];
   }

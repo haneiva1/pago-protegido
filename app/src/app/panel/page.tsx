@@ -6,13 +6,27 @@ import { Countdown } from "@/components/Guardian";
 import { Breakdown, SplitView, TxList } from "@/components/OrderBits";
 import { CopyButton, ErrorBox, ExplorerLink, Progress, Spinner, StatusBadge, useProgress } from "@/components/ui";
 import { WhatsAppBox } from "@/components/WhatsAppBox";
-import { explorer, fmtBs, fmtDate, fmtUsd } from "@/lib/format";
+import {
+  CATEGORIAS,
+  CIUDADES,
+  DOLLAR_NOTE,
+  EMPRESAS,
+  PROTECCION,
+  explorer,
+  fmtBs,
+  fmtBsUnits,
+  fmtDate,
+  linkAmounts,
+  unitsToNumber,
+  type FeePayer,
+} from "@/lib/format";
 import type { InfoData, SellerData, SellerOrder } from "@/lib/types";
 import { api, getWallet, signAndSubmit, type PreparedTx } from "@/lib/wallet";
 import { waText } from "@/lib/whatsapp";
 
 const origin = () => (typeof window === "undefined" ? "" : window.location.origin);
 const linkUrl = (slug: string) => `${origin()}/p/${slug}`;
+const nf = (n: number) => n.toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function Panel() {
   const [pk, setPk] = useState<string | null | undefined>(undefined);
@@ -35,10 +49,10 @@ export default function Panel() {
   useEffect(() => {
     const p = getWallet("vendedor").publicKey();
     setPk(p);
-    setPrimer(new URLSearchParams(window.location.search).has("primer"));
     const qs = new URLSearchParams(window.location.search);
+    setPrimer(qs.has("primer"));
     setDemo(qs.has("demo"));
-    // Link del bot (APP-ENDPOINTS §3): abrir ese pedido con la evidencia precargada.
+    // Link del bot (APP-ENDPOINTS §3): abrir ese pedido con la guía precargada.
     if (qs.get("enviar")) setEnviar({ slug: qs.get("enviar")!, evidencia: qs.get("evidencia") ?? "" });
     api<InfoData>("/api/info").then(setInfo).catch(() => {});
     if (!p) return;
@@ -61,6 +75,7 @@ export default function Panel() {
   if (!data) return <div className="flex justify-center py-20">{error ? <ErrorBox error={error} /> : <Spinner className="h-6 w-6" />}</div>;
 
   const { seller, orders } = data;
+  const fx = data.fx;
   const firstLink = primer && orders.length === 0;
 
   return (
@@ -72,24 +87,28 @@ export default function Panel() {
             {seller.store_name}
           </h1>
           <p className="muted">
-            WhatsApp {seller.whatsapp} · {seller.completedSales} ventas completadas
+            {seller.city ? `${seller.city} · ` : ""}WhatsApp {seller.whatsapp} · {seller.completedSales} ventas protegidas
           </p>
-          <p className="mt-1 text-xs text-slate-500">
-            Billetera: <ExplorerLink href={explorer.account(seller.pubkey)}>{seller.pubkey.slice(0, 6)}…{seller.pubkey.slice(-6)}</ExplorerLink>
+          <p className="mt-1 text-xs">
+            <ExplorerLink href={explorer.account(seller.pubkey)}>Ver registro público de tu cuenta</ExplorerLink>
           </p>
         </div>
         <div className="rounded-2xl bg-brand-600 px-5 py-4 text-white">
-          <p className="text-xs text-brand-100">Saldo</p>
+          <p className="text-xs text-brand-100">Saldo cobrado</p>
           <p className="text-3xl font-bold" data-testid="saldo">
-            {fmtUsd(data.balance)}
+            {fmtBsUnits(data.balance, fx)}
           </p>
-          <p className="text-xs text-brand-100">USD de prueba</p>
         </div>
       </section>
 
+      <p data-testid="antifraude-vendedor" className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
+        🛡️ <strong>Para cobrar no tienes que abrir ningún link.</strong> Lo que vendes te llega solo cuando el comprador confirma. Nadie de Pago
+        Protegido te va a pedir códigos ni contraseñas.
+      </p>
+
       <CreateLink
         sellerPubkey={seller.pubkey}
-        fx={info?.fx ?? 11.7}
+        fx={info?.fx ?? fx}
         title={firstLink ? "Tu primer link" : "Crear link"}
         demo={demo}
         onCreated={(slug) => {
@@ -128,32 +147,37 @@ export default function Panel() {
             o={o}
             store={seller.store_name}
             sellerPubkey={seller.pubkey}
-            platformFeeBps={info?.platformFeeBps ?? 200}
             mode={info?.mode ?? "guardian"}
+            capabilities={info?.capabilities}
             prefill={enviar && enviar.slug === o.slug && o.status === "pagado" ? enviar.evidencia : null}
             onChange={() => load(seller.pubkey)}
           />
         ))}
       </section>
+      <p className="text-center text-xs text-slate-500">Modo práctica: no se mueve dinero real. {DOLLAR_NOTE}</p>
     </div>
   );
 }
 
 function CreateLink({ sellerPubkey, fx, title, demo, onCreated }: { sellerPubkey: string; fx: number; title: string; demo: boolean; onCreated: (slug: string) => void }) {
-  const [f, setF] = useState({ product: "", description: "", photoUrl: "", priceBs: "", deliveryDays: "3" });
+  const [f, setF] = useState({ product: "", description: "", photoUrl: "", priceBs: "", deliveryDays: "3", category: "Otro" });
+  const [feePayer, setFeePayer] = useState<FeePayer>("comprador");
   const [demoWindow, setDemoWindow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
   const price = Number(f.priceBs.replace(",", "."));
+  const preview = price > 0 ? linkAmounts(Math.round(price * 100), fx, feePayer) : null;
+  const sellerGets = preview ? (feePayer === "comprador" ? price : unitsToNumber(preview.amount) * fx * (1 - 0.023)) : 0;
+  const buyerPays = preview ? unitsToNumber(preview.amount) * fx : 0;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      const o = await api<{ slug: string }>("/api/links", { ...f, sellerPubkey, deliveryDays: Number(f.deliveryDays), demoWindow: demo && demoWindow });
-      setF({ product: "", description: "", photoUrl: "", priceBs: "", deliveryDays: "3" });
+      const o = await api<{ slug: string }>("/api/links", { ...f, sellerPubkey, deliveryDays: Number(f.deliveryDays), feePayer, demoWindow: demo && demoWindow });
+      setF({ product: "", description: "", photoUrl: "", priceBs: "", deliveryDays: "3", category: "Otro" });
       onCreated(o.slug);
     } catch (err) {
       setError((err as Error).message);
@@ -171,25 +195,16 @@ function CreateLink({ sellerPubkey, fx, title, demo, onCreated }: { sellerPubkey
         </label>
         <input id="product" className="input" value={f.product} onChange={set("product")} placeholder="Ej.: Zapatillas Nike talla 40" maxLength={80} required />
       </div>
-      <div>
-        <label className="label" htmlFor="description">
-          Descripción corta <span className="font-normal text-slate-400">(opcional)</span>
-        </label>
-        <textarea id="description" className="input min-h-20" value={f.description} onChange={set("description")} maxLength={280} placeholder="Color, estado, qué incluye…" />
-      </div>
-      <div>
-        <label className="label" htmlFor="photo">
-          Foto <span className="font-normal text-slate-400">(opcional, link https://…)</span>
-        </label>
-        <input id="photo" className="input" value={f.photoUrl} onChange={set("photoUrl")} inputMode="url" placeholder="https://…" />
-      </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="label" htmlFor="price">
-            Precio en Bs
+          <label className="label" htmlFor="category">
+            Categoría
           </label>
-          <input id="price" className="input" value={f.priceBs} onChange={set("priceBs")} inputMode="decimal" placeholder="450" required />
-          <p className="mt-1 text-xs text-slate-500">{price > 0 ? `≈ ${(price / fx).toLocaleString("es-BO", { maximumFractionDigits: 2, minimumFractionDigits: 2 })} USD de prueba` : `1 USD = Bs ${fx.toLocaleString("es-BO")}`}</p>
+          <select id="category" className="input" value={f.category} onChange={set("category")}>
+            {CATEGORIAS.map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="label" htmlFor="days">
@@ -204,11 +219,50 @@ function CreateLink({ sellerPubkey, fx, title, demo, onCreated }: { sellerPubkey
           </select>
         </div>
       </div>
+      <div>
+        <label className="label" htmlFor="description">
+          Descripción corta <span className="font-normal text-slate-400">(opcional)</span>
+        </label>
+        <textarea id="description" className="input min-h-20" value={f.description} onChange={set("description")} maxLength={280} placeholder="Color, estado, qué incluye…" />
+      </div>
+      <div>
+        <label className="label" htmlFor="photo">
+          Foto <span className="font-normal text-slate-400">(opcional, link https://…)</span>
+        </label>
+        <input id="photo" className="input" value={f.photoUrl} onChange={set("photoUrl")} inputMode="url" placeholder="https://…" />
+      </div>
+      <div>
+        <label className="label" htmlFor="price">
+          Precio en Bs
+        </label>
+        <input id="price" className="input" value={f.priceBs} onChange={set("priceBs")} inputMode="decimal" placeholder="450" required />
+      </div>
+      <fieldset className="space-y-2" data-testid="quien-paga">
+        <legend className="label">¿Quién paga la protección?</legend>
+        <label className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 text-sm ${feePayer === "comprador" ? "border-brand-500 bg-brand-50" : "border-slate-200"}`}>
+          <input type="radio" name="fee" className="mt-1" checked={feePayer === "comprador"} onChange={() => setFeePayer("comprador")} />
+          <span>
+            <strong>El comprador</strong> ({PROTECCION.pct.toLocaleString("es-BO")}%, mín. Bs {PROTECCION.minBs}, máx. Bs {PROTECCION.maxBs}). Tú recibes el precio completo.
+          </span>
+        </label>
+        <label className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 text-sm ${feePayer === "vendedor" ? "border-brand-500 bg-brand-50" : "border-slate-200"}`}>
+          <input type="radio" name="fee" className="mt-1" checked={feePayer === "vendedor"} onChange={() => setFeePayer("vendedor")} />
+          <span>
+            <strong>Yo la regalo</strong> (2% de mi venta). Tu cliente paga solo el precio.
+          </span>
+        </label>
+        {preview && (
+          <p className="text-xs text-slate-600" data-testid="vista-previa-link">
+            Tu cliente paga <strong>Bs {nf(buyerPays)}</strong> y tú recibes <strong>Bs {nf(sellerGets)}</strong>
+            {feePayer === "vendedor" ? " (descontados 2% de plataforma y 0,3% de Trustless Work)" : ""}.
+          </p>
+        )}
+      </fieldset>
       {demo && (
         <label className="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
           <input type="checkbox" className="mt-1" checked={demoWindow} onChange={(e) => setDemoWindow(e.target.checked)} />
           <span>
-            <strong>Plazo corto de demo:</strong> liberación automática a los 2 minutos del pago (en vez de días de entrega + 3 días).
+            <strong>Plazo corto de demo:</strong> liberación automática a los 2 minutos del pago.
           </span>
         </label>
       )}
@@ -224,49 +278,29 @@ function OrderCard({
   o,
   store,
   sellerPubkey,
-  platformFeeBps,
   mode,
+  capabilities,
   prefill,
   onChange,
 }: {
   o: SellerOrder;
   store: string;
   sellerPubkey: string;
-  platformFeeBps: number;
   mode: "direct" | "guardian";
+  capabilities?: { extend: boolean; clockFromShipping: boolean };
   prefill: string | null;
   onChange: () => void;
 }) {
-  const [evidence, setEvidence] = useState(prefill ?? "");
+  const [reply, setReply] = useState(o.seller_reply ?? "");
+  const [error, setError] = useState<string | null>(null);
   const ref = useRef<HTMLElement>(null);
   const focused = prefill !== null;
-  useEffect(() => {
-    if (prefill === null) return;
-    setEvidence((cur) => cur || prefill);
-    ref.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [prefill]);
-  const [reply, setReply] = useState(o.seller_reply ?? "");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const progress = useProgress();
   const url = linkUrl(o.slug);
   const d = { product: o.product, price: fmtBs(o.price_bs_cents), url, store, evidence: o.shipped_evidence, reason: o.dispute_reason, buyerPct: o.buyer_bps != null ? o.buyer_bps / 100 : undefined };
 
-  async function ship(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    progress.reset();
-    try {
-      const prepared = await api<PreparedTx>(`/api/orders/${o.slug}/action`, { action: "ship", signer: sellerPubkey, evidence });
-      await signAndSubmit(getWallet("vendedor"), prepared, progress.push);
-      onChange();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
+  useEffect(() => {
+    if (prefill !== null) ref.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [prefill]);
 
   async function sendReply(e: React.FormEvent) {
     e.preventDefault();
@@ -283,9 +317,10 @@ function OrderCard({
     <article ref={ref} className={`card space-y-4 ${focused ? "ring-2 ring-brand-500" : ""}`} data-testid={`pedido-${o.slug}`}>
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
+          <p className="text-xs font-semibold text-brand-700">{o.code}</p>
           <h3 className="truncate font-semibold">{o.product}</h3>
           <p className="muted">
-            {fmtBs(o.price_bs_cents)} · ≈ {fmtUsd(o.amount_units)} USD de prueba · {fmtDate(o.created_at)}
+            {fmtBs(o.price_bs_cents)} · {o.fee_payer === "comprador" ? "protección la paga el comprador" : "protección la regalas tú"} · {fmtDate(o.created_at)}
           </p>
         </div>
         <StatusBadge status={o.status} />
@@ -298,22 +333,20 @@ function OrderCard({
         </div>
       )}
 
+      {o.recipient_name && o.status !== "esperando_pago" && (
+        <p data-testid="datos-entrega-vendedor" className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+          📍 Envía a: <strong>{o.recipient_name}</strong> · {o.dest_city}
+          {o.pref_agency ? ` · agencia preferida: ${o.pref_agency}` : ""}
+        </p>
+      )}
+
       {o.status === "pagado" && (
         <>
           <div className="rounded-xl bg-sky-50 p-3 text-sm text-sky-900">
-            💰 Tu cliente pagó y la plata está guardada en el contrato. Despacha y marca el pedido como enviado.
-            {focused && <span className="mt-1 block font-semibold">Vienes desde el asistente de WhatsApp: revisa la guía y confirma con tu billetera.</span>}
+            💰 Tu cliente pagó y el pago está guardado en el contrato. Despacha y registra el envío.
+            {focused && <span className="mt-1 block font-semibold">Vienes desde el asistente de WhatsApp: revisa la guía y confirma con tu cuenta.</span>}
           </div>
-          <form onSubmit={ship} className="space-y-2">
-            <label className="label" htmlFor={`ev-${o.slug}`}>
-              Código de encomienda o link de la foto del envío
-            </label>
-            <input id={`ev-${o.slug}`} className="input" value={evidence} onChange={(e) => setEvidence(e.target.value)} placeholder="Ej.: SRV-2026-118734" required />
-            <button className="btn-primary w-full" disabled={busy}>
-              {busy ? <Spinner /> : null} Marcar como enviado
-            </button>
-          </form>
-          <Progress steps={progress.steps} />
+          <ShipForm o={o} sellerPubkey={sellerPubkey} prefill={prefill} onDone={onChange} />
           <WhatsAppBox title="Mensaje para tu cliente" text={waText("despacho", d)} />
         </>
       )}
@@ -321,18 +354,18 @@ function OrderCard({
       {o.status === "enviado" && (
         <>
           <p className="text-sm text-slate-600">
-            📦 Enviado con: <strong>{o.shipped_evidence}</strong>. Cuando tu cliente confirme, la plata se libera a tu billetera.
+            📦 Enviado: <strong>{[o.ship_company, o.ship_tracking && `guía ${o.ship_tracking}`, o.ship_weight && `${o.ship_weight} kg`].filter(Boolean).join(" · ")}</strong>. Cuando
+            tu cliente confirme, se te paga.
           </p>
           <WhatsAppBox title="Avísale a tu cliente" text={waText("enviado", d)} />
         </>
       )}
-
-      <Countdown slug={o.slug} deadline={o.deadline} status={o.status} mode={mode} onReleased={onChange} />
+      <Countdown slug={o.slug} deadline={o.deadline} status={o.status} mode={mode} onReleased={onChange} capabilities={capabilities} role="vendedor" />
 
       {o.status === "liberado" && (
         <>
-          <p className="text-sm font-medium text-brand-800">✅ Tu cliente confirmó. La plata ya está en tu billetera.</p>
-          <Breakdown money={o} platformFeeBps={platformFeeBps} />
+          <p className="text-sm font-medium text-brand-800">✅ Tu cliente confirmó. Ya se te pagó.</p>
+          <Breakdown money={o} fx={o.fx} feePayer={o.fee_payer} platformBps={o.platform_bps ?? 200} />
         </>
       )}
 
@@ -341,18 +374,13 @@ function OrderCard({
           <div className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
             <p className="font-semibold">⚠️ Reclamo abierto: {o.dispute_reason}</p>
             {o.dispute_text && <p className="mt-1">“{o.dispute_text}”</p>}
-            {o.dispute_photo && (
-              <a className="underline" href={o.dispute_photo} target="_blank" rel="noreferrer">
-                Ver foto
-              </a>
-            )}
-            <p className="mt-1 text-xs">La plata queda congelada en el contrato hasta que decida el árbitro.</p>
+            <p className="mt-1 text-xs">La plata queda congelada en el contrato hasta que decida el revisor. Responde dentro de 48 h.</p>
           </div>
           <form onSubmit={sendReply} className="space-y-2">
             <label className="label" htmlFor={`rp-${o.slug}`}>
-              Tu versión para el árbitro
+              Tu versión para el revisor
             </label>
-            <textarea id={`rp-${o.slug}`} className="input min-h-20" value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Cuéntale al árbitro qué pasó y agrega links a fotos o chats." />
+            <textarea id={`rp-${o.slug}`} className="input min-h-20" value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Comprobante de la empresa, foto del producto en el paquete con el código del pedido…" />
             <button className="btn-secondary w-full">{o.seller_reply ? "Actualizar mi versión" : "Enviar mi versión"}</button>
           </form>
         </>
@@ -360,8 +388,8 @@ function OrderCard({
 
       {o.status === "resuelto" && (
         <>
-          <p className="text-sm font-medium text-violet-800">⚖️ El árbitro resolvió el reclamo.</p>
-          <SplitView money={o} buyerBps={o.buyer_bps} />
+          <p className="text-sm font-medium text-violet-800">⚖️ El revisor resolvió el reclamo.</p>
+          <SplitView money={o} buyerBps={o.buyer_bps} fx={o.fx} />
           <WhatsAppBox title="Mensaje para tu cliente" text={waText("resuelto", d)} />
         </>
       )}
@@ -370,15 +398,105 @@ function OrderCard({
 
       {o.txs.length > 0 && (
         <details className="group">
-          <summary className="cursor-pointer text-sm font-medium text-slate-600">Transacciones ({o.txs.length})</summary>
+          <summary className="cursor-pointer text-sm font-medium text-slate-600">Movimientos ({o.txs.length})</summary>
           <TxList txs={o.txs} />
         </details>
       )}
       {o.escrow_id && (
         <p className="text-xs text-slate-500">
-          Contrato del pedido: <ExplorerLink href={explorer.contract(o.escrow_id)}>{o.escrow_id}</ExplorerLink>
+          <ExplorerLink href={explorer.contract(o.escrow_id)}>Ver registro público del pedido</ExplorerLink>
         </p>
       )}
     </article>
+  );
+}
+
+/** Evidencia de envío estructurada: empresa, guía, peso, foto, destino (e IMEI si es celular). */
+function ShipForm({ o, sellerPubkey, prefill, onDone }: { o: SellerOrder; sellerPubkey: string; prefill: string | null; onDone: () => void }) {
+  const [f, setF] = useState({ company: "", tracking: prefill ?? "", weight: "", photo: "", city: o.dest_city ?? "", imei: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const progress = useProgress();
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
+  const id = (k: string) => `${k}-${o.slug}`;
+
+  useEffect(() => {
+    if (prefill) setF((cur) => ({ ...cur, tracking: cur.tracking || prefill }));
+  }, [prefill]);
+
+  async function ship(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    progress.reset();
+    try {
+      const prepared = await api<PreparedTx>(`/api/orders/${o.slug}/action`, { action: "ship", signer: sellerPubkey, ...f });
+      await signAndSubmit(getWallet("vendedor"), prepared, progress.push);
+      onDone();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={ship} className="space-y-3" data-testid="form-envio">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="label" htmlFor={id("company")}>
+            Empresa de envío
+          </label>
+          <select id={id("company")} className="input" value={f.company} onChange={set("company")} required>
+            <option value="">Elige…</option>
+            {EMPRESAS.map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="label" htmlFor={id("tracking")}>
+            Número de guía
+          </label>
+          <input id={id("tracking")} className="input" value={f.tracking} onChange={set("tracking")} placeholder="Ej.: SRV-2026-118734" />
+        </div>
+        <div>
+          <label className="label" htmlFor={id("weight")}>
+            Peso declarado (kg)
+          </label>
+          <input id={id("weight")} className="input" value={f.weight} onChange={set("weight")} inputMode="decimal" placeholder="1,2" required />
+        </div>
+        <div>
+          <label className="label" htmlFor={id("city")}>
+            Ciudad de destino
+          </label>
+          <select id={id("city")} className="input" value={f.city} onChange={set("city")} required>
+            <option value="">Elige…</option>
+            {CIUDADES.map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label className="label" htmlFor={id("photo")}>
+          Foto del paquete <span className="font-normal text-slate-400">(link; con el código {o.code} escrito a mano)</span>
+        </label>
+        <input id={id("photo")} className="input" value={f.photo} onChange={set("photo")} inputMode="url" placeholder="https://…" />
+      </div>
+      {o.category === "Celular" && (
+        <div>
+          <label className="label" htmlFor={id("imei")}>
+            IMEI del celular <span className="font-normal text-slate-400">(obligatorio; marca *#06# en el equipo)</span>
+          </label>
+          <input id={id("imei")} className="input" value={f.imei} onChange={set("imei")} inputMode="numeric" placeholder="15 dígitos" />
+        </div>
+      )}
+      <ErrorBox error={error} />
+      <button className="btn-primary w-full" disabled={busy}>
+        {busy ? <Spinner /> : null} Marcar como enviado
+      </button>
+      <Progress steps={progress.steps} />
+    </form>
   );
 }

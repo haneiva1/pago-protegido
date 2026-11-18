@@ -6,5 +6,5 @@ export const POST = (req: Request) =>
   handle(async () => {
     checkArbitro(req);
     const b = await body(req);
-    return resolveDispute(b.slug, b.buyerBps);
+    return resolveDispute(b.slug, b.buyerBps, b.reason);
   });

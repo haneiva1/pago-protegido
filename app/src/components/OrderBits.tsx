@@ -1,35 +1,33 @@
 "use client";
 
-import { fmtDate, fmtUsd } from "@/lib/format";
+import { fmtBsUnits, fmtDate } from "@/lib/format";
 import type { MoneyView, PublicOrder, TxRow } from "@/lib/types";
 import { TxLink } from "./ui";
 
-/** Montos del caso feliz: vendedor, plataforma (2 %) y Trustless Work (0,3 %). */
-export function Breakdown({ money, platformFeeBps = 200 }: { money: MoneyView; platformFeeBps?: number }) {
+/** Cómo se repartió el pago liberado, en Bs. */
+export function Breakdown({ money, fx, feePayer, platformBps = 200 }: { money: MoneyView; fx: number; feePayer?: string | null; platformBps?: number }) {
   if (!money.breakdown) return null;
   const b = money.breakdown;
-  const pct = (platformFeeBps / 100).toLocaleString("es-BO");
+  const prot = BigInt(b.platform) + BigInt(b.tw);
   return (
-    <dl data-testid="desglose" className="grid grid-cols-3 gap-2 text-center">
+    <dl data-testid="desglose" className="grid grid-cols-2 gap-2 text-center">
       <div className="rounded-xl bg-brand-50 p-3 ring-1 ring-brand-100">
         <dt className="text-xs text-brand-800">Vendedor recibió</dt>
-        <dd className="mt-1 text-lg font-bold text-brand-900">{fmtUsd(b.seller)}</dd>
+        <dd className="mt-1 text-lg font-bold text-brand-900">{fmtBsUnits(b.seller, fx)}</dd>
       </div>
       <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
-        <dt className="text-xs text-slate-600">Plataforma ({pct}%)</dt>
-        <dd className="mt-1 text-lg font-semibold">{fmtUsd(b.platform)}</dd>
+        <dt className="text-xs text-slate-600">Protección{feePayer === "comprador" ? " (la pagó el comprador)" : ` (${(platformBps / 100).toLocaleString("es-BO")}% + 0,3%)`}</dt>
+        <dd className="mt-1 text-lg font-semibold">{fmtBsUnits(prot, fx)}</dd>
       </div>
-      <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
-        <dt className="text-xs text-slate-600">Trustless Work (0,3%)</dt>
-        <dd className="mt-1 text-lg font-semibold">{fmtUsd(b.tw)}</dd>
-      </div>
-      <p className="col-span-3 text-xs text-slate-500">Montos en USD de prueba, calculados igual que el contrato.</p>
+      <p className="col-span-2 text-xs text-slate-500">
+        Plataforma {fmtBsUnits(b.platform, fx)} · Trustless Work (0,3%) {fmtBsUnits(b.tw, fx)}. Montos calculados igual que el contrato.
+      </p>
     </dl>
   );
 }
 
-/** Montos del reparto del árbitro. */
-export function SplitView({ money, buyerBps }: { money: MoneyView; buyerBps: number | null }) {
+/** Montos del reparto del revisor, en Bs. */
+export function SplitView({ money, buyerBps, fx }: { money: MoneyView; buyerBps: number | null; fx: number }) {
   if (!money.split || buyerBps == null) return null;
   const s = money.split;
   const b = buyerBps / 100;
@@ -37,14 +35,14 @@ export function SplitView({ money, buyerBps }: { money: MoneyView; buyerBps: num
     <dl data-testid="reparto" className="grid grid-cols-2 gap-2 text-center">
       <div className="rounded-xl bg-violet-50 p-3 ring-1 ring-violet-100">
         <dt className="text-xs text-violet-800">Comprador ({b.toLocaleString("es-BO")}%)</dt>
-        <dd className="mt-1 text-lg font-bold text-violet-900">{fmtUsd(s.buyer)}</dd>
+        <dd className="mt-1 text-lg font-bold text-violet-900">{fmtBsUnits(s.buyer, fx)}</dd>
       </div>
       <div className="rounded-xl bg-violet-50 p-3 ring-1 ring-violet-100">
         <dt className="text-xs text-violet-800">Vendedor ({(100 - b).toLocaleString("es-BO")}%)</dt>
-        <dd className="mt-1 text-lg font-bold text-violet-900">{fmtUsd(s.seller)}</dd>
+        <dd className="mt-1 text-lg font-bold text-violet-900">{fmtBsUnits(s.seller, fx)}</dd>
       </div>
       <p className="col-span-2 text-xs text-slate-500">
-        Netos en USD de prueba. Comisiones: plataforma {fmtUsd(s.platform)} · Trustless Work {fmtUsd(s.tw)}.
+        Netos. Comisiones descontadas por el contrato: plataforma {fmtBsUnits(s.platform, fx)} · Trustless Work {fmtBsUnits(s.tw, fx)}.
       </p>
     </dl>
   );
@@ -61,24 +59,27 @@ const ICON: Record<string, string> = {
   resolucion: "⚖️",
 };
 
-/** Línea de tiempo del pedido, con "Ver en Stellar" en cada transacción. */
+/** Línea de tiempo del pedido, con "Ver registro público" en cada transacción. */
 export function Timeline({ order, txs }: { order: PublicOrder; txs: TxRow[] }) {
   const items: { key: string; title: string; when?: number | null; detail?: string; done: boolean; tone?: string; tx?: TxRow }[] = [];
   const tx = (kind: string) => txs.filter((t) => t.kind === kind).at(-1);
-  items.push({ key: "pago", title: "Pagado: la plata quedó guardada en el contrato", when: order.funded_at, done: Boolean(order.funded_at), tx: tx("fondeo") });
+  const envio = [order.ship_company, order.ship_tracking && `guía ${order.ship_tracking}`, order.ship_weight && `${order.ship_weight} kg`]
+    .filter(Boolean)
+    .join(" · ");
+  items.push({ key: "pago", title: "Pagaste: tu pago quedó guardado", when: order.funded_at, done: Boolean(order.funded_at), tx: tx("fondeo") });
   items.push({
     key: "envio",
-    title: "Enviado por el vendedor",
+    title: "El vendedor registró el envío",
     when: order.shipped_at,
-    detail: order.shipped_evidence ? `Evidencia: ${order.shipped_evidence}` : undefined,
+    detail: envio || order.shipped_evidence || undefined,
     done: Boolean(order.shipped_at),
     tx: tx("envio"),
   });
   if (order.status === "en_disputa" || order.status === "resuelto") {
     items.push({ key: "disputa", title: "Reclamo abierto: la plata quedó congelada", when: order.disputed_at, detail: order.dispute_reason ?? undefined, done: true, tone: "amber", tx: tx("disputa") });
-    items.push({ key: "resuelto", title: "El árbitro repartió la plata", when: order.resolved_at, done: order.status === "resuelto", tone: "violet", tx: tx("resolucion") });
+    items.push({ key: "resuelto", title: "El revisor repartió la plata", when: order.resolved_at, done: order.status === "resuelto", tone: "violet", tx: tx("resolucion") });
   } else {
-    items.push({ key: "liberado", title: "Liberado al vendedor", when: order.released_at, done: order.status === "liberado", tx: tx("liberacion") });
+    items.push({ key: "liberado", title: "Se pagó al vendedor", when: order.released_at, done: order.status === "liberado", tx: tx("liberacion") });
   }
   const dot = (done: boolean, tone?: string) =>
     done ? (tone === "amber" ? "bg-amber-500" : tone === "violet" ? "bg-violet-600" : "bg-brand-600") : "bg-slate-300";

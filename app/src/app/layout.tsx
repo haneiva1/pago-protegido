@@ -4,8 +4,8 @@ import Link from "next/link";
 import { WalletRuntime } from "@/components/WalletRuntime";
 import "./globals.css";
 
-const OG_TITLE = "Pago Protegido: vende por redes sin que desconfíen de ti";
-const OG_DESC = "Tu cliente paga por adelantado y su plata queda protegida hasta que recibe. Tú cobras seguro y sin comprobantes falsos.";
+const OG_TITLE = "Pago Protegido: vende a otras ciudades sin que desconfíen de ti";
+const OG_DESC = "Pago contra confirmación de entrega: tu cliente paga por adelantado y su plata queda guardada hasta que recibe. También entre ciudades.";
 
 /** WhatsApp y las redes necesitan URLs absolutas: se arman con el host del request (sirve también detrás de un túnel). */
 export async function generateMetadata(): Promise<Metadata> {
@@ -16,7 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase: new URL(`${proto}://${host}`),
     title: "Pago Protegido",
-    description: "Links de pago protegidos para vender por redes sociales. Versión de prueba en Stellar testnet.",
+    description: "Pago contra confirmación de entrega para ventas entre ciudades por encomienda. Modo práctica.",
     openGraph: { title: OG_TITLE, description: OG_DESC, type: "website", siteName: "Pago Protegido", locale: "es_BO" },
     twitter: { card: "summary_large_image", title: OG_TITLE, description: OG_DESC },
   };
@@ -39,7 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es">
       <body className="min-h-screen">
         <div className="bg-amber-50 px-4 py-1.5 text-center text-xs text-amber-800">
-          Versión de prueba en Stellar testnet: se usan USD de prueba, no plata real.
+          Modo práctica: no se mueve dinero real.
         </div>
         <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/90 backdrop-blur">
           <nav className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
@@ -63,9 +63,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main className="mx-auto max-w-5xl px-4 pb-16 pt-6">{children}</main>
         <WalletRuntime />
         <footer className="border-t border-slate-200 py-6 text-center text-xs text-slate-500">
-          Pago Protegido · prueba en Stellar testnet · escrow de Trustless Work ·{" "}
-          <Link href="/arbitro" className="underline">
-            Panel del árbitro
+          Pago Protegido · modo práctica ·{" "}
+          <Link href="/verificar" className="underline">
+            Verificar un link
+          </Link>{" "}
+          ·{" "}
+          <Link href="/piloto" className="underline">
+            Únete al piloto
+          </Link>{" "}
+          ·{" "}
+          <Link href="/pedir" className="underline">
+            Pide compra protegida
+          </Link>{" "}
+          ·{" "}
+          <Link href="/revisor" className="underline">
+            Panel del revisor
           </Link>
         </footer>
       </body>

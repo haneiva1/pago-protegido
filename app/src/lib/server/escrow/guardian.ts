@@ -49,7 +49,7 @@ const GUARDIAN_ERRORS: Record<number, string> = {
   11: "El contrato del pedido no tiene los roles del modo guardián",
   16: "El contrato no coincide con el que viste",
   19: "Todavía no venció el plazo de liberación automática",
-  20: "Hay un reclamo abierto: decide el árbitro",
+  20: "Hay un reclamo abierto: decide el revisor",
   21: "El pago ya fue liberado",
   22: "El reclamo ya fue resuelto",
   23: "El vendedor todavía no marcó el envío",
@@ -153,7 +153,7 @@ export class GuardianEscrowService implements EscrowService {
       .map((f) => f.name.toString());
     const balance = await tokenBalance(ctx.escrowId);
     const a = cfg().arbitro;
-    const call = `escrow.resolve_dispute(dispute_resolver = cuenta árbitro, distribuciones = { tercera cuenta: 100% })`;
+    const call = `escrow.resolve_dispute(dispute_resolver = cuenta del revisor, distribuciones = { tercera cuenta: todo el saldo })`;
     try {
       await simulate(ctx.escrowId, "resolve_dispute", [addr(a.publicKey()), addr(cfg().twfee), distributionsScVal([{ address: foreign, amount: balance }])]);
       return { rejected: false, by: "contrato", call, detail: "La simulación no falló: revisar roles del escrow." };
@@ -161,7 +161,7 @@ export class GuardianEscrowService implements EscrowService {
       const err = e as ChainError;
       const extra = withDest.length
         ? ` Atención: pp_arbiter expone funciones con destinos: ${withDest.join(", ")}.`
-        : " Y pp_arbiter, el único árbitro del contrato, no tiene ninguna función que reciba una cuenta de destino.";
+        : " Y pp_arbiter, el único revisor del contrato, no tiene ninguna función que reciba una cuenta de destino.";
       return {
         rejected: true,
         by: "contrato",

@@ -3,23 +3,28 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ErrorBox, Progress, Spinner, useProgress } from "@/components/ui";
+import { CIUDADES } from "@/lib/format";
 import { WALLET_KIND, activateWallet, api, getWallet } from "@/lib/wallet";
 
-const PASOS = ["Tu tienda", "Tu WhatsApp", "Tu billetera"];
+const PASOS = ["Tu tienda", "Tu WhatsApp", "Tu cuenta de cobro"];
 
 export default function Vender() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [store, setStore] = useState("");
+  const [city, setCity] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
+  const [pilotId, setPilotId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const progress = useProgress();
 
   useEffect(() => {
-    // El bot manda a /vender?wa=591… (APP-ENDPOINTS §5): número precargado.
-    const wa = new URLSearchParams(window.location.search).get("wa");
+    const qs = new URLSearchParams(window.location.search);
+    // El bot manda a /vender?wa=591… (APP-ENDPOINTS §5): número precargado. /piloto manda ?piloto=<id>.
+    const wa = qs.get("wa");
     if (wa) setWhatsapp(wa.replace(/[^\d+ ]/g, ""));
+    if (qs.get("piloto")) setPilotId(qs.get("piloto"));
   }, []);
 
   useEffect(() => {
@@ -28,18 +33,18 @@ export default function Vender() {
     if (pk) api(`/api/sellers/${pk}`).then(() => router.replace("/panel")).catch(() => {});
   }, [router]);
 
-  async function crearBilletera() {
+  async function crearCuenta() {
     setBusy(true);
     setError(null);
     try {
       const wallet = getWallet("vendedor");
-      const L = WALLET_KIND === "pollar" ? "Ingresando con tu cuenta (Pollar)" : "Creando tu billetera en este dispositivo";
+      const L = WALLET_KIND === "pollar" ? "Ingresando con tu cuenta" : "Creando tu cuenta de cobro en este dispositivo";
       progress.push(L);
       const pubkey = await wallet.connect();
+      await activateWallet(wallet);
       progress.finish(L);
-      await activateWallet(wallet, progress.push);
       progress.push("Guardando tu tienda");
-      await api("/api/sellers", { pubkey, storeName: store, whatsapp });
+      await api("/api/sellers", { pubkey, storeName: store, whatsapp, city, pilotId });
       progress.finish("Guardando tu tienda");
       router.push("/panel?primer=1");
     } catch (e) {
@@ -52,6 +57,7 @@ export default function Vender() {
     e.preventDefault();
     setError(null);
     if (step === 0 && store.trim().length < 2) return setError("Escribe el nombre de tu tienda");
+    if (step === 0 && !city) return setError("Elige tu ciudad");
     if (step === 1 && whatsapp.replace(/\D/g, "").length < 7) return setError("Escribe tu número de WhatsApp");
     setStep(step + 1);
   };
@@ -69,6 +75,8 @@ export default function Vender() {
         ))}
       </ol>
 
+      {pilotId && <p className="mb-4 rounded-xl bg-brand-50 p-3 text-sm text-brand-900">Vienes del piloto: tu tienda queda marcada como vendedor del piloto.</p>}
+
       <div className="card">
         {step === 0 && (
           <form onSubmit={next} className="space-y-4">
@@ -79,6 +87,17 @@ export default function Vender() {
                 Nombre de la tienda
               </label>
               <input id="store" className="input" autoFocus value={store} onChange={(e) => setStore(e.target.value)} placeholder="Ej.: Tienda Sofi" maxLength={60} />
+            </div>
+            <div>
+              <label className="label" htmlFor="city">
+                Tu ciudad
+              </label>
+              <select id="city" className="input" value={city} onChange={(e) => setCity(e.target.value)}>
+                <option value="">Elige…</option>
+                {CIUDADES.map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
             </div>
             <ErrorBox error={error} />
             <button className="btn-primary w-full">Continuar</button>
@@ -107,34 +126,29 @@ export default function Vender() {
 
         {step === 2 && (
           <div className="space-y-4">
-            <h1 className="text-2xl font-bold">Tu billetera</h1>
+            <h1 className="text-2xl font-bold">Tu cuenta de cobro</h1>
             {WALLET_KIND === "pollar" ? (
               <p className="text-slate-600">
-                Aquí recibes lo que vendes, en dólares digitales. Ingresa con Google o tu email y la billetera se crea sola, sin frases
-                secretas. Las comisiones de red las pagamos nosotros.
+                Aquí recibes lo que vendes. Ingresa con Google o tu correo y la cuenta se crea sola. Las comisiones de red las pagamos nosotros.
               </p>
             ) : (
               <p className="text-slate-600">
-                Aquí recibes lo que vendes, en dólares digitales. Se crea sola en este dispositivo: la llave queda solo contigo y nosotros
-                nunca la vemos. Las comisiones de red las pagamos nosotros.
+                Aquí recibes lo que vendes. Se crea sola en este dispositivo y solo tú puedes usarla: nosotros no podemos mover tu plata. Las comisiones de red
+                las pagamos nosotros.
               </p>
             )}
-            {WALLET_KIND === "local" && (
-              <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800">
-                Versión de prueba: la billetera se guarda en este navegador y usa USD de prueba de Stellar testnet.
-              </p>
-            )}
+            <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800">Modo práctica: no se mueve dinero real.</p>
             <Progress steps={progress.steps} />
             <ErrorBox error={error} />
-            <button className="btn-primary w-full" onClick={crearBilletera} disabled={busy}>
+            <button className="btn-primary w-full" onClick={crearCuenta} disabled={busy}>
               {busy ? (
                 <>
-                  <Spinner /> Creando tu billetera…
+                  <Spinner /> Creando tu cuenta…
                 </>
               ) : WALLET_KIND === "pollar" ? (
-                "Ingresar con Google o email y continuar"
+                "Ingresar con Google o correo y continuar"
               ) : (
-                "Crear mi billetera y continuar"
+                "Crear mi cuenta de cobro y continuar"
               )}
             </button>
             {!busy && (

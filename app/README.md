@@ -1,4 +1,4 @@
-# Pago Protegido: app web (testnet)
+# Pago Protegido: app web (testnet, modo práctica)
 
 Links de pago protegidos para ventas por redes:
 
@@ -10,6 +10,22 @@ Links de pago protegidos para ventas por redes:
 **Solo testnet.** La red está fija en el código. La moneda es LABUSD, que en pantalla se llama "USD de prueba". La rampa de bolivianos está simulada y la pantalla lo dice.
 
 Especificación: [`docs-pp/SPEC.md`](../../docs-pp/SPEC.md). Decisiones tomadas fuera del SPEC: [`DECISIONES.md`](DECISIONES.md).
+
+## Producto v2 (segmento: ventas entre ciudades por encomienda, Bs 300 a 3.000)
+
+- **Pago contra confirmación de entrega.**
+  - El comprador deja los datos de entrega y paga.
+  - El vendedor registra el envío con evidencia estructurada: empresa, guía, peso, foto, destino y, si es un celular, IMEI.
+  - "Pagar al vendedor (irreversible)" se habilita 2 h (misma ciudad) o 24 h (otra ciudad) después del envío, y pregunta antes si el producto está en sus manos. Con `PP_DEMO=1`, 1 minuto.
+  - "El vendedor me pide que confirme" abre un reclamo por presión.
+- **Quién paga la protección** se elige en cada link: el comprador (1,5%, mín. Bs 5, máx. Bs 50; el vendedor recibe el precio completo) o el vendedor (2%).
+- **Revisor de reclamos** (`/revisor`, antes "árbitro"): motivo obligatorio, reparto sin valor por defecto e historial de evidencia. La política de reclamos está en `/como-funciona#reclamos`.
+- **Páginas nuevas:**
+  - `/verificar` (con el código PP-#### del pedido);
+  - `/piloto` (lista de espera; `npm run piloto:csv` la exporta);
+  - `/pedir` (el comprador le pide a la tienda que venda protegido).
+- **Textos:** siempre Bs primero y nada de jerga técnica en las pantallas del comprador y del vendedor. El e2e falla si aparece una palabra prohibida (`revisarPalabras` en `e2e/pago-protegido.spec.ts`).
+- Todas las decisiones están en [`DECISIONES.md`](DECISIONES.md), puntos 61 a 76.
 
 ## Correrla en 3 comandos
 
@@ -169,7 +185,7 @@ npm run test:e2e
 ```
 
 - Hace su propio build en `.next-e2e/`, con la billetera local, y lo levanta en `http://localhost:3100` con una base aparte (`data/e2e.db`). No toca tu `npm run dev`.
-- Corre en **modo guardián**. Recorre seis escenarios con transacciones reales en testnet y tarda entre 10 y 14 minutos:
+- Corre en **modo guardián** y en **modo demo** (`PP_DEMO=1`), con una base nueva en cada corrida. Recorre siete escenarios con transacciones reales en testnet y tarda entre 12 y 16 minutos. Los de la ronda 6 son: fricción al confirmar, presión para confirmar → reclamo, los dos modelos de protección, datos de entrega, evidencia estructurada con IMEI, `/verificar`, `/pedir`, `/piloto` y el barrido de palabras prohibidas:
   1. **Caso feliz:** onboarding → link → pago con rampa simulada (sello "Contrato verificado") → enviado → "Recibí conforme". Verifica 37,58 / 0,77 / 0,12 USD de prueba.
   2. **Disputa:** pago → enviado → reclamo → versión del vendedor → vista previa con `pp_arbiter.quote` → intento de desvío rechazado por el contrato (`Error(Contract, #12)`) → `pp_arbiter.resolve` 70/30 (17,54 / 7,52).
   3. **Liberación automática:** link con plazo de demo de 2 minutos → pago → enviado → cuenta regresiva → "Liberar ahora (plazo vencido)" → `pp_guardian.auto_release`.

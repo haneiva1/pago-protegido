@@ -56,7 +56,7 @@ function stop(code = 0) {
 process.on("SIGINT", () => stop(0));
 process.on("SIGTERM", () => stop(0));
 
-start("app", "npx", ["next", "dev", "-p", APP_PORT], { cwd: APP, env: { ...process.env, PORT: APP_PORT } });
+start("app", "npx", ["next", "dev", "-p", APP_PORT], { cwd: APP, env: { ...process.env, PORT: APP_PORT, PP_DEMO: process.env.PP_DEMO ?? "1" } });
 start("bot", "npm", ["run", "sim"], {
   cwd: BOT,
   env: {

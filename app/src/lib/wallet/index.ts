@@ -13,7 +13,8 @@ const cache = new Map<WalletRole, WalletProvider>();
 export function getWallet(role: WalletRole): WalletProvider {
   let w = cache.get(role);
   if (!w) {
-    w = WALLET_KIND === "pollar" ? new PollarWallet(role) : new LocalWallet(role);
+    // El comprador nunca ve un login: usa la llave local invisible. Pollar (Google/correo) es solo para el vendedor.
+    w = WALLET_KIND === "pollar" && role === "vendedor" ? new PollarWallet(role) : new LocalWallet(role);
     cache.set(role, w);
   }
   return w;

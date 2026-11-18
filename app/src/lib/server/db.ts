@@ -80,13 +80,73 @@ CREATE TABLE IF NOT EXISTS pp_events (
   data_json TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS pp_events_escrow ON pp_events(escrow);
+-- Historial de versiones de la evidencia (envío, reclamo, respuesta), con hora.
+CREATE TABLE IF NOT EXISTS evidence (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_slug TEXT NOT NULL,
+  actor TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  data_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS evidence_order ON evidence(order_slug);
+-- Lista de espera del piloto (/piloto).
+CREATE TABLE IF NOT EXISTS pilot_waitlist (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  store TEXT NOT NULL,
+  city TEXT NOT NULL,
+  sells TEXT NOT NULL,
+  ships_to TEXT NOT NULL,
+  avg_ticket TEXT NOT NULL,
+  whatsapp TEXT NOT NULL,
+  consent INTEGER NOT NULL,
+  seller_pubkey TEXT,
+  created_at INTEGER NOT NULL
+);
 `;
+
+// Columnas agregadas después de la primera versión (migración en caliente de bases existentes).
+const MIGRATIONS: Record<string, [string, string][]> = {
+  sellers: [
+    ["city", "TEXT"],
+    ["pilot", "INTEGER NOT NULL DEFAULT 0"],
+    ["pressure_reports", "INTEGER NOT NULL DEFAULT 0"],
+  ],
+  orders: [
+    ["window_secs", "INTEGER"],
+    ["verify_json", "TEXT"],
+    ["buyer_whatsapp", "TEXT"],
+    ["code", "TEXT"],
+    ["category", "TEXT"],
+    ["fee_payer", "TEXT"],
+    ["price_units", "TEXT"],
+    ["platform_bps", "INTEGER"],
+    ["recipient_name", "TEXT"],
+    ["dest_city", "TEXT"],
+    ["pref_agency", "TEXT"],
+    ["delivery_hash", "TEXT"],
+    ["ship_company", "TEXT"],
+    ["ship_tracking", "TEXT"],
+    ["ship_weight", "TEXT"],
+    ["ship_photo", "TEXT"],
+    ["ship_city", "TEXT"],
+    ["ship_imei", "TEXT"],
+    ["confirm_after", "INTEGER"],
+    ["dispute_video", "TEXT"],
+    ["resolution_reason", "TEXT"],
+  ],
+};
 
 export interface SellerRow {
   pubkey: string;
   store_name: string;
   whatsapp: string;
   created_at: number;
+  city: string | null;
+  pilot: number;
+  pressure_reports: number;
 }
 
 export interface OrderRow {
@@ -95,7 +155,9 @@ export interface OrderRow {
   product: string;
   description: string;
   photo_url: string;
+  /** Precio del producto en centavos de Bs (lo que pide el vendedor). */
   price_bs_cents: number;
+  /** Total que entra al contrato (unidades de 7 decimales): precio + protección si la paga el comprador. */
   amount_units: string;
   fx: number;
   delivery_days: number;
@@ -119,6 +181,28 @@ export interface OrderRow {
   verify_json: string | null;
   /** Solo servidor: nunca va en vistas públicas (APP-ENDPOINTS §4). */
   buyer_whatsapp: string | null;
+  /** Código corto y legible del pedido (PP-4821). */
+  code: string | null;
+  category: string | null;
+  fee_payer: "comprador" | "vendedor" | null;
+  /** Precio del producto en unidades (lo que recibe el vendedor si el comprador paga la protección). */
+  price_units: string | null;
+  /** platform_fee del escrow de este pedido (bps). */
+  platform_bps: number | null;
+  /** Datos de entrega: solo servidor y panel del vendedor. */
+  recipient_name: string | null;
+  dest_city: string | null;
+  pref_agency: string | null;
+  delivery_hash: string | null;
+  ship_company: string | null;
+  ship_tracking: string | null;
+  ship_weight: string | null;
+  ship_photo: string | null;
+  ship_city: string | null;
+  ship_imei: string | null;
+  confirm_after: number | null;
+  dispute_video: string | null;
+  resolution_reason: string | null;
   buyer_bps: number | null;
   resolved_at: number | null;
   released_at: number | null;
@@ -146,6 +230,30 @@ export interface PendingRow {
   created_at: number;
 }
 
+export interface EvidenceRow {
+  id: number;
+  order_slug: string;
+  actor: string;
+  kind: string;
+  summary: string;
+  data_json: string;
+  created_at: number;
+}
+
+export interface PilotRow {
+  id: string;
+  name: string;
+  store: string;
+  city: string;
+  sells: string;
+  ships_to: string;
+  avg_ticket: string;
+  whatsapp: string;
+  consent: number;
+  seller_pubkey: string | null;
+  created_at: number;
+}
+
 const g = globalThis as unknown as { __ppDb?: Database.Database };
 
 export function db(): Database.Database {
@@ -158,11 +266,11 @@ export function db(): Database.Database {
   d.pragma("journal_mode = WAL");
   d.pragma("busy_timeout = 5000");
   d.exec(SCHEMA);
-  // Migración de bases creadas antes de la segunda ronda.
-  const cols = (d.prepare("PRAGMA table_info(orders)").all() as { name: string }[]).map((c) => c.name);
-  for (const [c, t] of [["window_secs", "INTEGER"], ["verify_json", "TEXT"], ["buyer_whatsapp", "TEXT"]]) {
-    if (!cols.includes(c)) d.exec(`ALTER TABLE orders ADD COLUMN ${c} ${t}`);
+  for (const [table, cols] of Object.entries(MIGRATIONS)) {
+    const have = (d.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
+    for (const [c, t] of cols) if (!have.includes(c)) d.exec(`ALTER TABLE ${table} ADD COLUMN ${c} ${t}`);
   }
+  d.exec(`CREATE UNIQUE INDEX IF NOT EXISTS orders_code ON orders(code)`);
   g.__ppDb = d;
   return d;
 }
@@ -170,13 +278,14 @@ export function db(): Database.Database {
 const now = () => Date.now();
 
 export const sellers = {
-  upsert(s: Omit<SellerRow, "created_at">) {
+  upsert(s: { pubkey: string; store_name: string; whatsapp: string; city: string | null; pilot: boolean }) {
     db()
       .prepare(
-        `INSERT INTO sellers (pubkey, store_name, whatsapp, created_at) VALUES (@pubkey, @store_name, @whatsapp, @created_at)
-         ON CONFLICT(pubkey) DO UPDATE SET store_name = excluded.store_name, whatsapp = excluded.whatsapp`,
+        `INSERT INTO sellers (pubkey, store_name, whatsapp, city, pilot, created_at) VALUES (@pubkey, @store_name, @whatsapp, @city, @pilot, @created_at)
+         ON CONFLICT(pubkey) DO UPDATE SET store_name = excluded.store_name, whatsapp = excluded.whatsapp,
+           city = COALESCE(excluded.city, sellers.city), pilot = MAX(sellers.pilot, excluded.pilot)`,
       )
-      .run({ ...s, created_at: now() });
+      .run({ ...s, pilot: s.pilot ? 1 : 0, created_at: now() });
   },
   get(pubkey: string): SellerRow | undefined {
     return db().prepare(`SELECT * FROM sellers WHERE pubkey = ?`).get(pubkey) as SellerRow | undefined;
@@ -185,26 +294,70 @@ export const sellers = {
   allNewestFirst(): SellerRow[] {
     return db().prepare(`SELECT * FROM sellers ORDER BY created_at DESC`).all() as SellerRow[];
   },
+  pilotPubkeys(): Set<string> {
+    return new Set((db().prepare(`SELECT pubkey FROM sellers WHERE pilot = 1`).all() as { pubkey: string }[]).map((r) => r.pubkey));
+  },
+  flagPressure(pubkey: string) {
+    db().prepare(`UPDATE sellers SET pressure_reports = pressure_reports + 1 WHERE pubkey = ?`).run(pubkey);
+  },
   completedSales(pubkey: string): number {
     const r = db()
       .prepare(`SELECT COUNT(*) AS n FROM orders WHERE seller_pubkey = ? AND status = 'liberado'`)
       .get(pubkey) as { n: number };
     return r.n;
   },
+  /** Reclamos del vendedor y cómo terminaron (tarjeta del vendedor en la página de pago). */
+  claimStats(pubkey: string) {
+    const rows = db()
+      .prepare(`SELECT status, buyer_bps FROM orders WHERE seller_pubkey = ? AND dispute_by IS NOT NULL`)
+      .all(pubkey) as { status: string; buyer_bps: number | null }[];
+    const resolved = rows.filter((r) => r.status === "resuelto" && r.buyer_bps != null);
+    return {
+      total: rows.length,
+      pendientes: rows.filter((r) => r.status === "en_disputa").length,
+      a_favor_comprador: resolved.filter((r) => r.buyer_bps === 10000).length,
+      a_favor_vendedor: resolved.filter((r) => r.buyer_bps === 0).length,
+      repartidos: resolved.filter((r) => r.buyer_bps! > 0 && r.buyer_bps! < 10000).length,
+    };
+  },
 };
 
+type NewOrder = Pick<
+  OrderRow,
+  | "slug"
+  | "seller_pubkey"
+  | "product"
+  | "description"
+  | "photo_url"
+  | "price_bs_cents"
+  | "amount_units"
+  | "fx"
+  | "delivery_days"
+  | "window_secs"
+  | "code"
+  | "category"
+  | "fee_payer"
+  | "price_units"
+  | "platform_bps"
+>;
+
 export const orders = {
-  insert(o: Pick<OrderRow, "slug" | "seller_pubkey" | "product" | "description" | "photo_url" | "price_bs_cents" | "amount_units" | "fx" | "delivery_days" | "window_secs">) {
+  insert(o: NewOrder) {
     const t = now();
     db()
       .prepare(
-        `INSERT INTO orders (slug, seller_pubkey, product, description, photo_url, price_bs_cents, amount_units, fx, delivery_days, window_secs, status, created_at, updated_at)
-         VALUES (@slug, @seller_pubkey, @product, @description, @photo_url, @price_bs_cents, @amount_units, @fx, @delivery_days, @window_secs, 'esperando_pago', @t, @t)`,
+        `INSERT INTO orders (slug, seller_pubkey, product, description, photo_url, price_bs_cents, amount_units, fx, delivery_days, window_secs,
+           code, category, fee_payer, price_units, platform_bps, status, created_at, updated_at)
+         VALUES (@slug, @seller_pubkey, @product, @description, @photo_url, @price_bs_cents, @amount_units, @fx, @delivery_days, @window_secs,
+           @code, @category, @fee_payer, @price_units, @platform_bps, 'esperando_pago', @t, @t)`,
       )
       .run({ ...o, t });
   },
   get(slug: string): OrderRow | undefined {
     return db().prepare(`SELECT * FROM orders WHERE slug = ?`).get(slug) as OrderRow | undefined;
+  },
+  byCode(code: string): OrderRow | undefined {
+    return db().prepare(`SELECT * FROM orders WHERE code = ?`).get(code) as OrderRow | undefined;
   },
   bySeller(pubkey: string): OrderRow[] {
     return db().prepare(`SELECT * FROM orders WHERE seller_pubkey = ? ORDER BY created_at DESC`).all(pubkey) as OrderRow[];
@@ -243,6 +396,37 @@ export const txs = {
   },
   forOrder(slug: string): TxRow[] {
     return db().prepare(`SELECT * FROM txs WHERE order_slug = ? ORDER BY id ASC`).all(slug) as TxRow[];
+  },
+};
+
+export const evidence = {
+  add(e: { order_slug: string; actor: string; kind: string; summary: string; data: object }) {
+    db()
+      .prepare(`INSERT INTO evidence (order_slug, actor, kind, summary, data_json, created_at) VALUES (?, ?, ?, ?, ?, ?)`)
+      .run(e.order_slug, e.actor, e.kind, e.summary, JSON.stringify(e.data), now());
+  },
+  forOrder(slug: string): EvidenceRow[] {
+    return db().prepare(`SELECT * FROM evidence WHERE order_slug = ? ORDER BY id ASC`).all(slug) as EvidenceRow[];
+  },
+};
+
+export const pilot = {
+  add(p: Omit<PilotRow, "seller_pubkey" | "created_at">) {
+    db()
+      .prepare(
+        `INSERT INTO pilot_waitlist (id, name, store, city, sells, ships_to, avg_ticket, whatsapp, consent, created_at)
+         VALUES (@id, @name, @store, @city, @sells, @ships_to, @avg_ticket, @whatsapp, @consent, @created_at)`,
+      )
+      .run({ ...p, created_at: now() });
+  },
+  get(id: string): PilotRow | undefined {
+    return db().prepare(`SELECT * FROM pilot_waitlist WHERE id = ?`).get(id) as PilotRow | undefined;
+  },
+  linkSeller(id: string, pubkey: string) {
+    db().prepare(`UPDATE pilot_waitlist SET seller_pubkey = ? WHERE id = ?`).run(pubkey, id);
+  },
+  all(): PilotRow[] {
+    return db().prepare(`SELECT * FROM pilot_waitlist ORDER BY created_at ASC`).all() as PilotRow[];
   },
 };
 

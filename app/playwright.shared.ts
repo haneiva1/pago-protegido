@@ -50,7 +50,7 @@ export function makeConfig(o: {
       {
         // Build propio (.next-e2e) con la billetera local y base de datos aparte.
         command: `npm run build && npx next start -p ${o.port}`,
-        env: { NEXT_DIST_DIR: ".next-e2e", NEXT_PUBLIC_WALLET: "local", PP_DB_PATH: o.db, PP_MODE: process.env.PP_MODE || "guardian" },
+        env: { NEXT_DIST_DIR: ".next-e2e", NEXT_PUBLIC_WALLET: "local", PP_DB_PATH: o.db, PP_MODE: process.env.PP_MODE || "guardian", PP_DEMO: "1" },
         url: `${APP_URL}/api/info`,
         timeout: 10 * 60_000,
         reuseExistingServer: !process.env.CI,

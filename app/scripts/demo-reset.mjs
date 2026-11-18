@@ -60,7 +60,7 @@ if (existsSync(DB)) {
 console.log(`Levantando la app en ${BASE} para sembrar pedidos reales de testnet…`);
 const app = spawn("npx", ["next", "dev", "-p", PORT], {
   cwd: APP,
-  env: { ...process.env, PP_DB_PATH: DB, PORT },
+  env: { ...process.env, PP_DB_PATH: DB, PORT, PP_DEMO: "1" }, // modo demo: se puede pagar al vendedor 1 minuto después del envío
   stdio: ["ignore", "ignore", "pipe"],
   detached: true,
 });
@@ -106,20 +106,21 @@ async function activate(kp) {
 }
 async function sale(seller, p) {
   const buyer = Keypair.random();
-  const link = await api("/api/links", { sellerPubkey: seller.publicKey(), ...p });
+  const { recipient: _r, city: _c, ship: _s, ...linkFields } = p;
+  const link = await api("/api/links", { sellerPubkey: seller.publicKey(), ...linkFields });
   console.log(`  · ${p.product} (Bs ${p.priceBs}) → /p/${link.slug}`);
   await activate(buyer);
   // El pago encadena varias transacciones: si la red falla, se reintenta (el flujo es idempotente).
   for (let i = 1; ; i++) {
     try {
-      await sign(buyer, await api(`/api/orders/${link.slug}/pay`, { buyer: buyer.publicKey(), whatsapp: BUYER_WA }));
+      await sign(buyer, await api(`/api/orders/${link.slug}/pay`, { buyer: buyer.publicKey(), whatsapp: BUYER_WA, recipient: p.recipient, city: p.city }));
       break;
     } catch (e) {
       if (i >= 3) throw e;
       console.log(`    reintento del pago (${e.message})`);
     }
   }
-  await sign(seller, await api(`/api/orders/${link.slug}/action`, { action: "ship", signer: seller.publicKey(), evidence: p.evidence }));
+  await sign(seller, await api(`/api/orders/${link.slug}/action`, { action: "ship", signer: seller.publicKey(), ...p.ship }));
   return { slug: link.slug, buyer };
 }
 
@@ -127,21 +128,58 @@ try {
   console.log("Sembrando:");
   const seller = Keypair.random();
   await activate(seller);
-  await api("/api/sellers", { pubkey: seller.publicKey(), storeName: "Tienda Sofi", whatsapp: SELLER_WA });
+  await api("/api/sellers", { pubkey: seller.publicKey(), storeName: "Tienda Sofi", whatsapp: SELLER_WA, city: "Santa Cruz" });
 
-  const a = await sale(seller, { product: "Polera Adidas talla M", description: "Negra, original.", priceBs: 300, deliveryDays: 3, evidence: "OLVA-80412" });
-  await sign(a.buyer, await api(`/api/orders/${a.slug}/action`, { action: "confirm", signer: a.buyer.publicKey() }));
+  const a = await sale(seller, {
+    product: "Polera Adidas talla M",
+    description: "Negra, original.",
+    priceBs: 300,
+    deliveryDays: 3,
+    category: "Ropa y calzado",
+    recipient: "Ana Pérez",
+    city: "Cochabamba",
+    ship: { company: "Trans Copacabana (encomiendas)", tracking: "OLVA-80412", weight: "0.4" },
+  });
+  // "Pagar al vendedor" se habilita 1 minuto después del envío (modo demo): se reintenta hasta que se pueda.
+  for (let i = 0; ; i++) {
+    try {
+      await sign(a.buyer, await api(`/api/orders/${a.slug}/action`, { action: "confirm", signer: a.buyer.publicKey() }));
+      break;
+    } catch (e) {
+      if (i > 20 || !/Podrás pagar/.test(e.message)) throw e;
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+  }
 
-  const b = await sale(seller, { product: "Audífonos Sony WH-1000", description: "Con estuche.", priceBs: 520, deliveryDays: 5, evidence: "SRV-2026-120033" });
-  await sign(b.buyer, await api(`/api/orders/${b.slug}/action`, { action: "dispute", signer: b.buyer.publicKey(), reason: "No es lo que pedí", text: "Llegó otro modelo, sin cancelación de ruido." }));
+  const b = await sale(seller, {
+    product: "Audífonos Sony WH-1000",
+    description: "Con estuche.",
+    priceBs: 520,
+    deliveryDays: 5,
+    category: "Electrónica",
+    feePayer: "vendedor",
+    recipient: "Luis Rojas",
+    city: "La Paz",
+    ship: { company: "Bolívar (encomiendas)", tracking: "SRV-2026-120033", weight: "0.6" },
+  });
+  await sign(
+    b.buyer,
+    await api(`/api/orders/${b.slug}/action`, {
+      action: "dispute",
+      signer: b.buyer.publicKey(),
+      reason: "Dañado o distinto a lo descrito",
+      text: "Llegó otro modelo, sin cancelación de ruido.",
+      video: "https://example.com/desempaque.mp4",
+    }),
+  );
   await api(`/api/orders/${b.slug}/reply`, { pubkey: seller.publicKey(), text: "Envié el modelo publicado; acepto devolver una parte." });
-  const r = await api("/api/arbitro/resolve", { slug: b.slug, buyerBps: 7000 }, { "x-arbitro-key": env.ARBITRO_PANEL_KEY });
-  console.log(`    ✓ El árbitro repartió 70/30  https://stellar.expert/explorer/testnet/tx/${r.hash}`);
+  const r = await api("/api/arbitro/resolve", { slug: b.slug, buyerBps: 7000, reason: "Dañado o distinto a lo descrito" }, { "x-arbitro-key": env.ARBITRO_PANEL_KEY });
+  console.log(`    ✓ El revisor repartió 70/30  https://stellar.expert/explorer/testnet/tx/${r.hash}`);
 
   const [va, vb] = await Promise.all([api(`/api/orders/${a.slug}`), api(`/api/orders/${b.slug}`)]);
   console.log(`\nListo. Base local ${DB}:`);
   console.log(`  Tienda Sofi (+${SELLER_WA}): "${va.order.product}" ${va.order.status} · "${vb.order.product}" ${vb.order.status}`);
-  console.log(`  El panel del árbitro muestra 1 disputa resuelta y ninguna abierta. /transparencia conserva todo lo on-chain.`);
+  console.log(`  El panel del revisor muestra 1 reclamo resuelto y ninguno abierto. /transparencia conserva todo lo on-chain.`);
   console.log(`  Para la demo: npm run demo y crea tu tienda en http://localhost:${DEMO_PORT}/vender?wa=${SELLER_WA}`);
 } catch (e) {
   console.error(`\ndemo:reset falló: ${e.message}`);

@@ -46,13 +46,13 @@ async function setupOrder(product, priceBs, days) {
   const seller = Keypair.random();
   const buyer = Keypair.random();
   await activate(seller);
-  await api("/api/sellers", { pubkey: seller.publicKey(), storeName: "Tienda Humo", whatsapp: "59171234567" });
+  await api("/api/sellers", { pubkey: seller.publicKey(), storeName: "Tienda Humo", whatsapp: "59171234567", city: "Santa Cruz" });
   const link = await api("/api/links", { sellerPubkey: seller.publicKey(), product, priceBs, deliveryDays: days });
   console.log(`link /p/${link.slug}  ${link.amount_units} unidades`);
   await activate(buyer);
-  const fund = await api(`/api/orders/${link.slug}/pay`, { buyer: buyer.publicKey() });
+  const fund = await api(`/api/orders/${link.slug}/pay`, { buyer: buyer.publicKey(), recipient: "Ana Pérez", city: "Cochabamba" });
   await signRun(buyer, fund);
-  const ship = await api(`/api/orders/${link.slug}/action`, { action: "ship", signer: seller.publicKey(), evidence: "SRV-2026-118734" });
+  const ship = await api(`/api/orders/${link.slug}/action`, { action: "ship", signer: seller.publicKey(), company: "Trans Copacabana (encomiendas)", tracking: "SRV-2026-118734", weight: "1" });
   await signRun(seller, ship);
   return { seller, buyer, slug: link.slug };
 }
@@ -60,8 +60,16 @@ async function setupOrder(product, priceBs, days) {
 async function feliz() {
   console.log("== caso feliz ==");
   const { buyer, seller, slug } = await setupOrder("Zapatillas Nike talla 40", 450, 3);
-  const confirm = await api(`/api/orders/${slug}/action`, { action: "confirm", signer: buyer.publicKey() });
-  await signRun(buyer, confirm);
+  // Con PP_DEMO=1 se puede pagar al vendedor 1 minuto después del envío.
+  for (let i = 0; ; i++) {
+    try {
+      await signRun(buyer, await api(`/api/orders/${slug}/action`, { action: "confirm", signer: buyer.publicKey() }));
+      break;
+    } catch (e) {
+      if (i > 20 || !/Podrás pagar/.test(e.message)) throw e;
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+  }
   const v = await api(`/api/orders/${slug}?onchain=1`);
   console.log("estado:", v.order.status, "desglose:", v.breakdown, "on-chain:", v.onchain?.flags, v.onchain?.balance);
   const s = await api(`/api/sellers/${seller.publicKey()}`);
@@ -71,12 +79,12 @@ async function feliz() {
 async function disputa() {
   console.log("== disputa 70/30 ==");
   const { buyer, slug } = await setupOrder("Polera Adidas M", 300, 5);
-  const d = await api(`/api/orders/${slug}/action`, { action: "dispute", signer: buyer.publicKey(), reason: "Llegó dañado", text: "La polera vino rota" });
+  const d = await api(`/api/orders/${slug}/action`, { action: "dispute", signer: buyer.publicKey(), reason: "Dañado o distinto a lo descrito", text: "La polera vino rota", video: "https://example.com/desempaque.mp4" });
   await signRun(buyer, d);
   const h = { "x-arbitro-key": env.ARBITRO_PANEL_KEY };
   const probe = await api("/api/arbitro/probe", { slug }, h);
   console.log("intento de desvío:", probe);
-  const r = await api("/api/arbitro/resolve", { slug, buyerBps: 7000 }, h);
+  const r = await api("/api/arbitro/resolve", { slug, buyerBps: 7000, reason: "Dañado o distinto a lo descrito" }, h);
   console.log(`  ✓ resolución https://stellar.expert/explorer/testnet/tx/${r.hash}`);
   const v = await api(`/api/orders/${slug}?onchain=1`);
   console.log("estado:", v.order.status, "reparto:", v.split, "on-chain:", v.onchain?.flags, v.onchain?.balance);

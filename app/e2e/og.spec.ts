@@ -42,7 +42,7 @@ test("vista previa del link en WhatsApp: Open Graph por pedido, en la landing y 
   // Landing: imagen genérica de la marca.
   const home = metas(await (await request.get("/", { headers: WHATSAPP })).text());
   expect(home["og:title"]).toContain("Pago Protegido");
-  expect(home["og:description"]).toContain("plata queda protegida");
+  expect(home["og:description"]).toContain("plata queda guardada");
   expect(home["twitter:card"]).toBe("summary_large_image");
   expect(home["og:image"]).toMatch(/^http:\/\/localhost:\d+\/opengraph-image/);
   const himg = await request.get(home["og:image"]);

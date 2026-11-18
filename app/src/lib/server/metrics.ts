@@ -99,7 +99,7 @@ export interface Purchase {
 }
 
 /** Calcula las métricas con las mismas reglas que contracts/scripts/metricas.sh. */
-export function computeMetrics() {
+export function computeMetrics(includeSeller: (seller: string) => boolean = () => true) {
   const events = loadEvents();
   const map = new Map<string, { funded?: PpEvent; disputed?: PpEvent; terminal?: PpEvent }>();
   for (const ev of events) {
@@ -115,6 +115,7 @@ export function computeMetrics() {
   for (const [escrow, p] of map) {
     if (!p.funded) continue;
     const f = p.funded.data;
+    if (!includeSeller(String(f.seller ?? ""))) continue;
     const t = p.terminal;
     const state: PurchaseState = t
       ? t.kind === "pp_confirmed"

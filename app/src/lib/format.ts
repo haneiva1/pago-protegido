@@ -89,3 +89,52 @@ export function fmtDate(ms: number | null | undefined): string {
 export function shortAddr(a: string): string {
   return a.length > 12 ? `${a.slice(0, 4)}…${a.slice(-4)}` : a;
 }
+
+// ---------- Ronda 6: producto v2 ----------
+
+/** "Bs 456,75" a partir de unidades de 7 decimales y el tipo de cambio del pedido. */
+export function fmtBsUnits(units: string | bigint, fx: number): string {
+  return `Bs ${nf2.format(unitsToNumber(units) * fx)}`;
+}
+
+export const CIUDADES = ["La Paz", "El Alto", "Cochabamba", "Santa Cruz", "Oruro", "Potosí", "Sucre", "Tarija", "Trinidad", "Cobija", "Otra"] as const;
+export const CATEGORIAS = ["Celular", "Electrónica", "Ropa y calzado", "Otro"] as const;
+export const EMPRESAS = [
+  "Trans Copacabana (encomiendas)",
+  "Bolívar (encomiendas)",
+  "El Dorado (encomiendas)",
+  "Correos de Bolivia",
+  "Courier privado",
+  "Otra flota",
+  "Entrega en persona",
+] as const;
+/** Motivos de reclamo (política de reclamos) + presión para confirmar. */
+export const MOTIVOS = ["No envió", "No llegó", "Llegó vacío o con otro producto", "Dañado o distinto a lo descrito", "Presión para confirmar"] as const;
+export const MOTIVO_PRESION = "Presión para confirmar";
+/** Motivos (c) y (d): exigen video continuo del desempaque desde Bs 300. */
+export const MOTIVOS_CON_VIDEO = ["Llegó vacío o con otro producto", "Dañado o distinto a lo descrito"];
+
+export type FeePayer = "comprador" | "vendedor";
+export const PROTECCION = { pct: 1.5, minBs: 5, maxBs: 50 };
+export const DOLLAR_NOTE = "Se guarda en dólares digitales (en producción, USDC, 1 a 1 con el dólar; en esta práctica, dólares de prueba).";
+
+/**
+ * Montos de un link según quién paga la protección.
+ * - "vendedor" (la regala): el comprador paga el precio; el escrow descuenta 2% de plataforma y 0,3% de TW.
+ * - "comprador" (por defecto): el comprador paga precio + protección (1,5%, mín. Bs 5, máx. Bs 50). El escrow usa
+ *   un platform_fee propio para que, después del 0,3% de TW y de la plataforma, el vendedor reciba el precio completo.
+ */
+export function linkAmounts(priceBsCents: number, fx: number, feePayer: FeePayer) {
+  const price = bsToUnits(priceBsCents, fx);
+  if (feePayer === "vendedor") return { price, amount: price, platformBps: 200, protectionBsCents: 0 };
+  const protBs = Math.min(PROTECCION.maxBs, Math.max(PROTECCION.minBs, (priceBsCents / 100) * (PROTECCION.pct / 100)));
+  const protectionBsCents = Math.round(protBs * 100);
+  let amount = price + bsToUnits(protectionBsCents, fx);
+  let tw = (amount * TW_FEE_BPS) / 10000n;
+  if (amount - tw - price < 0n) {
+    amount = (price * 10000n) / 9970n + 1n; // la protección no alcanza a cubrir el 0,3% de TW
+    tw = (amount * TW_FEE_BPS) / 10000n;
+  }
+  const platformBps = Number(((amount - tw - price) * 10000n) / amount); // floor: el vendedor nunca recibe menos que el precio
+  return { price, amount, platformBps, protectionBsCents };
+}

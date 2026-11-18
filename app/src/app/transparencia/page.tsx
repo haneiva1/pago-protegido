@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { explorer, fmtUsd, shortAddr, unitsToNumber } from "@/lib/format";
+import { sellers } from "@/lib/server/db";
 import { computeMetrics, ingestEvents, type Metrics, type PurchaseState } from "@/lib/server/metrics";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ const fmtWhen = (iso: string) =>
 const STATE: Record<PurchaseState, { label: string; cls: string }> = {
   liberada_confirmacion: { label: "Liberada: el comprador confirmó", cls: "bg-brand-50 text-brand-800 ring-brand-200" },
   liberada_plazo: { label: "Liberada por plazo vencido", cls: "bg-brand-50 text-brand-800 ring-brand-200" },
-  resuelta: { label: "Resuelta por el árbitro", cls: "bg-violet-50 text-violet-800 ring-violet-200" },
+  resuelta: { label: "Resuelta por el revisor", cls: "bg-violet-50 text-violet-800 ring-violet-200" },
   reembolsada: { label: "Reembolsada (sin envío)", cls: "bg-violet-50 text-violet-800 ring-violet-200" },
   en_disputa: { label: "En disputa", cls: "bg-amber-50 text-amber-800 ring-amber-200" },
   en_curso: { label: "En curso: plata protegida", cls: "bg-sky-50 text-sky-800 ring-sky-200" },
@@ -31,10 +32,10 @@ const EVENT: Record<string, string> = {
   pp_confirmed: "✅ El comprador confirmó y se liberó",
   pp_auto_released: "⏱️ Liberación por plazo vencido",
   pp_disputed: "⚠️ Se abrió un reclamo",
-  pp_resolved: "⚖️ El árbitro repartió",
+  pp_resolved: "⚖️ El revisor repartió",
   pp_refunded_unshipped: "↩️ Reembolso por falta de envío",
-  pp_arbiter_set: "🔧 Configuración del árbitro",
-  pp_admin_changed: "🔧 Cambio de admin del árbitro",
+  pp_arbiter_set: "🔧 Configuración del revisor",
+  pp_admin_changed: "🔧 Cambio de admin del revisor",
 };
 
 function Tile({ label, value, sub, testId }: { label: string; value: string; sub?: string; testId?: string }) {
@@ -55,14 +56,17 @@ export default async function Transparencia() {
     warning = `No se pudo consultar la red ahora (${(e as Error).message.slice(0, 80)}). Se muestran los últimos datos guardados.`;
   }
   let m: Metrics;
+  let pm: Metrics | null = null;
   try {
-    m = computeMetrics();
+    // Piloto con vendedores reales (marcados desde /piloto) aparte de las pruebas del equipo.
+    const pilotSet = sellers.pilotPubkeys();
+    m = computeMetrics((s) => !pilotSet.has(s));
+    pm = computeMetrics((s) => pilotSet.has(s));
   } catch (e) {
     return <p className="card">No se pudieron calcular las métricas: {(e as Error).message}</p>;
   }
   const vol = unitsToNumber(m.volumen_unidades);
   const okReleased = m.liberadas_por_confirmacion + m.liberadas_por_plazo;
-  const pctOk = m.cerradas ? Math.round((okReleased / m.cerradas) * 100) : 0;
   const d = m.disputas;
 
   return (
@@ -86,13 +90,34 @@ export default async function Transparencia() {
         {warning && <p className="mt-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{warning}</p>}
       </header>
 
+      <section className="card space-y-1 ring-2 ring-brand-200" data-testid="piloto">
+        <h2 className="font-bold">Piloto con vendedores reales</h2>
+        {pm && pm.compras_protegidas > 0 ? (
+          <p className="text-sm text-slate-700">
+            <strong>{pm.compras_protegidas}</strong> compras protegidas · Bs {nf(unitsToNumber(pm.volumen_unidades) * pm.tipo_cambio)} ·{" "}
+            {pm.liberadas_por_confirmacion + pm.liberadas_por_plazo} pagadas al vendedor · {pm.disputas.total} reclamos
+          </p>
+        ) : (
+          <p className="text-sm text-slate-600">
+            Todavía no hay compras de vendedores del piloto. Se cuentan aparte de las pruebas del equipo.{" "}
+            <Link className="underline" href="/piloto">
+              Únete al piloto
+            </Link>
+          </p>
+        )}
+      </section>
+
+      <h2 className="text-xl font-bold" data-testid="pruebas-equipo">
+        Pruebas del equipo en testnet (incluye reclamos forzados)
+      </h2>
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Tile testId="compras-protegidas" label="Compras protegidas" value={nf(m.compras_protegidas)} sub={`${m.en_curso} en curso ahora`} />
         <Tile label="Volumen protegido" value={`Bs ${nf(vol * m.tipo_cambio)}`} sub={`${fmtUsd(m.volumen_unidades)} USD de prueba`} />
         <Tile
-          label="Se liberaron sin problemas"
-          value={`${pctOk}%`}
-          sub={`${m.liberadas_por_confirmacion} por confirmación del comprador · ${m.liberadas_por_plazo} por plazo vencido (de ${m.cerradas} cerradas)`}
+          testId="como-terminaron"
+          label="Cómo terminaron"
+          value={`${okReleased} de ${m.cerradas}`}
+          sub={`pagadas al vendedor sin reclamo (${m.liberadas_por_confirmacion} confirmadas por el comprador · ${m.liberadas_por_plazo} por plazo). Las otras ${d.resueltas_por_arbitro + d.reembolsos_sin_envio} son reclamos forzados a propósito en las pruebas: ${d.resueltas_por_arbitro} resueltos por el revisor y ${d.reembolsos_sin_envio} reembolsos.`}
         />
         <Tile
           label="Tiempo hasta que el vendedor cobra"
@@ -106,7 +131,7 @@ export default async function Transparencia() {
           <h2 className="font-bold">Reclamos</h2>
           <p className="text-sm text-slate-600">
             <strong className="text-slate-900">{d.total}</strong> reclamos: {d.abiertas_por_comprador} abiertos por el comprador y {d.abiertas_por_vendedor} por el vendedor.{" "}
-            {d.pendientes > 0 ? `${d.pendientes} esperan al árbitro.` : "Ninguno pendiente."}
+            {d.pendientes > 0 ? `${d.pendientes} esperan al revisor.` : "Ninguno pendiente."}
           </p>
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="rounded-xl bg-violet-50 p-3">
@@ -123,8 +148,8 @@ export default async function Transparencia() {
             </div>
           </div>
           <p className="text-xs text-slate-500">
-            {d.resueltas_por_arbitro} resueltos por el árbitro y {d.reembolsos_sin_envio} reembolsos por falta de envío · tiempo promedio hasta la resolución:{" "}
-            {fmtDuration(d.segundos_promedio_hasta_resolucion)}. El árbitro solo puede repartir entre comprador y vendedor.
+            {d.resueltas_por_arbitro} resueltos por el revisor y {d.reembolsos_sin_envio} reembolsos por falta de envío · tiempo promedio hasta la resolución:{" "}
+            {fmtDuration(d.segundos_promedio_hasta_resolucion)}. El revisor solo puede repartir entre comprador y vendedor.
           </p>
         </div>
         <div className="card space-y-2">

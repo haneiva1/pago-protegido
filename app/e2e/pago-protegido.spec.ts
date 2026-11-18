@@ -1,9 +1,12 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { Keypair } from "@stellar/stellar-sdk";
+import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-// E2E contra Stellar TESTNET (transacciones reales). Recorre el caso feliz y el de disputa 70/30
-// y guarda capturas en tamaño celular y escritorio en e2e/capturas/.
+// E2E contra Stellar TESTNET (transacciones reales), en modo guardián y modo demo (PP_DEMO=1: "Pagar al vendedor" se
+// habilita 1 minuto después del envío). Guarda capturas en celular y escritorio en e2e/capturas/ y en cada captura revisa
+// que no aparezcan palabras prohibidas.
 
 const DIR = path.join(__dirname, "capturas");
 fs.mkdirSync(DIR, { recursive: true });
@@ -12,12 +15,25 @@ const DESKTOP = { width: 1280, height: 800 };
 const CHAIN = { timeout: 240_000 }; // operaciones que esperan a la red
 const TX_LINK = 'a[href*="stellar.expert/explorer/testnet/tx/"]';
 
+// Palabras prohibidas. Legales: en todas las pantallas. Técnicas: en las del comprador y del vendedor
+// (el panel del revisor, /como-funciona y /transparencia pueden ser técnicos).
+const LEGALES = [/\bseguro\b/i, /garant[ií]a/i, /garantizad/i, /100\s?%/, /custodia/i, /plataforma de pagos/i, /pasarela/i, /billetera Pago Protegido/i, /arbitraje/i, /árbitro/i];
+const TECNICAS = [/cripto/i, /\btoken/i, /stablecoin/i, /\bwallet\b/i, /\bllaves?\b/i, /billetera propia/i, /blockchain/i, /stellar/i];
+type Kind = "usuario" | "tecnica" | "chat";
+
+async function revisarPalabras(page: Page, kind: Kind) {
+  if (kind === "chat") return; // el chat del simulador es del bot, fuera de la app
+  const text = await page.locator("body").innerText();
+  for (const re of kind === "usuario" ? [...LEGALES, ...TECNICAS] : LEGALES) {
+    expect(text, `palabra prohibida ${re} en ${page.url()}`).not.toMatch(re);
+  }
+}
+
 test.describe.configure({ mode: "serial" });
 
-async function capturar(page: Page, nombre: string) {
+async function capturar(page: Page, nombre: string, kind: Kind = "usuario") {
   await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {});
-  // La interfaz nunca dice "cripto".
-  expect(await page.locator("body").innerText()).not.toMatch(/cripto/i);
+  await revisarPalabras(page, kind);
   const original = page.viewportSize() ?? MOBILE;
   // Arriba de todo: si no, el encabezado fijo (sticky) aparece en medio de la captura de página completa.
   await page.evaluate(() => window.scrollTo(0, 0));
@@ -30,28 +46,39 @@ async function capturar(page: Page, nombre: string) {
   await page.setViewportSize(original);
 }
 
-async function nuevoVendedor(browser: Browser, tienda: string, whatsapp: string, capturas = false) {
-  const ctx = await browser.newContext();
-  const page = await ctx.newPage();
-  await page.goto("/vender");
+async function nuevoVendedor(browser: Browser, tienda: string, whatsapp: string | null, ciudad: string, opts: { capturas?: boolean; url?: string } = {}) {
+  const page = await (await browser.newContext()).newPage();
+  await page.goto(opts.url ?? "/vender");
   await page.getByLabel("Nombre de la tienda").fill(tienda);
-  if (capturas) await capturar(page, "02-onboarding-tienda");
+  await page.getByLabel("Tu ciudad").selectOption(ciudad);
+  if (opts.capturas) await capturar(page, "02-onboarding-tienda");
   await page.getByRole("button", { name: "Continuar" }).click();
-  await page.getByLabel("Número de WhatsApp").fill(whatsapp);
+  if (whatsapp) await page.getByLabel("Número de WhatsApp").fill(whatsapp);
   await page.getByRole("button", { name: "Continuar" }).click();
-  await expect(page.getByRole("button", { name: "Crear mi billetera y continuar" })).toBeVisible();
-  if (capturas) await capturar(page, "03-onboarding-billetera");
-  await page.getByRole("button", { name: "Crear mi billetera y continuar" }).click();
+  const crear = page.getByRole("button", { name: "Crear mi cuenta de cobro y continuar" });
+  await expect(crear).toBeVisible();
+  if (opts.capturas) await capturar(page, "03-onboarding-cuenta");
+  await crear.click();
   await page.waitForURL("**/panel**", CHAIN);
   await expect(page.getByTestId("tienda")).toHaveText(tienda);
   return page;
 }
 
-async function crearLink(page: Page, p: { producto: string; descripcion: string; precio: number; dias: number }, captura?: string) {
+async function crearLink(
+  page: Page,
+  p: { producto: string; descripcion: string; precio: number; dias: number; categoria: string; quienPaga?: "comprador" | "vendedor"; demo?: boolean },
+  captura?: string,
+) {
+  if (p.demo) {
+    await page.goto("/panel?demo=1");
+    await page.getByLabel(/Plazo corto de demo/).check();
+  }
   await page.getByLabel("Producto").fill(p.producto);
+  await page.getByLabel("Categoría").selectOption(p.categoria);
   await page.getByLabel("Descripción corta").fill(p.descripcion);
   await page.getByLabel("Precio en Bs").fill(String(p.precio));
   await page.getByLabel("Días de entrega", { exact: true }).selectOption(String(p.dias));
+  if (p.quienPaga === "vendedor") await page.getByRole("radio", { name: /Yo la regalo/ }).check();
   if (captura) await capturar(page, captura);
   await page.getByRole("button", { name: "Crear link" }).click();
   const url = (await page.getByTestId("link-url").textContent())!.trim();
@@ -59,20 +86,29 @@ async function crearLink(page: Page, p: { producto: string; descripcion: string;
   return { url, slug: url.split("/p/")[1] };
 }
 
-async function pagar(browser: Browser, url: string, capturas: boolean, whatsapp?: string) {
-  const ctx = await browser.newContext();
-  const page = await ctx.newPage();
+async function pagar(
+  browser: Browser,
+  url: string,
+  o: { capturas?: boolean; whatsapp?: string; quien?: string; ciudad?: string; agencia?: string; antes?: (p: Page) => Promise<void> } = {},
+) {
+  const page = await (await browser.newContext()).newPage();
   await page.goto(url);
-  await expect(page.getByTestId("producto")).toBeVisible();
-  await expect(page.getByText("Cómo te protegemos")).toBeVisible();
-  if (capturas) await capturar(page, "06-comprador-antes-de-pagar");
-  await page.getByRole("button", { name: /Pagar protegido/ }).click();
+  await expect(page.getByTestId("codigo")).toHaveText(/Compra protegida · PP-\d{4,5}/);
+  await expect(page.getByTestId("promesa")).toContainText("Tu plata no llega al vendedor hasta que recibas tu pedido.");
+  await expect(page.getByTestId("antifraude")).toContainText("Si un QR de Pago Protegido está a nombre de una persona, es estafa.");
+  await expect(page.getByTestId("modo-practica")).toContainText("Modo práctica: no se mueve dinero real");
+  if (o.antes) await o.antes(page);
+  if (o.capturas) await capturar(page, "06-comprador-antes-de-pagar");
+  await page.getByLabel("Quién recibe").fill(o.quien ?? "Ana Pérez");
+  await page.getByLabel("Ciudad de destino").selectOption(o.ciudad ?? "Cochabamba");
+  if (o.agencia) await page.getByLabel(/Agencia preferida/).fill(o.agencia);
+  if (o.whatsapp) await page.getByLabel(/Tu WhatsApp para avisarte/).fill(o.whatsapp);
+  await page.getByRole("button", { name: /Pagar Bs .* con QR/ }).click();
   await expect(page.getByTestId("rampa-simulada")).toHaveText("Rampa simulada en testnet. En producción la hace una entidad certificada por ASFI.");
-  if (capturas) await capturar(page, "07-comprador-qr-rampa-simulada");
+  if (o.capturas) await capturar(page, "07-comprador-qr-rampa-simulada");
   // El pago encadena varias transacciones en testnet (rampa, deploy del escrow, fondeo). Si la red falla,
   // la pantalla muestra el error y se puede reintentar: el flujo es idempotente (no vuelve a emitir la rampa).
-  if (whatsapp) await page.getByLabel("Tu WhatsApp para avisarte").fill(whatsapp);
-  const simular = page.getByRole("button", { name: "Simular pago del banco (testnet)" });
+  const simular = page.getByRole("button", { name: "Simular pago del banco (modo práctica)" });
   const ok = page.getByTestId("estado-pedido");
   const err = page.getByTestId("error"); // ojo: Next.js tiene un route announcer con role="alert"
   for (let intento = 1; ; intento++) {
@@ -83,174 +119,237 @@ async function pagar(browser: Browser, url: string, capturas: boolean, whatsapp?
     console.log(`[e2e] pago, intento ${intento} falló en la red: ${msg}`);
     if (intento >= 3) throw new Error(`El pago falló 3 veces: ${msg}`);
   }
-  await expect(ok).toContainText("Tu plata está protegida", CHAIN);
+  await expect(ok).toContainText("Tu pago está guardado", CHAIN);
   await expect(page.locator(TX_LINK).first()).toBeVisible();
-  // H-2: la instancia ejecuta el WASM de Trustless Work y tiene los roles del modo guardián.
-  await expect(page.getByTestId("sello-verificado")).toContainText("Contrato verificado");
-  await expect(page.getByTestId("sello-verificado")).toContainText("pp_guardian");
+  // H-2 en pantalla: pago bloqueado en un contrato público, con "Ver registro público".
+  await expect(page.getByTestId("registro-publico")).toContainText("Pago bloqueado en un contrato público: solo puede ir al vendedor o volver a ti.");
+  await expect(page.getByTestId("registro-publico").getByRole("link", { name: /Ver registro público/ })).toBeVisible();
   return page;
 }
 
-async function marcarEnviado(seller: Page, slug: string, codigo: string) {
+async function llenarEnvio(card: Locator, e: { empresa: string; guia?: string; peso: string; ciudad?: string; foto?: string; imei?: string }) {
+  await card.getByLabel("Empresa de envío").selectOption(e.empresa);
+  if (e.guia) await card.getByLabel("Número de guía").fill(e.guia);
+  await card.getByLabel("Peso declarado (kg)").fill(e.peso);
+  if (e.ciudad) await card.getByLabel("Ciudad de destino").selectOption(e.ciudad);
+  if (e.foto) await card.getByLabel(/Foto del paquete/).fill(e.foto);
+  if (e.imei) await card.getByLabel(/IMEI del celular/).fill(e.imei);
+}
+
+async function marcarEnviado(seller: Page, slug: string, e: Parameters<typeof llenarEnvio>[1]) {
   await seller.reload();
   const card = seller.getByTestId(`pedido-${slug}`);
   await expect(card.getByTestId("estado")).toHaveText("Pagado (despacha)", { timeout: 60_000 });
-  await card.getByLabel("Código de encomienda o link de la foto del envío").fill(codigo);
+  await expect(card.getByTestId("datos-entrega-vendedor")).toBeVisible();
+  await llenarEnvio(card, e);
   await card.getByRole("button", { name: "Marcar como enviado" }).click();
   await expect(card.getByTestId("estado")).toHaveText("Enviado", CHAIN);
   return card;
 }
 
-test("caso feliz: link → pago protegido → enviado → recibí conforme → liberado", async ({ browser }) => {
-  // Vendedor
+/** "Pagar al vendedor (irreversible)": se habilita 1 minuto después del envío (modo demo) y pregunta antes. */
+async function abrirPregunta(buyer: Page) {
+  const btn = buyer.getByRole("button", { name: "Pagar al vendedor (irreversible)" });
+  await expect(btn).toBeVisible({ timeout: 60_000 });
+  await expect(btn).toBeEnabled({ timeout: 150_000 });
+  await btn.click();
+  await expect(buyer.getByTestId("pregunta-confirmar")).toContainText("¿Tienes el producto en tus manos y lo revisaste?");
+}
+
+test("caso feliz: el comprador paga la protección, datos de entrega, envío con evidencia y pago al vendedor", async ({ browser }) => {
   const landing = await browser.newPage();
   await landing.goto("/");
-  await expect(landing.getByRole("heading", { level: 1 })).toHaveText("Vende por redes sin que desconfíen de ti.");
+  await expect(landing.getByRole("heading", { level: 1 })).toHaveText("Vende a otras ciudades sin que desconfíen de ti");
+  await expect(landing.getByText("El contra entrega no cruza departamentos. Pago Protegido sí.")).toBeVisible();
   await capturar(landing, "01-landing");
   await landing.close();
 
-  const seller = await nuevoVendedor(browser, "Tienda Sofi", "59171234567", true);
+  const seller = await nuevoVendedor(browser, "Tienda Sofi", "59171234567", "Santa Cruz", { capturas: true });
   await expect(seller.getByRole("heading", { name: "Tu primer link" })).toBeVisible();
+  await expect(seller.getByTestId("antifraude-vendedor")).toContainText("Para cobrar no tienes que abrir ningún link.");
+  await seller.getByLabel("Precio en Bs").fill("450");
+  await expect(seller.getByTestId("vista-previa-link")).toContainText("Bs 456,75"); // 450 + 1,5 %
   const { url, slug } = await crearLink(
     seller,
-    { producto: "Zapatillas Nike talla 40", descripcion: "Originales, nuevas en caja.", precio: 450, dias: 3 },
+    { producto: "Zapatillas Nike talla 40", descripcion: "Originales, nuevas en caja.", precio: 450, dias: 3, categoria: "Ropa y calzado" },
     "04-panel-primer-link",
   );
   await expect(seller.getByTestId("link-creado").getByTestId("whatsapp")).toContainText(url);
   await capturar(seller, "05-panel-link-creado");
 
-  // Comprador paga con la rampa simulada: el escrow queda fondeado.
-  const buyer = await pagar(browser, url, true);
-  await expect(buyer.getByTestId("onchain")).toContainText("38,46 USD de prueba", { timeout: 60_000 });
+  // Comprador: ve la protección (la paga él), deja los datos de entrega y paga.
+  const buyer = await pagar(browser, url, {
+    capturas: true,
+    whatsapp: "591 76543210",
+    quien: "Ana Pérez",
+    ciudad: "Cochabamba",
+    agencia: "Trans Copacabana, terminal",
+    antes: async (p) => {
+      await expect(p.getByTestId("vendedor")).toContainText("Vendedor: Tienda Sofi · Santa Cruz");
+      await expect(p.getByTestId("vendedor")).toContainText("0 ventas protegidas, 0 reclamos");
+      await expect(p.getByTestId("vendedor")).toContainText("Verificación de identidad: pendiente");
+      await expect(p.getByTestId("proteccion")).toContainText("Bs 6,75");
+      await expect(p.getByTestId("proteccion")).toContainText("Bs 456,75");
+      await expect(p.getByRole("button", { name: "🔒 Pagar Bs 456,75 con QR" })).toBeVisible();
+    },
+  });
   await capturar(buyer, "08-comprador-pagado");
 
-  // Vendedor marca enviado con el código de encomienda.
-  const card = await marcarEnviado(seller, slug, "SRV-2026-118734");
-  await expect(card.getByTestId("whatsapp")).toContainText("SRV-2026-118734");
+  // Vendedor: ve a quién enviar y registra el envío con evidencia estructurada.
+  const card = await marcarEnviado(seller, slug, {
+    empresa: "Trans Copacabana (encomiendas)",
+    guia: "SRV-2026-118734",
+    peso: "1,2",
+    foto: "https://example.com/paquete-pp.jpg",
+  });
+  await expect(card.getByTestId("datos-entrega-vendedor")).toContainText("Ana Pérez");
+  await expect(card.getByTestId("datos-entrega-vendedor")).toContainText("Cochabamba");
   await capturar(seller, "09-vendedor-enviado");
 
-  // Comprador confirma: se aprueba y se libera.
+  // Comprador: "Pagar al vendedor" recién se habilita después de la espera, y pregunta antes.
   await buyer.reload();
-  await expect(buyer.getByTestId("linea-de-tiempo")).toContainText("SRV-2026-118734");
-  await expect(buyer.getByTestId("plazo")).toBeVisible();
-  await capturar(buyer, "10-comprador-enviado");
-  await buyer.getByRole("button", { name: /Recibí conforme/ }).click();
-  await expect(buyer.getByTestId("estado-pedido")).toContainText("Pago liberado al vendedor", CHAIN);
-  const desglose = buyer.getByTestId("desglose");
-  await expect(desglose).toContainText("37,58"); // vendedor: 38,4615385 − 2 % − 0,3 %
-  await expect(desglose).toContainText("0,77"); // plataforma 2 %
-  await expect(desglose).toContainText("0,12"); // Trustless Work 0,3 %
-  await capturar(buyer, "11-comprador-liberado");
+  await expect(buyer.getByTestId("linea-de-tiempo")).toContainText("guía SRV-2026-118734");
+  await expect(buyer.getByRole("button", { name: "Pagar al vendedor (irreversible)" })).toBeDisabled();
+  await expect(buyer.getByTestId("espera-confirmar")).toBeVisible();
+  await expect(buyer.getByText("Después ya no puedes reclamar.")).toBeVisible();
+  await capturar(buyer, "10-comprador-espera-para-pagar");
+  await abrirPregunta(buyer);
+  await capturar(buyer, "11-comprador-pregunta-antes-de-pagar");
+  await buyer.getByRole("button", { name: "Sí, lo tengo y está bien" }).click();
+  await expect(buyer.getByTestId("estado-pedido")).toContainText("Se pagó al vendedor", CHAIN);
+  await expect(buyer.getByTestId("desglose")).toContainText("Bs 450,04"); // el vendedor recibe el precio completo
+  await capturar(buyer, "12-comprador-pagado-al-vendedor");
 
-  // El vendedor ve el saldo.
   await seller.reload();
   await expect(card.getByTestId("estado")).toHaveText("Liberado", { timeout: 60_000 });
-  await expect(seller.getByTestId("saldo")).toHaveText("37,58");
-  await capturar(seller, "12-vendedor-liberado");
+  await expect(seller.getByTestId("saldo")).toHaveText("Bs 450,04");
+  await capturar(seller, "13-vendedor-cobrado");
 });
 
-test("disputa: reclamo del comprador y el árbitro reparte 70/30", async ({ browser }) => {
-  const seller = await nuevoVendedor(browser, "Moda Andina", "59176543210");
-  const { url, slug } = await crearLink(seller, { producto: "Polera Adidas talla M", descripcion: "Color negro.", precio: 300, dias: 5 });
-  const buyer = await pagar(browser, url, false);
-  await marcarEnviado(seller, slug, "OLVA-55821");
+test("presión para confirmar abre un reclamo; el vendedor regala la protección; el revisor reparte 70/30", async ({ browser }) => {
+  const seller = await nuevoVendedor(browser, "Moda Andina", "59176543210", "La Paz");
+  await seller.getByRole("radio", { name: /Yo la regalo/ }).check();
+  await seller.getByLabel("Precio en Bs").fill("300");
+  await expect(seller.getByTestId("vista-previa-link")).toContainText("Tu cliente paga Bs 300,00");
+  const { url, slug } = await crearLink(seller, {
+    producto: "Polera Adidas talla M",
+    descripcion: "Color negro.",
+    precio: 300,
+    dias: 5,
+    categoria: "Ropa y calzado",
+    quienPaga: "vendedor",
+  });
+  const buyer = await pagar(browser, url, {
+    ciudad: "Oruro",
+    antes: async (p) => {
+      await expect(p.getByTestId("proteccion")).toContainText("la paga el vendedor");
+      await expect(p.getByRole("button", { name: "🔒 Pagar Bs 300,00 con QR" })).toBeVisible();
+    },
+  });
+  await marcarEnviado(seller, slug, { empresa: "Bolívar (encomiendas)", guia: "OLVA-55821", peso: "0,4" });
 
-  // El comprador abre un reclamo.
+  // El comprador responde "El vendedor me pide que confirme": se abre un reclamo y se marca al vendedor.
   await buyer.reload();
-  await buyer.getByRole("button", { name: "Tengo un problema" }).click();
-  await buyer.getByLabel("Motivo").selectOption("Llegó dañado");
-  await buyer.getByLabel("Cuéntanos más").fill("La polera llegó rota en la manga.");
-  await capturar(buyer, "20-comprador-tengo-un-problema");
-  await buyer.getByRole("button", { name: "Enviar reclamo" }).click();
+  await abrirPregunta(buyer);
+  await buyer.getByRole("button", { name: "El vendedor me pide que confirme" }).click();
+  await expect(buyer.getByTestId("aviso-presion")).toBeVisible();
   await expect(buyer.getByTestId("estado-pedido")).toContainText("Reclamo abierto", CHAIN);
-  await capturar(buyer, "21-comprador-reclamo-abierto");
+  await expect(buyer.getByTestId("linea-de-tiempo")).toContainText("Presión para confirmar");
+  await capturar(buyer, "20-comprador-presion-reclamo");
 
-  // El vendedor deja su versión.
   await seller.reload();
   const card = seller.getByTestId(`pedido-${slug}`);
   await expect(card.getByTestId("estado")).toHaveText("En disputa", { timeout: 60_000 });
-  await card.getByLabel("Tu versión para el árbitro").fill("La envié en buen estado; adjunto la guía OLVA-55821.");
+  await card.getByLabel("Tu versión para el revisor").fill("Nunca le pedí que confirme; adjunto la guía OLVA-55821.");
   await card.getByRole("button", { name: "Enviar mi versión" }).click();
   await expect(card.getByRole("button", { name: "Actualizar mi versión" })).toBeVisible({ timeout: 30_000 });
-  await capturar(seller, "22-vendedor-en-disputa");
+  await capturar(seller, "21-vendedor-en-disputa");
 
-  // El árbitro reparte 70 % comprador / 30 % vendedor.
-  const arbCtx = await browser.newContext({ viewport: DESKTOP });
-  const arb = await arbCtx.newPage();
-  await arb.goto("/arbitro");
-  await expect(arb.getByTestId("texto-fijo")).toContainText(
-    "El árbitro solo puede repartir entre comprador y vendedor. El contrato no permite otro destino.",
-  );
-  await arb.getByLabel("Clave del árbitro").fill(process.env.ARBITRO_PANEL_KEY ?? "");
-  await arb.getByRole("button", { name: "Entrar" }).click();
-  const dispute = arb.getByTestId(`disputa-${slug}`);
+  // Revisor: motivo obligatorio, slider sin valor por defecto, historial de evidencia, rechazo del contrato al desvío.
+  const rev = await (await browser.newContext({ viewport: DESKTOP })).newPage();
+  await rev.goto("/arbitro"); // redirige a /revisor
+  await expect(rev).toHaveURL(/\/revisor$/);
+  await expect(rev.getByTestId("texto-fijo")).toContainText("El revisor solo puede repartir entre comprador y vendedor. El contrato no permite otro destino.");
+  await rev.getByLabel("Clave del revisor").fill(process.env.ARBITRO_PANEL_KEY ?? "");
+  await rev.getByRole("button", { name: "Entrar" }).click();
+  const dispute = rev.getByTestId(`disputa-${slug}`);
   await expect(dispute).toBeVisible({ timeout: 60_000 });
-  await expect(dispute).toContainText("La envié en buen estado");
-  await expect(dispute.getByTestId("estado-onchain")).toContainText("En disputa: sí");
+  await expect(dispute).toContainText("reporte(s) de presión para confirmar");
+  const hist = dispute.getByTestId("historial-evidencia");
+  await expect(hist).toContainText("Envío (vendedor)");
+  await expect(hist).toContainText("guía OLVA-55821");
+  await expect(hist).toContainText("Reclamo");
+  await expect(hist).toContainText("Respuesta del vendedor");
+  const resolver = dispute.getByRole("button", { name: "Resolver" });
+  await expect(resolver).toBeDisabled();
+  await expect(dispute.getByTestId("sin-reparto")).toBeVisible();
+  await dispute.getByTestId("motivo-fallo").selectOption("Presión para confirmar");
+  await expect(resolver).toBeDisabled(); // falta elegir el reparto
   await dispute.getByTestId("slider").fill("70");
   await expect(dispute.getByTestId("pct")).toHaveText("70%");
-  // La vista previa sale de pp_arbiter.quote (simulación de solo lectura).
   await expect(dispute.getByTestId("fuente-vista-previa")).toContainText("pp_arbiter.quote", { timeout: 60_000 });
-  await expect(dispute.getByTestId("vista-previa")).toContainText("17,54"); // 70 % de 25,6410256 menos comisiones
-  await expect(dispute.getByTestId("vista-previa")).toContainText("7,52");
-  // Desvío: la llave del árbitro llama directo al escrow hacia una tercera cuenta y el CONTRATO lo rechaza.
+  await expect(dispute.getByTestId("vista-previa")).toContainText("Bs 205,17");
+  await expect(dispute.getByTestId("vista-previa")).toContainText("Bs 87,93");
   await dispute.getByRole("button", { name: "Probar: mandar la plata a otra cuenta" }).click();
   await expect(dispute.getByTestId("resultado-desvio")).toContainText("Rechazado por el contrato", { timeout: 60_000 });
   await expect(dispute.getByTestId("resultado-desvio")).toContainText("Error(Contract, #12)");
-  await capturar(arb, "23-arbitro-70-30-desvio-rechazado");
-  await dispute.getByRole("button", { name: "Resolver" }).click();
-  await expect(arb.getByText("Resueltas recientemente")).toBeVisible(CHAIN);
-  await expect(arb.getByTestId("reparto").first()).toContainText("Comprador (70%)");
-  await capturar(arb, "24-arbitro-resuelto");
+  await capturar(rev, "22-revisor-70-30-desvio-rechazado", "tecnica");
+  await resolver.click();
+  await expect(rev.getByText("Resueltos recientemente")).toBeVisible(CHAIN);
+  await expect(rev.getByTestId("reparto").first()).toContainText("Comprador (70%)");
+  await capturar(rev, "23-revisor-resuelto", "tecnica");
 
-  // Comprador y vendedor ven la resolución.
   await buyer.reload();
   await expect(buyer.getByTestId("estado-pedido")).toContainText("Reclamo resuelto", { timeout: 60_000 });
-  await expect(buyer.getByTestId("reparto")).toContainText("17,54");
-  await expect(buyer.getByTestId("reparto")).toContainText("7,52");
-  await capturar(buyer, "25-comprador-resuelto");
-  await seller.reload();
-  await expect(card.getByTestId("estado")).toHaveText("Resuelto", { timeout: 60_000 });
-  await capturar(seller, "26-vendedor-resuelto");
+  await expect(buyer.getByTestId("reparto")).toContainText("Bs 205,17");
+  await expect(buyer.getByTestId("reparto")).toContainText("Bs 87,93");
+  await capturar(buyer, "24-comprador-resuelto");
 
   const info = await browser.newPage();
   await info.goto("/como-funciona");
-  await expect(info.getByRole("heading", { level: 1 })).toHaveText("Cómo funciona");
-  await capturar(info, "30-como-funciona");
+  await expect(info.getByTestId("politica-reclamos")).toContainText("Arrepentirse no es motivo.");
+  await expect(info.getByTestId("real-simulado")).toContainText("Qué es real y qué es simulado");
+  await capturar(info, "30-como-funciona", "tecnica");
 });
 
-test("liberación automática: plazo corto de demo (2 min) y pp_guardian.auto_release", async ({ browser }) => {
-  const seller = await nuevoVendedor(browser, "Bazar Express", "59170001111");
-  await seller.goto("/panel?demo=1");
-  await seller.getByLabel(/Plazo corto de demo/).check();
+test("celular: IMEI obligatorio al enviar, el comprador lo ve, y liberación automática con plazo corto", async ({ browser }) => {
+  const seller = await nuevoVendedor(browser, "Bazar Express", "59170001111", "Cochabamba");
   const { url, slug } = await crearLink(
     seller,
-    { producto: "Audífonos Bluetooth", descripcion: "Con estuche de carga.", precio: 150, dias: 1 },
+    { producto: "Celular Samsung Galaxy A15", descripcion: "128 GB, sellado.", precio: 1200, dias: 1, categoria: "Celular", demo: true },
     "40-panel-plazo-corto-demo",
   );
-  const buyer = await pagar(browser, url, false);
-  await marcarEnviado(seller, slug, "BOA-77310");
+  const buyer = await pagar(browser, url, { ciudad: "Cochabamba" });
 
-  // Cuenta regresiva en la página del comprador y en el panel del vendedor.
+  // Sin IMEI no se puede marcar enviado.
+  await seller.reload();
+  const card = seller.getByTestId(`pedido-${slug}`);
+  await expect(card.getByTestId("estado")).toHaveText("Pagado (despacha)", { timeout: 60_000 });
+  await llenarEnvio(card, { empresa: "Entrega en persona", peso: "0,3" });
+  await card.getByRole("button", { name: "Marcar como enviado" }).click();
+  await expect(card.getByTestId("error")).toContainText("IMEI es obligatorio");
+  await card.getByLabel(/IMEI del celular/).fill("356938035643809");
+  await card.getByRole("button", { name: "Marcar como enviado" }).click();
+  await expect(card.getByTestId("estado")).toHaveText("Enviado", CHAIN);
+
   await buyer.reload();
+  await expect(buyer.getByTestId("imei")).toContainText("356938035643809");
+  await expect(buyer.getByTestId("imei")).toContainText("Marca *#06# en el equipo y compara");
   await expect(buyer.getByTestId("cuenta-regresiva")).toBeVisible({ timeout: 60_000 });
-  await capturar(buyer, "41-comprador-cuenta-regresiva");
+  await capturar(buyer, "41-comprador-imei-cuenta-regresiva");
   await seller.reload();
   await expect(seller.getByTestId(`pedido-${slug}`).getByTestId("plazo")).toBeVisible({ timeout: 60_000 });
   await capturar(seller, "42-vendedor-cuenta-regresiva");
 
-  // Vence el plazo: aparece "Liberar ahora (plazo vencido)" y llama a pp_guardian.auto_release (sin firmas).
   const btn = buyer.getByRole("button", { name: /Liberar ahora \(plazo vencido\)/ });
   await expect(btn).toBeVisible({ timeout: 5 * 60_000 });
   await capturar(buyer, "43-comprador-plazo-vencido");
   await expect(async () => {
     if (await btn.isVisible()) await btn.click({ timeout: 5_000 }).catch(() => {});
-    await expect(buyer.getByTestId("estado-pedido")).toContainText("Pago liberado al vendedor", { timeout: 45_000 });
+    await expect(buyer.getByTestId("estado-pedido")).toContainText("Se pagó al vendedor", { timeout: 45_000 });
   }).toPass({ timeout: 4 * 60_000, intervals: [5_000] });
-  await expect(buyer.getByTestId("desglose")).toBeVisible();
-  await expect(buyer.getByText("Venció el plazo: se liberó el pago al vendedor")).toBeVisible();
+  await expect(buyer.getByText("Venció el plazo: se pagó al vendedor")).toBeVisible();
   await capturar(buyer, "44-comprador-liberado-por-plazo");
-
   await seller.reload();
   await expect(seller.getByTestId(`pedido-${slug}`).getByTestId("estado")).toHaveText("Liberado", { timeout: 60_000 });
   await capturar(seller, "45-vendedor-liberado-por-plazo");
@@ -266,7 +365,7 @@ async function say(chat: Page, text: string) {
 }
 const botSays = (chat: Page, text: string) => chat.getByTestId("bot-msg").filter({ hasText: text }).last();
 
-test("bot de WhatsApp: vender por chat → pago con WhatsApp → enviado desde el link del bot → liberado", async ({ browser, request }) => {
+test("bot de WhatsApp: vender por chat → pago con datos de entrega → enviado desde el link del bot → pago al vendedor", async ({ browser, request }) => {
   const SIM = process.env.E2E_SIM_URL!;
   const SELLER_WA = process.env.E2E_SELLER_WA!;
 
@@ -274,13 +373,13 @@ test("bot de WhatsApp: vender por chat → pago con WhatsApp → enviado desde e
   const seller = await (await browser.newContext()).newPage();
   await seller.goto(`/vender?wa=${SELLER_WA}`);
   await seller.getByLabel("Nombre de la tienda").fill("Tienda del Bot");
+  await seller.getByLabel("Tu ciudad").selectOption("Santa Cruz");
   await seller.getByRole("button", { name: "Continuar" }).click();
   await expect(seller.getByLabel("Número de WhatsApp")).toHaveValue(SELLER_WA);
   await seller.getByRole("button", { name: "Continuar" }).click();
-  await seller.getByRole("button", { name: "Crear mi billetera y continuar" }).click();
+  await seller.getByRole("button", { name: "Crear mi cuenta de cobro y continuar" }).click();
   await seller.waitForURL("**/panel**", CHAIN);
 
-  // 1) El vendedor vende desde el chat y recibe el link.
   const chat = await (await browser.newContext()).newPage();
   await chat.goto(SIM);
   await say(chat, "vendo zapatillas nike 40 a 450 bs entrega 3 días");
@@ -288,61 +387,127 @@ test("bot de WhatsApp: vender por chat → pago con WhatsApp → enviado desde e
   await expect(link).toBeVisible({ timeout: 60_000 });
   const url = (await link.getAttribute("href"))!;
   const slug = url.split("/p/")[1];
-  expect(url.startsWith("http://localhost:")).toBe(true);
-  await capturar(chat, "bot-01-chat-link");
+  await capturar(chat, "bot-01-chat-link", "chat");
 
-  // 2) El comprador abre el link en la app y paga dejando su WhatsApp.
-  const buyer = await pagar(browser, url, false, "591 76543210");
+  const buyer = await pagar(browser, url, { whatsapp: "591 76543210", quien: "Rosa Quispe", ciudad: "La Paz" });
   await capturar(buyer, "bot-02-app-pagado");
-  // Privacidad: el WhatsApp del comprador no sale en la vista pública, y el feed del bot pide la clave.
-  expect(await (await request.get(`/api/orders/${slug}`)).text()).not.toContain("76543210");
+  // Privacidad: ni el WhatsApp ni los datos de entrega del comprador salen en la vista pública; /api/bot pide clave.
+  const publico = await (await request.get(`/api/orders/${slug}`)).text();
+  expect(publico).not.toContain("76543210");
+  expect(publico).not.toContain("Rosa Quispe");
   expect((await request.get(`/api/bot/changes?since=0`)).status()).toBe(401);
 
-  // 3) El bot avisa al vendedor: ¡Te pagaron!
   await expect(botSays(chat, "¡Te pagaron!")).toBeVisible({ timeout: 90_000 });
-  await capturar(chat, "bot-03-chat-te-pagaron");
+  await capturar(chat, "bot-03-chat-te-pagaron", "chat");
 
-  // 4) El vendedor pide marcar enviado por el chat y firma en la app desde el link del bot.
   await say(chat, `enviado ${slug.slice(-6)} SRV-2026-555001`);
   const shipLink = chat.locator('[data-testid="bot-msg"] a[href*="/panel?enviar="]').last();
   await expect(shipLink).toBeVisible({ timeout: 30_000 });
-  await capturar(chat, "bot-04-chat-link-enviar");
+  await capturar(chat, "bot-04-chat-link-enviar", "chat");
   await seller.goto((await shipLink.getAttribute("href"))!);
   const card = seller.getByTestId(`pedido-${slug}`);
-  await expect(card.getByLabel("Código de encomienda o link de la foto del envío")).toHaveValue("SRV-2026-555001", { timeout: 60_000 });
+  await expect(card.getByLabel("Número de guía")).toHaveValue("SRV-2026-555001", { timeout: 60_000 });
+  await expect(card.getByLabel("Ciudad de destino")).toHaveValue("La Paz");
+  await llenarEnvio(card, { empresa: "El Dorado (encomiendas)", peso: "1" });
   await capturar(seller, "bot-05-app-panel-enviar");
   await card.getByRole("button", { name: "Marcar como enviado" }).click();
   await expect(card.getByTestId("estado")).toHaveText("Enviado", CHAIN);
 
-  // 5) Al comprador le llega "¿Te llegó?" (tenemos su WhatsApp).
   await expect(botSays(chat, "figura como enviado")).toBeVisible({ timeout: 90_000 });
   await chat.locator("#as-buyer").click();
   await expect(botSays(chat, "¿Te llegó?")).toBeVisible({ timeout: 60_000 });
-  await capturar(chat, "bot-06-chat-comprador-te-llego");
+  await capturar(chat, "bot-06-chat-comprador-te-llego", "chat");
 
-  // 6) El comprador confirma en la app y el bot avisa al vendedor: liberado.
   await buyer.reload();
-  await buyer.getByRole("button", { name: /Recibí conforme/ }).click();
-  await expect(buyer.getByTestId("estado-pedido")).toContainText("Pago liberado al vendedor", CHAIN);
-  await capturar(buyer, "bot-07-app-liberado");
+  await abrirPregunta(buyer);
+  await buyer.getByRole("button", { name: "Sí, lo tengo y está bien" }).click();
+  await expect(buyer.getByTestId("estado-pedido")).toContainText("Se pagó al vendedor", CHAIN);
+  await capturar(buyer, "bot-07-app-pagado-al-vendedor");
   await chat.locator("#as-seller").click();
   await expect(botSays(chat, "Liberado")).toBeVisible({ timeout: 90_000 });
-  await expect(botSays(chat, "Liberado")).toContainText("37,58");
-  await capturar(chat, "bot-08-chat-liberado");
+  await capturar(chat, "bot-08-chat-liberado", "chat");
 });
 
-test("transparencia: métricas on-chain de pp_guardian y pp_arbiter (datos reales de testnet)", async ({ page, request }) => {
+test("transparencia: pruebas del equipo (con reclamos forzados) y piloto aparte, con datos reales de testnet", async ({ page, request }) => {
   await page.goto("/transparencia");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Transparencia");
   await expect(page.getByText("Estas cifras se calculan con datos públicos de la red Stellar (testnet). Cualquiera puede verificarlas.")).toBeVisible();
+  await expect(page.getByTestId("pruebas-equipo")).toHaveText("Pruebas del equipo en testnet (incluye reclamos forzados)");
+  await expect(page.getByTestId("piloto")).toContainText("Piloto con vendedores reales");
+  await expect(page.getByTestId("como-terminaron")).toContainText("reclamos forzados");
   const compras = Number((await page.getByTestId("compras-protegidas").locator("p").nth(1).innerText()).replace(/\D/g, ""));
   expect(compras).toBeGreaterThan(0);
-  await expect(page.getByTestId("ultimas-operaciones").locator('a[href*="stellar.expert/explorer/testnet/tx/"]').first()).toBeVisible();
-  // Las mismas cifras en JSON, y coherentes: cada compra está liberada, resuelta, reembolsada, en disputa o en curso.
+  await expect(page.getByTestId("ultimas-operaciones").locator(TX_LINK).first()).toBeVisible();
   const m = await (await request.get("/api/transparencia")).json();
   expect(m.compras_protegidas).toBeGreaterThanOrEqual(compras);
   expect(
     m.liberadas_por_confirmacion + m.liberadas_por_plazo + m.disputas.resueltas_por_arbitro + m.disputas.reembolsos_sin_envio + m.disputas.pendientes + m.en_curso,
   ).toBe(m.compras_protegidas);
-  await capturar(page, "60-transparencia");
+  await capturar(page, "60-transparencia", "tecnica");
+});
+
+test("palabras prohibidas en todas las pantallas, /verificar, /pedir, /piloto y piloto:csv", async ({ page, request }) => {
+  // Un link real (sin transacciones) para /p/[slug] y /verificar.
+  const pubkey = Keypair.random().publicKey();
+  expect((await request.post("/api/sellers", { data: { pubkey, storeName: "Tienda Verificable", whatsapp: "59170002222", city: "Tarija" } })).ok()).toBe(true);
+  const link = (await (await request.post("/api/links", { data: { sellerPubkey: pubkey, product: "Chamarra de cuero", priceBs: 800, deliveryDays: 4, category: "Ropa y calzado" } })).json()) as {
+    slug: string;
+    code: string;
+  };
+  expect(link.code).toMatch(/^PP-\d{4,5}$/);
+
+  await page.goto(`/verificar?codigo=${link.code}`);
+  const res = page.getByTestId("resultado-verificar");
+  await expect(res).toContainText("Tienda Verificable");
+  await expect(res).toContainText("Chamarra de cuero");
+  await expect(res).toContainText("Esperando pago");
+  await capturar(page, "61-verificar");
+  await page.goto("/verificar?codigo=PP-0001");
+  await expect(page.getByTestId("error")).toContainText("No encontramos un pedido con ese código");
+
+  await page.goto("/pedir");
+  await page.getByLabel("¿Qué quieres comprar?").fill("Chamarra de cuero");
+  await page.getByLabel(/Precio acordado/).fill("800");
+  await expect(page.getByTestId("mensaje-pedir")).toContainText("¿Me lo vendes con Pago Protegido?");
+  await capturar(page, "62-pedir");
+
+  await page.goto("/piloto");
+  await page.getByLabel("Tu nombre").fill("Carla Mendoza");
+  await page.getByLabel("Nombre de la tienda").fill("Tienda Piloto");
+  await page.getByLabel("Ciudad", { exact: true }).selectOption("Sucre");
+  await page.getByLabel("¿Qué vendes?").fill("Celulares y accesorios");
+  await page.getByLabel("¿A qué ciudades envías?").fill("La Paz, Santa Cruz");
+  await page.getByLabel("Ticket promedio (Bs)").fill("900");
+  await page.getByLabel("WhatsApp", { exact: true }).fill("59170003333");
+  await page.getByRole("button", { name: "Quiero entrar al piloto" }).click();
+  await expect(page.getByTestId("error")).toContainText("consentimiento");
+  await page.getByLabel(/Acepto que Pago Protegido guarde estos datos/).check();
+  await page.getByRole("button", { name: "Quiero entrar al piloto" }).click();
+  await expect(page.getByTestId("piloto-listo")).toBeVisible();
+  await capturar(page, "63-piloto");
+  await page.getByRole("link", { name: "Crear mi tienda ahora" }).click();
+  await expect(page.getByText("Vienes del piloto: tu tienda queda marcada como vendedor del piloto.")).toBeVisible();
+
+  const csv = execFileSync("node", ["scripts/piloto-csv.mjs"], { encoding: "utf8", env: { ...process.env, PP_DB_PATH: "data/e2e.db", PILOTO_CSV: "data/piloto-e2e.csv" } });
+  expect(csv).toContain("Tienda Piloto");
+  expect(csv.split("\n")[0]).toBe("created_at,name,store,city,sells,ships_to,avg_ticket,whatsapp,consent,seller_pubkey");
+
+  // Barrido de palabras prohibidas.
+  const pantallas: [string, Kind][] = [
+    ["/", "usuario"],
+    ["/vender", "usuario"],
+    ["/panel", "usuario"],
+    [`/p/${link.slug}`, "usuario"],
+    ["/verificar", "usuario"],
+    ["/pedir", "usuario"],
+    ["/piloto", "usuario"],
+    ["/como-funciona", "tecnica"],
+    ["/transparencia", "tecnica"],
+    ["/revisor", "tecnica"],
+  ];
+  for (const [ruta, kind] of pantallas) {
+    await page.goto(ruta);
+    await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
+    await revisarPalabras(page, kind);
+  }
 });

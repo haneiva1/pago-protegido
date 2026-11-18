@@ -1,8 +1,22 @@
 import { FeeBumpTransaction, StrKey, Transaction, TransactionBuilder } from "@stellar/stellar-sdk";
-import { randomBytes } from "node:crypto";
-import { bsToUnits, fmtBs, fmtUsd, releaseBreakdown, splitFromGross, splitPreview } from "@/lib/format";
+import { createHash, randomBytes, randomInt } from "node:crypto";
+import {
+  CATEGORIAS,
+  CIUDADES,
+  EMPRESAS,
+  MOTIVOS,
+  MOTIVOS_CON_VIDEO,
+  MOTIVO_PRESION,
+  STATUS_LABEL,
+  fmtBs,
+  fmtBsUnits,
+  linkAmounts,
+  releaseBreakdown,
+  splitFromGross,
+  splitPreview,
+} from "@/lib/format";
 import { NETWORK_PASSPHRASE, cfg } from "./config";
-import { type OrderRow, kv, orders, pending, sellers, txs } from "./db";
+import { type OrderRow, evidence, kv, orders, pending, pilot, sellers, txs } from "./db";
 import { escrowService, type EscrowCtx, type EscrowProps, type OnchainState, type UserAction, type Verification } from "./escrow";
 import { factoryId } from "./escrow/tw";
 import {
@@ -36,12 +50,12 @@ export interface PreparedDto {
 }
 
 const STEP_LABEL: Record<string, string> = {
-  trustline: "Activar USD de prueba en tu billetera",
-  fund: "Pagar al contrato protegido",
-  ship: "Marcar como enviado",
+  trustline: "Activar tu cuenta de cobro",
+  fund: "Guardar el pago en el contrato",
+  ship: "Registrar el envío",
   approve: "Confirmar que recibiste",
-  release: "Liberar el pago al vendedor",
-  confirm: "Confirmar y liberar el pago",
+  release: "Pagar al vendedor",
+  confirm: "Pagar al vendedor",
   dispute: "Abrir un reclamo",
 };
 
@@ -61,6 +75,11 @@ function isUrl(v: string): boolean {
   return v === "" || /^https?:\/\/\S+$/i.test(v);
 }
 
+const sha = (s: string) => createHash("sha256").update(s).digest("hex");
+const inList = <T extends readonly string[]>(list: T, v: string): v is T[number] => (list as readonly string[]).includes(v);
+const fmtWhen = (ms: number) =>
+  new Intl.DateTimeFormat("es-BO", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "America/La_Paz" }).format(new Date(ms));
+
 function register(
   tx: Transaction,
   p: { order_slug: string | null; action: string; step: string; signer: string; params?: object },
@@ -79,6 +98,16 @@ function mustOrder(slug: string): OrderRow {
 /** Plazo de liberación automática: días de entrega + 3 días, o 2 minutos en links de demo (?demo=1). */
 const windowSecs = (o: OrderRow) => o.window_secs ?? (o.delivery_days + cfg().extraWindowDays) * 86400;
 export const DEMO_WINDOW_SECS = 120;
+/** Modo demo (PP_DEMO=1): "Pagar al vendedor" se habilita 1 minuto después del envío. */
+export const demoTimers = () => process.env.PP_DEMO === "1";
+
+/** "Pagar al vendedor" se habilita 2 h después del envío en la misma ciudad y 24 h si es otra ciudad. */
+export function confirmDelay(o: OrderRow): { ms: number; label: string } {
+  if (demoTimers()) return { ms: 60_000, label: "1 minuto (modo demo)" };
+  const sellerCity = sellers.get(o.seller_pubkey)?.city;
+  const same = Boolean(sellerCity && o.dest_city && sellerCity === o.dest_city && o.dest_city !== "Otra");
+  return same ? { ms: 2 * 3600_000, label: "2 horas (misma ciudad)" } : { ms: 24 * 3600_000, label: "24 horas (otra ciudad)" };
+}
 
 function ctxOf(o: OrderRow): EscrowCtx {
   if (!o.escrow_id || !o.escrow_json || !o.buyer_pubkey) throw new AppError("El pedido todavía no tiene contrato de pago", 409);
@@ -93,13 +122,18 @@ function ctxOf(o: OrderRow): EscrowCtx {
 
 // ---------- Vendedores y links ----------
 
-export function saveSeller(input: { pubkey?: unknown; storeName?: unknown; whatsapp?: unknown }) {
-  if (!isPubkey(input.pubkey)) throw new AppError("Billetera inválida");
+export function saveSeller(input: { pubkey?: unknown; storeName?: unknown; whatsapp?: unknown; city?: unknown; pilotId?: unknown }) {
+  if (!isPubkey(input.pubkey)) throw new AppError("Cuenta inválida");
   const store_name = clean(input.storeName, 60);
-  const whatsapp = clean(input.whatsapp, 20).replace(/[^\d+]/g, "");
+  const whatsapp = clean(input.whatsapp, 20).replace(/[^\d+ ]/g, "");
+  const city = clean(input.city, 40);
   if (store_name.length < 2) throw new AppError("Escribe el nombre de tu tienda");
   if (whatsapp.replace(/\D/g, "").length < 7) throw new AppError("Escribe un WhatsApp válido");
-  sellers.upsert({ pubkey: input.pubkey, store_name, whatsapp });
+  if (city && !inList(CIUDADES, city)) throw new AppError("Elige tu ciudad de la lista");
+  // Vendedores que vienen de la lista de espera del piloto (/piloto) quedan marcados como piloto.
+  const pilotRow = typeof input.pilotId === "string" ? pilot.get(input.pilotId) : undefined;
+  sellers.upsert({ pubkey: input.pubkey, store_name, whatsapp, city: city || null, pilot: Boolean(pilotRow) });
+  if (pilotRow) pilot.linkSeller(pilotRow.id, input.pubkey);
   return sellers.get(input.pubkey)!;
 }
 
@@ -117,6 +151,15 @@ function slugify(product: string): string {
   return `${base || "pedido"}-${randomBytes(3).toString("hex")}`;
 }
 
+/** Código corto y legible del pedido: PP-4821. */
+function newCode(): string {
+  for (let i = 0; i < 50; i++) {
+    const c = `PP-${randomInt(1000, 10000)}`;
+    if (!orders.byCode(c)) return c;
+  }
+  return `PP-${randomInt(10000, 100000)}`;
+}
+
 export function createLink(input: Record<string, unknown>) {
   const seller = isPubkey(input.sellerPubkey) ? sellers.get(input.sellerPubkey) : undefined;
   if (!seller) throw new AppError("Primero crea tu tienda", 403);
@@ -125,12 +168,16 @@ export function createLink(input: Record<string, unknown>) {
   const photo_url = clean(input.photoUrl, 500);
   const priceBs = Number(String(input.priceBs ?? "").replace(",", "."));
   const days = Number(input.deliveryDays);
+  const category = clean(input.category, 30) || "Otro";
   if (product.length < 2) throw new AppError("Escribe el producto");
   if (!isUrl(photo_url)) throw new AppError("La foto tiene que ser un link (https://…)");
   if (!Number.isFinite(priceBs) || priceBs < 1 || priceBs > 100000) throw new AppError("El precio tiene que estar entre Bs 1 y Bs 100.000");
   if (!Number.isInteger(days) || days < 1 || days > 15) throw new AppError("Los días de entrega van de 1 a 15");
+  if (!inList(CATEGORIAS, category)) throw new AppError("Elige la categoría de la lista");
+  const fee_payer = input.feePayer === "vendedor" ? "vendedor" : "comprador";
   const fx = cfg().fx;
   const price_bs_cents = Math.round(priceBs * 100);
+  const a = linkAmounts(price_bs_cents, fx, fee_payer);
   const slug = slugify(product);
   orders.insert({
     slug,
@@ -139,19 +186,24 @@ export function createLink(input: Record<string, unknown>) {
     description,
     photo_url,
     price_bs_cents,
-    amount_units: bsToUnits(price_bs_cents, fx).toString(),
+    amount_units: a.amount.toString(),
     fx,
     delivery_days: days,
     window_secs: input.demoWindow === true ? DEMO_WINDOW_SECS : null,
+    code: newCode(),
+    category,
+    fee_payer,
+    price_units: a.price.toString(),
+    platform_bps: a.platformBps,
   });
   return orders.get(slug)!;
 }
 
-// ---------- Billetera ----------
+// ---------- Cuenta (billetera local o Pollar) ----------
 
 /** Cuenta nueva: friendbot y, si falta, la trustline a LABUSD (la firma el navegador). */
 export async function activateWallet(pubkey: unknown) {
-  if (!isPubkey(pubkey)) throw new AppError("Billetera inválida");
+  if (!isPubkey(pubkey)) throw new AppError("Cuenta inválida");
   await ensureFunded(pubkey);
   if (hasTrustline(await horizonAccount(pubkey))) return { ready: true as const };
   const tx = await prepareTrustline(pubkey);
@@ -165,9 +217,10 @@ function buildProps(o: OrderRow, buyer: string): EscrowProps {
     engagement_id: `pp-${o.slug}`,
     title: o.product.slice(0, 80),
     roles: escrowService().roles(buyer, o.seller_pubkey),
-    description: `Pago Protegido: ${o.product}`.slice(0, 200),
+    // Los datos de entrega quedan ligados al escrow por su hash (no se publican en claro).
+    description: `Pago Protegido ${o.code ?? ""}: ${o.product} | entrega ${o.delivery_hash ?? "-"}`.slice(0, 200),
     amount: o.amount_units,
-    platform_fee: cfg().platformFeeBps,
+    platform_fee: o.platform_bps ?? cfg().platformFeeBps,
     milestones: [{ description: "Entrega del producto", status: "pendiente", evidence: "", approved: false }],
     flags: { disputed: false, released: false, resolved: false },
     trustline: { address: cfg().labusdSac },
@@ -176,22 +229,37 @@ function buildProps(o: OrderRow, buyer: string): EscrowProps {
 }
 
 /**
- * "Simular pago del banco": rampa simulada (lab emite LABUSD al comprador por el equivalente en Bs),
+ * "Simular pago del banco": datos de entrega, rampa simulada (lab emite el total en USD de prueba),
  * deploy del escrow de esta compra (plataforma) y fondeo armado para que lo firme el comprador.
  */
-export async function startPayment(slug: string, buyer: unknown, whatsapp?: unknown): Promise<PreparedDto> {
-  if (!isPubkey(buyer)) throw new AppError("Billetera inválida");
-  const buyerWa = whatsapp ? normPhone(whatsapp) : "";
-  if (whatsapp && buyerWa.length < 7) throw new AppError("Escribe un WhatsApp válido");
+export async function startPayment(slug: string, body: Record<string, unknown>): Promise<PreparedDto> {
+  const buyer = body.buyer;
+  if (!isPubkey(buyer)) throw new AppError("Cuenta inválida");
+  const buyerWa = body.whatsapp ? normPhone(body.whatsapp) : "";
+  if (body.whatsapp && buyerWa.length < 7) throw new AppError("Escribe un WhatsApp válido");
+  const recipient = clean(body.recipient, 60);
+  const destCity = clean(body.city, 40);
+  const agency = clean(body.agency, 80);
+  if (recipient.length < 2) throw new AppError("Escribe quién recibe el pedido");
+  if (!inList(CIUDADES, destCity)) throw new AppError("Elige la ciudad de destino");
   return withLock(`order:${slug}`, async () => {
     let o = mustOrder(slug);
     if (o.status !== "esperando_pago") throw new AppError("Este link ya fue pagado", 409);
     if (o.buyer_pubkey && o.buyer_pubkey !== buyer) throw new AppError("Otra persona ya está pagando este link", 409);
     if (buyer === o.seller_pubkey) throw new AppError("No puedes pagar tu propio link");
-    if (!hasTrustline(await horizonAccount(buyer))) throw new AppError("Primero activa tu billetera", 409);
+    if (!hasTrustline(await horizonAccount(buyer))) throw new AppError("Primero activa tu cuenta", 409);
     if (!o.buyer_pubkey) orders.update(slug, { buyer_pubkey: buyer });
     if (buyerWa) orders.update(slug, { buyer_whatsapp: buyerWa });
+    if (!o.escrow_id) {
+      orders.update(slug, {
+        recipient_name: recipient,
+        dest_city: destCity,
+        pref_agency: agency || null,
+        delivery_hash: sha(JSON.stringify({ slug, recipient, city: destCity, agency })).slice(0, 16),
+      });
+    }
     const svc = escrowService();
+    o = mustOrder(slug);
     const amount = BigInt(o.amount_units);
 
     if (!o.ramp_hash) {
@@ -201,7 +269,7 @@ export async function startPayment(slug: string, buyer: unknown, whatsapp?: unkn
         order_slug: slug,
         actor: "rampa",
         kind: "rampa",
-        label: `Rampa simulada: el banco pagó ${fmtBs(o.price_bs_cents)} y llegaron ${fmtUsd(amount)} USD de prueba a tu billetera`,
+        label: `Rampa simulada: el banco pagó ${fmtBsUnits(amount, o.fx)} y llegaron a tu cuenta`,
         hash: sent.hash,
       });
     }
@@ -211,7 +279,7 @@ export async function startPayment(slug: string, buyer: unknown, whatsapp?: unkn
       const props = buildProps(o, buyer);
       const { escrowId, hash } = await svc.createEscrow(props);
       orders.update(slug, { escrow_id: escrowId, escrow_json: JSON.stringify(props), mode: svc.mode });
-      txs.add({ order_slug: slug, actor: "plataforma", kind: "escrow", label: "Se creó el contrato protegido de este pedido (Trustless Work)", hash });
+      txs.add({ order_slug: slug, actor: "plataforma", kind: "escrow", label: "Se creó el contrato protegido de este pedido", hash });
       o = mustOrder(slug);
     }
 
@@ -220,7 +288,7 @@ export async function startPayment(slug: string, buyer: unknown, whatsapp?: unkn
     orders.update(slug, { verify_json: JSON.stringify(verification) });
     if (!verification.ok) {
       const failed = verification.checks.filter((c) => !c.ok).map((c) => c.label).join("; ");
-      throw new AppError(`Pago bloqueado: el contrato del pedido no pasó la verificación (${failed})`, 409);
+      throw new AppError(`No se puede pagar: el contrato del pedido no pasó la verificación (${failed})`, 409);
     }
 
     const tx = await svc.prepareStep("fund", "fund", ctxOf(o), buyer, {});
@@ -230,31 +298,62 @@ export async function startPayment(slug: string, buyer: unknown, whatsapp?: unkn
 
 // ---------- Acciones del comprador y del vendedor ----------
 
+/** Evidencia de envío estructurada. On-chain va compacta: "empresa|guía|peso|hash-foto". */
+function shipParams(o: OrderRow, body: Record<string, unknown>): Record<string, string> {
+  // Compatibilidad con scripts viejos: { evidence: "OLVA-123" }.
+  if (!body.company && typeof body.evidence === "string") {
+    body = { company: "Otra flota", tracking: body.evidence, weight: "1", city: o.dest_city ?? "Otra" };
+  }
+  const company = clean(body.company, 60);
+  const tracking = clean(body.tracking, 60);
+  const weightNum = Number(String(body.weight ?? "").replace(",", "."));
+  const photo = clean(body.photo, 500);
+  const city = clean(body.city, 40) || o.dest_city || "";
+  const imei = clean(body.imei, 20).replace(/\D/g, "");
+  if (!inList(EMPRESAS, company)) throw new AppError("Elige la empresa de envío de la lista");
+  if (company !== "Entrega en persona" && tracking.length < 3) throw new AppError("Escribe el número de guía");
+  if (!Number.isFinite(weightNum) || weightNum <= 0 || weightNum > 500) throw new AppError("Escribe el peso declarado en kg");
+  if (!isUrl(photo)) throw new AppError("La foto tiene que ser un link (https://…)");
+  if (!inList(CIUDADES, city)) throw new AppError("Elige la ciudad de destino");
+  if (o.category === "Celular" && !/^\d{15}$/.test(imei)) throw new AppError("Para celulares el IMEI es obligatorio (15 dígitos)");
+  const weight = String(Math.round(weightNum * 100) / 100);
+  const compact = `${company}|${tracking || "-"}|${weight}kg|${photo ? sha(photo).slice(0, 12) : "-"}`;
+  return { company, tracking, weight, photo, city, imei, evidence: compact };
+}
+
 export async function prepareAction(slug: string, body: Record<string, unknown>): Promise<PreparedDto> {
   const action = body.action as UserAction;
   const signer = body.signer;
-  if (!isPubkey(signer)) throw new AppError("Billetera inválida");
+  if (!isPubkey(signer)) throw new AppError("Cuenta inválida");
   const o = mustOrder(slug);
   const svc = escrowService();
   const ctx = ctxOf(o);
-  const params: Record<string, string> = {};
+  let params: Record<string, string> = {};
 
   if (action === "ship") {
-    if (signer !== o.seller_pubkey) throw new AppError("Solo el vendedor puede marcar el envío", 403);
+    if (signer !== o.seller_pubkey) throw new AppError("Solo el vendedor puede registrar el envío", 403);
     if (o.status !== "pagado") throw new AppError("Solo puedes marcar como enviado un pedido pagado", 409);
-    params.evidence = clean(body.evidence, 200);
-    if (params.evidence.length < 3) throw new AppError("Escribe el código de encomienda o pega el link de la foto");
+    params = shipParams(o, body);
   } else if (action === "confirm") {
-    if (signer !== o.buyer_pubkey) throw new AppError("Solo el comprador puede confirmar", 403);
-    if (o.status !== "pagado" && o.status !== "enviado") throw new AppError("Este pedido ya no se puede confirmar", 409);
+    if (signer !== o.buyer_pubkey) throw new AppError("Solo el comprador puede pagar al vendedor", 403);
+    if (o.status !== "enviado") throw new AppError("Primero el vendedor tiene que marcar el pedido como enviado", 409);
+    if (!o.confirm_after || Date.now() < o.confirm_after) {
+      throw new AppError(`Podrás pagar al vendedor desde el ${fmtWhen(o.confirm_after ?? Date.now())}`, 409);
+    }
   } else if (action === "dispute") {
-    if (signer !== o.buyer_pubkey && signer !== o.seller_pubkey) throw new AppError("Solo el comprador o el vendedor pueden reclamar", 403);
+    const isBuyer = signer === o.buyer_pubkey;
+    if (!isBuyer && signer !== o.seller_pubkey) throw new AppError("Solo el comprador o el vendedor pueden reclamar", 403);
     if (o.status !== "pagado" && o.status !== "enviado") throw new AppError("Este pedido ya no admite reclamos", 409);
     params.reason = clean(body.reason, 80);
     params.text = clean(body.text, 600);
     params.photo = clean(body.photo, 500);
-    if (!params.reason) throw new AppError("Elige un motivo");
-    if (!isUrl(params.photo)) throw new AppError("La foto tiene que ser un link (https://…)");
+    params.video = clean(body.video, 500);
+    if (!inList(MOTIVOS, params.reason)) throw new AppError("Elige un motivo de la lista");
+    if (params.reason === MOTIVO_PRESION && !isBuyer) throw new AppError("Ese motivo solo lo puede usar el comprador");
+    if (!isUrl(params.photo) || !isUrl(params.video)) throw new AppError("La foto y el video tienen que ser links (https://…)");
+    if (isBuyer && MOTIVOS_CON_VIDEO.includes(params.reason) && o.price_bs_cents >= 30000 && !params.video) {
+      throw new AppError("Para este motivo, desde Bs 300, el video continuo del desempaque es obligatorio");
+    }
   } else {
     throw new AppError("Acción desconocida");
   }
@@ -286,13 +385,13 @@ export async function submitSigned(signedXdr: unknown): Promise<{ hash: string; 
   const hashHex = Buffer.from(inner.hash()).toString("hex");
   const p = pending.take(hashHex);
   if (!p) throw new AppError("Transacción desconocida o ya enviada", 409);
-  if (inner.source !== p.signer || inner.signatures.length === 0) throw new AppError("Falta la firma de tu billetera", 400);
+  if (inner.source !== p.signer || inner.signatures.length === 0) throw new AppError("Falta la firma de tu cuenta", 400);
 
   const sent = await feeBumpAndSend(inner);
   const params = JSON.parse(p.params) as Record<string, string>;
 
   if (p.action === "trustline") {
-    txs.add({ order_slug: null, actor: p.signer, kind: "trustline", label: "Billetera activada para USD de prueba", hash: sent.hash });
+    txs.add({ order_slug: null, actor: p.signer, kind: "trustline", label: "Cuenta activada", hash: sent.hash });
     return { hash: sent.hash };
   }
 
@@ -309,20 +408,36 @@ export async function submitSigned(signedXdr: unknown): Promise<{ hash: string; 
         funded_at: onchain?.fundedAt ?? now,
         deadline: onchain?.deadline ?? now + windowSecs(o) * 1000,
       });
-      txs.add({ order_slug: slug, actor: "comprador", kind: "fondeo", label: `Pagaste ${fmtUsd(o.amount_units)} USD de prueba: quedaron guardados en el contrato`, hash: sent.hash });
+      txs.add({ order_slug: slug, actor: "comprador", kind: "fondeo", label: `Pagaste ${fmtBsUnits(o.amount_units, o.fx)}: quedó guardado en el contrato`, hash: sent.hash });
       break;
     }
-    case "ship":
-      orders.update(slug, { status: "enviado", shipped_evidence: params.evidence, shipped_at: now });
-      txs.add({ order_slug: slug, actor: "vendedor", kind: "envio", label: `El vendedor marcó el pedido como enviado: ${params.evidence}`, hash: sent.hash });
+    case "ship": {
+      orders.update(slug, {
+        status: "enviado",
+        shipped_evidence: params.evidence,
+        shipped_at: now,
+        ship_company: params.company,
+        ship_tracking: params.tracking || null,
+        ship_weight: params.weight,
+        ship_photo: params.photo || null,
+        ship_city: params.city,
+        ship_imei: params.imei || null,
+        confirm_after: now + confirmDelay(o).ms,
+      });
+      const summary = [params.company, params.tracking && `guía ${params.tracking}`, `${params.weight} kg`, `a ${params.city}`, params.imei && `IMEI ${params.imei}`]
+        .filter(Boolean)
+        .join(" · ");
+      evidence.add({ order_slug: slug, actor: "vendedor", kind: "envio", summary, data: params });
+      txs.add({ order_slug: slug, actor: "vendedor", kind: "envio", label: `El vendedor registró el envío: ${summary}`, hash: sent.hash });
       break;
+    }
     case "approve":
       txs.add({ order_slug: slug, actor: "comprador", kind: "aprobacion", label: "El comprador confirmó que recibió el pedido", hash: sent.hash });
       break;
     case "release":
     case "confirm":
       orders.update(slug, { status: "liberado", released_at: now });
-      txs.add({ order_slug: slug, actor: "comprador", kind: "liberacion", label: "Se liberó el pago al vendedor", hash: sent.hash });
+      txs.add({ order_slug: slug, actor: "comprador", kind: "liberacion", label: "Se pagó al vendedor", hash: sent.hash });
       break;
     case "dispute":
       orders.update(slug, {
@@ -331,9 +446,18 @@ export async function submitSigned(signedXdr: unknown): Promise<{ hash: string; 
         dispute_reason: params.reason,
         dispute_text: params.text,
         dispute_photo: params.photo,
+        dispute_video: params.video || null,
         disputed_at: now,
       });
-      txs.add({ order_slug: slug, actor: role, kind: "disputa", label: `Se abrió un reclamo (${params.reason}): la plata queda congelada hasta que decida el árbitro`, hash: sent.hash });
+      if (params.reason === MOTIVO_PRESION) sellers.flagPressure(o.seller_pubkey);
+      evidence.add({
+        order_slug: slug,
+        actor: role,
+        kind: "reclamo",
+        summary: [params.reason, params.text].filter(Boolean).join(": "),
+        data: { reason: params.reason, text: params.text, photo: params.photo, video: params.video },
+      });
+      txs.add({ order_slug: slug, actor: role, kind: "disputa", label: `Se abrió un reclamo (${params.reason}): la plata queda congelada hasta que decida el revisor`, hash: sent.hash });
       break;
   }
 
@@ -381,6 +505,7 @@ export function sellerReply(slug: string, body: Record<string, unknown>) {
   const text = clean(body.text, 600);
   if (text.length < 3) throw new AppError("Escribe tu versión");
   orders.update(slug, { seller_reply: text });
+  evidence.add({ order_slug: slug, actor: "vendedor", kind: "respuesta", summary: text, data: { text } });
   return { ok: true };
 }
 
@@ -391,25 +516,32 @@ export async function autoRelease(slug: string) {
     if (!o.deadline || Date.now() < o.deadline) throw new AppError("Todavía no venció el plazo", 409);
     const { hash } = await escrowService().autoRelease(ctxOf(o));
     orders.update(slug, { status: "liberado", released_at: Date.now() });
-    txs.add({ order_slug: slug, actor: "plataforma", kind: "liberacion", label: "Venció el plazo: se liberó el pago al vendedor", hash });
+    txs.add({ order_slug: slug, actor: "plataforma", kind: "liberacion", label: "Venció el plazo: se pagó al vendedor", hash });
     return { hash };
   });
 }
 
-// ---------- Árbitro ----------
+/** Contratos v2 (pp_guardian con mark_shipped y extend): la interfaz ya está lista, falta el ID. */
+export function extendDeadline(_slug: string): never {
+  throw new AppError("“Necesito más tiempo” llega con pp_guardian v2 (extend): todavía no está activo", 501);
+}
 
-export async function resolveDispute(slug: unknown, buyerBps: unknown) {
+// ---------- Revisor ----------
+
+export async function resolveDispute(slug: unknown, buyerBps: unknown, reason: unknown) {
   if (typeof slug !== "string") throw new AppError("Falta el pedido");
   const bps = Number(buyerBps);
   if (!Number.isInteger(bps) || bps < 0 || bps > 10000) throw new AppError("El porcentaje va de 0 a 100");
+  const why = clean(reason, 80);
+  if (!inList(MOTIVOS, why)) throw new AppError("Elige el motivo del fallo");
   return withLock(`order:${slug}`, async () => {
     const o = mustOrder(slug);
     if (o.status !== "en_disputa") throw new AppError("El pedido no está en disputa", 409);
     const { hash } = await escrowService().resolve(ctxOf(o), bps);
-    orders.update(slug, { status: "resuelto", buyer_bps: bps, resolved_at: Date.now() });
+    orders.update(slug, { status: "resuelto", buyer_bps: bps, resolved_at: Date.now(), resolution_reason: why });
     const pct = (bps / 100).toLocaleString("es-BO");
     const pctSeller = ((10000 - bps) / 100).toLocaleString("es-BO");
-    txs.add({ order_slug: slug, actor: "arbitro", kind: "resolucion", label: `El árbitro repartió: ${pct}% para el comprador y ${pctSeller}% para el vendedor`, hash });
+    txs.add({ order_slug: slug, actor: "revisor", kind: "resolucion", label: `El revisor repartió: ${pct}% para el comprador y ${pctSeller}% para el vendedor (${why})`, hash });
     return { hash };
   });
 }
@@ -421,13 +553,14 @@ export async function quoteDispute(slug: unknown, buyerBps: unknown) {
   if (!Number.isInteger(bps) || bps < 0 || bps > 10000) throw new AppError("El porcentaje va de 0 a 100");
   const o = mustOrder(slug);
   const q = await escrowService().quote(ctxOf(o), bps);
-  const s = splitFromGross(BigInt(q.balance), BigInt(q.buyer_amount), BigInt(q.seller_amount), cfg().platformFeeBps);
+  const s = splitFromGross(BigInt(q.balance), BigInt(q.buyer_amount), BigInt(q.seller_amount), o.platform_bps ?? cfg().platformFeeBps);
   return {
     ...q,
     buyer_net: s.buyer.net.toString(),
     seller_net: s.seller.net.toString(),
     platform: (s.buyer.platform + s.seller.platform).toString(),
     tw: (s.buyer.tw + s.seller.tw).toString(),
+    fx: o.fx,
   };
 }
 
@@ -441,12 +574,60 @@ export async function probeForeign(slug: unknown) {
   return { ...r, foreign };
 }
 
+// ---------- Piloto y verificación ----------
+
+export function joinPilot(body: Record<string, unknown>) {
+  const f = {
+    name: clean(body.name, 60),
+    store: clean(body.store, 60),
+    city: clean(body.city, 40),
+    sells: clean(body.sells, 120),
+    ships_to: clean(body.shipsTo, 200),
+    avg_ticket: clean(body.avgTicket, 30),
+    whatsapp: clean(body.whatsapp, 20).replace(/[^\d+ ]/g, ""),
+  };
+  if (f.name.length < 2 || f.store.length < 2) throw new AppError("Escribe tu nombre y el de tu tienda");
+  if (!inList(CIUDADES, f.city)) throw new AppError("Elige tu ciudad");
+  if (f.sells.length < 2 || f.ships_to.length < 2) throw new AppError("Cuéntanos qué vendes y a qué ciudades envías");
+  if (f.whatsapp.replace(/\D/g, "").length < 7) throw new AppError("Escribe un WhatsApp válido");
+  if (body.consent !== true) throw new AppError("Necesitamos tu consentimiento para escribirte");
+  const id = randomBytes(6).toString("hex");
+  pilot.add({ id, ...f, consent: 1 });
+  return { id, whatsapp: normPhone(f.whatsapp) };
+}
+
+/** /verificar: con el código del pedido muestra tienda, producto, monto y estado. */
+export function verifyCode(codeParam: string | null) {
+  const code = String(codeParam ?? "").trim().toUpperCase().replace(/^PP\s*-?\s*/, "PP-");
+  const o = /^PP-\d{4,5}$/.test(code) ? orders.byCode(code) : undefined;
+  if (!o) throw new AppError("No encontramos un pedido con ese código. Si alguien te lo envió, no pagues.", 404);
+  const s = sellers.get(o.seller_pubkey);
+  return {
+    code,
+    store: s?.store_name ?? "",
+    city: s?.city ?? null,
+    product: o.product,
+    price: fmtBs(o.price_bs_cents),
+    total: fmtBsUnits(o.amount_units, o.fx),
+    status: o.status,
+    statusLabel: STATUS_LABEL[o.status],
+    slug: o.slug,
+    escrowId: o.escrow_id,
+    created_at: o.created_at,
+  };
+}
+
 // ---------- Vistas ----------
 
+/** Vista pública del pedido: sin WhatsApp ni datos de entrega del comprador. */
 function publicOrder(o: OrderRow) {
-  // buyer_whatsapp nunca sale en vistas públicas (APP-ENDPOINTS §4).
-  const { escrow_json: _e, verify_json, buyer_whatsapp: _w, ...rest } = o;
+  const { escrow_json: _e, verify_json, buyer_whatsapp: _w, recipient_name: _r, dest_city: _c, pref_agency: _a, ...rest } = o;
   return { ...rest, verification: verify_json ? (JSON.parse(verify_json) as Verification) : null };
+}
+
+/** Lo que ve el vendedor (y el revisor): incluye los datos de entrega. */
+function sellerOrder(o: OrderRow) {
+  return { ...publicOrder(o), recipient_name: o.recipient_name, dest_city: o.dest_city, pref_agency: o.pref_agency };
 }
 
 /**
@@ -467,7 +648,7 @@ function reconcile(o: OrderRow, st: OnchainState | null): OrderRow {
 
 function money(o: OrderRow) {
   const amount = BigInt(o.amount_units);
-  const bps = cfg().platformFeeBps;
+  const bps = o.platform_bps ?? cfg().platformFeeBps;
   const out: Record<string, unknown> = {};
   if (o.status === "liberado") {
     const b = releaseBreakdown(amount, bps);
@@ -485,43 +666,69 @@ function money(o: OrderRow) {
   return out;
 }
 
+/** Tarjeta del vendedor en la página de pago. */
+function sellerCard(pubkey: string) {
+  const s = sellers.get(pubkey)!;
+  return {
+    store_name: s.store_name,
+    whatsapp: s.whatsapp,
+    pubkey: s.pubkey,
+    city: s.city,
+    since: s.created_at,
+    completedSales: sellers.completedSales(s.pubkey),
+    claims: sellers.claimStats(s.pubkey),
+    verification: "pendiente" as const,
+  };
+}
+
 export async function orderView(slug: string, withOnchain: boolean) {
   let o = mustOrder(slug);
-  const s = sellers.get(o.seller_pubkey)!;
   let onchain: OnchainState | null = null;
   if (withOnchain && o.escrow_id) onchain = await escrowService().readState(o.escrow_id).catch(() => null);
   o = reconcile(o, onchain);
   return {
     order: publicOrder(o),
-    seller: { store_name: s.store_name, whatsapp: s.whatsapp, pubkey: s.pubkey, completedSales: sellers.completedSales(s.pubkey) },
+    seller: sellerCard(o.seller_pubkey),
     txs: txs.forOrder(slug),
-    platformFeeBps: cfg().platformFeeBps,
+    platformFeeBps: o.platform_bps ?? cfg().platformFeeBps,
     mode: cfg().mode,
     onchain,
+    confirmDelay: confirmDelay(o).label,
+    demoTimers: demoTimers(),
+    capabilities: CAPABILITIES,
     ...money(o),
   };
 }
 
 export async function sellerView(pubkey: string) {
-  if (!isPubkey(pubkey)) throw new AppError("Billetera inválida");
+  if (!isPubkey(pubkey)) throw new AppError("Cuenta inválida");
   const s = sellers.get(pubkey);
   if (!s) throw new AppError("Tienda no encontrada", 404);
-  const list = orders.bySeller(pubkey).map((o) => ({ ...publicOrder(o), txs: txs.forOrder(o.slug), ...money(o) }));
+  const list = orders.bySeller(pubkey).map((o) => ({ ...sellerOrder(o), txs: txs.forOrder(o.slug), ...money(o) }));
   const balance = await tokenBalance(pubkey);
-  return { seller: { ...s, completedSales: sellers.completedSales(pubkey) }, orders: list, balance: balance.toString() };
+  return { seller: { ...s, completedSales: sellers.completedSales(pubkey) }, orders: list, balance: balance.toString(), fx: cfg().fx };
 }
 
 export async function disputesView() {
   const open = await Promise.all(
     orders.byStatus("en_disputa").map(async (o) => {
       const onchain = o.escrow_id ? await escrowService().readState(o.escrow_id).catch(() => null) : null;
-      return { ...publicOrder(reconcile(o, onchain)), seller: sellers.get(o.seller_pubkey), txs: txs.forOrder(o.slug), onchain };
+      return {
+        ...sellerOrder(reconcile(o, onchain)),
+        seller: sellers.get(o.seller_pubkey),
+        txs: txs.forOrder(o.slug),
+        evidence: evidence.forOrder(o.slug),
+        onchain,
+      };
     }),
   );
   const stillOpen = open.filter((d) => d.status === "en_disputa");
-  const resolved = orders.recentResolved(10).map((o) => ({ ...publicOrder(o), txs: txs.forOrder(o.slug), ...money(o) }));
+  const resolved = orders.recentResolved(10).map((o) => ({ ...publicOrder(o), txs: txs.forOrder(o.slug), evidence: evidence.forOrder(o.slug), ...money(o) }));
   return { open: stillOpen, resolved, platformFeeBps: cfg().platformFeeBps, mode: cfg().mode };
 }
+
+/** Lo que trae pp_guardian v2 (mark_shipped, reloj desde "enviado", extend). Se activa con los IDs v2. */
+export const CAPABILITIES = { extend: false, clockFromShipping: false };
 
 export async function info() {
   const c = cfg();
@@ -534,6 +741,8 @@ export async function info() {
     wasmHash: c.wasmHash,
     factory,
     contracts: svc.contracts(),
+    capabilities: CAPABILITIES,
+    demoTimers: demoTimers(),
   };
 }
 

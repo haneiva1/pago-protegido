@@ -20,7 +20,7 @@ export function StatusBadge({ status }: { status: OrderStatus }) {
   );
 }
 
-export function TxLink({ hash, label = "Ver en Stellar" }: { hash: string; label?: string }) {
+export function TxLink({ hash, label = "Ver registro público" }: { hash: string; label?: string }) {
   return (
     <a
       href={explorer.tx(hash)}

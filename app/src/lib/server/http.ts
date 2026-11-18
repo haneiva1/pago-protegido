@@ -26,7 +26,7 @@ export async function body(req: Request): Promise<Record<string, unknown>> {
 
 export function checkArbitro(req: Request) {
   const key = req.headers.get("x-arbitro-key") ?? "";
-  if (!cfg().arbitroPanelKey || key !== cfg().arbitroPanelKey) throw new AppError("Clave del árbitro incorrecta", 401);
+  if (!cfg().arbitroPanelKey || key !== cfg().arbitroPanelKey) throw new AppError("Clave del revisor incorrecta", 401);
 }
 
 /** Rutas /api/bot/*: clave compartida con el bot (header x-bot-key), comparada en tiempo constante. */

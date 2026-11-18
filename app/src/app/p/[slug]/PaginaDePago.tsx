@@ -3,16 +3,28 @@
 import QRCode from "qrcode";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Countdown, VerifiedSeal } from "@/components/Guardian";
+import { Countdown, PublicRecord, fmtLeft, useNow } from "@/components/Guardian";
 import { Breakdown, SplitView, Timeline, TxList } from "@/components/OrderBits";
-import { ErrorBox, ExplorerLink, Progress, Spinner, StatusBadge, useProgress } from "@/components/ui";
+import { ErrorBox, Progress, Spinner, StatusBadge, useProgress } from "@/components/ui";
 import { WhatsAppBox } from "@/components/WhatsAppBox";
-import { explorer, fmtBs, fmtUsd } from "@/lib/format";
+import {
+  CIUDADES,
+  DOLLAR_NOTE,
+  MOTIVOS,
+  MOTIVOS_CON_VIDEO,
+  MOTIVO_PRESION,
+  PROTECCION,
+  fmtBs,
+  fmtBsUnits,
+  fmtDate,
+  unitsToNumber,
+} from "@/lib/format";
 import type { OrderView } from "@/lib/types";
 import { activateWallet, api, getWallet, signAndSubmit, type PreparedTx } from "@/lib/wallet";
 import { waLink, waText } from "@/lib/whatsapp";
 
-const MOTIVOS = ["No llegó", "Llegó dañado", "No es lo que pedí", "Llegó incompleto", "Otro"];
+const MOTIVOS_COMPRADOR = MOTIVOS.filter((m) => m !== MOTIVO_PRESION);
+const nf = (n: number) => n.toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function PaginaDePago() {
   const { slug } = useParams<{ slug: string }>();
@@ -22,7 +34,11 @@ export default function PaginaDePago() {
   const [busy, setBusy] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [problem, setProblem] = useState(false);
+  const [ask, setAsk] = useState(false);
+  const [pressure, setPressure] = useState(false);
+  const [delivery, setDelivery] = useState<Record<string, string>>({});
   const progress = useProgress();
+  const now = useNow();
 
   const load = useCallback(async () => {
     try {
@@ -47,9 +63,19 @@ export default function PaginaDePago() {
 
   const o = v.order;
   const url = typeof window === "undefined" ? "" : window.location.href.split("?")[0];
+  const host = typeof window === "undefined" ? "" : window.location.host;
   const isBuyer = Boolean(me && me === o.buyer_pubkey);
   const takenByOther = Boolean(o.buyer_pubkey && !isBuyer && o.status === "esperando_pago");
-  const d = { product: o.product, price: fmtBs(o.price_bs_cents), url, store: v.seller.store_name, reason: o.dispute_reason, buyerPct: o.buyer_bps != null ? o.buyer_bps / 100 : undefined, amount: v.breakdown ? `${fmtUsd(v.breakdown.seller)} USD de prueba` : undefined };
+  const total = fmtBsUnits(o.amount_units, o.fx);
+  const d = {
+    product: o.product,
+    price: fmtBs(o.price_bs_cents),
+    url,
+    store: v.seller.store_name,
+    reason: o.dispute_reason,
+    buyerPct: o.buyer_bps != null ? o.buyer_bps / 100 : undefined,
+    amount: v.breakdown ? fmtBsUnits(v.breakdown.seller, o.fx) : undefined,
+  };
 
   async function run(fn: () => Promise<void>) {
     setBusy(true);
@@ -66,20 +92,20 @@ export default function PaginaDePago() {
     }
   }
 
-  const pagar = (whatsapp: string) =>
+  const pagar = (delivery: Record<string, string>) =>
     run(async () => {
+      // El comprador no ve ningún login: la cuenta se crea sola e invisible en este dispositivo.
       const wallet = getWallet("comprador");
-      const LW = wallet.kind === "pollar" ? "Ingresando con tu cuenta (Pollar)" : "Creando tu billetera en este dispositivo";
+      const LW = "Preparando tu pago en este dispositivo";
       progress.push(LW);
       const pk = await wallet.connect();
       setMe(pk);
+      await activateWallet(wallet);
       progress.finish(LW);
-      await activateWallet(wallet, progress.push);
-      const L = "Banco: pago simulado y contrato protegido creado";
+      const L = "Banco: pago simulado y contrato del pedido creado";
       progress.push(L);
-      const prepared = await api<PreparedTx & { verification?: { ok: boolean } }>(`/api/orders/${slug}/pay`, { buyer: pk, whatsapp: whatsapp.trim() || undefined });
+      const prepared = await api<PreparedTx>(`/api/orders/${slug}/pay`, { buyer: pk, ...delivery });
       progress.finish(L);
-      if (prepared.verification?.ok) progress.push("Contrato verificado: código de Trustless Work y roles correctos", undefined), progress.finish("Contrato verificado: código de Trustless Work y roles correctos");
       await signAndSubmit(wallet, prepared, progress.push);
       setQrOpen(false);
     });
@@ -90,7 +116,10 @@ export default function PaginaDePago() {
       const prepared = await api<PreparedTx>(`/api/orders/${slug}/action`, { action, signer: wallet.publicKey(), ...extra });
       await signAndSubmit(wallet, prepared, progress.push);
       setProblem(false);
+      setAsk(false);
     });
+
+  const canConfirm = o.status === "enviado" && o.confirm_after != null && now >= o.confirm_after;
 
   return (
     <div className="mx-auto max-w-md space-y-4">
@@ -98,57 +127,115 @@ export default function PaginaDePago() {
         <>
           <ProductCard v={v} />
           <SellerCard v={v} />
-          <Protection />
+          <Promesa v={v} />
+          <ProtectionLine v={v} />
           {takenByOther ? (
             <p className="card text-center text-sm text-slate-600">Este link ya lo está pagando otra persona.</p>
           ) : !qrOpen && !busy ? (
-            <button className="btn-primary w-full py-4 text-lg" onClick={() => setQrOpen(true)}>
-              🔒 Pagar protegido
-            </button>
+            <DeliveryForm
+              total={total}
+              onSubmit={(x) => {
+                setDelivery(x);
+                setQrOpen(true);
+              }}
+            />
           ) : (
-            <QrPanel v={v} busy={busy} onPay={pagar} />
+            <QrPanel v={v} busy={busy} onPay={() => pagar(delivery)} />
           )}
           <Progress steps={progress.steps} />
           <ErrorBox error={error} />
-          <VerifiedSeal v={o.verification} />
+          <AntiFraud code={o.code} host={host} />
         </>
       ) : (
         <>
           <StatusHero v={v} />
           <ErrorBox error={error} />
           <Progress steps={progress.steps} />
+          {pressure && (
+            <div data-testid="aviso-presion" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+              <p className="font-semibold">⚠️ Nunca pagues al vendedor porque te lo pide.</p>
+              <p className="mt-1">Abrimos un reclamo por presión para confirmar y le avisamos al revisor. Tu plata sigue guardada en el contrato.</p>
+            </div>
+          )}
+          <PublicRecord v={o.verification} escrowId={o.escrow_id} />
 
-          {isBuyer && (o.status === "pagado" || o.status === "enviado") && !problem && (
-            <div className="grid gap-2">
-              <button className="btn-primary w-full py-4 text-lg" disabled={busy} onClick={() => accion("confirm")}>
-                {busy ? <Spinner /> : "✅"} Recibí conforme
-              </button>
+          {o.ship_imei && (o.status === "enviado" || o.status === "en_disputa") && (
+            <div data-testid="imei" className="card space-y-1 text-sm">
+              <p className="font-semibold">📱 IMEI declarado por el vendedor: <span className="font-mono">{o.ship_imei}</span></p>
+              <p className="text-slate-600">Marca *#06# en el equipo y compara. Si no coincide, no pagues y abre un reclamo.</p>
+            </div>
+          )}
+
+          {isBuyer && o.status === "pagado" && !problem && (
+            <div className="card space-y-2 text-sm text-slate-600">
+              <p>Podrás pagar al vendedor cuando registre el envío y lo tengas en tus manos.</p>
               <button className="btn-danger w-full" disabled={busy} onClick={() => setProblem(true)}>
                 Tengo un problema
               </button>
             </div>
           )}
-          {problem && <ProblemForm busy={busy} onCancel={() => setProblem(false)} onSubmit={(x) => accion("dispute", x)} />}
+
+          {isBuyer && o.status === "enviado" && !problem && !ask && (
+            <section className="card space-y-2" data-testid="confirmar">
+              <button className="btn-primary w-full py-4 text-lg" disabled={!canConfirm || busy} onClick={() => setAsk(true)}>
+                {busy ? <Spinner /> : null} Pagar al vendedor (irreversible)
+              </button>
+              <p className="text-center text-xs font-medium text-slate-600">Después ya no puedes reclamar.</p>
+              {!canConfirm && o.confirm_after && (
+                <p data-testid="espera-confirmar" className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+                  Se habilita en <strong className="tabular-nums">{fmtLeft(o.confirm_after - now)}</strong>: {v.confirmDelay} después del envío, para que
+                  alcances a recibir y revisar el producto.
+                </p>
+              )}
+              <button className="btn-danger w-full" disabled={busy} onClick={() => setProblem(true)}>
+                Tengo un problema
+              </button>
+            </section>
+          )}
+
+          {ask && (
+            <section className="card space-y-3 ring-2 ring-brand-200" data-testid="pregunta-confirmar">
+              <h2 className="text-lg font-bold">¿Tienes el producto en tus manos y lo revisaste?</h2>
+              <button className="btn-primary w-full" disabled={busy} onClick={() => accion("confirm")}>
+                {busy ? <Spinner /> : null} Sí, lo tengo y está bien
+              </button>
+              <button className="btn-secondary w-full" disabled={busy} onClick={() => setAsk(false)}>
+                Todavía no
+              </button>
+              <button
+                className="btn-danger w-full"
+                disabled={busy}
+                onClick={() => {
+                  setPressure(true);
+                  accion("dispute", { reason: MOTIVO_PRESION, text: "El vendedor me pide que confirme antes de tener el producto." });
+                }}
+              >
+                El vendedor me pide que confirme
+              </button>
+            </section>
+          )}
+
+          {problem && <ProblemForm busy={busy} priceBsCents={o.price_bs_cents} onCancel={() => setProblem(false)} onSubmit={(x) => accion("dispute", x)} />}
 
           <section className="card space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="font-bold">Seguimiento del pedido</h2>
+              <h2 className="font-bold">Seguimiento · {o.code}</h2>
               <StatusBadge status={o.status} />
             </div>
             <Timeline order={o} txs={v.txs} />
-            <Countdown slug={o.slug} deadline={o.deadline} status={o.status} mode={v.mode} onReleased={load} />
+            <Countdown slug={o.slug} deadline={o.deadline} status={o.status} mode={v.mode} onReleased={load} capabilities={v.capabilities} role="comprador" />
           </section>
 
           {o.status === "liberado" && (
             <section className="card space-y-3">
               <h2 className="font-bold">Así se repartió el pago</h2>
-              <Breakdown money={v} platformFeeBps={v.platformFeeBps} />
+              <Breakdown money={v} fx={o.fx} feePayer={o.fee_payer} platformBps={v.platformFeeBps} />
             </section>
           )}
           {o.status === "resuelto" && (
             <section className="card space-y-3">
-              <h2 className="font-bold">Decisión del árbitro</h2>
-              <SplitView money={v} buyerBps={o.buyer_bps} />
+              <h2 className="font-bold">Decisión del revisor</h2>
+              <SplitView money={v} buyerBps={o.buyer_bps} fx={o.fx} />
             </section>
           )}
 
@@ -161,28 +248,26 @@ export default function PaginaDePago() {
           <SellerCard v={v} />
 
           <section className="card space-y-2">
-            <h2 className="font-bold">Transparencia</h2>
-            <VerifiedSeal v={o.verification} />
-            {o.escrow_id && (
-              <p className="text-xs text-slate-600">
-                Contrato de este pedido: <ExplorerLink href={explorer.contract(o.escrow_id)}>{o.escrow_id}</ExplorerLink>
-              </p>
-            )}
+            <h2 className="font-bold">Registro del pedido</h2>
             {v.onchain && (
               <p className="text-xs text-slate-600" data-testid="onchain">
-                Saldo en el contrato: <strong>{fmtUsd(v.onchain.balance)} USD de prueba</strong>
-                {v.onchain.flags.released && " · liberado"}
-                {v.onchain.flags.disputed && " · en disputa"}
+                Guardado en el contrato ahora: <strong>{fmtBsUnits(v.onchain.balance, o.fx)}</strong>
+                {v.onchain.flags.released && " · pagado al vendedor"}
+                {v.onchain.flags.disputed && " · en reclamo"}
                 {v.onchain.flags.resolved && " · resuelto"}
-                {v.onchain.milestone && ` · hito: “${v.onchain.milestone.status}”`}
               </p>
             )}
             <TxList txs={v.txs} />
           </section>
+          <AntiFraud code={o.code} host={host} />
         </>
       )}
+      <p className="text-center text-xs text-slate-500" data-testid="modo-practica">
+        Modo práctica: no se mueve dinero real. {DOLLAR_NOTE}
+      </p>
     </div>
   );
+
 }
 
 function ProductCard({ v, compact }: { v: OrderView; compact?: boolean }) {
@@ -194,13 +279,17 @@ function ProductCard({ v, compact }: { v: OrderView; compact?: boolean }) {
         <img src={o.photo_url} alt={o.product} className="h-56 w-full object-cover" />
       ) : null}
       <div className="p-5">
-        <h1 className={compact ? "font-semibold" : "text-2xl font-bold"} data-testid="producto">
+        <p className="text-xs font-semibold uppercase tracking-wide text-brand-700" data-testid="codigo">
+          Compra protegida · {o.code}
+        </p>
+        <h1 className={compact ? "mt-1 font-semibold" : "mt-1 text-2xl font-bold"} data-testid="producto">
           {o.product}
         </h1>
         {o.description && !compact && <p className="mt-1 text-slate-600">{o.description}</p>}
         <p className={compact ? "muted" : "mt-3 text-4xl font-extrabold tracking-tight"}>{fmtBs(o.price_bs_cents)}</p>
         <p className="text-sm text-slate-500">
-          ≈ {fmtUsd(o.amount_units)} USD de prueba · entrega en {o.delivery_days} {o.delivery_days === 1 ? "día" : "días"}
+          Entrega en {o.delivery_days} {o.delivery_days === 1 ? "día" : "días"}
+          {o.category ? ` · ${o.category}` : ""}
         </p>
       </div>
     </section>
@@ -209,63 +298,171 @@ function ProductCard({ v, compact }: { v: OrderView; compact?: boolean }) {
 
 function SellerCard({ v }: { v: OrderView }) {
   const s = v.seller;
+  const c = s.claims;
+  const since = new Intl.DateTimeFormat("es-BO", { month: "long", year: "numeric", timeZone: "America/La_Paz" }).format(new Date(s.since));
   const initials = s.store_name
     .split(/\s+/)
     .slice(0, 2)
     .map((w) => w[0]?.toUpperCase())
     .join("");
   return (
-    <section className="card flex items-center gap-3">
-      <div className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-brand-600 font-bold text-white">{initials}</div>
-      <div className="min-w-0 flex-1">
-        <p className="font-semibold">{s.store_name}</p>
-        <p className="text-xs text-slate-500">
-          {s.completedSales} {s.completedSales === 1 ? "venta completada" : "ventas completadas"} con Pago Protegido
-        </p>
-        <p className="text-xs text-slate-500">WhatsApp {s.whatsapp}</p>
+    <section className="card space-y-3" data-testid="vendedor">
+      <div className="flex items-center gap-3">
+        <div className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-brand-600 font-bold text-white">{initials}</div>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold">
+            Vendedor: {s.store_name}
+            {s.city ? ` · ${s.city}` : ""}
+          </p>
+          <p className="text-xs text-slate-600">
+            {s.completedSales} {s.completedSales === 1 ? "venta protegida" : "ventas protegidas"}, {c.total} {c.total === 1 ? "reclamo" : "reclamos"}
+          </p>
+        </div>
+        <a className="btn-secondary flex-none !px-3 !py-2 text-sm" href={waLink("Hola, te escribo por tu link de Pago Protegido", s.whatsapp)} target="_blank" rel="noreferrer">
+          Escribir
+        </a>
       </div>
-      <a className="btn-secondary flex-none !px-3 !py-2 text-sm" href={waLink("Hola, te escribo por tu link de Pago Protegido", s.whatsapp)} target="_blank" rel="noreferrer">
-        Escribir
-      </a>
+      <ul className="space-y-0.5 text-xs text-slate-600">
+        <li>Vende con Pago Protegido desde {since}</li>
+        {c.total > 0 && (
+          <li>
+            Reclamos: {c.a_favor_comprador} a favor del comprador · {c.a_favor_vendedor} a favor del vendedor · {c.repartidos} repartidos
+            {c.pendientes ? ` · ${c.pendientes} en revisión` : ""}
+          </li>
+        )}
+        <li>Verificación de identidad: pendiente (modo práctica)</li>
+        <li>WhatsApp {s.whatsapp}</li>
+      </ul>
     </section>
   );
 }
 
-function Protection() {
+function Promesa({ v }: { v: OrderView }) {
+  const o = v.order;
+  const window = (o.window_secs ?? (o.delivery_days + 3) * 86400) * 1000;
+  const shipBy = Date.now() + o.delivery_days * 86400_000;
   const steps = [
-    { i: "💳", t: "Pagas", d: "Con QR desde tu banco." },
-    { i: "🔒", t: "Tu plata queda guardada", d: "En un contrato que nadie puede tocar, ni el vendedor ni nosotros." },
-    { i: "✅", t: "Se libera cuando confirmas", d: "O, si hay un problema, un árbitro decide cómo repartir." },
+    "Pagas con QR desde tu banco.",
+    "Tu pago queda guardado. El vendedor ve que pagaste, pero no puede cobrar.",
+    "Cuando te llegue, lo revisas y confirmas. Recién ahí se le paga.",
   ];
   return (
-    <section className="card">
-      <h2 className="font-bold">Cómo te protegemos</h2>
-      <ol className="mt-3 space-y-3">
+    <section className="card space-y-3" data-testid="promesa">
+      <h2 className="text-lg font-bold">Tu plata no llega al vendedor hasta que recibas tu pedido.</h2>
+      <ol className="space-y-2">
         {steps.map((s, i) => (
-          <li key={s.t} className="flex gap-3">
-            <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-brand-50 text-lg">{s.i}</span>
-            <div>
-              <p className="font-medium">
-                {i + 1}. {s.t}
-              </p>
-              <p className="text-sm text-slate-600">{s.d}</p>
-            </div>
+          <li key={s} className="flex gap-3 text-sm">
+            <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-white">{i + 1}</span>
+            <span>{s}</span>
           </li>
         ))}
       </ol>
+      <div className="rounded-xl bg-slate-50 p-3 text-sm">
+        <p className="font-semibold">¿Y si no llega?</p>
+        <p className="text-slate-600">
+          Si el vendedor no lo envía hasta el {fmtDate(shipBy)}, abres un reclamo y se te devuelve solo. Si llega mal, un tercero revisa el reclamo.
+        </p>
+      </div>
+      <p className="text-xs text-slate-500">
+        Si no confirmas ni reclamas, se libera el {fmtDate(Date.now() + window)} (aprox.). Te avisamos un día antes.
+      </p>
     </section>
   );
 }
 
-function QrPanel({ v, busy, onPay }: { v: OrderView; busy: boolean; onPay: (whatsapp: string) => void }) {
+function ProtectionLine({ v }: { v: OrderView }) {
+  const o = v.order;
+  const totalNum = unitsToNumber(o.amount_units) * o.fx;
+  const prot = totalNum - o.price_bs_cents / 100;
+  return (
+    <section className="card space-y-1 text-sm" data-testid="proteccion">
+      <div className="flex justify-between">
+        <span>Precio</span>
+        <span>{fmtBs(o.price_bs_cents)}</span>
+      </div>
+      {o.fee_payer === "comprador" ? (
+        <div className="flex justify-between">
+          <span>
+            Protección ({PROTECCION.pct.toLocaleString("es-BO")}%, mín. Bs {PROTECCION.minBs}, máx. Bs {PROTECCION.maxBs})
+          </span>
+          <span>Bs {nf(prot)}</span>
+        </div>
+      ) : (
+        <div className="flex justify-between text-slate-600">
+          <span>Protección</span>
+          <span>la paga el vendedor</span>
+        </div>
+      )}
+      <div className="flex justify-between border-t border-slate-100 pt-1 text-base font-bold">
+        <span>Total</span>
+        <span>Bs {nf(totalNum)}</span>
+      </div>
+      {o.fee_payer === "comprador" && <p className="text-xs text-slate-500">El vendedor recibe el precio completo.</p>}
+    </section>
+  );
+}
+
+function DeliveryForm({ total, onSubmit }: { total: string; onSubmit: (x: Record<string, string>) => void }) {
+  const [f, setF] = useState({ recipient: "", city: "", agency: "", whatsapp: "" });
+  const [error, setError] = useState<string | null>(null);
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
+  return (
+    <form
+      className="card space-y-3"
+      data-testid="datos-entrega"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (f.recipient.trim().length < 2) return setError("Escribe quién recibe el pedido");
+        if (!f.city) return setError("Elige la ciudad de destino");
+        setError(null);
+        onSubmit({ recipient: f.recipient, city: f.city, agency: f.agency, ...(f.whatsapp.trim() ? { whatsapp: f.whatsapp } : {}) });
+      }}
+    >
+      <h2 className="font-bold">¿A dónde lo envían?</h2>
+      <div>
+        <label className="label" htmlFor="recipient">
+          Quién recibe
+        </label>
+        <input id="recipient" className="input" value={f.recipient} onChange={set("recipient")} placeholder="Nombre y apellido" />
+      </div>
+      <div>
+        <label className="label" htmlFor="dest-city">
+          Ciudad de destino
+        </label>
+        <select id="dest-city" className="input" value={f.city} onChange={set("city")}>
+          <option value="">Elige…</option>
+          {CIUDADES.map((c) => (
+            <option key={c}>{c}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="label" htmlFor="agency">
+          Agencia preferida <span className="font-normal text-slate-400">(opcional)</span>
+        </label>
+        <input id="agency" className="input" value={f.agency} onChange={set("agency")} placeholder="Ej.: Trans Copacabana, terminal" />
+      </div>
+      <div>
+        <label className="label" htmlFor="buyer-wa">
+          Tu WhatsApp para avisarte <span className="font-normal text-slate-400">(opcional)</span>
+        </label>
+        <input id="buyer-wa" className="input" inputMode="tel" value={f.whatsapp} onChange={set("whatsapp")} placeholder="Ej.: 591 76543210" />
+        <p className="mt-1 text-xs text-slate-500">Te avisamos cuando despachen y un día antes de la liberación. No se muestra a nadie.</p>
+      </div>
+      <ErrorBox error={error} />
+      <button className="btn-primary w-full py-4 text-lg">🔒 Pagar {total} con QR</button>
+    </form>
+  );
+}
+
+function QrPanel({ v, busy, onPay }: { v: OrderView; busy: boolean; onPay: () => void }) {
   const [qr, setQr] = useState<string | null>(null);
-  const [wa, setWa] = useState("");
   const o = v.order;
   useEffect(() => {
-    QRCode.toDataURL(`PAGO-PROTEGIDO-EJEMPLO|NO-ES-UN-QR-REAL|${o.slug}|BOB ${(o.price_bs_cents / 100).toFixed(2)}`, { margin: 1, width: 220 })
+    QRCode.toDataURL(`PAGO-PROTEGIDO-EJEMPLO|NO-ES-UN-QR-REAL|${o.code}|BOB ${(unitsToNumber(o.amount_units) * o.fx).toFixed(2)}`, { margin: 1, width: 220 })
       .then(setQr)
       .catch(() => {});
-  }, [o.slug, o.price_bs_cents]);
+  }, [o.code, o.amount_units, o.fx]);
   return (
     <section className="card space-y-4" data-testid="qr">
       <div className="flex items-center justify-between">
@@ -279,38 +476,38 @@ function QrPanel({ v, busy, onPay }: { v: OrderView; busy: boolean; onPay: (what
         ) : (
           <div className="h-48 w-48 animate-pulse rounded-xl bg-slate-100" />
         )}
-        <p className="text-xs text-slate-500">QR de ejemplo</p>
+        <p className="text-xs text-slate-500">QR de ejemplo a nombre de Pago Protegido · {o.code}</p>
       </div>
-      <dl className="grid grid-cols-2 gap-2 text-center">
-        <div className="rounded-xl bg-slate-50 p-3">
-          <dt className="text-xs text-slate-500">Pagas desde tu banco</dt>
-          <dd className="text-lg font-bold">{fmtBs(o.price_bs_cents)}</dd>
-        </div>
-        <div className="rounded-xl bg-brand-50 p-3">
-          <dt className="text-xs text-brand-800">Quedan protegidos</dt>
-          <dd className="text-lg font-bold text-brand-900">{fmtUsd(o.amount_units)} USD de prueba</dd>
-        </div>
-      </dl>
-      <p className="text-center text-xs text-slate-500">Tipo de cambio: 1 USD = Bs {o.fx.toLocaleString("es-BO", { minimumFractionDigits: 2 })}</p>
+      <p className="text-center text-2xl font-extrabold">{fmtBsUnits(o.amount_units, o.fx)}</p>
       <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900" data-testid="rampa-simulada">
         Rampa simulada en testnet. En producción la hace una entidad certificada por ASFI.
       </p>
-      <div>
-        <label className="label" htmlFor="buyer-wa">
-          Tu WhatsApp para avisarte <span className="font-normal text-slate-400">(opcional)</span>
-        </label>
-        <input id="buyer-wa" className="input" inputMode="tel" value={wa} onChange={(e) => setWa(e.target.value)} placeholder="Ej.: 591 76543210" disabled={busy} />
-        <p className="mt-1 text-xs text-slate-500">Te avisamos cuando despachen y antes de la liberación automática. Solo lo usa el asistente; no se muestra a nadie.</p>
-      </div>
-      <button className="btn-primary w-full" disabled={busy} onClick={() => onPay(wa)}>
+      <button className="btn-primary w-full" disabled={busy} onClick={onPay}>
         {busy ? (
           <>
             <Spinner /> Procesando pago…
           </>
         ) : (
-          "Simular pago del banco (testnet)"
+          "Simular pago del banco (modo práctica)"
         )}
       </button>
+    </section>
+  );
+}
+
+function AntiFraud({ code, host }: { code: string | null; host: string }) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 text-xs text-slate-600" data-testid="antifraude">
+      <p className="font-semibold text-slate-800">🛡️ Señales de confianza</p>
+      <p className="mt-1">Si un QR de Pago Protegido está a nombre de una persona, es estafa.</p>
+      <p className="mt-1">
+        Verifica este link en{" "}
+        <a className="underline" href={`/verificar?codigo=${code ?? ""}`}>
+          {host}/verificar
+        </a>{" "}
+        con el código <strong>{code}</strong>.
+      </p>
+      <p className="mt-1">¿Dudas? Reenvía este link a nuestro WhatsApp y te decimos si es auténtico.</p>
     </section>
   );
 }
@@ -318,44 +515,57 @@ function QrPanel({ v, busy, onPay }: { v: OrderView; busy: boolean; onPay: (what
 function StatusHero({ v }: { v: OrderView }) {
   const o = v.order;
   const map = {
-    pagado: { t: "Tu plata está protegida", d: "Está guardada en el contrato. El vendedor ya puede despachar.", c: "bg-brand-600" },
-    enviado: { t: "Tu plata está protegida", d: "El vendedor despachó tu pedido. Cuando lo recibas, confirma aquí.", c: "bg-brand-600" },
-    liberado: { t: "Pago liberado al vendedor", d: "Confirmaste que recibiste. ¡Gracias por comprar protegido!", c: "bg-brand-700" },
-    en_disputa: { t: "Reclamo abierto", d: "La plata quedó congelada en el contrato. Un árbitro va a revisar el caso.", c: "bg-amber-500" },
-    resuelto: { t: "Reclamo resuelto", d: "El árbitro repartió la plata entre comprador y vendedor.", c: "bg-violet-600" },
+    pagado: { t: "Tu pago está guardado", d: "El vendedor ve que pagaste, pero no puede cobrar hasta que confirmes.", c: "bg-brand-600" },
+    enviado: { t: "Tu pedido está en camino", d: "Tu pago sigue guardado. Cuando te llegue, revísalo y recién ahí paga al vendedor.", c: "bg-brand-600" },
+    liberado: { t: "Se pagó al vendedor", d: "Confirmaste que lo recibiste bien. ¡Gracias por comprar protegido!", c: "bg-brand-700" },
+    en_disputa: { t: "Reclamo abierto", d: "La plata quedó congelada en el contrato. Un revisor va a ver el caso.", c: "bg-amber-500" },
+    resuelto: { t: "Reclamo resuelto", d: "El revisor repartió la plata entre comprador y vendedor.", c: "bg-violet-600" },
     esperando_pago: { t: "", d: "", c: "" },
   }[o.status];
   return (
     <section className={`rounded-2xl p-5 text-white ${map.c}`} data-testid="estado-pedido">
-      <p className="text-xs uppercase tracking-wide text-white/80">{o.product}</p>
+      <p className="text-xs uppercase tracking-wide text-white/80">
+        {o.code} · {o.product}
+      </p>
       <h1 className="mt-1 text-2xl font-bold">{map.t}</h1>
       <p className="mt-1 text-sm text-white/90">{map.d}</p>
-      <p className="mt-3 text-3xl font-extrabold">{fmtUsd(o.amount_units)} <span className="text-base font-semibold">USD de prueba</span></p>
-      <p className="text-xs text-white/80">{fmtBs(o.price_bs_cents)}</p>
+      <p className="mt-3 text-3xl font-extrabold">{fmtBsUnits(o.amount_units, o.fx)}</p>
     </section>
   );
 }
 
-function ProblemForm({ busy, onCancel, onSubmit }: { busy: boolean; onCancel: () => void; onSubmit: (x: Record<string, string>) => void }) {
-  const [reason, setReason] = useState(MOTIVOS[0]);
+function ProblemForm({
+  busy,
+  priceBsCents,
+  onCancel,
+  onSubmit,
+}: {
+  busy: boolean;
+  priceBsCents: number;
+  onCancel: () => void;
+  onSubmit: (x: Record<string, string>) => void;
+}) {
+  const [reason, setReason] = useState<string>(MOTIVOS_COMPRADOR[1]);
   const [text, setText] = useState("");
   const [photo, setPhoto] = useState("");
+  const [video, setVideo] = useState("");
+  const needsVideo = MOTIVOS_CON_VIDEO.includes(reason) && priceBsCents >= 30000;
   return (
     <form
       className="card space-y-3 ring-2 ring-amber-200"
       onSubmit={(e) => {
         e.preventDefault();
-        onSubmit({ reason, text, photo });
+        onSubmit({ reason, text, photo, video });
       }}
     >
       <h2 className="font-bold">¿Qué pasó?</h2>
-      <p className="muted">Al enviar, la plata queda congelada y un árbitro revisa la evidencia de los dos lados.</p>
+      <p className="muted">Al enviar, la plata queda congelada y un revisor ve la evidencia de los dos lados. Arrepentirse no es motivo de reclamo.</p>
       <div>
         <label className="label" htmlFor="motivo">
           Motivo
         </label>
         <select id="motivo" className="input" value={reason} onChange={(e) => setReason(e.target.value)}>
-          {MOTIVOS.map((m) => (
+          {MOTIVOS_COMPRADOR.map((m) => (
             <option key={m}>{m}</option>
           ))}
         </select>
@@ -368,9 +578,16 @@ function ProblemForm({ busy, onCancel, onSubmit }: { busy: boolean; onCancel: ()
       </div>
       <div>
         <label className="label" htmlFor="foto">
-          Foto <span className="font-normal text-slate-400">(opcional, link https://…)</span>
+          Foto del paquete cerrado <span className="font-normal text-slate-400">(link https://…)</span>
         </label>
         <input id="foto" className="input" value={photo} onChange={(e) => setPhoto(e.target.value)} inputMode="url" placeholder="https://…" />
+      </div>
+      <div>
+        <label className="label" htmlFor="video">
+          Video continuo del desempaque{" "}
+          <span className="font-normal text-slate-400">{needsVideo ? "(obligatorio para este motivo desde Bs 300)" : "(opcional)"}</span>
+        </label>
+        <input id="video" className="input" value={video} onChange={(e) => setVideo(e.target.value)} inputMode="url" placeholder="https://…" />
       </div>
       <div className="flex gap-2">
         <button type="button" className="btn-secondary" onClick={onCancel} disabled={busy}>
@@ -380,6 +597,9 @@ function ProblemForm({ busy, onCancel, onSubmit }: { busy: boolean; onCancel: ()
           {busy ? <Spinner /> : null} Enviar reclamo
         </button>
       </div>
+      <p className="text-xs text-slate-500">
+        Política de reclamos completa en <a className="underline" href="/como-funciona#reclamos">Cómo funciona</a>.
+      </p>
     </form>
   );
 }

@@ -33,15 +33,15 @@ const TW_ERRORS: Record<number, string> = {
   5: "El pedido todavía no fue confirmado por el comprador",
   8: "Solo el vendedor puede marcar el envío",
   10: "El contrato no tiene fondos",
-  12: "Solo el árbitro designado en el contrato puede repartir la plata",
+  12: "Solo el revisor designado en el contrato (pp_arbiter) puede repartir la plata",
   11: "Solo el comprador puede confirmar la entrega",
   13: "Ya hay un reclamo abierto",
   14: "El pago no está en disputa",
-  16: "Hay un reclamo abierto: solo el árbitro puede mover la plata",
+  16: "Hay un reclamo abierto: solo el revisor puede mover la plata",
   24: "El reclamo ya fue resuelto",
   26: "Esa cuenta no puede abrir un reclamo en este pedido",
   39: "El reparto tiene que sumar todo el saldo del contrato",
-  40: "El árbitro no puede abrir reclamos",
+  40: "El revisor no puede abrir reclamos",
 };
 
 export function toChainError(raw: string): ChainError {

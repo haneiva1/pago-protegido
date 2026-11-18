@@ -195,3 +195,67 @@ Integrado con `@pollar/react` y `@pollar/core` 0.12, siguiendo las páginas de `
     - En cada tramo quieto se dejan 3,6 s a velocidad normal, para que el subtítulo se lea, y el resto se acelera ×12.
     - Las placas se renderizan desde HTML con Playwright, porque el ffmpeg de Homebrew no trae `drawtext`.
     - La portada grabada se reemplazó por la placa inicial.
+
+## Sexta ronda: producto v2 (ventas entre ciudades por encomienda, Bs 300 a 3.000)
+
+61. **Textos.**
+    - **Prohibidas en todas las pantallas:** "seguro", "garantía/garantizado", "100%", "custodia", "plataforma de pagos", "pasarela", "billetera Pago Protegido", "arbitraje" y "árbitro".
+    - **Prohibidas además en las pantallas del comprador y del vendedor:** cripto, token, stablecoin, wallet, llave, billetera propia, blockchain y Stellar.
+    - **Reemplazos:** "árbitro" pasa a "revisor". La página es `/revisor` y `/arbitro` redirige. La API sigue en `/api/arbitro` y el contrato es `pp_arbiter`.
+    - **Stellar** solo se ve detrás de los links "Ver registro público".
+    - **El test:** `revisarPalabras` en el e2e revisa cada captura y además recorre todas las pantallas.
+    - **Pantallas técnicas:** el panel del revisor, `/como-funciona` y `/transparencia`. Ahí se permiten los términos técnicos, no los legales.
+    - **Pendiente fuera de la app:** los textos del bot (`../bot`) todavía dicen "árbitro" y "Recibí conforme". Ver el anexo para el capataz.
+    - **Política de reclamos:** se publicó con un cambio: "recupera todo su pago" en lugar de "el 100%", para respetar la lista.
+62. **Moneda:** siempre Bs primero, con el tipo de cambio del pedido. Una sola línea al pie: "Se guarda en dólares digitales (en producción, USDC, 1 a 1 con el dólar; en esta práctica, dólares de prueba)". No dice USDC a secas porque en testnet la moneda es LABUSD.
+63. **Fricción al confirmar.**
+    - "Pagar al vendedor (irreversible)" solo aparece con el pedido en "enviado". Se habilita 2 h después del envío si la ciudad del vendedor y la de destino coinciden, y 24 h si no.
+    - **Modo demo:** `PP_DEMO=1` lo baja a 1 minuto. Lo usan el e2e y `npm run demo`.
+    - El servidor guarda `confirm_after` al registrar el envío y rechaza confirmar antes.
+    - Antes de pagar se pregunta "¿Tienes el producto en tus manos y lo revisaste?". "El vendedor me pide que confirme" abre un reclamo con motivo "Presión para confirmar" (on-chain, por pp_guardian), suma `sellers.pressure_reports` y muestra un aviso. El revisor ve los reportes.
+64. **Datos de entrega.**
+    - Se piden al pagar: quién recibe, ciudad de destino y agencia preferida (opcional).
+    - Se guardan solo en el servidor. Los ven el vendedor (su panel) y el revisor, nunca la vista pública.
+    - Quedan ligados al escrow con `sha256(slug, quién, ciudad, agencia)` (16 hex) en la `description`.
+65. **Evidencia de envío estructurada.**
+    - Campos: empresa (lista, incluye "Entrega en persona"), guía (obligatoria salvo entrega en persona), peso declarado, foto (URL), ciudad de destino y, si la categoría es Celular, IMEI de 15 dígitos (obligatorio).
+    - On-chain va `empresa|guía|peso|hash-foto` (12 hex del sha256 de la URL).
+    - Cada versión (envío, reclamo y respuesta del vendedor) queda en la tabla `evidence` con su hora, y el revisor ve el historial.
+    - El comprador ve el IMEI con "Marca *#06# en el equipo y compara".
+66. **Reclamos.**
+    - Los motivos son los de la política: no envió, no llegó, llegó vacío o con otro producto, dañado o distinto, más presión para confirmar.
+    - Para (c) y (d), desde Bs 300, el comprador tiene que dar el link del video continuo del desempaque.
+    - El revisor elige el motivo del fallo (obligatorio) y el slider arranca sin valor: no hay reparto por defecto.
+67. **Quién paga la protección (por link).**
+    - **"El comprador" (por defecto):** 1,5% con mínimo Bs 5 y máximo Bs 50.
+      - El comprador paga precio + protección (`amount` del escrow). La protección incluye el 0,3% de TW.
+      - El `platform_fee` del escrow se calcula por pedido (`floor((amount − TW − precio) × 10000 / amount)`), así el vendedor recibe al menos el precio completo.
+      - Ejemplo de Bs 450: el comprador paga Bs 456,75, el vendedor recibe Bs 450,04 y `platform_fee` es 117 bps.
+    - **"Yo la regalo":** 2% de la venta, como antes.
+    - El ajuste del capataz (1,5%, mín. Bs 5, máx. Bs 50) reemplazó al "Bs 5 + 2%" de la consigna original.
+68. **Código de pedido corto y legible:** PP-#### (único). `/verificar?codigo=PP-4821` muestra tienda, producto, monto y estado, con el link auténtico.
+69. **Tarjeta del vendedor:**
+    - ciudad;
+    - ventas protegidas (liberadas);
+    - reclamos y cómo terminaron;
+    - desde cuándo vende;
+    - "Verificación de identidad: pendiente (modo práctica)";
+    - WhatsApp.
+70. **El comprador no ve ningún login.** Siempre usa la llave local invisible, aunque `NEXT_PUBLIC_WALLET=pollar`. Pollar (Google o correo) queda solo para el vendedor: es quien vuelve, cobra y necesita recuperar su cuenta. Al comprador un login le agrega fricción en el momento de pagar.
+71. **Señales de confianza en la página de pago:**
+    - "Si un QR de Pago Protegido está a nombre de una persona, es estafa".
+    - "Verifica este link en <dominio>/verificar con el código…".
+    - "¿Dudas? Reenvía este link a nuestro WhatsApp…".
+    - En el panel del vendedor: "Para cobrar no tienes que abrir ningún link".
+    - El sello "Contrato verificado" se reemplazó por "Pago bloqueado en un contrato público: solo puede ir al vendedor o volver a ti", con "Ver registro público". El detalle de la verificación (WASM y roles) queda plegado.
+72. **Piloto.**
+    - `/piloto` guarda la lista de espera en `pilot_waitlist` y `npm run piloto:csv` la exporta a `data/piloto.csv`.
+    - Quien crea su tienda desde ahí (`/vender?piloto=<id>`) queda con `sellers.pilot = 1`.
+    - `/transparencia` cuenta las compras de esos vendedores aparte ("Piloto con vendedores reales"). Lo demás se rotula "Pruebas del equipo en testnet (incluye reclamos forzados)".
+    - El 59% se reemplazó por el desglose de cómo terminaron, que aclara que los reclamos son forzados en las pruebas.
+73. **`/pedir`** arma el mensaje de WhatsApp para que un comprador le pida a una tienda que use Pago Protegido.
+74. **Contratos v2** (`mark_shipped`, reloj desde el envío y `extend`): no se integraron en esta ronda.
+    - La interfaz ya los recibe: `CAPABILITIES` en `/api/info` y en cada pedido, el botón "Necesito más tiempo" en la cuenta regresiva (oculto mientras `extend` sea `false`) y la ruta `POST /api/orders/:slug/extend`, que hoy responde 501.
+    - Con los IDs v2 se activan las capacidades y se implementan `extend`/`markShipped` en `GuardianEscrowService`.
+75. **El e2e borra `data/e2e.db` en cada corrida**, para que las pantallas no muestren textos viejos de corridas anteriores (por ejemplo, el antiguo "árbitro" en movimientos guardados). La fábrica del escrow se vuelve a desplegar una vez por corrida. La limpieza corre solo en el proceso principal de Playwright (sin `TEST_WORKER_INDEX`): cada worker vuelve a evaluar la config y borraría la base con el servidor ya corriendo. Lo mismo vale para `data/video.db`.
+76. **El video de la demo (`npm run demo:video`) no se volvió a grabar en esta ronda.** Su script usa los textos de la ronda 5; hay que actualizarlo después de integrar los contratos v2.
