@@ -128,7 +128,7 @@ Usamos la **v1 del escrow single-release** de Trustless Work **sin modificarla**
 | **TW-3** | La evidencia de envío se puede sobrescribir | El envío se registra con `mark_shipped` una sola vez y `pp_guardian` guarda su propia copia | test `tw3_evidencia_inmutable_en_el_guardian`; desvío d13 y rechazo f6 |
 | **TW-4** | La fábrica (`tw_new_single_release_escrow`) despliega cualquier código: recibe el hash del WASM como argumento, así que una dirección creada por ella no prueba que sea el escrow de Trustless Work | **La app verifica el hash antes de pedir firmas:** baja el WASM de la instancia por RPC, compara su sha256 con `1b367bc8…196660` y revisa los roles. Si algo no coincide, muestra "Pago bloqueado" y no arma la transacción. | [`verifyEscrowInstance`](app/src/lib/server/escrow/tw.ts); sello "Contrato verificado" en el e2e ([app/DECISIONES.md](app/DECISIONES.md) §35) |
 | **TW-5** | `withdraw_remaining_funds` acepta cualquier destino | Solo la puede llamar el `dispute_resolver`, que es `pp_arbiter`, y `pp_arbiter` no tiene ninguna ruta a esa función | test `tw5_sin_ruta_a_withdraw_remaining_funds`; desvíos d10 y d11 |
-| **H-1** | En la v1, un escrow ya liberado se puede marcar en disputa (sin mover fondos: el saldo es 0). **La v2 de Trustless Work ya lo impide** (`EscrowAlreadyReleased`). | `pp_guardian` también lo bloquea (`#21`, `EscrowAlreadyReleased`), y la app muestra "liberado" por encima de "en disputa" | [docs/reporte-trustless-work.md](docs/reporte-trustless-work.md): reproducción en testnet con la v1 y test |
+| **H-1** | **Hallazgo comunicado al equipo de Trustless Work.** En la v1, un escrow ya liberado se puede marcar en disputa (sin mover fondos: el saldo es 0). **La v2 de Trustless Work ya lo impide** (`EscrowAlreadyReleased`). | `pp_guardian` también lo bloquea (`#21`, `EscrowAlreadyReleased`), y la app muestra "liberado" por encima de "en disputa" | [docs/reporte-trustless-work.md](docs/reporte-trustless-work.md): reproducción en testnet con la v1 y test |
 
 **Pendiente:** evaluar la migración a Trustless Work v2 (plan de 30 días, semana 4). Exige desplegar contratos nuevos: en la v2 cambió la estructura del escrow (por ejemplo, `flags.released` pasó a `released`), y `pp_guardian` y `pp_arbiter` no son actualizables. La app también tendría que verificar el hash del WASM v2.
 
@@ -284,7 +284,7 @@ Los montos en bolivianos de la app, del bot y de las métricas usan **11,70 Bs p
 | **Bot de WhatsApp** | Crea links desde el chat (con código PP-#### y quién paga la protección), verifica links, avisa en cada paso y recuerda desde el envío. 174 tests unitarios y 4 e2e del simulador. |
 | **Métricas en vivo y perfil de la tienda** | `/metricas` calcula los números con eventos on-chain (cada número enlaza a sus compras en stellar.expert). `/tienda/<slug>` es el perfil verificable del vendedor, con insignia para la bio. |
 | **Métricas on-chain** | `contracts/scripts/metricas.sh` las calcula solo con eventos públicos (`getEvents`). Corrida del 18-nov: **47 compras de prueba** en v1 y v2 (incluidas las del equipo), por ≈ USD 2.227 de prueba (≈ Bs 26.052 al [tipo de cambio](#tipo-de-cambio) de la demo). Detalle en [docs/METRICAS.md](docs/METRICAS.md). |
-| **Hallazgo H-1** | Comportamiento de la v1 de Trustless Work (la v2 ya lo impide), reproducido en testnet y bloqueado por `pp_guardian`: [docs/reporte-trustless-work.md](docs/reporte-trustless-work.md). |
+| **Hallazgo H-1** | Hallazgo comunicado al equipo de Trustless Work: en la v1 un escrow liberado se puede marcar en disputa (la v2 ya lo impide). Reproducido en testnet y bloqueado por `pp_guardian`: [docs/reporte-trustless-work.md](docs/reporte-trustless-work.md). |
 | **v1** (retirado para compras nuevas) | Contratos v1 con 27 tests y un flujo con 5 ataques rechazados: [contracts/DEPLOYED-v1.md](contracts/DEPLOYED-v1.md). |
 
 ## Cómo usa Stellar
@@ -326,7 +326,7 @@ pago-protegido/
 │   ├── METRICAS.md       métricas on-chain y página /transparencia
 │   ├── DEMO.md           guion de la demo de 3 minutos
 │   ├── USUARIOS.md       registro de entrevistas (y de pilotos, desde el plan de 30 días)
-│   └── reporte-trustless-work.md   hallazgo H-1 (v1 de Trustless Work; la v2 ya lo impide)
+│   └── reporte-trustless-work.md   H-1, hallazgo comunicado al equipo de Trustless Work (la v2 ya lo impide)
 ├── CHANGELOG.md  qué se hizo en cada etapa y pendientes con fecha
 └── DECISIONES.md decisiones del repo y de la documentación (las de cada pieza están en app/, bot/ y contracts/)
 ```

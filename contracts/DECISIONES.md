@@ -193,7 +193,7 @@ Las instancias huérfanas de esas corridas (un escrow sin inicializar en la corr
 
 ## Hallazgos sobre Trustless Work (no se modificó su código)
 
-**H-1. En la v1 de TW, `dispute_escrow` no revisa `flags.released`.**
+**H-1. En la v1 de TW, `dispute_escrow` no revisa `flags.released`.** Hallazgo comunicado al equipo de Trustless Work.
 - Usamos la v1 del escrow single-release (commit `f0b706e`). La v2 de Trustless Work ya lo impide (`single-release-develop-v2` y `single-release-main-v2` responden `EscrowAlreadyReleased`). Pendiente: evaluar la migración a la v2 (plan de 30 días).
 - En la v1, `validate_dispute_flag_change_conditions` (`core/validators/dispute.rs`) rechaza si el escrow ya está en disputa o resuelto, pero **no si ya se liberó**.
 - Por eso, después de liberar, cualquier rol (vendedor, plataforma, approver o release_signer) puede poner `disputed = true` directo en el escrow.

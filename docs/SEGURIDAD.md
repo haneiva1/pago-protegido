@@ -5,7 +5,7 @@
 > 2. El árbitro solo elige un porcentaje. El contrato reparte únicamente entre el comprador registrado y el vendedor, y no existe ninguna función que acepte otra dirección de destino.
 > 3. Confirmar es aprobar y liberar en la misma transacción. Si el vendedor despachó y el comprador no responde, el pago se libera solo al vencer el plazo, y cualquiera puede dispararlo.
 > 4. Los 9 invariantes y los hallazgos del red team sobre Trustless Work tienen tests (38 en total, v2) contra el WASM real de Trustless Work. En testnet se rechazaron 9 desvíos con v2 (y 5 ataques con v1), y el saldo del tercero no cambió.
-> 5. Usamos la v1 del escrow single-release de Trustless Work. En la v1, un escrow ya liberado se puede marcar en disputa sin mover fondos (H-1); la v2 de Trustless Work ya lo impide, y `pp_guardian` también lo bloquea (#21). Antes de mainnet faltan una auditoría, un multisig para el admin, una billetera recuperable para el comprador y la gestión de TTL.
+> 5. Usamos la v1 del escrow single-release de Trustless Work. H-1 es un hallazgo comunicado al equipo de Trustless Work: en la v1, un escrow ya liberado se puede marcar en disputa sin mover fondos; la v2 de Trustless Work ya lo impide, y `pp_guardian` también lo bloquea (#21). Antes de mainnet faltan una auditoría, un multisig para el admin, una billetera recuperable para el comprador y la gestión de TTL.
 
 Todo lo de este documento corre **solo en testnet**. Código: [`contracts/`](../contracts/). Despliegue y transacciones: [`contracts/DEPLOYED.md`](../contracts/DEPLOYED.md). Decisiones: [`contracts/DECISIONES.md`](../contracts/DECISIONES.md).
 
@@ -87,7 +87,7 @@ set_admin(new_admin: address); __constructor(admin, guardian, tw_fee: address); 
 
 ### H-1: en la v1 de Trustless Work, un escrow ya liberado se puede marcar en disputa
 
-Usamos la v1 del escrow single-release (commit `f0b706e`). En la v1, `dispute_escrow` valida `disputed` y `resolved`, pero **no `released`** (`core/validators/dispute.rs`, `validate_dispute_flag_change_conditions`). Por eso, después de una liberación, cualquier dirección con rol en el escrow (vendedor, plataforma) puede ponerle `disputed = true` llamando directo al escrow.
+**Hallazgo comunicado al equipo de Trustless Work.** Usamos la v1 del escrow single-release (commit `f0b706e`). En la v1, `dispute_escrow` valida `disputed` y `resolved`, pero **no `released`** (`core/validators/dispute.rs`, `validate_dispute_flag_change_conditions`). Por eso, después de una liberación, cualquier dirección con rol en el escrow (vendedor, plataforma) puede ponerle `disputed = true` llamando directo al escrow.
 
 - **Reproducido en testnet** con la compra de ejemplo p1. El escrow quedó con `released = true` y `disputed = true` a la vez. Hashes y pasos en la [nota técnica de H-1](reporte-trustless-work.md).
 - **La v2 de Trustless Work ya lo impide** (`single-release-develop-v2` y `single-release-main-v2` responden `EscrowAlreadyReleased`). Pendiente: evaluar la migración a la v2 (plan de 30 días).
@@ -134,7 +134,7 @@ El red team revisó el código de la v1 de TW (commit `f0b706e`). Son **decision
 | **TTL y renta** | Instancias extendidas 30 días por llamada, `Purchase` 120 días, escrow de TW 1 año (su código) | Un bot que extienda el TTL de la instancia y del código WASM de los contratos (`extend_ttl`) y monitoree los vencimientos. Definir quién paga la renta. |
 | **Verificación del escrow (H-2, TW-4)** | La app verifica el hash del WASM y los roles antes de cada firma | Mantenerlo, o un `pp_factory` on-chain que registre las instancias legítimas. |
 | **Inicialización atómica (H-3)** | deploy + init en dos transacciones | `tw_new_single_release_escrow` o una factory propia. |
-| **H-1 (v1 de TW)** | `pp_guardian` lo bloquea (#21) | La v2 de Trustless Work ya lo impide: evaluar la migración (plan de 30 días, semana 4). Exige contratos nuevos. |
+| **H-1 (v1 de TW)** | Hallazgo comunicado al equipo de Trustless Work; `pp_guardian` lo bloquea (#21) | La v2 de Trustless Work ya lo impide: evaluar la migración (plan de 30 días, semana 4). Exige contratos nuevos. |
 | **Comisiones en devoluciones y disputas** | Trustless Work descuenta la comisión fija del pedido también cuando la plata vuelve al comprador | Se mantiene y queda documentado en la [Tarifa del README](../README.md#tarifa). Cambiarlo exige contratos nuevos. |
 | **Llave del comprador** | Llave creada en el navegador, sin respaldo | Billetera recuperable (login o passkey) antes de mainnet ([README, Llaves](../README.md#llaves)). |
 | **Moneda** | LABUSD de prueba | USDC real, verificando su SAC. |
