@@ -1,6 +1,6 @@
 # H-1: disputa sobre un escrow ya liberado (v1 de Trustless Work)
 
-> **Estado (19-nov-2026): hallazgo comunicado al equipo de Trustless Work.** Es un comportamiento de la **v1** del escrow single-release de Trustless Work, que es la que usa Pago Protegido (commit `f0b706e`). **La v2 de Trustless Work ya lo impide:** en las ramas `single-release-develop-v2` y `single-release-main-v2`, `dispute_escrow` responde `EscrowAlreadyReleased` si el escrow ya se liberó. En Pago Protegido, `pp_guardian` también lo bloquea (`#21`). No mueve fondos. Todas las pruebas se hicieron en **testnet**.
+> **Estado (19-nov-2026):** En la v1 del escrow que usamos (commit `f0b706e`), un escrow ya liberado se puede marcar en disputa sin mover fondos; la v2 de Trustless Work ya lo impide, y `pp_guardian` también lo bloquea (#21). **Detalle de la v2:** en las ramas `single-release-develop-v2` y `single-release-main-v2`, `dispute_escrow` responde `EscrowAlreadyReleased` si el escrow ya se liberó. Todas las pruebas se hicieron en **testnet**.
 >
 > Este documento explica qué pasa en la v1, cómo se reproduce y cómo lo cubrimos. Pendiente: evaluar la migración a Trustless Work v2 (plan de 30 días).
 
@@ -101,7 +101,7 @@ Reutiliza el error existente `#35 EscrowAlreadyReleased`, así que no cambia la 
 
 ## English (short)
 
-**H-1 (finding shared with the Trustless Work team): in Trustless Work v1, `dispute_escrow` accepts disputes on an already released single-release escrow. Trustless Work v2 already rejects it.**
+**H-1: in Trustless Work v1, `dispute_escrow` accepts disputes on an already released single-release escrow. Trustless Work v2 already rejects it.**
 
 - **Where (v1):** `contracts/escrow/src/core/validators/dispute.rs::validate_dispute_flag_change_conditions` (branch `single-release-develop` @ `f0b706e`). It checks `disputed` and `resolved` but not `released`. After `release_funds`, any role holder except the dispute resolver can call `dispute_escrow`, which succeeds: the escrow ends up `released = true` and `disputed = true`, and `EscrowDisputed` is emitted.
 - **v2:** branches `single-release-develop-v2` and `single-release-main-v2` return `EscrowAlreadyReleased`.
