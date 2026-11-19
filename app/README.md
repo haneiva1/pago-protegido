@@ -5,7 +5,7 @@ Links de pago protegidos para ventas por redes:
 1. El vendedor crea un link.
 2. El comprador paga y la plata queda en un escrow de Trustless Work en Stellar.
 3. El vendedor marca "enviado".
-4. El comprador confirma y se libera la plata, o abre un reclamo y el árbitro reparte.
+4. El comprador toca "Pagar al vendedor" y se libera la plata, o abre un reclamo y el revisor reparte.
 
 **Solo testnet.** La red está fija en el código. La moneda es LABUSD, que en pantalla se llama "USD de prueba". La rampa de bolivianos está simulada y la pantalla lo dice.
 
@@ -18,7 +18,7 @@ Especificación: [`docs/SPEC.md`](../docs/SPEC.md). Decisiones tomadas fuera del
   - El vendedor registra el envío con evidencia estructurada: empresa, guía, peso, foto, destino y, si es un celular, IMEI.
   - "Pagar al vendedor (irreversible)" se habilita 2 h (misma ciudad) o 24 h (otra ciudad) después del envío, y pregunta antes si el producto está en sus manos. Con `PP_DEMO=1`, 1 minuto.
   - "El vendedor me pide que confirme" abre un reclamo por presión.
-- **Quién paga la protección** se elige en cada link: el comprador (1,5%, mín. Bs 5, máx. Bs 50; el vendedor recibe el precio completo) o el vendedor (2%).
+- **Quién paga la protección** se elige en cada link: el comprador (1,5%, mín. Bs 5, tope Bs 50; el vendedor recibe el precio completo) o el vendedor ("Yo la regalo": se le descuenta 2,3%, 2% de la plataforma y 0,3% de Trustless Work). Es la misma tarifa del [README](../README.md#tarifa).
 - **Revisor de reclamos** (`/revisor`, antes "árbitro"): motivo obligatorio, reparto sin valor por defecto e historial de evidencia. La política de reclamos está en `/como-funciona#reclamos`.
 - **Páginas nuevas:**
   - `/verificar` (con el código PP-#### del pedido);
@@ -43,14 +43,14 @@ npm run dev     # http://localhost:3000
 - `npm run setup` no pisa un `.env.local` que ya exista. Para regenerarlo: `npm run setup -- --force`.
 - Si encuentra `.env.pollar` en la raíz del repo (o la ruta en `POLLAR_ENV_FILE`; no se versiona), copia también las variables de Pollar.
 - Si el puerto 3000 está ocupado: `PORT=3020 npm run dev`. Pollar tiene registrados `http://localhost:3000` y `http://localhost:3020` como origen y URL de retorno.
-- **Modo guardián por defecto** (`PP_MODE=guardian`), con `pp_guardian` `CAOX6JZV…4OZU` y `pp_arbiter` `CBCDVLEP…PWGU` (de `../contracts/deployments/testnet.json`). El modo directo sigue disponible con `PP_MODE=direct`.
+- **Modo guardián por defecto** (`PP_MODE=guardian`), con los contratos v2: `pp_guardian` `CDKYF7OA…UOATOT` y `pp_arbiter` `CDTEA424…TEVU5UA` (de `../contracts/deployments/testnet.json`). El modo directo sigue disponible con `PP_MODE=direct`.
 - Para producción local: `npm run build && npm start`.
 
 ### Demo de 3 minutos (SPEC §7)
 
 1. `/vender`: nombre de la tienda, WhatsApp y "Crear mi billetera". Te lleva a "Tu primer link". Crea "Zapatillas Nike talla 40", Bs 450, 3 días.
 2. Abre el link en el celular (o en otra ventana privada): "Pagar protegido" → QR de ejemplo → "Simular pago del banco (testnet)". Cada paso muestra su "Ver en Stellar".
-   - Antes de pedir la firma del pago, la app verifica por RPC que el contrato del pedido ejecuta el WASM de Trustless Work (`1b367bc8…`) y tiene los roles `pp_guardian`/`pp_arbiter`. Si todo está bien, muestra el sello **"Contrato verificado"** con link a stellar.expert; si algo falla, bloquea el pago.
+   - Antes de pedir la firma del pago, la app verifica por RPC que el contrato del pedido ejecuta el WASM de Trustless Work (`1b367bc8…`) y tiene los roles `pp_guardian`/`pp_arbiter`. Si todo está bien, muestra el sello **"Contrato verificado"** con link a stellar.expert; si algo no coincide, bloquea el pago.
 3. En `/panel`, marca "enviado" con empresa, guía, peso (e IMEI si es un celular): `pp_guardian.mark_shipped` registra el envío una sola vez, antes del plazo de despacho, y desde ahí corre la ventana de revisión.
 4. En el link, toca "Pagar al vendedor (irreversible)" y responde la pregunta obligatoria: `pp_guardian.confirm` aprueba y libera en una sola operación. Se ven los montos del vendedor, de la plataforma y de Trustless Work (0,3 %).
 5. Con un segundo link, toca "Tengo un problema" y luego entra a `/revisor`. La clave es `ARBITRO_PANEL_KEY`, que está en `.env.local`.
@@ -72,7 +72,7 @@ Levanta todo listo para presentar (Ctrl+C apaga todo):
 
 - **App web en http://localhost:3020** con la billetera de `.env.local` (Pollar, si `npm run setup` encontró sus llaves). Pollar acepta ese origen.
 - **Simulador del bot de WhatsApp en http://localhost:3030**, conectado a esa app con la clave compartida `PP_BOT_KEY`. Avisa cada 3 s.
-- Al arrancar imprime los links (vendedor, árbitro con su clave, `/panel?demo=1`) y los números del simulador.
+- Al arrancar imprime los links (vendedor, revisor con su clave, `/panel?demo=1`) y los números del simulador.
 
 Recorrido sugerido:
 
@@ -124,7 +124,7 @@ El video final dura **≈ 1:52** (1280x720):
   2. El comprador paga en el celular y aparece "Contrato verificado".
   3. La vendedora marca enviado desde el link del bot.
   4. El comprador confirma y ella cobra al instante.
-  5. Segunda compra con reclamo, árbitro 70/30 y el contrato que rechaza el desvío (`Error(Contract, #12)`).
+  5. Segunda compra con reclamo, revisor 70/30 y el contrato que rechaza el desvío (`Error(Contract, #12)`).
   6. `/transparencia`.
 - Cada escena es un clip con su viewport: celular para el comprador, escritorio para el resto. La billetera pasa de un clip a otro con `storageState`.
 - `scripts/video-join.mjs` une los clips con ffmpeg en un mp4 de 1280x720; los de celular se centran sobre fondo oscuro.
@@ -189,23 +189,25 @@ npm run test:e2e
 ```
 
 - Hace su propio build en `.next-e2e/`, con la billetera local, y lo levanta en `http://localhost:3100` con una base aparte (`data/e2e.db`). No toca tu `npm run dev`.
-- Corre en **modo guardián** y en **modo demo** (`PP_DEMO=1`), con una base nueva en cada corrida. Recorre siete escenarios con transacciones reales en testnet y tarda entre 12 y 16 minutos. Los de la ronda 6 son: fricción al confirmar, presión para confirmar → reclamo, los dos modelos de protección, datos de entrega, evidencia estructurada con IMEI, `/verificar`, `/pedir`, `/piloto` y el barrido de palabras prohibidas:
-  1. **Caso feliz:** onboarding → link → pago con rampa simulada (sello "Contrato verificado") → enviado → "Recibí conforme". Verifica 37,58 / 0,77 / 0,12 USD de prueba.
-  2. **Disputa:** pago → enviado → reclamo → versión del vendedor → vista previa con `pp_arbiter.quote` → intento de desvío rechazado por el contrato (`Error(Contract, #12)`) → `pp_arbiter.resolve` 70/30 (17,54 / 7,52).
-  3. **Liberación automática:** link con plazo de demo de 2 minutos → pago → enviado → cuenta regresiva → "Liberar ahora (plazo vencido)" → `pp_guardian.auto_release`.
-  4. **Bot de WhatsApp:** Playwright levanta también el simulador del bot (`../bot`, puerto 3130) contra esta app.
+- Corre en **modo guardián** y en **modo demo** (`PP_DEMO=1`), con una base nueva en cada corrida. Recorre siete escenarios en `e2e/pago-protegido.spec.ts`, con transacciones reales en testnet, y tarda entre 12 y 16 minutos. Además corren el e2e público (`e2e/publico.spec.ts`) y el de Open Graph:
+  1. **Caso feliz:** onboarding → link de Bs 450 con la protección a cargo del comprador (vista previa Bs 456,75) → pago con rampa simulada (sello "Contrato verificado") y datos de entrega → envío con evidencia → "Pagar al vendedor (irreversible)" con la pregunta obligatoria. Verifica que el vendedor recibe Bs 450,04.
+  2. **Reclamo por presión y revisor:** el vendedor regala la protección (Bs 300, el comprador paga Bs 300,00) → pago → envío → "El vendedor me pide que confirme" abre un reclamo → versión del vendedor → vista previa con `pp_arbiter.quote` → intento de desvío rechazado por el contrato (`Error(Contract, #12)`) → `pp_arbiter.resolve` 70/30 (Bs 205,17 / Bs 87,93).
+  3. **Celular (v2):** IMEI obligatorio, revisión contada desde el envío, "Necesito más tiempo" una vez y liberación por plazo ("Liberar ahora (plazo vencido)" → `pp_guardian.auto_release`).
+  4. **Devolución automática (v2):** el vendedor no despacha a tiempo y el pago vuelve al comprador sin reclamo (`refund_unshipped`).
+  5. **Bot de WhatsApp:** Playwright levanta también el simulador del bot (`../bot`, puerto 3130) contra esta app.
      - Registro con `/vender?wa=`.
      - En el chat: "vendo zapatillas nike 40 a 450 bs entrega 3 días" → link.
-     - El comprador paga en la app con su WhatsApp → "¡Te pagaron!" en el chat.
+     - El comprador paga en la app con su WhatsApp y sus datos de entrega.
      - `enviado <código> <guía>` → link a `/panel?enviar=…` → el vendedor firma.
-     - "¿Te llegó?" en el chat del comprador → "Recibí conforme" → "¡Liberado!" con 37,58.
+     - El comprador toca "Pagar al vendedor" → "Se pagó al vendedor".
      - Verifica también que el WhatsApp del comprador no aparece en la API pública y que `/api/bot/*` exige la clave.
      - Capturas `e2e/capturas/bot-*.png`.
-  5. **Transparencia:** `/transparencia` con datos reales de testnet. Verifica que la suma de estados cuadre con las compras protegidas (captura `60-transparencia`).
-  6. **Open Graph** (`e2e/og.spec.ts`, sin transacciones): meta tags e imágenes 1200x630 del pedido y de la landing, y el favicon.
+  6. **Transparencia:** `/transparencia` con datos reales de testnet, con las pruebas del equipo separadas del piloto (captura `60-transparencia`).
+  7. **Palabras prohibidas** en todas las pantallas, `/verificar`, `/pedir`, `/piloto` y `piloto:csv`.
+  8. **Open Graph** (`e2e/og.spec.ts`, sin transacciones): meta tags e imágenes 1200x630 del pedido y de la landing, y el favicon.
 - Modo directo: `PP_MODE=direct npm run test:e2e`.
 - Guarda capturas en `e2e/capturas/` en tamaño celular (390 px, @2x) y escritorio (1280 px).
-- En cada captura verifica que la pantalla no diga "cripto".
+- En cada captura verifica que la pantalla no tenga palabras prohibidas (`revisarPalabras`).
 - Puerto distinto: `E2E_PORT=3200 npm run test:e2e`.
 
 Prueba de humo del backend, sin navegador, con la app corriendo: `BASE_URL=http://localhost:3000 npm run smoke`.
@@ -217,7 +219,7 @@ src/
   app/                    pantallas (App Router) y rutas /api
     page.tsx              landing                    /vender     onboarding (3 pasos)
     panel/                panel del vendedor         p/[slug]/   pago y seguimiento del comprador
-    arbitro/              panel del árbitro          como-funciona/  diagrama + contratos
+    revisor/              panel del revisor          como-funciona/  diagrama + contratos
   lib/
     format.ts             montos, comisiones (igual que el contrato), links a stellar.expert
     whatsapp.ts           textos listos para copiar en cada evento
@@ -226,11 +228,11 @@ src/
       config.ts           .env.local (solo testnet)
       db.ts               SQLite (better-sqlite3) en data/pp.db
       stellar.ts          RPC, simulación, fee bump, friendbot, trustline, rampa, saldos
-      orders.ts           lógica de pedidos (pago, acciones, envío firmado, árbitro)
+      orders.ts           lógica de pedidos (pago, acciones, envío firmado, revisor)
       escrow/             EscrowService + DirectEscrowService + GuardianEscrowService
 ```
 
-- **No custodia.** La llave del usuario vive en su navegador (`localStorage`, una por rol). El flujo de cada transacción:
+- **No custodia.** La llave del comprador vive en su navegador (`localStorage`, una por rol); la del vendedor también, salvo que entre con Pollar. El flujo de cada transacción:
   1. El servidor la arma y la simula con el usuario como cuenta de origen.
   2. El navegador la firma. Esa firma cubre también la autorización de Soroban.
   3. El servidor la envuelve en un **fee bump** firmado por `plataforma`, que paga la comisión, y la envía.
@@ -265,7 +267,7 @@ PP_ARBITER_ID=C...
 
 ### Billetera Pollar
 
-`NEXT_PUBLIC_WALLET=local|pollar`. Con las llaves de `.env.pollar` (raíz del repo, no se versiona), `npm run setup` deja `pollar` como billetera principal. Tiene login con Google o email y billetera embebida, sin frases secretas.
+`NEXT_PUBLIC_WALLET=local|pollar`. Con las llaves de `.env.pollar` (raíz del repo, no se versiona), `npm run setup` deja `pollar` como billetera **del vendedor**. Tiene login con Google o email y billetera embebida, sin frases secretas. **Pollar es solo para el vendedor:** el comprador nunca ve un login y firma con una llave creada en su navegador (`LocalWallet`), aunque `NEXT_PUBLIC_WALLET=pollar` (`src/lib/wallet/index.ts`). Riesgos de esa llave y plan para producción: [README, Llaves](../README.md#llaves).
 
 - La firma va por `signTx(xdr, { skipSponsorship: true })` y la comisión la patrocina nuestra plataforma con fee bump, igual que con la billetera local.
 - Pollar acepta los orígenes `http://localhost:3000` y `http://localhost:3020`; en modo Pollar la app tiene que correr en uno de esos puertos.
@@ -276,10 +278,10 @@ PP_ARBITER_ID=C...
 2. Corre `PORT=3020 npm run dev` (o `npm run dev` si el 3000 está libre). Si cambiaste `NEXT_PUBLIC_*`, reinicia el servidor.
 3. Abre `http://localhost:3020/vender`, completa tienda y WhatsApp y toca **"Ingresar con Google o email y continuar"**.
 4. En el modal de Pollar, entra con Google o con tu email (llega un código). La billetera se crea sola y Pollar le agrega la trustline a LABUSD (configurado en el dashboard).
-5. La app te lleva a "Tu primer link". Para probar como comprador, abre el link en otro navegador o en una ventana privada e ingresa con **otra** cuenta: Pollar usa la misma billetera para los dos roles y `pp_guardian` rechaza que comprador y vendedor sean la misma (`BuyerIsSeller`).
+5. La app te lleva a "Tu primer link". Para probar como comprador, abre el link en otro navegador o en una ventana privada: el comprador no ve el login de Pollar y firma con una llave creada en ese navegador. Si comprador y vendedor terminaran siendo la misma cuenta, `pp_guardian` lo rechaza (`BuyerIsSeller`).
 6. Cada firma pasa por `signTx(xdr, { skipSponsorship: true })` y la comisión la paga nuestra plataforma con fee bump. Si Pollar pide confirmar la firma, acéptala.
 7. Verificado automáticamente con Playwright en `PORT=3020`: el modal de login carga sin errores de origen ni CORS (captura `e2e/capturas/50-pollar-modal-login-3020-celular.png`). El modal de Pollar 0.12.0 aparece en inglés; el idioma se configura en el dashboard de Pollar o con `locale` desde la 0.12.1.
-- `LocalWallet` (llave en el navegador) es la alternativa y la que usa el e2e.
+- `LocalWallet` (llave en el navegador) es la del comprador siempre, la del vendedor sin Pollar y la que usa el e2e.
 - Código: `src/lib/wallet/pollar.ts` y `src/components/PollarProviders.tsx`. Estado y pendientes: `DECISIONES.md`, sección Pollar.
 
 ## Métricas en vivo y perfil de la tienda

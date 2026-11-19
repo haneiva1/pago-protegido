@@ -1,24 +1,38 @@
 # CHANGELOG: Pago Protegido
 
-Todo corre en **Stellar testnet**. Las fechas son de noviembre de 2026.
+Todo corre en **Stellar testnet**. Las fechas son de 2026.
 
-## v1-19nov (entrega 1 en Atlas)
+## Entrega 1 (19-nov)
 
-Estado al momento de la entrega: los contratos v2 están desplegados y probados (38 tests), la app funciona de punta a punta sobre los contratos v2 en testnet, con métricas en vivo y perfil verificable de la tienda, y el bot funciona con el simulador. Desde esta entrega, Pago Protegido vive en su propio repo, con todo su historial.
+Entrega 1 en Atlas. Todo corre en Stellar testnet. Desde esta entrega, Pago Protegido vive en su propio repo, con todo su historial.
 
-**Validación de esta semana: entrevistas y formulario.** Esta semana validamos con entrevistas a vendedores y con el formulario de lista de espera (`/piloto`), no con pilotos. Los **20 pilotos** pasan al [plan de 30 días](README.md#plan-de-30-días).
+**Qué hay:**
 
-**Pendientes medibles** (los revisamos en la próxima entrega):
+- **Contratos v2** (`pp_guardian` y `pp_arbiter`), desplegados en testnet y no actualizables, sobre la v1 del escrow single-release de Trustless Work sin modificar. **38 tests** contra el WASM real (26 de invariantes y 12 del red team).
+- **Flujo v2 en testnet** con código 0: caso feliz, disputa 70/30, liberación por plazo, extensión, devolución por falta de envío y **9 desvíos rechazados**. Cada escenario, con su transacción, en la [Evidencia del README](README.md#evidencia).
+- **App web** de punta a punta sobre v2: crear link, pagar con la rampa simulada, registrar el envío, "Pagar al vendedor", "Necesito más tiempo", reclamo y panel del revisor (`/revisor`), métricas en vivo (`/metricas`) y perfil verificable de la tienda (`/tienda/<slug>`).
+- **Bot de WhatsApp** con el simulador: 174 tests unitarios y 4 e2e.
+- **Una sola tarifa:** la protección la paga el comprador, 1,5% (mínimo Bs 5, tope Bs 50); si el vendedor la regala, se le descuenta 2,3% (2% de la plataforma y 0,3% de Trustless Work). En devoluciones y disputas, Trustless Work descuenta las comisiones ([README, Tarifa](README.md#tarifa)).
+- **Documentación para el jurado:** links a los contratos, llaves del servidor y riesgos de la llave del comprador, hallazgos sobre Trustless Work (TW-1 a TW-5 y H-1), evidencia "afirmación → comando → resultado → link", mapa del código, qué es real y qué es simulado, dos caminos para probarlo y tipo de cambio de las métricas. Decisiones en [DECISIONES.md](DECISIONES.md).
+- **Validación de esta semana:** entrevistas a vendedores y formulario de lista de espera (`/piloto`), no pilotos.
 
-| # | Pendiente | Cómo se mide | Estado |
+**Pendiente, con fecha** (fechas del [plan de 30 días](README.md#plan-de-30-días); las revisamos en la próxima entrega):
+
+| # | Pendiente | Cómo se mide | Fecha |
 |---|---|---|---|
-| 1 | **Entrevistas** con vendedores del segmento inicial (celulares y electrónica, Bs 1.000–7.000, envío por encomienda) | Filas en "Registro" de [docs/USUARIOS.md](docs/USUARIOS.md), con la nota de consentimiento | en curso esta semana |
-| 2 | **Formulario de lista de espera** (`/piloto`) | Inscripciones exportadas con `npm run piloto:csv` (el CSV no se versiona) | en curso esta semana |
-| 3 | **20 pilotos** con vendedores del segmento inicial | Sección "Pilotos" de [docs/USUARIOS.md](docs/USUARIOS.md) y compras en las métricas on-chain | pasa al plan de 30 días (semana 1) |
-| 4 | **Despliegue público** de la app y el bot | Una URL HTTPS estable, con [deploy/DEPLOY.md](deploy/DEPLOY.md) | pendiente: el build de Docker no se pudo probar porque la imagen base no terminó de descargarse en la Mac |
-| 5 | **WhatsApp real** | El bot responde desde un número real conectado a WhatsApp Cloud API | pendiente: hoy funciona con el simulador y el número de prueba de Meta |
-| 6 | **Carta de intención con una ETF** para la rampa en bolivianos | Una carta firmada | pendiente |
-| 7 | **Integración de v2 en la app** | La app usa `pp_guardian` y `pp_arbiter` v2 (`mark_shipped`, `extend`, los dos plazos) y su e2e pasa contra v2 | hecho (ver "18-nov, tarde") |
+| 1 | **Entrevistas** con vendedores del segmento inicial (celulares y electrónica, Bs 1.000–7.000, envío por encomienda) | Filas en "Registro" de [docs/USUARIOS.md](docs/USUARIOS.md), con la nota de consentimiento | en curso esta semana (hasta el 29 nov) |
+| 2 | **Formulario de lista de espera** (`/piloto`) | Inscripciones exportadas con `npm run piloto:csv` (el CSV no se versiona) | en curso esta semana (hasta el 29 nov) |
+| 3 | **Despliegue público** de la app y el bot | Una URL HTTPS estable, con [deploy/DEPLOY.md](deploy/DEPLOY.md). El build de Docker no se pudo probar porque la imagen base no terminó de descargarse en la Mac. | semana 1 (30 nov – 6 dic) |
+| 4 | **Carta de intención con una ETF** para la rampa en bolivianos | Una carta firmada | semana 1 (30 nov – 6 dic) |
+| 5 | **20 pilotos** con vendedores del segmento inicial | Sección "Pilotos" de [docs/USUARIOS.md](docs/USUARIOS.md) y compras en las métricas on-chain | arrancan en la semana 1 (30 nov – 6 dic) |
+| 6 | **Proceso automático** para la liberación y la devolución por plazo vencido (hoy las dispara la app al abrir el pedido) | Un pedido vencido se libera o se devuelve sin que nadie lo abra | semana 2 (7 – 13 dic) |
+| 7 | **WhatsApp real** | El bot responde desde un número real conectado a WhatsApp Cloud API (hoy: simulador y número de prueba de Meta) | semana 3 (14 – 20 dic) |
+| 8 | **Prueba A/B de precio** (quién paga la protección y cuánto) | Ventas cerradas con cada variante en los pilotos | semana 3 (14 – 20 dic) |
+| 9 | **Antes de mainnet:** revisión externa de los contratos, multisig para el admin del revisor, billetera recuperable para el comprador y evaluar la migración a Trustless Work v2 | Informe de la revisión, cuenta multisig en testnet, login o passkey del comprador y decisión sobre la v2 | semana 4 (21 – 27 dic) |
+| 10 | **Rampa en bolivianos con una ETF, en su sandbox** | Un pago con QR que acredita la moneda en el sandbox de la ETF | 27 dic |
+| 11 | **Mainnet acotado** con USDC y topes por pedido y por vendedor | Primera compra en mainnet | semana 4 (21 – 27 dic), **solo con una opinión legal favorable** |
+
+Hecho en esta etapa: la **integración de v2 en la app** (ver "18-nov, tarde").
 
 ## 19-nov: repo propio
 
@@ -83,7 +97,7 @@ Estado al momento de la entrega: los contratos v2 están desplegados y probados 
   - arquitectura, seguridad, métricas on-chain y guion de la demo;
   - despliegue con Docker, Caddy y Railway;
   - 6 compras de ejemplo en testnet;
-  - reproducción del bug H-1 de Trustless Work, con su fix y su test.
+  - reproducción en testnet del hallazgo H-1 (en la v1 de Trustless Work un escrow liberado se puede marcar en disputa; la v2 ya lo impide), con su test.
 
 ## 17-nov: spike
 

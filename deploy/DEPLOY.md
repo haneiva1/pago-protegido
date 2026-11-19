@@ -110,7 +110,7 @@ bash ../deploy/tunel.sh 3020                     # → https://<algo>.trycloudfl
 
 ## Seguridad del despliegue
 
-- **Llaves:** solo testnet. El servidor tiene 3 llaves (`plataforma`, `arbitro` y `lab`), y nunca las del comprador ni las del vendedor.
+- **Llaves:** solo testnet. El servidor tiene 3 llaves (`plataforma`, `arbitro` y `lab`) y la dirección de `twfee`, y nunca las del comprador ni las del vendedor. Qué puede hacer cada una: [README, Llaves](../README.md#llaves).
 - **Archivos con secretos:** `app.env` y `bot.env` están en `deploy/.gitignore`. En Railway, los secretos van como variables del servicio.
 - **Puertos:** la app y el bot solo son accesibles a través de Caddy. Ninguno publica puertos en el host.
 - **Antes de mainnet:** ver [`../docs/SEGURIDAD.md`](../docs/SEGURIDAD.md) §5. Incluye un multisig para el admin del árbitro, una auditoría y la gestión de TTL.

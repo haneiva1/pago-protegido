@@ -45,7 +45,7 @@ export default async function ComoFunciona() {
 
       <section aria-label="Diagrama del flujo" className="space-y-3">
         <Node n="1" title="El vendedor crea el link" tone="slate">
-          Producto, precio en Bs, categoría, días de entrega y quién paga la protección (el comprador: 1,5%, mín. Bs 5, máx. Bs 50; o el vendedor: 2%).
+          Producto, precio en Bs, categoría, días de entrega y quién paga la protección (el comprador: 1,5%, mín. Bs 5, máx. Bs 50; o el vendedor: 2,3%).
         </Node>
         <Arrow />
         <Node n="2" title="El comprador deja los datos de entrega y paga con QR" tone="slate">

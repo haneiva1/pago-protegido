@@ -35,7 +35,7 @@ export default function Home() {
             </Link>
           </div>
           <p className="mt-4 text-xs text-slate-500">
-            La protección la paga el comprador (1,5%, mín. Bs 5, máx. Bs 50) o la regalas tú (2% de tu venta). ¿Quieres probarlo con tus ventas?{" "}
+            La protección la paga el comprador (1,5%, mín. Bs 5, máx. Bs 50) o la regalas tú (2,3% de tu venta). ¿Quieres probarlo con tus ventas?{" "}
             <Link href="/piloto" className="underline">
               Únete al piloto
             </Link>

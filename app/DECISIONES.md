@@ -6,7 +6,7 @@ Criterio: cuando el SPEC no decide algo, se elige **la opción más simple que r
 
 1. **Un link de pago es de un solo uso y es el pedido.** Cada link se comparte con un cliente; el mismo registro guarda el pedido, su escrow y su estado. `/p/[slug]` es a la vez la página de pago y la de seguimiento. Para vender lo mismo otra vez, se crea otro link (30 segundos).
 2. **El primero que inicia el pago queda como comprador.** Al tocar "Simular pago del banco", la dirección del comprador queda en los roles del escrow. Si otra persona abre el link, ve "Este link ya lo está pagando otra persona".
-3. **"Recibí conforme" se permite desde "Pagado" y desde "Enviado".** Cubre la entrega en persona sin guía. La liberación automática (`auto_release`, modo guardián) exige "enviado", como dice el SPEC.
+3. **"Recibí conforme" se permite desde "Pagado" y desde "Enviado".** *(Actualizado el 19-nov: hoy el botón se llama "Pagar al vendedor" (§61) y en v2 exige el envío registrado.)* Cubre la entrega en persona sin guía. La liberación automática (`auto_release`, modo guardián) exige "enviado", como dice el SPEC.
 4. **Plazo de liberación automática = días de entrega + 3 días, contados desde el fondeo.** Es el `window_secs` que se pasa a `pp_guardian.fund`. En modo directo el plazo se muestra pero no se ejecuta: el contrato de Trustless Work no tiene plazos (hallazgo 6 del spike), y la pantalla lo aclara.
 5. **Reclamo:**
    - Motivos fijos: "No llegó", "Llegó dañado", "No es lo que pedí", "Llegó incompleto", "Otro".
@@ -14,7 +14,7 @@ Criterio: cuando el SPEC no decide algo, se elige **la opción más simple que r
    - El vendedor responde con texto ("Tu versión para el árbitro").
    - La evidencia vive en SQLite; on-chain solo queda el estado del hito y la evidencia de envío.
 6. **"Ventas completadas" = pedidos liberados** por confirmación del comprador. No cuenta las disputas resueltas.
-7. **El reembolso por disputa también paga comisiones** (2% plataforma + 0,3% Trustless Work), porque así lo hace el contrato (hallazgo 3 del spike). El árbitro lo ve en la vista previa: con 100% para el comprador, recibe 97,7%.
+7. **El reembolso por disputa también paga comisiones** (la comisión de la plataforma del pedido + 0,3% de Trustless Work), porque así lo hace el contrato (hallazgo 3 del spike). El revisor lo ve en la vista previa. *(Actualizado el 19-nov: en v1 la comisión era siempre 2%, así que con 100% para el comprador recibía 97,7%. Desde §67 la comisión de la plataforma se define al crear cada pedido; ver la [tarifa del README](../README.md#tarifa).)*
 8. **Montos:**
    - Se calcula en unidades base (7 decimales) con la misma división entera del contrato y se muestra con 2 decimales.
    - El precio en Bs se convierte con `FX_BS_PER_USD` (11,70 por defecto), redondeado a la unidad base más cercana.
@@ -99,7 +99,7 @@ Integrado con `@pollar/react` y `@pollar/core` 0.12, siguiendo las páginas de `
 ## Segunda ronda: modo guardián por defecto
 
 34. **`PP_MODE=guardian` es el modo por defecto.**
-    - Usa `pp_guardian` `CAOX6JZV3CJZFDD22J2XI3NKY5G4NRFOYRV7IA724MSVREYVRALW4OZU` y `pp_arbiter` `CBCDVLEPJ6PN7RDC3HFGML3IUT7SOQEYSGH3LE3SWXWZJO7Z2QG2PWGU`, de `../contracts/deployments/testnet.json`.
+    - Usaba `pp_guardian` `CAOX6JZV3CJZFDD22J2XI3NKY5G4NRFOYRV7IA724MSVREYVRALW4OZU` y `pp_arbiter` `CBCDVLEPJ6PN7RDC3HFGML3IUT7SOQEYSGH3LE3SWXWZJO7Z2QG2PWGU` (v1), de `../contracts/deployments/testnet.json`. *(Actualizado el 19-nov: desde §77 la app usa los contratos v2, `CDKYF7OA…UOATOT` y `CDTEA424…TEVU5UA`.)*
     - Los IDs quedan en `.env.local` (`npm run setup`) y como valor por defecto en `config.ts`.
     - `PP_MODE=direct` sigue funcionando.
     - La interfaz real coincide con SPEC §3 y además usa `purchase`, `quote` y el `Purchase` que devuelve `fund`.
@@ -205,7 +205,7 @@ Integrado con `@pollar/react` y `@pollar/core` 0.12, siguiendo las páginas de `
     - **Stellar** solo se ve detrás de los links "Ver registro público".
     - **El test:** `revisarPalabras` en el e2e revisa cada captura y además recorre todas las pantallas.
     - **Pantallas técnicas:** el panel del revisor, `/como-funciona` y `/transparencia`. Ahí se permiten los términos técnicos, no los legales.
-    - **Pendiente fuera de la app:** los textos del bot (`../bot`) todavía dicen "árbitro" y "Recibí conforme". Ver el anexo para el capataz.
+    - **Pendiente fuera de la app:** los textos del bot (`../bot`) todavía dicen "árbitro" y "Recibí conforme". Ver el anexo para el capataz. *(Hecho: [bot/DECISIONES.md](../bot/DECISIONES.md) §46.)*
     - **Política de reclamos:** se publicó con un cambio: "recupera todo su pago" en lugar de "el 100%", para respetar la lista.
 62. **Moneda:** siempre Bs primero, con el tipo de cambio del pedido. Una sola línea al pie: "Se guarda en dólares digitales (en producción, USDC, 1 a 1 con el dólar; en esta práctica, dólares de prueba)". No dice USDC a secas porque en testnet la moneda es LABUSD.
 63. **Fricción al confirmar.**
@@ -231,7 +231,7 @@ Integrado con `@pollar/react` y `@pollar/core` 0.12, siguiendo las páginas de `
       - El comprador paga precio + protección (`amount` del escrow). La protección incluye el 0,3% de TW.
       - El `platform_fee` del escrow se calcula por pedido (`floor((amount − TW − precio) × 10000 / amount)`), así el vendedor recibe al menos el precio completo.
       - Ejemplo de Bs 450: el comprador paga Bs 456,75, el vendedor recibe Bs 450,04 y `platform_fee` es 117 bps.
-    - **"Yo la regalo":** 2% de la venta, como antes.
+    - **"Yo la regalo":** al vendedor se le descuenta 2,3% de la venta: 2% de la plataforma (`platform_fee` = 200 bps, como antes) y 0,3% de Trustless Work.
     - El ajuste del capataz (1,5%, mín. Bs 5, máx. Bs 50) reemplazó al "Bs 5 + 2%" de la consigna original.
 68. **Código de pedido corto y legible:** PP-#### (único). `/verificar?codigo=PP-4821` muestra tienda, producto, monto y estado, con el link auténtico.
 69. **Tarjeta del vendedor:**

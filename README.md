@@ -2,9 +2,21 @@
 
 **Pago contra confirmación de entrega para ventas por redes sociales en Bolivia, sobre Stellar.**
 
-El vendedor comparte un link. El comprador paga y la plata queda en un contrato (un escrow de Trustless Work) hasta que confirma que recibió. Si hay un problema, un árbitro decide el reparto, pero **el pago solo puede ir al vendedor o volver al comprador**: el contrato no permite ningún otro destino, ni siquiera hacia nosotros.
+| | |
+|---|---|
+| **Contratos v2 (Stellar testnet)** | `pp_guardian` [`CDKYF7OA…UOATOT`](https://stellar.expert/explorer/testnet/contract/CDKYF7OAJTACP4JNJSGGXDRA3DHE442R26CT5ZE5DJHNSHH7XJUOATOT) · `pp_arbiter` [`CDTEA424…TEVU5UA`](https://stellar.expert/explorer/testnet/contract/CDTEA424AWSIIHEQ4FIQHFQOTWS3XAVLQHX7FI3MU6JZP4OPMTEVU5UA) |
+| **Escrow de Trustless Work** | una instancia por compra; ejemplo del caso feliz: [`CCS74JS3…YVA6U6E`](https://stellar.expert/explorer/testnet/contract/CCS74JS3QVAXAI2GCTOP5BEUP47FSB36HOYURDCRR2A5PK7B5YVA6U6E) |
+| **Dólar de prueba (LABUSD)** | [`CC65P6TQ…OGBD4S`](https://stellar.expert/explorer/testnet/contract/CC65P6TQQ646YDXVS3PM6YVZASXW6WM5B67YKI46JH4EG65LJPOGBD4S) |
+| **Video** | `[link al video]` (copia local: [demo/v2/pago-protegido-demo-v2.mp4](demo/v2/pago-protegido-demo-v2.mp4)) |
+| **Demo** | `[link a la demo]` |
 
-> **Estado:** MVP funcionando en **Stellar testnet**. La moneda es LABUSD ("USD de prueba") y la rampa de bolivianos es simulada; la pantalla lo dice. Ver [Qué es real y qué es simulado](#qué-es-real-y-qué-es-simulado).
+El vendedor comparte un link. El comprador paga y la plata queda en un contrato (un escrow de Trustless Work) hasta que confirma que recibió. Si hay un problema, un revisor decide el reparto.
+
+**A dónde va la plata: solo al vendedor o de vuelta al comprador; aparte, la comisión fija que se define al crear el pedido.** Ninguna función de los contratos acepta otro destino. En devoluciones y disputas, Trustless Work descuenta las comisiones igual que en una venta (ver [Tarifa](#tarifa)).
+
+> **Estado (19-nov-2026):** MVP funcionando en **Stellar testnet**. La moneda es LABUSD ("USD de prueba") y la rampa de bolivianos es simulada; la pantalla lo dice. Ver [Qué es real y qué es simulado](#qué-es-real-y-qué-es-simulado).
+
+**Contenido:** [El problema](#el-problema) · [Cómo funciona](#cómo-funciona) · [Tarifa](#tarifa) · [Qué es real y qué es simulado](#qué-es-real-y-qué-es-simulado) · [Llaves](#llaves) · [Trustless Work: hallazgos](#trustless-work-hallazgos) · [Evidencia](#evidencia) · [Para el jurado](#para-el-jurado) · [Mapa del código](#mapa-del-código) · [Tipo de cambio](#tipo-de-cambio) · [Plan de 30 días](#plan-de-30-días) · [Equipo](#equipo)
 
 ## El problema
 
@@ -20,66 +32,269 @@ flowchart LR
   V["Vendedor<br/>crea el link"] --> C["Comprador paga<br/>(QR → USD de prueba)"]
   C --> E[("Contrato de pago<br/>escrow Trustless Work<br/>+ pp_guardian / pp_arbiter")]
   V -->|"registra el envío<br/>con la guía"| E
-  E -->|"Pagar al vendedor<br/>o vence la revisión"| S["Vendedor cobra<br/>97,7%"]
-  E -->|"Tengo un problema"| A["Árbitro elige el %<br/>solo comprador o vendedor"]
+  E -->|"Pagar al vendedor<br/>o vence la revisión"| S["El vendedor cobra"]
+  E -->|"Tengo un problema"| A["El revisor elige el %<br/>solo comprador o vendedor"]
   A --> S
   A --> B["El pago vuelve<br/>al comprador"]
+  E -.->|"comisión fija del pedido"| F["Plataforma y<br/>Trustless Work"]
 ```
 
-1. **El vendedor crea el link** en la web o por WhatsApp con el bot ("vendo celular a 3500 bs entrega 3 días") y lo comparte.
+1. **El vendedor crea el link** en la web o por WhatsApp con el bot ("vendo celular a 3500 bs entrega 3 días"), elige quién paga la protección y lo comparte.
 2. **El comprador paga.**
    - Escanea el QR; la rampa simulada le acredita USD de prueba y firma el pago.
-   - Al fondear acepta dos plazos: el del despacho y el de revisión después del envío.
+   - Al pagar acepta dos plazos: el del despacho y el de revisión después del envío.
    - Antes de pedir la firma, la app verifica on-chain que el contrato es el de Trustless Work con nuestros roles ("Contrato verificado").
 3. **El vendedor registra el envío** con el código de encomienda (`mark_shipped`). Lo hace una sola vez, dentro del plazo, y la evidencia queda fija.
-4. **El comprador toca "Pagar al vendedor"** y responde la pregunta obligatoria ("¿Tienes el producto en tus manos y lo revisaste?"). En una sola transacción, `pp_guardian` aprueba y libera:
-
-   | Quién | Parte |
-   |---|---|
-   | vendedor | 97,7% |
-   | plataforma | 2% |
-   | Trustless Work | 0,3% |
-
-   Si el comprador necesita más tiempo, puede extender la revisión una vez. Si no responde, el pago se libera solo al terminar la ventana de revisión.
-5. **Si hay un problema**, el comprador o el vendedor abren un reclamo y el árbitro elige un porcentaje: `pp_arbiter` reparte solo entre ellos dos. Si el vendedor nunca despachó, el pago vuelve al comprador sin intervención del árbitro.
+4. **El comprador toca "Pagar al vendedor"** y responde la pregunta obligatoria ("¿Tienes el producto en tus manos y lo revisaste?"). En una sola transacción, `pp_guardian` aprueba y libera: el vendedor recibe su parte y la comisión fija del pedido va a la plataforma y a Trustless Work (ver [Tarifa](#tarifa)).
+   - Si el comprador necesita más tiempo, puede extender la revisión una vez ("Necesito más tiempo", `extend`).
+   - Si no responde, el pago se libera al terminar la ventana de revisión (`auto_release`, sin firmas).
+5. **Si hay un problema**, el comprador o el vendedor abren un reclamo y el revisor elige un porcentaje: `pp_arbiter` reparte solo entre ellos dos. Si el vendedor nunca despachó, el pago vuelve al comprador sin intervención del revisor (`refund_unshipped`).
 
 Diagramas de secuencia, máquina de estados y "quién puede hacer qué": [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md).
 
+## Tarifa
+
+Hay **una sola tarifa**, y en cada link el vendedor elige quién la paga:
+
+| Quién paga la protección | Cuánto | Qué paga el comprador | Qué recibe el vendedor |
+|---|---|---|---|
+| **El comprador** (por defecto) | **1,5% del precio, mínimo Bs 5 y tope Bs 50** | precio + protección | el precio completo |
+| **El vendedor** ("Yo la regalo") | **2,3% de la venta**: 2% de la plataforma y 0,3% de Trustless Work | el precio | el precio menos 2,3% |
+
+Ejemplos (los mismos que verifica el e2e de la app, al tipo de cambio de la demo):
+
+- **Bs 450, la paga el comprador:** protección Bs 6,75; el comprador paga **Bs 456,75** y el vendedor recibe **Bs 450,04**.
+- **Bs 300, la regala el vendedor:** el comprador paga **Bs 300,00** y al vendedor le quedan **Bs 293,10** (Bs 300 − 2,3%).
+- Topes: Bs 100 → protección Bs 5 (mínimo); Bs 5.000 → Bs 50 (tope).
+
+**Cómo queda en el contrato.** El escrow de cada pedido lleva una comisión fija que se define al crear el pedido:
+
+- el 0,3% de Trustless Work, fijo en su contrato;
+- el `platform_fee` del pedido: 2% (200 bps) si el vendedor regala la protección; si la paga el comprador, la app lo calcula para que el vendedor reciba al menos el precio (117 bps en el ejemplo de Bs 450).
+
+Nadie puede cambiar esa comisión después de que entra la plata.
+
+**Devoluciones y disputas.** Trustless Work descuenta las comisiones sobre todo el monto, también cuando la plata vuelve al comprador. En una devolución total, el comprador recupera lo mismo que habría cobrado el vendedor: Bs 450,04 de los Bs 456,75 del primer ejemplo (no recupera la protección) y Bs 293,10 de los Bs 300 del segundo. En un reparto, cada parte paga comisiones en proporción a lo que recibe.
+
+Los scripts de contratos (`flujo-v2-testnet.sh`) usan `platform_fee` = 2%, el caso "Yo la regalo": por eso en [contracts/DEPLOYED.md](contracts/DEPLOYED.md) el vendedor recibe 48,85 de 50 LABUSD. Es un caso de la tarifa, no un modelo aparte.
+
 ## Qué es real y qué es simulado
 
-| | Real (funciona hoy en Stellar testnet) | Simulado |
-|---|---|---|
-| **Contratos y escrow** | ✅ `pp_guardian` y `pp_arbiter` (Soroban) y el escrow de Trustless Work, con transacciones verificables en stellar.expert | — |
-| **Firmas** | ✅ Cada paso lo firma quien corresponde (comprador, vendedor o árbitro), con autorización de Soroban | — |
-| **Comisión de red** | ✅ La plataforma la paga con *fee bump*; nadie necesita XLM | — |
-| **Bot de WhatsApp** | ✅ Lógica completa: crear links, avisos y recordatorios | El **número de WhatsApp** (simulador y número de prueba de Meta) |
-| **Dinero** | — | **USD de prueba** (LABUSD, un activo de testnet) en lugar de USDC |
-| **Rampa en bolivianos** | — | El pago con QR del banco y la acreditación de USD de prueba. En producción la haría una ETF (Empresa de Tecnología Financiera) autorizada por ASFI. |
-| **Identidad** | — | **KYC**: no se hace en testnet |
-| **Llaves** | En testnet, **Pollar guarda las llaves** de la billetera embebida (login con Google o email). La alternativa es una llave generada en el navegador. | — |
+| Pieza | Real hoy (Stellar testnet) | Simulado o pendiente | Fecha |
+|---|---|---|---|
+| **Contratos y escrow** | ✅ `pp_guardian` y `pp_arbiter` (Soroban) y el escrow v1 de Trustless Work, con transacciones verificables en stellar.expert ([Evidencia](#evidencia)) | Revisión externa antes de mainnet, y evaluar la migración a Trustless Work v2 | semana 4 (21–27 dic) |
+| **Firmas** | ✅ Cada paso lo firma quien corresponde (comprador, vendedor o revisor), con autorización de Soroban | — | — |
+| **Comisión de red** | ✅ La plataforma la paga con *fee bump*; nadie necesita XLM | — | — |
+| **Liberación y devolución por plazo vencido** | ✅ En el contrato: `auto_release` y `refund_unshipped` funcionan sin firmas de nadie | **Hoy las dispara la app al abrir el pedido:** la liberación, con el botón "Liberar ahora (plazo vencido)" que ve quien abre el pedido; la devolución, cuando alguien consulta el pedido, el panel o el bot. Falta el proceso automático que las dispare sin que nadie abra nada. | semana 2 (7–13 dic) |
+| **Bot de WhatsApp** | ✅ Lógica completa: crear links, verificar links, avisos y recordatorios | El **número de WhatsApp** (hoy, simulador y número de prueba de Meta) | semana 3 (14–20 dic) |
+| **App pública** | ✅ Corre en local y por túnel para la demo | Una URL HTTPS estable ([deploy/DEPLOY.md](deploy/DEPLOY.md)) | semana 1 (30 nov – 6 dic) |
+| **Dinero** | — | **USD de prueba** (LABUSD, un activo de testnet) en lugar de USDC | semana 4 (21–27 dic), solo con opinión legal favorable |
+| **Rampa en bolivianos** | — | El pago con QR del banco y la acreditación de USD de prueba. En producción la haría una ETF (Empresa de Tecnología Financiera) autorizada por ASFI. | carta de intención: semana 1 (30 nov – 6 dic); sandbox de la ETF: 27 dic |
+| **Identidad** | — | **KYC**: no se hace en testnet; lo haría la ETF de la rampa | con la rampa (27 dic) |
+| **Llaves** | ✅ Ver [Llaves](#llaves): el vendedor entra con Pollar (o una llave local) y el comprador firma con una llave creada en su navegador | Billetera recuperable para el comprador | antes de mainnet: semana 4 (21–27 dic) |
+| **Revisor** | ✅ Panel `/revisor`; la llave `arbitro` no sale del servidor | Multisig para el admin del revisor | antes de mainnet: semana 4 (21–27 dic) |
+| **Pilotos** | Entrevistas y formulario `/piloto` esta semana | 20 pilotos con vendedores del segmento inicial | semana 1 (30 nov – 6 dic) |
 
-## Qué está construido y funcionando
+Las fechas siguen el [plan de 30 días](#plan-de-30-días); cómo se eligieron está en [DECISIONES.md](DECISIONES.md).
+
+## Llaves
+
+**El servidor no tiene las llaves del comprador ni del vendedor.** Tiene tres llaves secretas, solo de testnet (las crea `npm run setup` en `app/.env.local`, que no se versiona), y una dirección pública:
+
+| Llave (identidad de Stellar CLI) | En el servidor | Qué puede hacer | Qué no puede hacer |
+|---|---|---|---|
+| **Plataforma** (`plataforma`) | `PLATAFORMA_SECRET` | Despliega el escrow de cada pedido. Paga la comisión de red con *fee bump*, solo de transacciones que armó el servidor. Es el rol `platform` del escrow y recibe la comisión de la plataforma. Dispara `auto_release` y la devolución por falta de envío (abre la disputa y llama `refund_unshipped`). | Aprobar, liberar o repartir el pago. Cambiar el receptor con fondos adentro (`#33`). Si abre una disputa o agrega hitos (lo permite Trustless Work, TW-1 y TW-2), congela el pago, pero no lo desvía. |
+| **Revisor** (`arbitro`) | `ARBITRO_SECRET` | Es el admin de `pp_arbiter` y de `pp_guardian`. Firma `pp_arbiter.resolve(escrow, buyer_bps)`: elige **solo el porcentaje**, y solo con una disputa abierta. Puede transferir el admin (`set_admin`). El panel `/revisor` se protege con `ARBITRO_PANEL_KEY`. | Elegir a quién se paga. Firmar en nombre de `pp_arbiter` para llamar directo al escrow (desvíos d9 y d11 de la [Evidencia](#evidencia)). `set_arbiter` ya se usó y no se puede repetir. |
+| **Emisor del dólar de prueba** (`lab`) | `LAB_SECRET` | Emite LABUSD: hace de rampa simulada y le acredita al comprador exactamente el monto del pedido. | Nada sobre los pedidos: no tiene rol en el escrow. Lo que emite no tiene valor. En producción no existe: la ETF entrega USDC. |
+| **Comisión de Trustless Work en testnet** (`twfee`) | solo la dirección (`TWFEE_ADDRESS`); la llave secreta no está en el servidor | Recibe el 0,3% de Trustless Work. Su dirección queda fija en el constructor de `pp_guardian` y `pp_arbiter`, porque el escrow deja que la elija quien llama. | Nada más. En mainnet sería la dirección de Trustless Work. |
+
+Las identidades que usan los scripts de contratos (`ppdemo`, que desplegó v2, y las cuentas de prueba de comprador, vendedor y `tercero`) viven solo en el Stellar CLI del equipo, nunca en la app.
+
+**El vendedor** entra con **Pollar** (login con Google o correo y billetera embebida, sin frases secretas). Hoy Pollar es solo para el vendedor; sin Pollar configurado, el vendedor usa una llave local en el navegador, como el comprador.
+
+**El comprador** no ve ningún login: firma con una llave creada en su navegador (`localStorage`, `pp.billetera.comprador`). La llave nunca sale del navegador; al servidor solo llega la transacción firmada.
+
+- **Riesgo si la pierde** (borra los datos del navegador, usa una ventana privada o cambia de teléfono): no puede firmar desde otro lado, así que no puede tocar "Pagar al vendedor", pedir más tiempo ni abrir un reclamo. Si el vendedor registró el envío y el comprador no reclama a tiempo, el pago se libera al vendedor al vencer la revisión. Si hay una devolución o un reparto, su parte llega a una cuenta que ya no puede mover. En testnet es plata de prueba; con dinero real no sería aceptable.
+- **Cómo se resolvería en producción:** antes de mainnet, el comprador también tendría una billetera recuperable: login con correo o Google (como el vendedor con Pollar) o una passkey del teléfono, para volver a firmar desde otro dispositivo. La rampa de la ETF identificaría al comprador (KYC), así que una devolución se podría reclamar con su identidad. Hasta entonces, la llave del navegador es solo para testnet. Ver [DECISIONES.md](DECISIONES.md).
+
+## Trustless Work: hallazgos
+
+Usamos la **v1 del escrow single-release** de Trustless Work **sin modificarla** (commit `f0b706e`). Es un escrow genérico: deja que las partes elijan roles, hitos y a quién se reparte. Los hallazgos TW-1 a TW-5 son **decisiones de diseño de un escrow genérico, no errores**. Para **compras entre desconocidos**, donde ni el comprador ni el vendedor confían en el otro ni en la plataforma, le sumamos **una regla extra**: dos contratos propios en los roles que mueven el pago. Estos son los hallazgos de nuestra revisión del código de Trustless Work y la regla extra que responde a cada uno:
+
+| Hallazgo | Qué observamos | La regla extra para compras entre desconocidos | Evidencia |
+|---|---|---|---|
+| **TW-1** | `platform` también puede abrir disputas | `auto_release`, `confirm` y `extend` leen la disputa real del escrow: cualquier disputa frena la liberación, y el reparto sigue acotado a comprador y vendedor | test `tw1_disputa_de_platform_bloquea_auto_release` |
+| **TW-2** | Con fondos adentro, `platform` puede agregar hitos | `confirm` y `auto_release` aprueban todos los hitos pendientes y liberan en la misma invocación; si un hito no se puede aprobar, queda la vía del revisor | tests `tw2_*`; `confirm` del escenario (a) |
+| **TW-3** | La evidencia de envío se puede sobrescribir | El envío se registra con `mark_shipped` una sola vez y `pp_guardian` guarda su propia copia | test `tw3_evidencia_inmutable_en_el_guardian`; desvío d13 y rechazo f6 |
+| **TW-4** | La fábrica (`tw_new_single_release_escrow`) despliega cualquier código: recibe el hash del WASM como argumento, así que una dirección creada por ella no prueba que sea el escrow de Trustless Work | **La app verifica el hash antes de pedir firmas:** baja el WASM de la instancia por RPC, compara su sha256 con `1b367bc8…196660` y revisa los roles. Si algo no coincide, muestra "Pago bloqueado" y no arma la transacción. | [`verifyEscrowInstance`](app/src/lib/server/escrow/tw.ts); sello "Contrato verificado" en el e2e ([app/DECISIONES.md](app/DECISIONES.md) §35) |
+| **TW-5** | `withdraw_remaining_funds` acepta cualquier destino | Solo la puede llamar el `dispute_resolver`, que es `pp_arbiter`, y `pp_arbiter` no tiene ninguna ruta a esa función | test `tw5_sin_ruta_a_withdraw_remaining_funds`; desvíos d10 y d11 |
+| **H-1** | En la v1, un escrow ya liberado se puede marcar en disputa (sin mover fondos: el saldo es 0). **La v2 de Trustless Work ya lo impide** (`EscrowAlreadyReleased`). | `pp_guardian` también lo bloquea (`#21`, `EscrowAlreadyReleased`), y la app muestra "liberado" por encima de "en disputa" | [docs/reporte-trustless-work.md](docs/reporte-trustless-work.md): reproducción en testnet con la v1 y test |
+
+**Pendiente:** evaluar la migración a Trustless Work v2 (plan de 30 días, semana 4). Exige desplegar contratos nuevos: en la v2 cambió la estructura del escrow (por ejemplo, `flags.released` pasó a `released`), y `pp_guardian` y `pp_arbiter` no son actualizables. La app también tendría que verificar el hash del WASM v2.
+
+Hallazgos del spike que también dieron forma al diseño: `initialize_escrow` no exige firma (la app despliega e inicializa en una sola transacción), la dirección de la comisión de Trustless Work la elige quien llama (la fijamos en el constructor), una devolución también paga comisiones (está en la [Tarifa](#tarifa)) y el escrow no tiene plazos (los agrega `pp_guardian`). Detalle en [docs/SEGURIDAD.md](docs/SEGURIDAD.md) §4 y §4b y en [contracts/DECISIONES.md](contracts/DECISIONES.md).
+
+## Evidencia
+
+Cada afirmación, con el comando que la comprueba, el resultado y el link a la red. Los escenarios (a) a (f) son de una sola corrida de `flujo-v2-testnet.sh` (18-nov, código 0), con compras de 50 LABUSD y `platform_fee` = 2%. Las tablas completas están en [contracts/DEPLOYED.md](contracts/DEPLOYED.md).
+
+**Afirmación → comando → resultado → link**
+
+| Afirmación | Comando | Resultado | Link |
+|---|---|---|---|
+| Los contratos cumplen los 9 invariantes y cubren el red team, contra el WASM real de Trustless Work | `cd contracts && cargo test` | 38 tests: `26 passed` + `12 passed` (corrido el 19-nov) | [invariantes.rs](contracts/integration-tests/tests/invariantes.rs) · [red_team_v2.rs](contracts/integration-tests/tests/red_team_v2.rs) |
+| (a) "Pagar al vendedor" aprueba y libera en una sola transacción | `cd contracts && bash scripts/flujo-v2-testnet.sh` | Vendedor +48,85, plataforma +1,00, Trustless Work +0,15; escrow en 0. `confirm` antes del envío: rechazado, `Error(Contract, #23)` ([a4](contracts/scripts/out/flujo-v2/fallo-a-a4.txt)) | fund [`5143ee1b…`](https://stellar.expert/explorer/testnet/tx/5143ee1b7b4c076782172248a5e2e52740fcaf5fa633347207f8b38ffe68fd57) · envío [`00082803…`](https://stellar.expert/explorer/testnet/tx/00082803f6f9521016c7f12496c8276e2ac509b5c7f765e5c9cdc87416d9f0c3) · confirm [`0d3cb6aa…`](https://stellar.expert/explorer/testnet/tx/0d3cb6aa042da56b562c3490f5c45311b08af66d4fcf2eb80e742026aeefaba9) |
+| (b) En una disputa, el revisor solo elige el porcentaje (70/30) | ídem | Comprador +34,195, vendedor +14,655; las comisiones se descuentan del total | disputa [`6066d76e…`](https://stellar.expert/explorer/testnet/tx/6066d76eb51478558eae7f8d1bdd3be7aa042061ebaaf3d58dfa138e2de732b9) · resolve [`68ba9ed2…`](https://stellar.expert/explorer/testnet/tx/68ba9ed24755a4c401a28bfa122b5a48fee7929a1d9ae9256bb7f4e1b2ff889d) |
+| (c) Si el comprador no responde, el pago se libera al vencer la revisión, sin firmas | ídem | Vendedor +48,85. Antes de tiempo: rechazado, `Error(Contract, #19)` ([c5](contracts/scripts/out/flujo-v2/fallo-c-c5.txt)) | envío [`44e7ef2f…`](https://stellar.expert/explorer/testnet/tx/44e7ef2fbbe1015df195384b85ff1aea0d0c34f26cb5d56c95543526648b1a5e) · auto_release [`4a6feb28…`](https://stellar.expert/explorer/testnet/tx/4a6feb28078c8404d88947730aadea7c32c42d2a400ee1fb21e2cd937633644a) |
+| (e) El comprador puede pedir más tiempo una sola vez | ídem | Pasado el plazo original y antes del extendido: rechazado, `#19` ([e6](contracts/scripts/out/flujo-v2/fallo-e-e6.txt)); segundo `extend`: `#27` ([e7](contracts/scripts/out/flujo-v2/fallo-e-e7.txt)); después: vendedor +48,85 | extend [`ace187c5…`](https://stellar.expert/explorer/testnet/tx/ace187c507ce2d6ccb0c0014a970b07818b108e60bb692fa10356292bd79d963) · auto_release [`73348764…`](https://stellar.expert/explorer/testnet/tx/73348764f4638bb293115dc6c2b2392707b1f632ed7fbc33012156bb17558855) |
+| (f) Si el vendedor no despacha a tiempo, el pago vuelve al comprador sin firmas | ídem | Comprador +48,85: Trustless Work descontó las comisiones también en la devolución. Antes del plazo: `#7` ([f5](contracts/scripts/out/flujo-v2/fallo-f-f5.txt)); envío tarde: `#26` ([f6](contracts/scripts/out/flujo-v2/fallo-f-f6.txt)) | disputa [`2ff2f3b5…`](https://stellar.expert/explorer/testnet/tx/2ff2f3b575b3e3fcd094cd4241676d347bc62c5d542644d863b0ff76124f4a0a) · refund_unshipped [`fdff2f9b…`](https://stellar.expert/explorer/testnet/tx/fdff2f9bb7ce10a0cf02f2d2dbbf299c38681bdea4db872bc98caec2713de0ee) |
+| (d) Preparación de los desvíos: un pedido real en disputa | ídem | Escrow [`CD6W43MI…SIBMIZFK`](https://stellar.expert/explorer/testnet/contract/CD6W43MIXEO452LDCWH7SZUOIVVJM5ZGAUIMUR7WYD3ZJPLFSIBMIZFK) con 50 LABUSD | fund [`a75720ad…`](https://stellar.expert/explorer/testnet/tx/a75720ad5bb6e6c37c2494f01c3bd78bcc4d082f9ca93ed32b2b8ba504f5fcee) · envío [`c1218e5f…`](https://stellar.expert/explorer/testnet/tx/c1218e5f59d82ed72b007d52a530bd556c39e4ed82ab611015e9efe999c964da) · disputa [`2670470f…`](https://stellar.expert/explorer/testnet/tx/2670470fab94cf4ab6d3019ef3a427e54493193d34a8488b7e3fe445bc026878) |
+| (d0) Los contratos no tienen funciones de actualización, de destino elegible ni de retiro | ídem | La interfaz on-chain coincide con la lista esperada | [interfaces.txt](contracts/scripts/out/flujo-v2/interfaces.txt) |
+| **Desvío 1 (d6):** un tercero llama `pp_arbiter.resolve` | ídem | Rechazado: falta la firma del admin | **sin hash: rechazado en la simulación, no llegó a la red** · [evidencia](contracts/scripts/out/flujo-v2/fallo-d-d6.txt) |
+| **Desvío 2 (d7):** un tercero llama `escrow.resolve_dispute` como si fuera el revisor | ídem | Rechazado: `Error(Contract, #12)` | **sin hash: rechazado en la simulación** · [evidencia](contracts/scripts/out/flujo-v2/fallo-d-d7.txt) |
+| **Desvío 3 (d8):** un tercero llama `escrow.resolve_dispute` en nombre de `pp_arbiter` | ídem | Rechazado: un contrato no puede firmar | **sin hash: rechazado en la simulación** · [evidencia](contracts/scripts/out/flujo-v2/fallo-d-d8.txt) |
+| **Desvío 4 (d9):** el admin del revisor manda el pago a un tercero en nombre de `pp_arbiter` | ídem | Rechazado: ni el admin puede firmar por el contrato | **sin hash: rechazado en la simulación** · [evidencia](contracts/scripts/out/flujo-v2/fallo-d-d9.txt) |
+| **Desvío 5 (d10):** un tercero llama `withdraw_remaining_funds` (TW-5) | ídem | Rechazado: `Error(Contract, #12)` | **sin hash: rechazado en la simulación** · [evidencia](contracts/scripts/out/flujo-v2/fallo-d-d10.txt) |
+| **Desvío 6 (d11):** el admin llama `withdraw_remaining_funds` en nombre de `pp_arbiter` (TW-5) | ídem | Rechazado: un contrato no puede firmar | **sin hash: rechazado en la simulación** · [evidencia](contracts/scripts/out/flujo-v2/fallo-d-d11.txt) |
+| **Desvío 7 (d12):** la plataforma cambia el receptor a un tercero (`update_escrow`) | ídem | Rechazado: `Error(Contract, #16)` (pago en disputa) | **sin hash: rechazado en la simulación** · [evidencia](contracts/scripts/out/flujo-v2/fallo-d-d12.txt) |
+| **Desvío 8 (d13):** un tercero registra el envío haciéndose pasar por el vendedor | ídem | Rechazado: `Error(Contract, #24)` | **sin hash: rechazado en la simulación** · [evidencia](contracts/scripts/out/flujo-v2/fallo-d-d13.txt) |
+| **Desvío 9 (d14):** un tercero pide más tiempo haciéndose pasar por el comprador | ídem | Rechazado: `Error(Contract, #7)` | **sin hash: rechazado en la simulación** · [evidencia](contracts/scripts/out/flujo-v2/fallo-d-d14.txt) |
+| (d) Después de los 9 desvíos, el pedido se cierra por la vía legítima y el tercero no recibe nada | ídem | 50/50: comprador +24,425 y vendedor +24,425; `tercero` 0 → 0 ([saldos.tsv](contracts/scripts/out/flujo-v2/saldos.tsv)) | resolve [`71a5d5fb…`](https://stellar.expert/explorer/testnet/tx/71a5d5fba9547815375fdee6f414ce3efe209eb8a47e4ac8b53307e39c1e2d2c) |
+| El bot crea links, verifica links y avisa en cada paso | `cd bot && npm test` | 174 unitarios + 4 e2e del simulador, en verde (corrido el 19-nov) | [bot/test/](bot/test/) · [bot/e2e/](bot/e2e/) |
+| La app compila y sus páginas públicas leen testnet sin claves | `cd app && npm run build && npm run test:e2e:publico` | Build en 0; e2e de solo lectura de `/metricas`, `/tienda` y la insignia | [app/e2e/publico.spec.ts](app/e2e/publico.spec.ts) |
+| La app recorre el flujo v2 completo con pagos reales en testnet | `cd app && npm run test:e2e` (necesita las llaves del equipo) | Capturas de cada pantalla | [app/e2e/capturas/](app/e2e/capturas/) |
+
+Los desvíos los rechaza la **simulación** de Soroban, antes de enviarse: por eso no tienen hash. Su evidencia es el error completo que guardó el script. Las cuentas que debían cobrar en cada escenario se leyeron antes y después de la transacción final ([saldos.tsv](contracts/scripts/out/flujo-v2/saldos.tsv)); el script termina con código distinto de 0 si un intento que debía fallar no falla.
+
+## Para el jurado
+
+Hay dos caminos. El primero no necesita ninguna clave.
+
+### Camino 1: sin claves
+
+**Requisitos:**
+
+- Rust y cargo;
+- Node 22 o más;
+- Chromium para Playwright: `npx playwright install chromium` (una vez, desde `app/` o `bot/`).
+
+```bash
+# 1. Contratos: 38 tests contra el WASM real de Trustless Work (unos segundos)
+cd contracts && cargo test && cd ..
+
+# 2. Bot: 174 unitarios + 4 e2e del simulador, sin red
+cd bot && npm ci && npx playwright install chromium && npm test && cd ..
+
+# 3. App: build y e2e público de solo lectura contra testnet (no firma nada)
+cd app && npm ci && npm run build && npm run test:e2e:publico
+```
+
+- `npm run test:e2e:publico` hace su propio build (`.next-publico`), levanta la app en el puerto 3140 con una base aparte (`data/publico.db`) y lee la red con el RPC público.
+- El simulador del bot sin red: `cd bot && npm run sim:demo` (http://localhost:3030).
+
+### Camino 2: con pagos en testnet
+
+Necesita las **identidades de testnet del equipo** en el Stellar CLI (`plataforma`, `arbitro`, `lab` y `twfee`). No están en el repo. Si no las tienes, mira la demo: `[link a la demo]`.
+
+```bash
+cd app
+npm ci
+npm run setup        # crea .env.local con las llaves de TESTNET (no se versiona)
+```
+
+**Prueba de humo** (sin navegador: el script hace de billetera, firma y deja los links a stellar.expert):
+
+```bash
+PP_DEMO=1 npm run dev          # terminal 1: app en http://localhost:3000
+npm run smoke -- feliz         # terminal 2: pago → envío → "Pagar al vendedor"
+npm run smoke -- disputa       # reclamo y reparto 70/30 del revisor
+npm run smoke -- extend        # "Necesito más tiempo" una vez y liberación al vencer
+npm run smoke -- devolucion    # sin envío: el pago vuelve al comprador
+```
+
+- `PP_DEMO=1` habilita "Pagar al vendedor" 1 minuto después del envío (en producción: 2 h en la misma ciudad, 24 h a otra ciudad).
+- `extend` y `devolucion` usan plazos de demo de 2 minutos, así que tardan unos minutos. Sin argumento, `npm run smoke` corre `feliz` y `disputa`.
+
+**Demo:**
+
+```bash
+npm run demo:reset   # deja data/pp.db limpia, con 3 pedidos reales en v2: liberado, 70/30 y devuelto
+npm run demo         # app en http://localhost:3020 + simulador del bot en http://localhost:3030
+```
+
+**No se pueden correr dos `next dev` a la vez en `app/`:** Next permite uno por carpeta. Apaga el `npm run dev` de la prueba de humo antes de `npm run demo:reset` (que levanta una app temporal) y de `npm run demo`. Los e2e no chocan con él porque compilan aparte (`.next-e2e`, `.next-publico`).
+
+El flujo de contratos en testnet (`cd contracts && bash scripts/flujo-v2-testnet.sh`) necesita además las identidades `ppdemo` y las cuentas de prueba del equipo. Guion de la demo en vivo: [docs/DEMO.md](docs/DEMO.md).
+
+## Mapa del código
+
+| Función | Archivo |
+|---|---|
+| **Contratos** | |
+| Pagar con dos plazos firmados por el comprador (`fund`) | [contracts/pp_guardian/src/lib.rs](contracts/pp_guardian/src/lib.rs) |
+| Registrar el envío una vez (`mark_shipped`), "Pagar al vendedor" (`confirm`), más tiempo (`extend`), reclamo (`dispute`), liberación por plazo (`auto_release`) | [contracts/pp_guardian/src/lib.rs](contracts/pp_guardian/src/lib.rs) |
+| Reparto del revisor (`resolve`, `quote`) y devolución sin envío (`refund_unshipped`) | [contracts/pp_arbiter/src/lib.rs](contracts/pp_arbiter/src/lib.rs) |
+| Tipos y cliente del escrow de Trustless Work | [contracts/shared/escrow_iface.rs](contracts/shared/escrow_iface.rs) |
+| Tests de invariantes y del red team | [contracts/integration-tests/tests/](contracts/integration-tests/tests/) |
+| WASM de Trustless Work que usan los tests | [contracts/wasm/](contracts/wasm/) |
+| Despliegue, flujo v2 en testnet y métricas on-chain | [contracts/scripts/](contracts/scripts/) (`deploy-testnet.sh`, `flujo-v2-testnet.sh`, `metricas.sh`) |
+| **App** | |
+| Crear el link, código PP-#### y quién paga la protección (`createLink`, `patchLink`) | [app/src/lib/server/orders.ts](app/src/lib/server/orders.ts) |
+| Cálculo de la tarifa y de los repartos, igual que el contrato (`linkAmounts`, `releaseBreakdown`, `splitPreview`) | [app/src/lib/format.ts](app/src/lib/format.ts) |
+| Desplegar el escrow con la fábrica y verificar su hash antes de pedir firmas (`createEscrowTx`, `verifyEscrowInstance`) | [app/src/lib/server/escrow/tw.ts](app/src/lib/server/escrow/tw.ts) |
+| Llamadas a `pp_guardian` y `pp_arbiter` | [app/src/lib/server/escrow/guardian.ts](app/src/lib/server/escrow/guardian.ts) |
+| Rampa simulada (`mintLabusd`), *fee bump* (`feeBumpAndSend`) y errores en español | [app/src/lib/server/stellar.ts](app/src/lib/server/stellar.ts) |
+| Solo se patrocinan transacciones que armó el servidor (`submitSigned`) | [app/src/lib/server/orders.ts](app/src/lib/server/orders.ts) · [app/src/app/api/tx/submit/route.ts](app/src/app/api/tx/submit/route.ts) |
+| Liberación y devolución por plazo vencido (`autoRelease`, `refundUnshipped`, `sweepOverdue`) | [app/src/lib/server/orders.ts](app/src/lib/server/orders.ts) · botón en [app/src/components/Guardian.tsx](app/src/components/Guardian.tsx) |
+| Firma del comprador (llave del navegador) y del vendedor (Pollar o llave local) | [app/src/lib/wallet/](app/src/lib/wallet/) (`index.ts` elige la billetera de cada rol) |
+| Página de pago y seguimiento del comprador | [app/src/app/p/[slug]/PaginaDePago.tsx](app/src/app/p/%5Bslug%5D/PaginaDePago.tsx) |
+| Panel del vendedor | [app/src/app/panel/page.tsx](app/src/app/panel/page.tsx) |
+| Panel del revisor (`resolveDispute`, `quoteDispute`, `probeForeign` en `orders.ts`) | [app/src/app/revisor/page.tsx](app/src/app/revisor/page.tsx) |
+| Métricas en vivo y perfil de la tienda | [app/src/lib/server/metrics.ts](app/src/lib/server/metrics.ts) · [app/src/lib/server/kpis.ts](app/src/lib/server/kpis.ts) |
+| **Bot** | |
+| Conversación (funciones puras) | [bot/src/engine/engine.ts](bot/src/engine/engine.ts) |
+| Entender el texto libre ("vendo celular a 3500 bs…") | [bot/src/engine/parse.ts](bot/src/engine/parse.ts) |
+| Mensajes | [bot/src/engine/messages.ts](bot/src/engine/messages.ts) |
+| Verificador de links | [bot/src/engine/links.ts](bot/src/engine/links.ts) |
+| Avisos y recordatorios | [bot/src/notify/poller.ts](bot/src/notify/poller.ts) |
+| Cliente de la API de la app | [bot/src/app/client.ts](bot/src/app/client.ts) |
+| WhatsApp Cloud API y simulador | [bot/src/transports/](bot/src/transports/) |
+
+## Tipo de cambio
+
+Los montos en bolivianos de la app, del bot y de las métricas usan **11,70 Bs por USD**. Es un **parámetro de la demo, no una cotización** oficial ni de mercado:
+
+- en la app, `FX_BS_PER_USD` (11,70 si no se define);
+- en `contracts/scripts/metricas.sh`, `TIPO_CAMBIO` (11,70 si no se define).
+
+**Cómo se usa:**
+
+- **En cada pedido.** Se guarda el tipo de cambio con el que se creó. Con ese valor se calculan el precio en USD de prueba, la protección y los repartos.
+- **En las métricas** (`/metricas`, `/tienda/<slug>`, "Tus números" y `/transparencia`). Se suman los montos on-chain en USD de prueba y se pasan a Bs con el tipo de cambio configurado al mostrar. Cada pantalla muestra también el monto en USD de prueba.
+- **En producción.** El tipo de cambio sería el que aplique la ETF al convertir bolivianos a USDC, y quedaría registrado en cada pedido.
+
+## Qué está construido
 
 | Pieza | Evidencia |
 |---|---|
-| **Contratos v2** (Soroban), desplegados en testnet | `pp_guardian` [`CDKYF7OA…UOATOT`](https://stellar.expert/explorer/testnet/contract/CDKYF7OAJTACP4JNJSGGXDRA3DHE442R26CT5ZE5DJHNSHH7XJUOATOT) y `pp_arbiter` [`CDTEA424…TEVU5UA`](https://stellar.expert/explorer/testnet/contract/CDTEA424AWSIIHEQ4FIQHFQOTWS3XAVLQHX7FI3MU6JZP4OPMTEVU5UA). Incorporan los hallazgos del red team sobre Trustless Work (TW-1, TW-2, TW-3, TW-5). IDs, hashes, transacciones y comisiones reales en [contracts/DEPLOYED.md](contracts/DEPLOYED.md). |
-| **Tests de contratos** | **38 tests** (`cargo test`) contra el **WASM real** de Trustless Work: los 9 invariantes de seguridad y el red team. Los contratos **no son actualizables**. |
-| **Flujo v2 real en testnet** | `contracts/scripts/flujo-v2-testnet.sh`, 6 escenarios, terminó con código 0:<br>• caso feliz;<br>• disputa 70/30;<br>• liberación automática 60 s después del envío;<br>• extensión de la revisión, verificada con la hora del ledger;<br>• devolución por falta de envío;<br>• **9 desvíos rechazados**: nadie, ni el admin del árbitro ni la plataforma, pudo mandar el pago a un tercero. |
-| **App web** (Next.js, mobile-first, en español) | Panel del vendedor, link del comprador, panel del revisor y "Cómo funciona". **Usa los contratos v2**: los dos plazos en `fund`, `mark_shipped`, "Necesito más tiempo" (`extend`), la devolución automática si no se despacha (`refund_unshipped`) y `auto_release`, que respeta la disputa. El e2e con Playwright contra testnet cubre el flujo v2 (incluidos `extend` y la devolución), con capturas en `app/e2e/capturas/`. Video y capturas clave de la demo v2: [demo/v2/](demo/v2/). |
-| **Bot de WhatsApp** | Crea links desde el chat (con código PP-#### y quién paga la protección), verifica links, avisa en cada paso y recuerda desde el envío con la hora que da la app. Tiene 174 tests unitarios y 4 e2e del simulador. |
-| **Métricas en vivo y perfil de la tienda** | `/metricas` muestra los números con eventos on-chain (cada número enlaza a sus compras en stellar.expert) y `/tienda/<slug>` es el perfil verificable del vendedor, con insignia para la bio. El bot responde "mi perfil" con el link. e2e de solo lectura contra testnet: `npm run test:e2e:publico`. |
-| **Métricas on-chain** | `contracts/scripts/metricas.sh` las calcula solo con eventos públicos (`getEvents`). Hasta ahora suma **47 compras** en v1 y v2, por ≈ USD 2.227 de prueba (≈ Bs 26.052), con liberaciones, extensiones, disputas y devoluciones. Detalle en [docs/METRICAS.md](docs/METRICAS.md). |
-| **Bug reportable en Trustless Work (H-1)** | Reproducido en testnet, con el fix y el test validados: [docs/reporte-trustless-work.md](docs/reporte-trustless-work.md) (borrador). |
+| **Contratos v2** (Soroban), desplegados en testnet | IDs arriba; hashes, transacciones y comisiones en [contracts/DEPLOYED.md](contracts/DEPLOYED.md). **No son actualizables.** |
+| **38 tests de contratos** | `cargo test` contra el **WASM real** de Trustless Work: los 9 invariantes de seguridad y el red team. |
+| **Flujo v2 en testnet** | 6 escenarios con código 0, incluidos **9 desvíos rechazados**: nadie, ni el admin del revisor ni la plataforma, pudo mandar el pago a un tercero ([Evidencia](#evidencia)). |
+| **App web** (Next.js, mobile-first, en español) | Panel del vendedor, link del comprador, panel del revisor (`/revisor`) y "Cómo funciona", sobre los contratos v2: los dos plazos al pagar, `mark_shipped`, "Necesito más tiempo" (`extend`), la devolución si no se despacha (`refund_unshipped`) y `auto_release`, que respeta la disputa. e2e con Playwright contra testnet, con capturas en [app/e2e/capturas/](app/e2e/capturas/). Video y capturas de la demo v2: [demo/v2/](demo/v2/). |
+| **Bot de WhatsApp** | Crea links desde el chat (con código PP-#### y quién paga la protección), verifica links, avisa en cada paso y recuerda desde el envío. 174 tests unitarios y 4 e2e del simulador. |
+| **Métricas en vivo y perfil de la tienda** | `/metricas` calcula los números con eventos on-chain (cada número enlaza a sus compras en stellar.expert). `/tienda/<slug>` es el perfil verificable del vendedor, con insignia para la bio. |
+| **Métricas on-chain** | `contracts/scripts/metricas.sh` las calcula solo con eventos públicos (`getEvents`). Corrida del 18-nov: **47 compras de prueba** en v1 y v2 (incluidas las del equipo), por ≈ USD 2.227 de prueba (≈ Bs 26.052 al [tipo de cambio](#tipo-de-cambio) de la demo). Detalle en [docs/METRICAS.md](docs/METRICAS.md). |
+| **Hallazgo H-1** | Comportamiento de la v1 de Trustless Work (la v2 ya lo impide), reproducido en testnet y bloqueado por `pp_guardian`: [docs/reporte-trustless-work.md](docs/reporte-trustless-work.md). |
 | **v1** (retirado para compras nuevas) | Contratos v1 con 27 tests y un flujo con 5 ataques rechazados: [contracts/DEPLOYED-v1.md](contracts/DEPLOYED-v1.md). |
 
 ## Cómo usa Stellar
 
 - **Soroban:** dos contratos propios en Rust (soroban-sdk 28).
-  - `pp_guardian` es *approver* y *release_signer*: hace la confirmación atómica, registra el envío una sola vez, lleva los plazos firmados por el comprador y libera automáticamente.
-  - `pp_arbiter` es *dispute_resolver*: un árbitro acotado, sin destinos elegibles.
+  - `pp_guardian` es *approver* y *release_signer*: hace la confirmación atómica, registra el envío una sola vez, lleva los plazos firmados por el comprador y libera por plazo.
+  - `pp_arbiter` es *dispute_resolver*: un revisor acotado, sin destinos elegibles.
   - Emiten eventos `pp_*` para la transparencia.
 - **Trustless Work:** usamos su escrow single-release **sin modificarlo** (commit `f0b706e`), una instancia por compra. Los dos contratos de arriba ocupan sus roles críticos.
-- **Pollar:** login con Google o email y billetera embebida, sin frases secretas (`@pollar/core`, `@pollar/react`).
+- **Pollar:** login con Google o correo y billetera embebida para el vendedor, sin frases secretas (`@pollar/core`, `@pollar/react`).
 - **Fee bump:** el usuario firma y la plataforma envuelve la transacción en un *fee bump* y paga la comisión de red. La plataforma solo patrocina transacciones que ella misma armó.
 - **USDC / LABUSD:** en testnet usamos LABUSD, un activo con su Stellar Asset Contract (7 decimales). En mainnet sería USDC.
 - **Transparencia:** cada paso muestra "Ver en Stellar" (stellar.expert), y las métricas salen del RPC (`getEvents`).
@@ -87,59 +302,33 @@ Diagramas de secuencia, máquina de estados y "quién puede hacer qué": [docs/A
 ## Seguridad en 5 líneas
 
 1. Los roles que mueven el pago (aprobar, liberar y resolver) son contratos sin llave privada: nadie puede firmar por ellos.
-2. El árbitro solo elige un porcentaje. El pago solo puede ir al vendedor o volver al comprador; no existe ninguna función que acepte otra dirección.
-3. Confirmar es aprobar y liberar en la misma transacción. El envío se registra una sola vez y los plazos los firma el comprador.
-4. Hay 38 tests de invariantes y del red team con el WASM real, y en testnet se rechazaron 9 desvíos reales sin que el tercero recibiera nada.
-5. Antes de mainnet faltan una revisión externa, un multisig para el admin del árbitro y la gestión de TTL. → [docs/SEGURIDAD.md](docs/SEGURIDAD.md)
-
-## Cómo correrlo (3 comandos)
-
-Requisitos:
-- Node 22 o superior.
-- [Stellar CLI](https://developers.stellar.org/docs/tools/cli) con las identidades de testnet `plataforma`, `arbitro`, `lab` y `twfee`.
-
-```bash
-cd app
-npm install
-npm run setup          # crea .env.local con las llaves de TESTNET
-npm run dev            # http://localhost:3000  (o PORT=3020 npm run dev)
-```
-
-Además:
-
-| Qué | Comandos |
-|---|---|
-| Contratos | `cd contracts && cargo test` (38 tests) |
-| Flujo v2 en testnet | `cd contracts && bash scripts/flujo-v2-testnet.sh` |
-| Bot, tests | `cd bot && npm install && npm test` (174 unitarios + 4 e2e del simulador) |
-| Bot, simulador sin red | `cd bot && npm run sim:demo` (abre http://localhost:3030) |
-| Build de la app | `cd app && npm run build` |
-| e2e público de la app (solo lectura, sin claves) | `cd app && npm run test:e2e:publico` |
-| e2e de la app con pagos en testnet (necesita `.env.local`) | `cd app && npm run test:e2e` |
-| Producción | [deploy/DEPLOY.md](deploy/DEPLOY.md): Docker + Caddy en un VPS, o Railway |
-| Demo en vivo | [docs/DEMO.md](docs/DEMO.md) |
+2. El revisor solo elige un porcentaje. El pago solo puede ir al vendedor o volver al comprador; aparte, la comisión fija del pedido. No existe ninguna función que acepte otra dirección.
+3. "Pagar al vendedor" es aprobar y liberar en la misma transacción. El envío se registra una sola vez y los plazos los firma el comprador.
+4. Hay 38 tests de invariantes y del red team con el WASM real, y en testnet se rechazaron 9 desvíos sin que el tercero recibiera nada.
+5. Antes de mainnet faltan una revisión externa, un multisig para el admin del revisor, una billetera recuperable para el comprador y la gestión de TTL. → [docs/SEGURIDAD.md](docs/SEGURIDAD.md)
 
 ## Estructura del repositorio
 
 ```
 pago-protegido/
-├── app/          App web Next.js: vendedor, comprador, árbitro, API, SQLite, Pollar, fee bump
+├── app/          App web Next.js: vendedor, comprador, revisor, API, SQLite, Pollar, fee bump
 ├── bot/          Bot de WhatsApp: links desde el chat y avisos del pedido (simulador + Cloud API)
 ├── contracts/    Contratos Soroban v2 (pp_guardian, pp_arbiter), 38 tests, scripts de testnet, bindings TS
 │   ├── wasm/             escrow de Trustless Work (commit f0b706e) que usan los tests
 │   ├── DEPLOYED.md       v2: IDs, hashes, transacciones y comisiones reales (v1: DEPLOYED-v1.md)
 │   └── DECISIONES.md     decisiones, interfaz v2 y hallazgos
+├── demo/v2/      video y capturas clave de la demo v2
 ├── deploy/       Dockerfiles, docker-compose + Caddy, Railway, túnel para la demo
 ├── docs/
 │   ├── SPEC.md           especificación original del MVP v1
 │   ├── ARQUITECTURA.md   diagramas y "quién puede hacer qué"
-│   ├── SEGURIDAD.md      modelo de amenazas, invariantes, red team TW-1..TW-5
+│   ├── SEGURIDAD.md      modelo de amenazas, invariantes, hallazgos TW-1..TW-5
 │   ├── METRICAS.md       métricas on-chain y página /transparencia
 │   ├── DEMO.md           guion de la demo de 3 minutos
 │   ├── USUARIOS.md       registro de entrevistas (y de pilotos, desde el plan de 30 días)
-│   └── reporte-trustless-work.md   bug H-1 (borrador)
-├── CHANGELOG.md  qué se hizo en cada etapa y pendientes de la entrega
-└── DECISIONES.md decisiones al crear este repo (las de cada pieza están en app/, bot/ y contracts/)
+│   └── reporte-trustless-work.md   hallazgo H-1 (v1 de Trustless Work; la v2 ya lo impide)
+├── CHANGELOG.md  qué se hizo en cada etapa y pendientes con fecha
+└── DECISIONES.md decisiones del repo y de la documentación (las de cada pieza están en app/, bot/ y contracts/)
 ```
 
 La especificación original del MVP está en [docs/SPEC.md](docs/SPEC.md). Las decisiones de cada pieza están en [app/DECISIONES.md](app/DECISIONES.md), [bot/DECISIONES.md](bot/DECISIONES.md) y [contracts/DECISIONES.md](contracts/DECISIONES.md).
@@ -155,24 +344,22 @@ Los **20 pilotos** arrancan en el plan de 30 días.
 
 ## Plan de 30 días
 
-
 | Semana | Fechas | Objetivo |
 |---|---|---|
-| 1 | 30 nov – 6 dic | Arrancar los **20 pilotos** con vendedores del segmento inicial (elegidos entre las entrevistas y el formulario) y conseguir un socio ETF para la rampa en bolivianos |
-| 2 | 7 – 13 dic | Piloto con pedidos reales sobre testnet: vendedores y compradores reales, montos de prueba |
-| 3 | 14 – 20 dic | Prueba A/B de precio (quién paga la comisión y cuánto) y bot con número de WhatsApp real |
-| 4 | 21 – 27 dic | Mainnet acotado, con topes por pedido y por vendedor, **solo con una opinión legal favorable** |
+| 1 | 30 nov – 6 dic | Arrancar los **20 pilotos** con vendedores del segmento inicial (elegidos entre las entrevistas y el formulario), publicar la app en una URL estable y conseguir la carta de intención de una ETF para la rampa en bolivianos |
+| 2 | 7 – 13 dic | Piloto con pedidos reales sobre testnet (vendedores y compradores reales, montos de prueba) y proceso automático para la liberación y la devolución por plazo |
+| 3 | 14 – 20 dic | Prueba A/B de precio (quién paga la protección y cuánto) y bot con número de WhatsApp real |
+| 4 | 21 – 27 dic | Mainnet acotado, con topes por pedido y por vendedor, **solo con una opinión legal favorable**, revisión externa, multisig del revisor y billetera recuperable para el comprador. Evaluar la migración a Trustless Work v2 |
 
 **Entregables a 30 días:**
-1. Contratos en mainnet con revisión externa, y el reporte del bug H-1 enviado a Trustless Work.
+1. Contratos en mainnet con revisión externa, y la evaluación de la migración a Trustless Work v2.
 2. Rampa en bolivianos con una ETF, en su sandbox.
 3. Bot con número real, verificador e insignia.
 4. 20 pilotos con vendedores del segmento inicial, medidos en [docs/USUARIOS.md](docs/USUARIOS.md) y en las métricas on-chain.
 
 ## Equipo
 
-
-| Persona | Rol |
-|---|---|
-| **Hans** | Tecnología |
-| **Joaquín** | Usuarios y ventas |
+| Persona | Rol | Bio |
+|---|---|---|
+| **Hans Aneiva** | Tecnología | `[bio]` |
+| **Joaquín** | Usuarios y ventas | `[bio]` |

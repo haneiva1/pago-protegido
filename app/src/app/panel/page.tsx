@@ -282,7 +282,7 @@ function CreateLink({ sellerPubkey, fx, title, demo, onCreated }: { sellerPubkey
         <label className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 text-sm ${feePayer === "vendedor" ? "border-brand-500 bg-brand-50" : "border-slate-200"}`}>
           <input type="radio" name="fee" className="mt-1" checked={feePayer === "vendedor"} onChange={() => setFeePayer("vendedor")} />
           <span>
-            <strong>Yo la regalo</strong> (2% de mi venta). Tu cliente paga solo el precio.
+            <strong>Yo la regalo</strong> (2,3% de mi venta). Tu cliente paga solo el precio.
           </span>
         </label>
         {preview && (

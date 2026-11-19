@@ -111,7 +111,7 @@ bash scripts/gen-deployed.sh             # regenera DEPLOYED.md
 ```
 
 - **`compras-demo.sh`:**
-  - incluye la reproducción on-chain del bug H-1 de TW;
+  - incluye la reproducción on-chain del hallazgo H-1 (v1 de TW; la v2 ya lo impide);
   - usa la identidad `ppdemo` (se crea con friendbot) para desplegar e inicializar, así no choca con la secuencia de `plataforma` que usa la app;
   - deja la evidencia en `scripts/out/demo/`.
 - **Métricas:** formato de salida y cómo las consume la app (página `/transparencia`) en [`../docs/METRICAS.md`](../docs/METRICAS.md). Salida de ejemplo en `scripts/out/metricas/metricas-ejemplo.json`.
