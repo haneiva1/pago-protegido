@@ -1,21 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { EvidenciaInput } from "@/components/EvidenciaInput";
 import { ErrorBox, Spinner } from "@/components/ui";
 import { fmtDate } from "@/lib/format";
 import { DESCRIPCION_MOTIVO, evidenciaPedida, motivosReclamo } from "@/lib/comprador";
 import type { PublicOrder } from "@/lib/types";
 
-/** Campo de evidencia: un link https://… (el punto siguiente lo cambia por cámara o galería). */
-function CampoEvidencia({ id, label, nota, value, onChange }: { id: string; label: string; nota: string; value: string; onChange: (url: string) => void; pedido: string; tipo: "foto" | "video" }) {
-  return (
-    <div>
-      <label className="label" htmlFor={id}>
-        {label} <span className="font-normal text-slate-400">{nota}</span>
-      </label>
-      <input id={id} className="input" value={value} onChange={(e) => onChange(e.target.value)} inputMode="url" placeholder="https://…" />
-    </div>
-  );
+/** Foto o video desde la cámara o la galería, con su huella (EvidenciaInput); o un link pegado a mano. */
+function CampoEvidencia(p: { id: string; label: string; nota: string; value: string; onChange: (url: string) => void; pedido: string; tipo: "foto" | "video" }) {
+  return <EvidenciaInput id={p.id} pedido={p.pedido} tipo={p.tipo} label={p.label} nota={p.nota} onChange={p.onChange} />;
 }
 
 /**

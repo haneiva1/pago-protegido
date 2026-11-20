@@ -1,6 +1,7 @@
 import { Keypair } from "@stellar/stellar-sdk";
 import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -236,6 +237,26 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
   // Comprador: "Pagar al vendedor" recién se habilita después de la espera, y pregunta antes.
   await buyer.reload();
   await expect(buyer.getByTestId("linea-de-tiempo")).toContainText("guía SRV-2026-118734");
+
+  // Reclamo guiado con evidencia desde la galería: la foto se comprime, se sube con su huella y no se envía el reclamo.
+  await buyer.getByTestId("confirmar").getByRole("button", { name: "Tengo un problema" }).click();
+  const reclamo = buyer.getByTestId("reclamo");
+  await reclamo.getByText("Llegó vacío o con otro producto").click();
+  await expect(reclamo.getByTestId("evidencia-pedida")).toContainText("Video continuo del desempaque, sin cortes (obligatorio desde Bs 300).");
+  await expect(reclamo.getByTestId("plazos-reclamo")).toContainText("el revisor decide en 72 h");
+  const foto = await buyer.screenshot({ clip: { x: 0, y: 0, width: 160, height: 160 } });
+  await reclamo.getByLabel("Foto del paquete: galería").setInputFiles({ name: "paquete.png", mimeType: "image/png", buffer: foto });
+  await expect(reclamo.getByTestId("evidencia-foto").getByTestId("huella")).toBeVisible();
+  await capturar(buyer, "09b-comprador-reclamo-guiado");
+  await reclamo.getByRole("button", { name: "Cancelar" }).click();
+  // /api/evidencia: guarda el archivo con su SHA-256 como nombre y el link lleva la huella.
+  const subida = await (await buyer.request.post(`/api/evidencia?pedido=${slug}`, { data: foto, headers: { "content-type": "image/png" } })).json();
+  expect(subida.url).toMatch(new RegExp(`/api/evidencia/${subida.sha256}\\.png$`));
+  const vuelta = await buyer.request.get(subida.url);
+  expect(vuelta.headers()["content-type"]).toBe("image/png");
+  expect(createHash("sha256").update(await vuelta.body()).digest("hex")).toBe(subida.sha256);
+  expect((await buyer.request.post("/api/evidencia?pedido=no-existe", { data: foto })).status()).toBe(404);
+  expect((await buyer.request.post(`/api/evidencia?pedido=${slug}`, { data: Buffer.from("no es una imagen ni un video") })).status()).toBe(415);
   await expect(buyer.getByRole("button", { name: "Pagar al vendedor (irreversible)" })).toBeDisabled();
   await expect(buyer.getByTestId("espera-confirmar")).toBeVisible();
   await expect(buyer.getByText("Después ya no puedes reclamar.")).toBeVisible();

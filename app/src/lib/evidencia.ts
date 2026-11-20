@@ -1,0 +1,50 @@
+/**
+ * Evidencia con huella (M5). Lógica pura, compartida por la ruta /api/evidencia y los tests unitarios: el tipo
+ * se decide por los primeros bytes del archivo (no por lo que diga el navegador) y el nombre es su SHA-256.
+ */
+
+export const MAX_FOTO_BYTES = 8 * 1024 * 1024;
+export const MAX_VIDEO_BYTES = 40 * 1024 * 1024;
+
+export interface TipoEvidencia {
+  ext: "jpg" | "png" | "webp" | "mp4" | "mov" | "webm";
+  mime: string;
+  video: boolean;
+}
+
+const MIME: Record<TipoEvidencia["ext"], string> = {
+  jpg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+  webm: "video/webm",
+};
+
+const tipo = (ext: TipoEvidencia["ext"]): TipoEvidencia => ({ ext, mime: MIME[ext], video: ext === "mp4" || ext === "mov" || ext === "webm" });
+const ascii = (b: Uint8Array, from: number, to: number) => String.fromCharCode(...b.subarray(from, to));
+
+/** Fotos JPEG, PNG o WebP y videos MP4, MOV o WebM. Cualquier otra cosa: null. */
+export function tipoEvidencia(b: Uint8Array): TipoEvidencia | null {
+  if (b.length < 12) return null;
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return tipo("jpg");
+  if (b[0] === 0x89 && ascii(b, 1, 4) === "PNG") return tipo("png");
+  if (ascii(b, 0, 4) === "RIFF" && ascii(b, 8, 12) === "WEBP") return tipo("webp");
+  if (b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) return tipo("webm");
+  if (ascii(b, 4, 8) === "ftyp") return ascii(b, 8, 10) === "qt" ? tipo("mov") : tipo("mp4");
+  return null;
+}
+
+/** Nombre de archivo de una evidencia: <sha256>.<ext>. Nada más se sirve ni se guarda. */
+export const NOMBRE_EVIDENCIA = /^([0-9a-f]{64})\.(jpg|png|webp|mp4|mov|webm)$/;
+
+export function mimeDeNombre(nombre: string): string | null {
+  const m = NOMBRE_EVIDENCIA.exec(nombre);
+  return m ? MIME[m[2] as TipoEvidencia["ext"]] : null;
+}
+
+/** La huella que lleva el link de una evidencia (o null si el link no es de /api/evidencia). */
+export function huellaDeLink(url: string): string | null {
+  const m = /\/api\/evidencia\/([0-9a-f]{64})\.(?:jpg|png|webp|mp4|mov|webm)(?:[?#].*)?$/.exec(url);
+  return m ? m[1] : null;
+}
