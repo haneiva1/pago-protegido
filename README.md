@@ -21,7 +21,7 @@
 
 ## Avance
 
-| Prometido el 19-nov | Estado al 22-nov | Evidencia |
+| Prometido el 19-nov | Estado al 20-nov | Evidencia |
 |---|---|---|
 | README sin contradicciones | hecho | [PR #1](https://github.com/haneiva1/pago-protegido/pull/1) |
 | Plan de 30 días medible, separando lo propio de lo que depende de terceros | hecho | [Plan](#plan-de-30-días) |
@@ -29,7 +29,7 @@
 | Demo desplegada con el proceso que libera y devuelve los pedidos vencidos | [estado] | [link] |
 | Prueba del login de Pollar en la demo desplegada | [estado] | [link] |
 | Entrevistas con vendedores y compradores | [N] vendedores y [N] compradores | [docs/USUARIOS.md](docs/USUARIOS.md) |
-| **Además, del 20 al 22** | | |
+| **Además, el 20-nov** | | |
 | Nombre Trato en la app, el bot y la documentación | hecho | [PR #2](https://github.com/haneiva1/pago-protegido/pull/2) |
 | Textos limpios y una sola versión: el mismo segmento (Bs 1.000 a 7.000) en todas las pantallas, y un test que falla si aparece una palabra prohibida | hecho | [PR #3](https://github.com/haneiva1/pago-protegido/pull/3) |
 | Experiencia del comprador: "Dos salidas", QR para pagar desde el mismo celular, acceso a su compra, reclamo guiado, evidencia con cámara y seguimiento del envío | hecho | [PR #4](https://github.com/haneiva1/pago-protegido/pull/4) |
