@@ -22,7 +22,15 @@ import { esperaParaConfirmar } from "@/lib/ciudades";
 import { NETWORK_PASSPHRASE, cfg } from "./config";
 import { type OrderRow, evidence, kv, orders, pending, pilot, sellers, txs } from "./db";
 import { linkAmounts as amountsFor } from "@/lib/format";
-import { escrowService, type EscrowCtx, type EscrowProps, type OnchainState, type UserAction, type Verification } from "./escrow";
+import {
+  escrowService,
+  type EscrowCtx,
+  type EscrowProps,
+  type OnchainState,
+  type PurchaseInfo,
+  type UserAction,
+  type Verification,
+} from "./escrow";
 import { factoryId } from "./escrow/tw";
 import { sellerKpis } from "./kpis";
 import { ingestEvents } from "./metrics";
@@ -240,14 +248,20 @@ export function createLink(input: Record<string, unknown>) {
 
 /** APP-ENDPOINTS §6: cambiar quién paga la protección mientras nadie empezó a pagar el link. */
 export function patchLink(slug: string, input: Record<string, unknown>) {
-  let o = mustOrder(slug);
-  if (input.sellerPubkey !== o.seller_pubkey) throw new AppError("Solo el vendedor puede cambiar su link", 403);
-  if (o.status === "esperando_pago" && o.buyer_pubkey && !pagoEnCurso(o)) o = liberarIntento(o);
-  if (o.status !== "esperando_pago" || o.buyer_pubkey || o.escrow_id) throw new AppError("Este link ya se está pagando: no se puede cambiar", 409);
-  if (input.proteccion !== "comprador" && input.proteccion !== "vendedor") throw new AppError("proteccion tiene que ser comprador o vendedor");
-  const a = amountsFor(o.price_bs_cents, o.fx, input.proteccion);
-  orders.update(slug, { fee_payer: input.proteccion, amount_units: a.amount.toString(), price_units: a.price.toString(), platform_bps: a.platformBps });
-  return publicOrder(mustOrder(slug));
+  return withLock(`order:${slug}`, async () => {
+    let o = mustOrder(slug);
+    if (input.sellerPubkey !== o.seller_pubkey) throw new AppError("Solo el vendedor puede cambiar su link", 403);
+    if (o.status === "esperando_pago" && o.buyer_pubkey && !pagoEnCurso(o)) {
+      // Antes de soltar el intento vencido: si su fondeo entró en la red, el link ya está pagado.
+      o = await fondeoAlDia(o);
+      if (o.status === "esperando_pago") o = liberarIntento(o);
+    }
+    if (o.status !== "esperando_pago" || o.buyer_pubkey || o.escrow_id) throw new AppError("Este link ya se está pagando: no se puede cambiar", 409);
+    if (input.proteccion !== "comprador" && input.proteccion !== "vendedor") throw new AppError("proteccion tiene que ser comprador o vendedor");
+    const a = amountsFor(o.price_bs_cents, o.fx, input.proteccion);
+    orders.update(slug, { fee_payer: input.proteccion, amount_units: a.amount.toString(), price_units: a.price.toString(), platform_bps: a.platformBps });
+    return publicOrder(mustOrder(slug));
+  });
 }
 
 // ---------- Cuenta (billetera local o Pollar) ----------
@@ -307,7 +321,89 @@ function liberarIntento(o: OrderRow): OrderRow {
     verify_json: null,
     mode: null,
   });
+  kv.set(fondeoEnviado(o.slug), "");
   return mustOrder(o.slug);
+}
+
+// ---------- La red manda sobre la base ----------
+//
+// /api/tx/submit anota el fondeo en la base solo si sendAndWait confirma a tiempo. Si la red tarda más (o el RPC falla
+// al consultarlo), el fondeo puede entrar igual y la base quedar en "esperando_pago". Antes de soltar un intento
+// vencido, armar otro fondeo o darlo por libre, se le pregunta a pp_guardian si registró la compra:
+// - registrada: el pedido está pagado (con los plazos de la red);
+// - no registrada: el intento se puede soltar;
+// - no se sabe (la red no responde): no se suelta nada.
+
+/** Hash (interno) del último fondeo que se envió a la red para este pedido, por si hay que anotarlo después. */
+const fondeoEnviado = (slug: string) => `fondeo-enviado:${slug}`;
+/** Marca de un intento vencido que ya se consultó y no tenía fondeo (valor: su `buyer_lease_until`). */
+const fondeoRevisado = (slug: string) => `fondeo-revisado:${slug}`;
+
+type Fondeo = { estado: "fondeado"; compra: PurchaseInfo | null } | { estado: "sin_fondeo" } | { estado: "desconocido" };
+
+async function fondeoEnCadena(o: OrderRow): Promise<Fondeo> {
+  if (!o.escrow_id) return { estado: "sin_fondeo" };
+  try {
+    const svc = escrowService();
+    if (svc.mode === "guardian") {
+      const compra = await svc.purchase(o.escrow_id);
+      return compra ? { estado: "fondeado", compra } : { estado: "sin_fondeo" };
+    }
+    // Modo directo (sin pp_guardian): no hay registro de la compra, así que manda el saldo del escrow.
+    return (await tokenBalance(o.escrow_id)) > 0n ? { estado: "fondeado", compra: null } : { estado: "sin_fondeo" };
+  } catch {
+    return { estado: "desconocido" };
+  }
+}
+
+/** El fondeo está en la red: el pedido pasa a pagado. Lo usan /api/tx/submit y la puesta al día con la red. */
+function anotarFondeo(o: OrderRow, compra: PurchaseInfo | null, hash: string | null): OrderRow {
+  const now = Date.now();
+  // Modo guardián v2: los plazos reales son los que registró pp_guardian (hora del ledger).
+  // La revisión (deadline) recién existe cuando se registra el envío.
+  orders.update(o.slug, {
+    status: "pagado",
+    funded_at: compra?.fundedAt ?? now,
+    ship_deadline: compra?.shipDeadline ?? now + shipSecs(o) * 1000,
+    deadline: null,
+    buyer_lease_until: null,
+  });
+  const h = hash ?? (kv.get(fondeoEnviado(o.slug)) || null);
+  if (h) txs.add({ order_slug: o.slug, actor: "comprador", kind: "fondeo", label: `Pagaste ${fmtBsUnits(o.amount_units, o.fx)}: quedó guardado en el contrato`, hash: h });
+  return mustOrder(o.slug);
+}
+
+/**
+ * Pedido esperando pago con un intento en curso o vencido: si la red ya tiene el fondeo, lo anota como pagado.
+ * Si la red no responde, 503: en la duda no se suelta ni se rearma nada.
+ */
+async function fondeoAlDia(o: OrderRow): Promise<OrderRow> {
+  if (o.status !== "esperando_pago" || !o.buyer_pubkey || !o.escrow_id) return o;
+  const f = await fondeoEnCadena(o);
+  if (f.estado === "fondeado") return anotarFondeo(o, f.compra, null);
+  if (f.estado === "desconocido") throw new AppError("No pudimos confirmar con la red si este link ya se pagó. Intenta de nuevo en un minuto.", 503);
+  return o;
+}
+
+/** Una consulta por intento vencido basta: su fondeo vencía antes que la reserva, así que la respuesta es final. */
+const VENTANA_INTENTOS_MS = 24 * 3_600_000;
+const CONSULTAS_POR_BARRIDO = 10;
+
+/** Barrido: anota como pagados los intentos vencidos cuyo fondeo entró en la red sin que la base se enterara. */
+async function intentosVencidosAlDia(): Promise<void> {
+  let consultas = 0;
+  for (const o of orders.intentosVencidos(Date.now(), VENTANA_INTENTOS_MS)) {
+    if (kv.get(fondeoRevisado(o.slug)) === String(o.buyer_lease_until)) continue;
+    if (consultas++ >= CONSULTAS_POR_BARRIDO) break;
+    await withLock(`order:${o.slug}`, async () => {
+      const a = mustOrder(o.slug);
+      if (a.status !== "esperando_pago" || !a.buyer_pubkey || !a.escrow_id || pagoEnCurso(a)) return;
+      const f = await fondeoEnCadena(a);
+      if (f.estado === "fondeado") anotarFondeo(a, f.compra, null);
+      else if (f.estado === "sin_fondeo") kv.set(fondeoRevisado(a.slug), String(a.buyer_lease_until));
+      // "desconocido": se vuelve a intentar en el próximo barrido.
+    }).catch((e) => console.error(`[fondeo] ${o.slug}: ${(e as Error).message}`));
+  }
 }
 
 /**
@@ -330,7 +426,8 @@ export async function startPayment(slug: string, body: Record<string, unknown>):
   const flete = body.flete ? parseFlete(body.flete, body.fleteBs) : null;
   if (body.flete && !flete) throw new AppError("Escribe el monto del flete en Bs");
   return withLock(`order:${slug}`, async () => {
-    let o = mustOrder(slug);
+    // Si ya hay un intento con contrato, primero la red: su fondeo pudo entrar sin que la base se enterara.
+    let o = await fondeoAlDia(mustOrder(slug));
     if (o.status !== "esperando_pago") throw new AppError("Este link ya fue pagado", 409);
     if (buyer === o.seller_pubkey) throw new AppError("No puedes pagar tu propio link");
     if (o.buyer_pubkey && o.buyer_pubkey !== buyer) {
@@ -502,6 +599,8 @@ export async function submitSigned(signedXdr: unknown): Promise<{ hash: string; 
   if (p.step === "fund" && orders.get(p.order_slug!)?.buyer_pubkey !== p.signer) {
     throw new AppError("Tu intento de pago venció y otra persona tomó el link", 409);
   }
+  // Si la red tarda más que sendAndWait, el fondeo puede entrar igual: con este hash se anota después.
+  if (p.step === "fund") kv.set(fondeoEnviado(p.order_slug!), hashHex);
 
   const sent = await feeBumpAndSend(inner);
   const params = JSON.parse(p.params) as Record<string, string>;
@@ -517,16 +616,10 @@ export async function submitSigned(signedXdr: unknown): Promise<{ hash: string; 
   const role = p.signer === o.seller_pubkey ? "vendedor" : "comprador";
   switch (p.step) {
     case "fund": {
-      // Modo guardián v2: los plazos reales son los que registró pp_guardian (hora del ledger).
-      // La revisión (deadline) recién existe cuando se registra el envío.
       const onchain = await escrowService().purchase(o.escrow_id!).catch(() => null);
-      orders.update(slug, {
-        status: "pagado",
-        funded_at: onchain?.fundedAt ?? now,
-        ship_deadline: onchain?.shipDeadline ?? now + shipSecs(o) * 1000,
-        deadline: null,
-      });
-      txs.add({ order_slug: slug, actor: "comprador", kind: "fondeo", label: `Pagaste ${fmtBsUnits(o.amount_units, o.fx)}: quedó guardado en el contrato`, hash: sent.hash });
+      // Si mientras esperábamos a la red la puesta al día ya lo anotó (página, barrido), no se anota dos veces.
+      const actual = mustOrder(slug);
+      if (actual.status === "esperando_pago") anotarFondeo(actual, onchain, sent.hash);
       break;
     }
     case "ship": {
@@ -677,24 +770,27 @@ export async function refundUnshipped(slug: string) {
 }
 
 let lastSweep = 0;
-let sweeping = false;
+let barrido: Promise<void> | null = null;
 /**
- * Barre los pedidos con el despacho vencido y los devuelve. Corre cuando alguien consulta (páginas, panel,
- * feed del bot), como mucho cada 15 s y sin bloquear la respuesta (DECISIONES 79).
+ * Pone al día con la red los intentos de pago vencidos y devuelve los pedidos con el despacho vencido. Corre cuando
+ * alguien consulta (páginas, panel, feed del bot), como mucho cada 15 s y sin bloquear la respuesta (DECISIONES 79).
+ * Si ya hay un barrido corriendo, se devuelve ese mismo.
  */
 export function sweepOverdue(force = false): Promise<void> {
-  if (cfg().mode !== "guardian" || sweeping || (!force && Date.now() - lastSweep < 15_000)) return Promise.resolve();
-  sweeping = true;
+  if (cfg().mode !== "guardian") return Promise.resolve();
+  if (barrido) return barrido;
+  if (!force && Date.now() - lastSweep < 15_000) return Promise.resolve();
   lastSweep = Date.now();
-  return (async () => {
+  return (barrido = (async () => {
     try {
+      await intentosVencidosAlDia();
       for (const o of orders.overdueUnshipped(Date.now() - CHAIN_MARGIN_MS)) {
         await refundUnshipped(o.slug).catch((e) => console.error(`[devolución] ${o.slug}: ${(e as Error).message}`));
       }
     } finally {
-      sweeping = false;
+      barrido = null;
     }
-  })();
+  })());
 }
 
 // ---------- Revisor ----------
@@ -877,6 +973,17 @@ export async function orderView(slug: string, withOnchain: boolean) {
   let onchain: OnchainState | null = null;
   if (withOnchain && o.escrow_id) onchain = await escrowService().readState(o.escrow_id).catch(() => null);
   o = reconcile(o, onchain);
+  // El escrow ya tiene saldo y la base sigue esperando el pago: puede ser un fondeo que entró tarde (o polvo, por eso
+  // manda la compra registrada en pp_guardian y no el saldo). Solo en este caso se consulta: el camino normal no suma
+  // llamadas a la red.
+  if (o.status === "esperando_pago" && o.buyer_pubkey && onchain && BigInt(onchain.balance) > 0n) {
+    o = await withLock(`order:${slug}`, async () => {
+      const a = mustOrder(slug);
+      if (a.status !== "esperando_pago" || !a.buyer_pubkey) return a;
+      const f = await fondeoEnCadena(a);
+      return f.estado === "fondeado" ? anotarFondeo(a, f.compra, null) : a;
+    });
+  }
   return {
     order: publicOrder(o),
     seller: sellerCard(o.seller_pubkey),

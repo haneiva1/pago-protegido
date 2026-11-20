@@ -468,6 +468,19 @@ export const orders = {
       .all(since) as BotChange[];
   },
   /** v2: pedidos pagados (o en reclamo) sin envío registrado y con el plazo de despacho vencido. */
+  /**
+   * Intentos de pago con contrato creado cuya reserva venció hace menos de `ventanaMs`, más los de antes de que
+   * existiera la reserva (`buyer_lease_until` NULL). Los más recientes primero.
+   */
+  intentosVencidos(now: number, ventanaMs: number): OrderRow[] {
+    return db()
+      .prepare(
+        `SELECT * FROM orders WHERE status = 'esperando_pago' AND buyer_pubkey IS NOT NULL AND escrow_id IS NOT NULL
+         AND (buyer_lease_until IS NULL OR (buyer_lease_until <= ? AND buyer_lease_until > ?))
+         ORDER BY buyer_lease_until DESC`,
+      )
+      .all(now, now - ventanaMs) as OrderRow[];
+  },
   overdueUnshipped(now: number): OrderRow[] {
     return db()
       .prepare(
