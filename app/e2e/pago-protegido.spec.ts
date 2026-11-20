@@ -462,6 +462,15 @@ test("bot de WhatsApp: vender por chat → pago con datos de entrega → enviado
   expect(publico).not.toContain("76543210");
   expect(publico).not.toContain("Rosa Quispe");
   expect((await request.get(`/api/bot/changes?since=0`)).status()).toBe(401);
+  // API firmada: la tienda pública no trae compradores ni contactos; panel, tienda, links y contacto piden la firma de
+  // la cuenta (el bot creó el link de arriba con su clave de servidor).
+  const tiendaPk = ((await (await request.get(`/api/orders/${slug}`)).json()) as { order: { seller_pubkey: string } }).order.seller_pubkey;
+  const tiendaPublica = await (await request.get(`/api/sellers/${tiendaPk}`)).text();
+  for (const dato of ["76543210", "Rosa Quispe", SELLER_WA]) expect(tiendaPublica).not.toContain(dato);
+  expect((await request.get(`/api/sellers/${tiendaPk}/panel`)).status()).toBe(401);
+  expect((await request.post("/api/sellers", { data: { pubkey: tiendaPk, storeName: "Tienda Robada", whatsapp: "59170009999" } })).status()).toBe(401);
+  expect((await request.post("/api/links", { data: { sellerPubkey: tiendaPk, product: "Falso", priceBs: 10, deliveryDays: 1 } })).status()).toBe(401);
+  expect((await request.post(`/api/orders/${slug}/buyer-contact`, { data: { buyer: "x", whatsapp: "70000000" } })).status()).toBe(401);
 
   await expect(botSays(chat, "el pago está GUARDADO")).toBeVisible({ timeout: 90_000 });
   await capturar(chat, "bot-03-chat-te-pagaron", "chat");
