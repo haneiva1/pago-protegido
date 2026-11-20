@@ -479,6 +479,12 @@ export const txs = {
   forOrder(slug: string): TxRow[] {
     return db().prepare(`SELECT * FROM txs WHERE order_slug = ? ORDER BY id ASC`).all(slug) as TxRow[];
   },
+  /** Activación de una cuenta (trustline a la moneda de prueba): no pertenece a ningún pedido. */
+  activation(pubkey: string): TxRow | undefined {
+    return db().prepare(`SELECT * FROM txs WHERE order_slug IS NULL AND kind = 'trustline' AND actor = ? ORDER BY id DESC LIMIT 1`).get(pubkey) as
+      | TxRow
+      | undefined;
+  },
 };
 
 export const evidence = {

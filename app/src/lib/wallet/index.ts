@@ -1,12 +1,16 @@
+import { enProbar } from "@/lib/probar";
 import { LocalWallet } from "./local";
 import { PollarWallet, pollarConfigured } from "./pollar";
 import type { PreparedTx, SubmitResult, WalletProvider, WalletRole } from "./types";
 
 export type { PreparedTx, SubmitResult, WalletProvider, WalletRole };
 
-/** NEXT_PUBLIC_WALLET=local|pollar. Pollar requiere su publishable key; si falta, se usa la local. */
+/**
+ * NEXT_PUBLIC_WALLET=local|pollar. Pollar requiere su publishable key; si falta, se usa la local.
+ * En /probar siempre es la local: cada rol con su cuenta de prueba, creada al vuelo en este navegador.
+ */
 export const WALLET_KIND: "local" | "pollar" =
-  process.env.NEXT_PUBLIC_WALLET === "pollar" && pollarConfigured() ? "pollar" : "local";
+  process.env.NEXT_PUBLIC_WALLET === "pollar" && pollarConfigured() && !enProbar() ? "pollar" : "local";
 
 const cache = new Map<WalletRole, WalletProvider>();
 
