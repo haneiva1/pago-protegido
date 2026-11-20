@@ -127,7 +127,7 @@ function EvidenceHistory({ items }: { items: EvidenceRow[] }) {
           <li key={e.id} className="rounded-lg bg-white p-2 text-xs ring-1 ring-slate-200">
             <span className="font-semibold">{KIND[e.kind] ?? e.kind}</span> · <span className="text-slate-500">{fmtDate(e.created_at)}</span>
             <p className="mt-0.5 text-slate-700">{e.summary}</p>
-            {data.evidence && <p className="font-mono text-[11px] text-slate-500">on-chain: {data.evidence}</p>}
+            {data.evidence && <p className="break-all font-mono text-[11px] text-slate-500">on-chain: {data.evidence}</p>}
             {links.map((k) => (
               <a key={k} className="mr-2 underline" href={data[k]} target="_blank" rel="noreferrer">
                 {k === "photo" ? "Ver foto" : "Ver video"}
@@ -285,7 +285,7 @@ function DisputeCard({ d, arbKey, onDone }: { d: DisputeItem; arbKey: string; on
               En disputa: {d.onchain.flags.disputed ? "sí" : "no"} · Liberado: {d.onchain.flags.released ? "sí" : "no"} · Resuelto: {d.onchain.flags.resolved ? "sí" : "no"}
             </li>
             {d.onchain.milestone && (
-              <li>
+              <li className="break-all">
                 Hito: “{d.onchain.milestone.status}” {d.onchain.milestone.evidence && `· evidencia: ${d.onchain.milestone.evidence}`}
               </li>
             )}

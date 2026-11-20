@@ -265,7 +265,7 @@ function OrderCard({
   const ref = useRef<HTMLElement>(null);
   const focused = prefill !== null;
   const url = linkUrl(o.slug);
-  const d = { product: o.product, price: fmtBs(o.price_bs_cents), url, store, evidence: o.shipped_evidence, reason: o.dispute_reason, buyerPct: o.buyer_bps != null ? o.buyer_bps / 100 : undefined };
+  const d = { product: o.product, price: fmtBs(o.price_bs_cents), url, store, evidence: [o.ship_company, o.ship_tracking && `guía ${o.ship_tracking}`].filter(Boolean).join(" · ") || o.shipped_evidence, reason: o.dispute_reason, buyerPct: o.buyer_bps != null ? o.buyer_bps / 100 : undefined };
 
   useEffect(() => {
     if (prefill !== null) ref.current?.scrollIntoView({ behavior: "smooth", block: "center" });
