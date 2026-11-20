@@ -15,7 +15,7 @@ test("vender zapatillas 450 → devuelve un link de pago, y avisa cuando pagan",
   await expect(page.getByText("Trato", { exact: true })).toBeVisible();
 
   await say(page, "vender zapatillas 450");
-  await expect(lastBot(page)).toContainText("¿En cuántos días entregas?");
+  await expect(lastBot(page)).toContainText("¿En cuántos días lo despachas?");
   await page.getByRole("button", { name: "3 días" }).last().click();
 
   const link = page.locator('[data-testid="bot-msg"] a[href*="/p/zapatillas-"]').first();

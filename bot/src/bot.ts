@@ -137,7 +137,7 @@ export class Bot {
   private async link(phone: string, pubkey: string): Promise<OutMsg> {
     const data = await this.d.client.sellerData(pubkey);
     if (!data || normPhone(data.seller.whatsapp) !== phone) {
-      return { text: `No encontré una tienda con esa billetera y este WhatsApp 🤔. Créala o revisa tu número aquí:\n👉 ${registerUrl(this.appUrl, phone)}` };
+      return { text: `No encontré una tienda con esa cuenta y este WhatsApp 🤔. Créala o revisa tu número aquí:\n👉 ${registerUrl(this.appUrl, phone)}` };
     }
     this.phoneLinks.set(phone, pubkey);
     this.d.onPhoneLinked?.(phone, pubkey);

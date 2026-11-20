@@ -151,9 +151,9 @@ try {
   // corre en paralelo con (a) y (b); al vencer el despacho, la app la devuelve sola (disputa de plataforma +
   // pp_arbiter.refund_unshipped).
   const c = await sale(seller, {
-    product: "Celular Motorola G24",
+    product: "Celular Samsung Galaxy A35",
     description: "Nuevo, en caja.",
-    priceBs: 950,
+    priceBs: 2500,
     deliveryDays: 2,
     category: "Celular",
     demoWindow: true,

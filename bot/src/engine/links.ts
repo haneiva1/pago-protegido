@@ -38,8 +38,15 @@ export const SHORTENERS = [
   "shorturl.asia", "page.link", "linktr.ee", "tr.ee", "x.gd", "urlz.fr", "soo.gd", "trib.al", "dub.sh", "dub.co", "kutt.it",
 ];
 
-/** Nombre de la marca: cualquier dominio que se le parezca y no sea el canónico es una imitación. */
-export const BRAND = "pagoprotegido";
+/** Nombre visible de la marca. */
+export const BRAND = "Trato";
+
+/**
+ * Marcas que un dominio falso imitaría: cualquier dominio que se les parezca y no sea el canónico es una imitación.
+ * "pagoprotegido" sigue porque es el nombre anterior y el de los dominios actuales. "trato" no entra: es una palabra
+ * común (contrato, retrato) y daría falsas alarmas; el dominio canónico ya se agrega en `brandsOf`.
+ */
+export const IMITABLES = ["pagoprotegido"];
 
 /** Signos que suelen quedar pegados al copiar un link de un mensaje. */
 const TRIM_LEAD = /^[\s<(«“"'*_~[]+/;
@@ -107,7 +114,7 @@ function distance(a: string, b: string): number {
 
 /** Marcas a imitar: "pagoprotegido" y el nombre del dominio canónico (si es un nombre, no "localhost" ni una IP). */
 export function brandsOf(canonicalHosts: string[]): string[] {
-  const out = new Set([skeleton(BRAND)]);
+  const out = new Set(IMITABLES.map(skeleton));
   for (const h of canonicalHosts) {
     const label = h.split(":")[0].split(".").find((l) => l !== "www") ?? "";
     if (/^[a-z][a-z0-9-]{4,}$/.test(label) && label !== "localhost") out.add(skeleton(label));
