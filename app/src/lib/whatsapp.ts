@@ -11,12 +11,14 @@ export interface WaData {
   reason?: string | null;
   buyerPct?: number;
   amount?: string; // "Bs 450,04"
+  /** Flete ya formateado ("Flete por pagar al recoger"), si el vendedor lo puso en el link. */
+  flete?: string | null;
 }
 
 export function waText(ev: WaEvent, d: WaData): string {
   switch (ev) {
     case "link":
-      return `¡Hola! 👋 Te paso el link de pago protegido de ${d.store ?? "mi tienda"} para *${d.product}* (${d.price}).\n\nTu plata queda guardada en un contrato y solo me llega cuando confirmas que recibiste. Si hay un problema, un tercero revisa el reclamo.\n\n👉 ${d.url}`;
+      return `¡Hola! 👋 Te paso el link de pago protegido de ${d.store ?? "mi tienda"} para *${d.product}* (${d.price}).${d.flete ? `\n🚚 ${d.flete}.` : ""}\n\nTu plata queda guardada en un contrato y solo me llega cuando confirmas que recibiste. Si hay un problema, un tercero revisa el reclamo.\n\n👉 ${d.url}`;
     case "pagado":
       return `Hola ${d.store ?? ""} 👋 Ya pagué *${d.product}* (${d.price}) con Trato. La plata está guardada hasta que reciba. ¿Me avisas cuando lo despaches?\n\n${d.url}`;
     case "despacho":

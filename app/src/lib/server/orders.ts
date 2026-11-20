@@ -192,6 +192,9 @@ export function createLink(input: Record<string, unknown>) {
   if (!Number.isFinite(priceBs) || priceBs < 1 || priceBs > 100000) throw new AppError("El precio tiene que estar entre Bs 1 y Bs 100.000");
   if (!Number.isInteger(days) || days < 1 || days > 15) throw new AppError("Los días de entrega van de 1 a 15");
   if (!inList(CATEGORIAS, category)) throw new AppError("Elige la categoría de la lista");
+  // Link rápido (M9, opcional): el flete que acordó el vendedor. No cambia el monto protegido.
+  const flete = input.flete ? parseFlete(input.flete, input.fleteBs) : null;
+  if (input.flete && !flete) throw new AppError("Escribe el monto del flete en Bs");
   // `proteccion` (APP-ENDPOINTS §6 del bot) y `feePayer` (panel) son lo mismo.
   const fee_payer = (input.proteccion ?? input.feePayer) === "vendedor" ? "vendedor" : "comprador";
   const fx = cfg().fx;
@@ -217,6 +220,7 @@ export function createLink(input: Record<string, unknown>) {
     price_units: a.price.toString(),
     platform_bps: a.platformBps,
   });
+  if (flete) orders.update(slug, { flete });
   return publicOrder(orders.get(slug)!);
 }
 
