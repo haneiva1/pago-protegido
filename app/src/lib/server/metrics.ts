@@ -2,7 +2,19 @@ import { rpc, scValToNative } from "@stellar/stellar-sdk";
 import { DEPLOYED, HORIZON_URL, NETWORK_PASSPHRASE, PARES_HISTORICOS, TESTNET_PUBLICO, cfg } from "./config";
 import { db, kv } from "./db";
 import { server, withLock } from "./stellar";
-import { REGLAS, evaluar, firmaReglas, hechosDe, type CompraFondeada, type Hechos, type Regla, type Reglas, type Resultado } from "./verificacion";
+import {
+  FALLA_LECTURA,
+  REGLAS,
+  esErrorDeRed,
+  evaluar,
+  firmaReglas,
+  hechosDe,
+  type CompraFondeada,
+  type Hechos,
+  type Motivo,
+  type Reglas,
+  type Resultado,
+} from "./verificacion";
 
 /**
  * Métricas públicas de Pago Protegido calculadas SOLO con eventos on-chain de pp_guardian y pp_arbiter
@@ -136,6 +148,9 @@ function escrowsDeTrato(): Set<string> {
   return new Set(rows.map((r) => r.escrow_id));
 }
 
+/** Intentos por escrow: después queda pendiente sin releer la red (unas 41 h de espera creciente en total). */
+export const MAX_INTENTOS = 12;
+
 /** Espera antes de releer la red para una compra pendiente, según los intentos hechos: 1 min, 2, 4… hasta 12 h. */
 export const esperaReintento = (intentos: number) => Math.min(60_000 * 2 ** Math.max(0, intentos - 1), 12 * 3_600_000);
 
@@ -152,9 +167,11 @@ interface FilaVerificada {
 
 /**
  * Verifica por RPC (y Horizon para pagos viejos) las compras sin resultado guardado con las reglas de hoy.
- * - Solo una contradicción probada descarta. Si falta un dato, la compra queda pendiente y se relee con espera creciente.
+ * - Solo una contradicción probada descarta. Si falta un dato o falla la red, la compra queda pendiente y se relee con
+ *   espera creciente, hasta MAX_INTENTOS. Cualquier otra excepción se guarda como falla «lectura»: no se reintenta.
  * - Los hechos leídos quedan guardados: si cambian las reglas, se reevalúa con ellos sin releer la red.
  * - Un escrow que no es de un pedido de la app se descarta sin leer la red: no le cuesta nada al RPC.
+ * - Primero lo más nuevo: un escrow que no se puede leer no deja sin verificar a las compras recientes.
  */
 export async function verificarPendientes(opts: { limiteMs?: number; ahora?: number } = {}): Promise<{ verificadas: number; errores: number }> {
   const ahora = opts.ahora ?? Date.now();
@@ -168,7 +185,7 @@ export async function verificarPendientes(opts: { limiteMs?: number; ahora?: num
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   /** Guarda el resultado. Pendiente: suma un intento y agenda el próximo. */
-  const anotar = (c: CompraFondeada, h: Hechos, r: Resultado, intentos: number, error: string | null = null) => {
+  const anotar = (c: CompraFondeada, h: Hechos, r: Pick<Resultado, "ok" | "faltan"> & { fallas: Motivo[] }, intentos: number, error: string | null = null) => {
     const estado = r.ok ? "ok" : r.fallas.length ? "descartada" : "pendiente";
     const n = estado === "pendiente" ? intentos + 1 : intentos;
     const proximo = estado === "pendiente" ? ahora + esperaReintento(n) : null;
@@ -177,11 +194,11 @@ export async function verificarPendientes(opts: { limiteMs?: number; ahora?: num
 
   const trato = escrowsDeTrato();
   const porLeer: { c: CompraFondeada; previos: Hechos; intentos: number }[] = [];
-  for (const c of comprasFondeadas()) {
+  for (const c of comprasFondeadas().reverse()) {
     const f = filas.get(c.escrow);
     const mismas = f?.reglas === firma;
     if (mismas && f.estado !== "pendiente") continue; // ya resuelta con estas reglas
-    if (mismas && (f.proximo_at ?? 0) > ahora) continue; // pendiente, esperando su próximo intento
+    if (mismas && (f.intentos >= MAX_INTENTOS || (f.proximo_at ?? 0) > ahora)) continue; // pendiente: sin intentos o esperando
     // Primero con lo que ya se sabe (hechos guardados y el origen, que es local): puede alcanzar sin leer la red.
     const previos: Hechos = { ...SIN_HECHOS, ...(f?.hechos_json ? (JSON.parse(f.hechos_json) as Partial<Hechos>) : {}), creadoPorTrato: trato.has(c.escrow) };
     const intentos = mismas ? f.intentos : 0;
@@ -202,9 +219,12 @@ export async function verificarPendientes(opts: { limiteMs?: number; ahora?: num
           anotar(c, h, evaluar(c, h, reglas), intentos);
           verificadas++;
         } catch (e) {
-          errores++; // transitorio (RPC u Horizon caídos): queda pendiente y se reintenta con espera
-          anotar(c, previos, evaluar(c, previos, reglas), intentos, (e as Error).message ?? String(e));
-          console.warn(`[indexador] ${c.escrow}: ${(e as Error).message}`);
+          errores++;
+          const msg = String((e as Error)?.message ?? e).slice(0, 300);
+          console.warn(`[indexador] ${c.escrow}: ${msg}`);
+          // Red (RPC u Horizon caídos): pendiente, se reintenta con espera. Cualquier otra cosa: falla guardada.
+          if (esErrorDeRed(e)) anotar(c, previos, evaluar(c, previos, reglas), intentos, msg);
+          else anotar(c, previos, { ok: false, fallas: ["lectura"], faltan: [] }, intentos, msg);
         }
       }),
     );
@@ -216,8 +236,8 @@ export interface Descartada {
   escrow: string;
   tx_fondeo: string;
   seller: string;
-  motivo: Regla;
-  fallas: Regla[];
+  motivo: Motivo;
+  fallas: Motivo[];
 }
 
 export interface EstadoIndexador {
@@ -245,7 +265,7 @@ export function estadoIndexador(events: PpEvent[] = loadEvents()): EstadoIndexad
     if (!r || r.estado === "pendiente") pendientes++;
     else if (r.ok) ok.add(c.escrow);
     else {
-      const fallas = r.fallas.split(",").filter(Boolean) as Regla[];
+      const fallas = r.fallas.split(",").filter(Boolean) as Motivo[];
       descartadas.push({ escrow: c.escrow, tx_fondeo: c.tx_fondeo, seller: c.seller, motivo: fallas[0] ?? "wasm", fallas });
     }
   }
@@ -258,7 +278,10 @@ export function resumenIndexador(st: EstadoIndexador) {
     contadas: st.ok.size,
     pendientes: st.pendientes,
     descartadas: st.descartadas.length,
-    por_motivo: REGLAS.map((r) => ({ regla: r.regla, texto: r.falla, compras: st.descartadas.filter((d) => d.motivo === r.regla).length })),
+    por_motivo: [...REGLAS.map((r) => ({ regla: r.regla as Motivo, texto: r.falla })), { regla: "lectura" as Motivo, texto: FALLA_LECTURA }].map((r) => ({
+      ...r,
+      compras: st.descartadas.filter((d) => d.motivo === r.regla).length,
+    })),
     reglas: REGLAS.map((r) => ({ regla: r.regla, texto: r.cumple })),
     ejemplos: st.descartadas.slice(-10).reverse(),
   };

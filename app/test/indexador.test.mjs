@@ -8,7 +8,7 @@ import { V1, V2, compra, redFalsa } from "./red-falsa.mjs";
 
 process.env.PP_DB_PATH = path.join(mkdtempSync(path.join(os.tmpdir(), "indexador-")), "t.db");
 const { db } = await import("../src/lib/server/db.ts");
-const { estadoIndexador, reglasIndexador, verificarPendientes } = await import("../src/lib/server/metrics.ts");
+const { MAX_INTENTOS, estadoIndexador, reglasIndexador, verificarPendientes } = await import("../src/lib/server/metrics.ts");
 
 let red;
 beforeEach(() => {
@@ -131,4 +131,59 @@ test("los hechos quedan guardados: si cambia la huella de las reglas, se reeval�
   await verificarPendientes();
   assert.equal(estadoIndexador().ok.has(c.escrow), true, "la compra perdió su verificación");
   assert.deepEqual(red.de(c), [], "se volvió a leer la red");
+});
+
+// ---------- Escrows falsos que hacen lanzar, intentos limitados y lo más nuevo primero ----------
+
+test("get_escrow con tipos inválidos (monto «x», roles incompletos, moneda numérica) → descartada, sin lanzar ni reintentar", async () => {
+  const casos = [
+    [compra(1), (e) => ({ ...e, amount: "x" }), "fondeo"],
+    [compra(2), (e) => ({ ...e, roles: { approver: e.roles.approver } }), "roles"],
+    [compra(3), (e) => ({ ...e, trustline: { address: 7 } }), "moneda"],
+  ];
+  for (const [c, romper, motivo] of casos) {
+    pedido(fondeo(red.genuina(c)));
+    red.escrows.set(c.escrow, romper(red.escrows.get(c.escrow)));
+  }
+  const t0 = Date.now();
+  const r = await verificarPendientes({ ahora: t0 });
+  assert.equal(r.errores, 0, "evaluar lanzó con un escrow falso");
+  for (const [c, , motivo] of casos) assert.equal(motivoDe(c), motivo, c.escrow);
+  red.llamadas.length = 0;
+  await verificarPendientes({ ahora: t0 + 24 * 3_600_000 });
+  assert.deepEqual(red.llamadas, [], "se reintenta un escrow ya descartado");
+});
+
+test("una excepción que no es de red (TypeError) queda guardada como falla «lectura» y no se reintenta", async () => {
+  const c = pedido(fondeo(red.genuina(compra(1))));
+  red.instancias.set(c.escrow, new TypeError("Cannot read properties of undefined (reading 'value')"));
+  const t0 = Date.now();
+  await verificarPendientes({ ahora: t0 });
+  assert.equal(motivoDe(c), "lectura");
+  red.llamadas.length = 0;
+  await verificarPendientes({ ahora: t0 + 24 * 3_600_000 });
+  assert.deepEqual(red.de(c), []);
+});
+
+test("un error de red (RPC caído) deja la compra pendiente y se reintenta con espera; los intentos por escrow tienen tope", async () => {
+  const c = pedido(fondeo(red.genuina(compra(1))));
+  red.instancias.set(c.escrow, Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNREFUSED" } }));
+  let t = Date.now();
+  let pasadasConLectura = 0;
+  for (let i = 0; i < MAX_INTENTOS + 5; i++) {
+    const antes = red.de(c).length;
+    await verificarPendientes({ ahora: t });
+    if (red.de(c).length > antes) pasadasConLectura++;
+    assert.equal(motivoDe(c), undefined, "un error de red quedó como falla");
+    t += 13 * 3_600_000; // más que la espera máxima
+  }
+  assert.equal(pendiente(c), true);
+  assert.equal(pasadasConLectura, MAX_INTENTOS);
+});
+
+test("las compras se verifican de la más nueva a la más vieja", async () => {
+  const cs = [1, 2, 3, 4].map((n) => pedido(fondeo(red.genuina(compra(n)), 1000 + n)));
+  await verificarPendientes();
+  const orden = [...new Set(red.llamadas.filter(([m]) => m === "instancia").map(([, id]) => id))];
+  assert.deepEqual(orden, cs.map((c) => c.escrow).reverse());
 });

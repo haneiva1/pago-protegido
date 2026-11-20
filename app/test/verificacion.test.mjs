@@ -92,6 +92,14 @@ test("sin datos no hay prueba, pero tampoco falla: instancia o transacción no e
   assert.deepEqual(r, { ok: false, fallas: [], faltan: ["wasm", "roles", "moneda", "fondeo"] });
 });
 
+test("evaluar no lanza con montos no numéricos (escrow falso, transfer o evento raros) → descartada por fondeo", () => {
+  const t = transferenciasDeXdr(eventosReales)[0];
+  for (const h of [{ monto: "x" }, { monto: false }, { transferencias: [{ ...t, amount: "1e9" }] }]) {
+    assert.deepEqual(evaluar(compra, { ...hechosReales(), ...h }, reglas).fallas, ["fondeo"], JSON.stringify(h));
+  }
+  assert.deepEqual(evaluar({ ...compra, amount: "x" }, hechosReales(), reglas).fallas, ["fondeo"]);
+});
+
 test("transferenciasDe: acepta el monto como i128 o como mapa (CAP-67) e ignora otros eventos", () => {
   const ev = (topics, data, contractId = LABUSD) => ({ type: "contract", contractId, topics, data });
   const t = transferenciasDe([
