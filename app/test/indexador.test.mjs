@@ -56,3 +56,75 @@ test("5.ª regla: un escrow genuino de TW creado por un tercero (pasa las otras 
   assert.equal(motivoDe(deTercero), "origen");
   assert.deepEqual(red.de(deTercero), [], "un escrow ajeno no gasta lecturas del RPC");
 });
+
+// ---------- Falta de dato transitoria: pendiente, nunca descartada ----------
+
+const MIN = 60_000;
+const pendiente = (c) => {
+  const st = estadoIndexador();
+  return !st.ok.has(c.escrow) && !st.descartadas.some((d) => d.escrow === c.escrow) && st.pendientes > 0;
+};
+
+test("RPC atrasado y Horizon todavía sin la tx (404) → pendiente, no descartada; cuando la red la tiene, cuenta", async () => {
+  const c = pedido(fondeo(red.genuina(compra(1))));
+  red.horizon.delete(c.tx_fondeo); // ni el RPC (NOT_FOUND) ni Horizon (404) tienen todavía el pago
+  const t0 = Date.now();
+  await verificarPendientes({ ahora: t0 });
+  assert.equal(motivoDe(c), undefined, "una falta de dato quedó guardada como falla probada");
+  assert.equal(pendiente(c), true);
+  red.genuina(c); // un rato después la red ya tiene la tx
+  await verificarPendientes({ ahora: t0 + 2 * MIN });
+  assert.equal(estadoIndexador().ok.has(c.escrow), true);
+});
+
+test("instancia archivada por TTL (sin instancia, get_escrow MissingValue) → pendiente, no «no es TW»", async () => {
+  const c = pedido(fondeo(red.genuina(compra(1))));
+  red.instancias.set(c.escrow, "archivada");
+  red.escrows.set(c.escrow, "archivada");
+  await verificarPendientes();
+  assert.equal(motivoDe(c), undefined);
+  assert.equal(pendiente(c), true);
+});
+
+test("una contradicción probada descarta aunque falten otros datos: la tx existe y no trae la transferencia", async () => {
+  const c = pedido(fondeo(red.genuina(compra(1))));
+  red.instancias.set(c.escrow, "archivada");
+  red.escrows.set(c.escrow, "archivada");
+  red.horizon.set(c.tx_fondeo, []); // Horizon encontró el pago, sin ningún transfer
+  await verificarPendientes();
+  assert.equal(motivoDe(c), "fondeo");
+});
+
+test("espera creciente: una compra pendiente no se relee antes de tiempo y cada intento espera más", async () => {
+  const c = pedido(fondeo(red.genuina(compra(1))));
+  red.horizon.delete(c.tx_fondeo);
+  const lecturas = () => red.de(c).length;
+  const t0 = Date.now();
+  await verificarPendientes({ ahora: t0 });
+  const n1 = lecturas();
+  assert.ok(n1 > 0);
+  await verificarPendientes({ ahora: t0 + 1000 });
+  assert.equal(lecturas(), n1, "se releyó la red antes de la espera");
+  await verificarPendientes({ ahora: t0 + MIN + 1000 }); // 2.º intento, después de 1 min
+  const n2 = lecturas();
+  assert.ok(n2 > n1);
+  await verificarPendientes({ ahora: t0 + 2 * MIN + 2000 }); // 1 min después del 2.º: todavía espera (2 min)
+  assert.equal(lecturas(), n2, "la espera no creció");
+  await verificarPendientes({ ahora: t0 + 3 * MIN + 2000 });
+  assert.ok(lecturas() > n2);
+});
+
+test("los hechos quedan guardados: si cambia la huella de las reglas, se reevalúa sin leer la red (la instancia ya archivada no pierde su verificación)", async () => {
+  const c = pedido(fondeo(red.genuina(compra(1))));
+  await verificarPendientes();
+  assert.equal(estadoIndexador().ok.has(c.escrow), true);
+  // Una semana después la instancia está archivada, el pago salió de la ventana del RPC y cambian las reglas.
+  red.instancias.set(c.escrow, "archivada");
+  red.escrows.set(c.escrow, "archivada");
+  red.horizon.delete(c.tx_fondeo);
+  db().prepare(`UPDATE escrow_verificado SET reglas = 'huella-anterior'`).run();
+  red.llamadas.length = 0;
+  await verificarPendientes();
+  assert.equal(estadoIndexador().ok.has(c.escrow), true, "la compra perdió su verificación");
+  assert.deepEqual(red.de(c), [], "se volvió a leer la red");
+});

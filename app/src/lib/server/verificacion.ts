@@ -66,7 +66,10 @@ export interface Transferencia {
   amount: string;
 }
 
-/** Lo que dice la red. `null` = no se encontró (instancia o transacción inexistente). */
+/**
+ * Lo que dice la red. `null` = no se pudo leer (404 del RPC o de Horizon, simulación fallida, instancia archivada por
+ * TTL): no prueba nada, ni a favor ni en contra. Se guardan en escrow_verificado para reevaluar sin releer la red.
+ */
 export interface Hechos {
   /** El escrow es el de un pedido de la app (orders.escrow_id): lo creó Trato. Se lee de la base, no de la red. */
   creadoPorTrato: boolean | null;
@@ -78,28 +81,50 @@ export interface Hechos {
 }
 
 export interface Resultado {
+  /** Cumple las cinco reglas: cuenta. */
   ok: boolean;
+  /** Reglas con una contradicción probada (hash, roles o moneda distintos, una tx encontrada sin la transferencia). */
   fallas: Regla[];
+  /** Reglas sin dato para decidir. Sin fallas, la compra queda pendiente: no cuenta y se reintenta. */
+  faltan: Regla[];
 }
 
-/** Aplica las cinco reglas. Sin dato no hay prueba: la regla falla (criterio conservador). */
+/**
+ * Aplica las cinco reglas. Sin dato no hay prueba: la compra no cuenta, pero tampoco se descarta. Solo una
+ * contradicción probada la descarta, aunque falten otros datos.
+ */
 export function evaluar(c: CompraFondeada, h: Hechos, r: Reglas): Resultado {
   const fallas: Regla[] = [];
-  if (!h.wasmHash || h.wasmHash.toLowerCase() !== r.wasmHash.toLowerCase()) fallas.push("wasm");
-  const ro = h.roles;
-  const rolesOk =
-    !!ro &&
-    r.pares.some((p) => ro.approver === p.guardian && ro.release_signer === p.guardian && ro.dispute_resolver === p.arbiter) &&
-    ro.platform === r.platform &&
-    ro.receiver === c.seller &&
-    ro.service_provider === c.seller;
-  if (!rolesOk) fallas.push("roles");
-  if (h.token !== r.labusdSac) fallas.push("moneda");
+  const faltan: Regla[] = [];
+  const regla = (nombre: Regla, cumple: boolean | null) => {
+    if (cumple === null) faltan.push(nombre);
+    else if (!cumple) fallas.push(nombre);
+  };
+  const wasm = h.wasmHash ?? null;
+  regla("wasm", wasm === null ? null : wasm.toLowerCase() === r.wasmHash.toLowerCase());
+  const ro = h.roles ?? null;
+  regla(
+    "roles",
+    ro === null
+      ? null
+      : r.pares.some((p) => ro.approver === p.guardian && ro.release_signer === p.guardian && ro.dispute_resolver === p.arbiter) &&
+          ro.platform === r.platform &&
+          ro.receiver === c.seller &&
+          ro.service_provider === c.seller,
+  );
+  regla("moneda", (h.token ?? null) === null ? null : h.token === r.labusdSac);
   const monto = BigInt(c.amount);
-  const movio = (h.transferencias ?? []).some((t) => t.token === r.labusdSac && t.from === c.buyer && t.to === c.escrow && BigInt(t.amount) === monto);
-  if (!movio || monto <= 0n || (h.monto !== null && BigInt(h.monto) !== monto)) fallas.push("fondeo");
-  if (h.creadoPorTrato !== true) fallas.push("origen");
-  return { ok: fallas.length === 0, fallas };
+  const transferencias = h.transferencias ?? null;
+  regla(
+    "fondeo",
+    monto <= 0n || (h.monto != null && BigInt(h.monto) !== monto)
+      ? false
+      : transferencias === null
+        ? null
+        : transferencias.some((t) => t.token === r.labusdSac && t.from === c.buyer && t.to === c.escrow && BigInt(t.amount) === monto),
+  );
+  regla("origen", h.creadoPorTrato ?? null);
+  return { ok: fallas.length === 0 && faltan.length === 0, fallas, faltan };
 }
 
 /** Huella de las reglas: si cambia un valor esperado, se vuelve a verificar todo. */
@@ -137,11 +162,14 @@ export const transferenciasDeXdr = (events: xdr.ContractEvent[]) => transferenci
 /** Cuenta nula para simular lecturas sin firmar (no necesita existir). */
 const NULL_ACCOUNT = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
 
-/** Hash del WASM que corre la instancia (sha256 del código). `null` si la instancia no existe o no es WASM propio. */
+/**
+ * Hash del WASM que corre la instancia (sha256 del código). Si no es WASM propio (SAC o referencia externa), el tipo de
+ * ejecutable, que nunca coincide con el hash. `null` si no se encontró la instancia (por ejemplo, archivada por TTL).
+ */
 async function wasmDeInstancia(s: rpc.Server, escrow: string): Promise<string | null> {
   try {
     const exe = (await s.getContractInstance(escrow)).executable as unknown as { type: string; value: { value?: Uint8Array } | Uint8Array };
-    if (exe.type !== "contractExecutableWasm") return null; // solo WASM propio (no SAC ni referencia externa)
+    if (exe.type !== "contractExecutableWasm") return String(exe.type); // solo WASM propio (no SAC ni referencia externa)
     const v = exe.value as { value?: Uint8Array };
     return Buffer.from(v.value ?? (exe.value as Uint8Array)).toString("hex");
   } catch (e) {
@@ -209,17 +237,21 @@ async function transferenciasDelPago(s: rpc.Server, hash: string, horizonUrl: st
   return transferenciasDeEfectos(body._embedded?.records ?? [], networkPassphrase);
 }
 
-/** Lee de la red lo necesario para `evaluar`. Lanza solo ante errores transitorios (se reintenta después). */
+/**
+ * Lee de la red lo necesario para `evaluar`. Los hechos ya conocidos (`previos`) no se vuelven a leer: una instancia
+ * archivada después de verificarse no pierde lo que ya se leyó. Lanza solo ante errores transitorios.
+ */
 export async function hechosDe(
   c: CompraFondeada,
   s: rpc.Server,
-  opts: { horizonUrl: string; networkPassphrase?: string; creadoPorTrato: boolean },
+  opts: { horizonUrl: string; networkPassphrase?: string; creadoPorTrato: boolean; previos?: Hechos | null },
 ): Promise<Hechos> {
   const np = opts.networkPassphrase ?? Networks.TESTNET;
+  const p = opts.previos;
   const [wasmHash, escrow, transferencias] = await Promise.all([
-    wasmDeInstancia(s, c.escrow),
-    escrowDe(s, c.escrow, np),
-    transferenciasDelPago(s, c.tx_fondeo, opts.horizonUrl, np),
+    p?.wasmHash ?? wasmDeInstancia(s, c.escrow),
+    p?.roles != null && p.token != null && p.monto != null ? { roles: p.roles, token: p.token, monto: p.monto } : escrowDe(s, c.escrow, np),
+    p?.transferencias ?? transferenciasDelPago(s, c.tx_fondeo, opts.horizonUrl, np),
   ]);
   return { creadoPorTrato: opts.creadoPorTrato, wasmHash, roles: escrow?.roles ?? null, token: escrow?.token ?? null, monto: escrow?.monto ?? null, transferencias };
 }

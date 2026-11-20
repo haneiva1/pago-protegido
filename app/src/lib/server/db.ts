@@ -177,6 +177,15 @@ const MIGRATIONS: Record<string, [string, string][]> = {
     // Hasta cuándo queda fijado el comprador que empezó a pagar y todavía no firmó el fondeo (lib/server/orders.ts).
     ["buyer_lease_until", "INTEGER"],
   ],
+  // Indexador: una falta de dato deja la compra pendiente (con intentos y espera creciente), no descartada; y los
+  // hechos leídos quedan guardados para reevaluar sin releer la red si cambian las reglas.
+  escrow_verificado: [
+    ["estado", "TEXT"],
+    ["hechos_json", "TEXT"],
+    ["intentos", "INTEGER NOT NULL DEFAULT 0"],
+    ["proximo_at", "INTEGER"],
+    ["error", "TEXT"],
+  ],
 };
 
 export interface SellerRow {

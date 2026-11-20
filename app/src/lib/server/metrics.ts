@@ -2,7 +2,7 @@ import { rpc, scValToNative } from "@stellar/stellar-sdk";
 import { DEPLOYED, HORIZON_URL, NETWORK_PASSPHRASE, RETIRED_V1, TESTNET_PUBLICO, cfg } from "./config";
 import { db, kv } from "./db";
 import { server, withLock } from "./stellar";
-import { REGLAS, evaluar, firmaReglas, hechosDe, type CompraFondeada, type Regla, type Reglas } from "./verificacion";
+import { REGLAS, evaluar, firmaReglas, hechosDe, type CompraFondeada, type Hechos, type Regla, type Reglas, type Resultado } from "./verificacion";
 
 /**
  * Métricas públicas de Pago Protegido calculadas SOLO con eventos on-chain de pp_guardian y pp_arbiter
@@ -127,36 +127,74 @@ function escrowsDeTrato(): Set<string> {
   return new Set(rows.map((r) => r.escrow_id));
 }
 
+/** Espera antes de releer la red para una compra pendiente, según los intentos hechos: 1 min, 2, 4… hasta 12 h. */
+export const esperaReintento = (intentos: number) => Math.min(60_000 * 2 ** Math.max(0, intentos - 1), 12 * 3_600_000);
+
+const SIN_HECHOS: Hechos = { creadoPorTrato: null, wasmHash: null, roles: null, token: null, monto: null, transferencias: null };
+
+interface FilaVerificada {
+  escrow: string;
+  reglas: string;
+  estado: "ok" | "descartada" | "pendiente" | null;
+  hechos_json: string | null;
+  intentos: number;
+  proximo_at: number | null;
+}
+
 /**
- * Verifica por RPC (y Horizon para pagos viejos) las compras sin resultado guardado. Cada escrow se verifica una vez.
- * Un escrow que no es de un pedido de la app se descarta sin leer la red: no le cuesta nada al RPC.
+ * Verifica por RPC (y Horizon para pagos viejos) las compras sin resultado guardado con las reglas de hoy.
+ * - Solo una contradicción probada descarta. Si falta un dato, la compra queda pendiente y se relee con espera creciente.
+ * - Los hechos leídos quedan guardados: si cambian las reglas, se reevalúa con ellos sin releer la red.
+ * - Un escrow que no es de un pedido de la app se descarta sin leer la red: no le cuesta nada al RPC.
  */
-export async function verificarPendientes(limiteMs = 120_000): Promise<{ verificadas: number; errores: number }> {
+export async function verificarPendientes(opts: { limiteMs?: number; ahora?: number } = {}): Promise<{ verificadas: number; errores: number }> {
+  const ahora = opts.ahora ?? Date.now();
   const reglas = reglasIndexador();
   const firma = firmaReglas(reglas);
-  const hechas = new Set((db().prepare(`SELECT escrow FROM escrow_verificado WHERE reglas = ?`).all(firma) as { escrow: string }[]).map((r) => r.escrow));
-  const pendientes = comprasFondeadas().filter((c) => !hechas.has(c.escrow));
-  const guardar = db().prepare(
-    `INSERT OR REPLACE INTO escrow_verificado (escrow, reglas, ok, fallas, wasm_hash, verificado_at) VALUES (?, ?, ?, ?, ?, ?)`,
+  const filas = new Map(
+    (db().prepare(`SELECT escrow, reglas, estado, hechos_json, intentos, proximo_at FROM escrow_verificado`).all() as FilaVerificada[]).map((f) => [f.escrow, f]),
   );
+  const guardar = db().prepare(
+    `INSERT OR REPLACE INTO escrow_verificado (escrow, reglas, ok, fallas, wasm_hash, verificado_at, estado, hechos_json, intentos, proximo_at, error)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  /** Guarda el resultado. Pendiente: suma un intento y agenda el próximo. */
+  const anotar = (c: CompraFondeada, h: Hechos, r: Resultado, intentos: number, error: string | null = null) => {
+    const estado = r.ok ? "ok" : r.fallas.length ? "descartada" : "pendiente";
+    const n = estado === "pendiente" ? intentos + 1 : intentos;
+    const proximo = estado === "pendiente" ? ahora + esperaReintento(n) : null;
+    guardar.run(c.escrow, firma, r.ok ? 1 : 0, r.fallas.join(","), h.wasmHash, ahora, estado, JSON.stringify(h), n, proximo, error);
+  };
+
   const trato = escrowsDeTrato();
-  // Sin leer la red, la única regla probada es la del origen: las demás no se evaluaron.
-  for (const c of pendientes.filter((x) => !trato.has(x.escrow))) guardar.run(c.escrow, firma, 0, "origen", null, Date.now());
-  const deTrato = pendientes.filter((x) => trato.has(x.escrow));
+  const porLeer: { c: CompraFondeada; previos: Hechos; intentos: number }[] = [];
+  for (const c of comprasFondeadas()) {
+    const f = filas.get(c.escrow);
+    const mismas = f?.reglas === firma;
+    if (mismas && f.estado !== "pendiente") continue; // ya resuelta con estas reglas
+    if (mismas && (f.proximo_at ?? 0) > ahora) continue; // pendiente, esperando su próximo intento
+    // Primero con lo que ya se sabe (hechos guardados y el origen, que es local): puede alcanzar sin leer la red.
+    const previos: Hechos = { ...SIN_HECHOS, ...(f?.hechos_json ? (JSON.parse(f.hechos_json) as Partial<Hechos>) : {}), creadoPorTrato: trato.has(c.escrow) };
+    const intentos = mismas ? f.intentos : 0;
+    const r = evaluar(c, previos, reglas);
+    if (r.ok || r.fallas.length) anotar(c, previos, r, intentos);
+    else porLeer.push({ c, previos, intentos });
+  }
+
   const s = server();
-  const hasta = Date.now() + limiteMs;
+  const hasta = Date.now() + (opts.limiteMs ?? 120_000);
   let verificadas = 0;
   let errores = 0;
-  for (let i = 0; i < deTrato.length && Date.now() < hasta; i += 6) {
+  for (let i = 0; i < porLeer.length && Date.now() < hasta; i += 6) {
     await Promise.all(
-      deTrato.slice(i, i + 6).map(async (c) => {
+      porLeer.slice(i, i + 6).map(async ({ c, previos, intentos }) => {
         try {
-          const h = await hechosDe(c, s, { horizonUrl: HORIZON_URL, networkPassphrase: NETWORK_PASSPHRASE, creadoPorTrato: true });
-          const r = evaluar(c, h, reglas);
-          guardar.run(c.escrow, firma, r.ok ? 1 : 0, r.fallas.join(","), h.wasmHash, Date.now());
+          const h = await hechosDe(c, s, { horizonUrl: HORIZON_URL, networkPassphrase: NETWORK_PASSPHRASE, creadoPorTrato: true, previos });
+          anotar(c, h, evaluar(c, h, reglas), intentos);
           verificadas++;
         } catch (e) {
-          errores++; // transitorio (RPC u Horizon caídos): queda pendiente y se reintenta en la próxima lectura
+          errores++; // transitorio (RPC u Horizon caídos): queda pendiente y se reintenta con espera
+          anotar(c, previos, evaluar(c, previos, reglas), intentos, (e as Error).message ?? String(e));
           console.warn(`[indexador] ${c.escrow}: ${(e as Error).message}`);
         }
       }),
@@ -183,14 +221,19 @@ export interface EstadoIndexador {
 
 export function estadoIndexador(events: PpEvent[] = loadEvents()): EstadoIndexador {
   const firma = firmaReglas(reglasIndexador());
-  const rows = db().prepare(`SELECT escrow, ok, fallas FROM escrow_verificado WHERE reglas = ?`).all(firma) as { escrow: string; ok: number; fallas: string }[];
+  const rows = db().prepare(`SELECT escrow, ok, fallas, estado FROM escrow_verificado WHERE reglas = ?`).all(firma) as {
+    escrow: string;
+    ok: number;
+    fallas: string;
+    estado: string | null;
+  }[];
   const res = new Map(rows.map((r) => [r.escrow, r]));
   const ok = new Set<string>();
   const descartadas: Descartada[] = [];
   let pendientes = 0;
   for (const c of comprasFondeadas(events)) {
     const r = res.get(c.escrow);
-    if (!r) pendientes++;
+    if (!r || r.estado === "pendiente") pendientes++;
     else if (r.ok) ok.add(c.escrow);
     else {
       const fallas = r.fallas.split(",").filter(Boolean) as Regla[];

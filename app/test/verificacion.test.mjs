@@ -39,12 +39,12 @@ test("un fondeo real de testnet trae la transferencia del SAC del comprador al e
 });
 
 test("escrow verdadero: cumple las cinco reglas y cuenta", () => {
-  assert.deepEqual(evaluar(compra, hechosReales(), reglas), { ok: true, fallas: [] });
+  assert.deepEqual(evaluar(compra, hechosReales(), reglas), { ok: true, fallas: [], faltan: [] });
 });
 
 test("5.ª regla: el mismo escrow genuino de TW, si no es de un pedido de Trato → descartada por origen", () => {
   // initialize_escrow no pide la firma de la plataforma ni del vendedor: cualquiera arma un escrow así con 1 stroop.
-  assert.deepEqual(evaluar(compra, { ...hechosReales(), creadoPorTrato: false }, reglas), { ok: false, fallas: ["origen"] });
+  assert.deepEqual(evaluar(compra, { ...hechosReales(), creadoPorTrato: false }, reglas), { ok: false, fallas: ["origen"], faltan: [] });
 });
 
 test("escrow verdadero de v2 también cuenta (pares guardián/árbitro v1 y v2)", () => {
@@ -87,9 +87,9 @@ test("fondeo: monto distinto, otro pagador u otro destino → descartada", () =>
   assert.deepEqual(evaluar(compra, { ...hechosReales(), monto: "1" }, reglas).fallas, ["fondeo"]);
 });
 
-test("sin datos no hay prueba: instancia o transacción no encontradas → descartada", () => {
+test("sin datos no hay prueba, pero tampoco falla: instancia o transacción no encontradas → no cuenta y queda pendiente", () => {
   const r = evaluar(compra, { creadoPorTrato: true, wasmHash: null, roles: null, token: null, monto: null, transferencias: null }, reglas);
-  assert.deepEqual(r.fallas, ["wasm", "roles", "moneda", "fondeo"]);
+  assert.deepEqual(r, { ok: false, fallas: [], faltan: ["wasm", "roles", "moneda", "fondeo"] });
 });
 
 test("transferenciasDe: acepta el monto como i128 o como mapa (CAP-67) e ignora otros eventos", () => {
