@@ -1,12 +1,16 @@
 import { rpc, scValToNative } from "@stellar/stellar-sdk";
-import { RETIRED_V1, cfg } from "./config";
+import { DEPLOYED, HORIZON_URL, NETWORK_PASSPHRASE, RETIRED_V1, TESTNET_PUBLICO, cfg } from "./config";
 import { db, kv } from "./db";
 import { server, withLock } from "./stellar";
+import { REGLAS, evaluar, firmaReglas, hechosDe, type CompraFondeada, type Regla, type Reglas } from "./verificacion";
 
 /**
  * Métricas públicas de Pago Protegido calculadas SOLO con eventos on-chain de pp_guardian y pp_arbiter
  * (pago-protegido/docs/METRICAS.md). Los eventos se ingieren de forma incremental a SQLite porque el RPC
  * público solo guarda unos 7 días; la referencia de las reglas es contracts/scripts/metricas.sh.
+ *
+ * H-9: un evento auténtico de pp_guardian no prueba una compra real. Cada compra pasa por el indexador
+ * verificado (verificacion.ts) y solo cuenta si su escrow cumple las cuatro reglas públicas.
  */
 
 /** Ledger del despliegue de los contratos (contracts/deployments/testnet.json). */
@@ -74,6 +78,7 @@ export async function ingestEvents(force = false): Promise<{ added: number; late
     }
     kv.set("events:last_run", String(Date.now()));
     kv.set("events:latest", String(latest));
+    await verificarPendientes().catch((e) => console.error("[indexador] no se pudo verificar:", (e as Error).message));
     return { added, latestLedger: latest };
   });
 }
@@ -81,6 +86,117 @@ export async function ingestEvents(force = false): Promise<{ added: number; late
 export function loadEvents(): PpEvent[] {
   const rows = db().prepare(`SELECT * FROM pp_events ORDER BY ledger ASC, id ASC`).all() as (Omit<PpEvent, "data"> & { data_json: string })[];
   return rows.map(({ data_json, ...r }) => ({ ...r, data: (JSON.parse(data_json) ?? {}) as Record<string, unknown> }));
+}
+
+// ---------- Indexador verificado (H-9) ----------
+
+/** Lo que se espera de cada escrow: valores de la configuración o, sin .env.local, los públicos de DEPLOYED.md. */
+export function reglasIndexador(): Reglas {
+  const c = cfg();
+  let platform = TESTNET_PUBLICO.plataforma;
+  try {
+    platform = c.plataforma.publicKey();
+  } catch {
+    // Sin .env.local (e2e público): se usa la cuenta publicada.
+  }
+  return {
+    wasmHash: process.env.ESCROW_WASM_HASH || TESTNET_PUBLICO.twWasmHash,
+    labusdSac: process.env.LABUSD_SAC || TESTNET_PUBLICO.labusdSac,
+    platform,
+    pares: [
+      { guardian: c.guardianId ?? DEPLOYED.guardian, arbiter: c.arbiterId ?? DEPLOYED.arbiter },
+      { guardian: RETIRED_V1.guardian, arbiter: RETIRED_V1.arbiter },
+    ],
+  };
+}
+
+/** Primer `pp_funded` de cada escrow, como lo leen computeMetrics y comprasOnchain. */
+export function comprasFondeadas(events: PpEvent[] = loadEvents()): CompraFondeada[] {
+  const seen = new Map<string, CompraFondeada>();
+  for (const ev of events) {
+    if (ev.kind !== "pp_funded" || !ev.escrow || seen.has(ev.escrow)) continue;
+    const f = ev.data;
+    seen.set(ev.escrow, { escrow: ev.escrow, buyer: String(f.buyer ?? ""), seller: String(f.seller ?? ""), amount: String(f.amount ?? "0"), tx_fondeo: ev.tx_hash });
+  }
+  return [...seen.values()];
+}
+
+/** Verifica por RPC (y Horizon para pagos viejos) las compras sin resultado guardado. Cada escrow se verifica una vez. */
+export async function verificarPendientes(limiteMs = 120_000): Promise<{ verificadas: number; errores: number }> {
+  const reglas = reglasIndexador();
+  const firma = firmaReglas(reglas);
+  const hechas = new Set((db().prepare(`SELECT escrow FROM escrow_verificado WHERE reglas = ?`).all(firma) as { escrow: string }[]).map((r) => r.escrow));
+  const pendientes = comprasFondeadas().filter((c) => !hechas.has(c.escrow));
+  const guardar = db().prepare(
+    `INSERT OR REPLACE INTO escrow_verificado (escrow, reglas, ok, fallas, wasm_hash, verificado_at) VALUES (?, ?, ?, ?, ?, ?)`,
+  );
+  const s = server();
+  const hasta = Date.now() + limiteMs;
+  let verificadas = 0;
+  let errores = 0;
+  for (let i = 0; i < pendientes.length && Date.now() < hasta; i += 6) {
+    await Promise.all(
+      pendientes.slice(i, i + 6).map(async (c) => {
+        try {
+          const h = await hechosDe(c, s, { horizonUrl: HORIZON_URL, networkPassphrase: NETWORK_PASSPHRASE });
+          const r = evaluar(c, h, reglas);
+          guardar.run(c.escrow, firma, r.ok ? 1 : 0, r.fallas.join(","), h.wasmHash, Date.now());
+          verificadas++;
+        } catch (e) {
+          errores++; // transitorio (RPC u Horizon caídos): queda pendiente y se reintenta en la próxima lectura
+          console.warn(`[indexador] ${c.escrow}: ${(e as Error).message}`);
+        }
+      }),
+    );
+  }
+  return { verificadas, errores };
+}
+
+export interface Descartada {
+  escrow: string;
+  tx_fondeo: string;
+  seller: string;
+  motivo: Regla;
+  fallas: Regla[];
+}
+
+export interface EstadoIndexador {
+  /** Escrows que cumplen las cuatro reglas: los únicos que cuentan. */
+  ok: Set<string>;
+  descartadas: Descartada[];
+  /** Compras todavía sin verificar (no cuentan hasta que se verifiquen). */
+  pendientes: number;
+}
+
+export function estadoIndexador(events: PpEvent[] = loadEvents()): EstadoIndexador {
+  const firma = firmaReglas(reglasIndexador());
+  const rows = db().prepare(`SELECT escrow, ok, fallas FROM escrow_verificado WHERE reglas = ?`).all(firma) as { escrow: string; ok: number; fallas: string }[];
+  const res = new Map(rows.map((r) => [r.escrow, r]));
+  const ok = new Set<string>();
+  const descartadas: Descartada[] = [];
+  let pendientes = 0;
+  for (const c of comprasFondeadas(events)) {
+    const r = res.get(c.escrow);
+    if (!r) pendientes++;
+    else if (r.ok) ok.add(c.escrow);
+    else {
+      const fallas = r.fallas.split(",").filter(Boolean) as Regla[];
+      descartadas.push({ escrow: c.escrow, tx_fondeo: c.tx_fondeo, seller: c.seller, motivo: fallas[0] ?? "wasm", fallas });
+    }
+  }
+  return { ok, descartadas, pendientes };
+}
+
+/** Resumen público para /transparencia: cuántas compras cuenta, cuántas descartó y por qué. */
+export function resumenIndexador(st: EstadoIndexador) {
+  return {
+    contadas: st.ok.size,
+    pendientes: st.pendientes,
+    descartadas: st.descartadas.length,
+    por_motivo: REGLAS.map((r) => ({ regla: r.regla, texto: r.falla, compras: st.descartadas.filter((d) => d.motivo === r.regla).length })),
+    reglas: REGLAS.map((r) => ({ regla: r.regla, texto: r.cumple })),
+    ejemplos: st.descartadas.slice(-10).reverse(),
+  };
 }
 
 const TERMINAL = new Set(["pp_confirmed", "pp_auto_released", "pp_resolved", "pp_refunded_unshipped"]);
@@ -104,7 +220,10 @@ export interface Purchase {
 
 /** Calcula las métricas con las mismas reglas que contracts/scripts/metricas.sh. */
 export function computeMetrics(includeSeller: (seller: string) => boolean = () => true) {
-  const events = loadEvents();
+  const all = loadEvents();
+  const indexador = estadoIndexador(all);
+  // Solo eventos de compras verificadas (y los que no son de una compra, como pp_arbiter_set).
+  const events = all.filter((e) => !e.escrow || indexador.ok.has(e.escrow));
   const map = new Map<string, { funded?: PpEvent; disputed?: PpEvent; terminal?: PpEvent }>();
   for (const ev of events) {
     if (!ev.escrow) continue;
@@ -190,7 +309,8 @@ export function computeMetrics(includeSeller: (seller: string) => boolean = () =
       .slice(-15)
       .reverse()
       .map((e) => ({ id: e.id, kind: e.kind, escrow: e.escrow, closed_at: e.closed_at, tx_hash: e.tx_hash, ledger: e.ledger, data: e.data })),
-    eventos: events.length,
+    eventos: all.length,
+    indexador: resumenIndexador(indexador),
     desde_ledger: DEPLOY_LEDGER,
     hasta_ledger: Number(kv.get("events:latest") ?? 0),
     contratos: { guardian: cfg().guardianId!, arbiter: cfg().arbiterId! },

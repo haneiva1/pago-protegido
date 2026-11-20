@@ -81,6 +81,16 @@ CREATE TABLE IF NOT EXISTS pp_events (
   data_json TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS pp_events_escrow ON pp_events(escrow);
+-- H-9: resultado del indexador verificado por escrow (docs/METRICAS.md §Reglas del indexador).
+-- reglas es la huella de los valores esperados: si cambian, el escrow se vuelve a verificar.
+CREATE TABLE IF NOT EXISTS escrow_verificado (
+  escrow TEXT PRIMARY KEY,
+  reglas TEXT NOT NULL,
+  ok INTEGER NOT NULL,
+  fallas TEXT NOT NULL,
+  wasm_hash TEXT,
+  verificado_at INTEGER NOT NULL
+);
 -- Historial de versiones de la evidencia (envío, reclamo, respuesta), con hora.
 CREATE TABLE IF NOT EXISTS evidence (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

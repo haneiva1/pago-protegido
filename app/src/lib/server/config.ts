@@ -24,6 +24,18 @@ export const RETIRED_V1 = {
   arbiter: "CBCDVLEPJ6PN7RDC3HFGML3IUT7SOQEYSGH3LE3SWXWZJO7Z2QG2PWGU",
 };
 
+/**
+ * Valores públicos de testnet (contracts/DEPLOYED.md) para las reglas del indexador (H-9, docs/METRICAS.md).
+ * No dependen de .env.local: cualquiera puede repetir la verificación con estos mismos valores.
+ */
+export const TESTNET_PUBLICO = {
+  /** sha256 del WASM del escrow single-release de Trustless Work (commit f0b706e). */
+  twWasmHash: "1b367bc8476cf80b89f6396e2aa07b602b78361dd829b5ce9b64ada365196660",
+  labusdSac: "CC65P6TQQ646YDXVS3PM6YVZASXW6WM5B67YKI46JH4EG65LJPOGBD4S",
+  /** Cuenta `plataforma` (2% de cada escrow). */
+  plataforma: "GDDJTZ7LNW33A46DYIYWQY5YDBZPPHLIAQHOAHTIM5ZIQALDVVTCPKDZ",
+};
+
 function contractId(envName: string, retired: string, v2: string): string {
   const v = process.env[envName];
   if (!v) return v2;
