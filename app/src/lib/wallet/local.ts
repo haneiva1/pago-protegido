@@ -1,7 +1,6 @@
 import { Keypair, Networks, TransactionBuilder } from "@stellar/stellar-sdk";
+import { storageKey } from "./storage";
 import type { WalletProvider, WalletRole } from "./types";
-
-const storageKey = (role: WalletRole) => `pp.billetera.${role}`;
 
 /**
  * Billetera local: un keypair generado en el navegador y guardado en localStorage.

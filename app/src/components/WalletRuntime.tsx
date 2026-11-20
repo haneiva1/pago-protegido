@@ -1,11 +1,12 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { WALLET_KIND } from "@/lib/wallet";
 
-// Pollar solo se carga en el navegador y solo si NEXT_PUBLIC_WALLET=pollar.
+// Pollar solo se carga en el navegador y solo si NEXT_PUBLIC_WALLET=pollar (con su publishable key, igual que
+// WALLET_KIND en @/lib/wallet). No importa @/lib/wallet: así el layout no carga el SDK de la red en cada página.
 const PollarProviders = dynamic(() => import("./PollarProviders"), { ssr: false });
+const POLLAR = process.env.NEXT_PUBLIC_WALLET === "pollar" && Boolean(process.env.NEXT_PUBLIC_POLLAR_PUBLISHABLE_KEY);
 
 export function WalletRuntime() {
-  return WALLET_KIND === "pollar" ? <PollarProviders /> : null;
+  return POLLAR ? <PollarProviders /> : null;
 }

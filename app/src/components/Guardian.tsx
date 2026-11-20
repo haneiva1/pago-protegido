@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { explorer, fmtDate, type OrderStatus } from "@/lib/format";
 import type { Verification } from "@/lib/types";
-import { api } from "@/lib/wallet";
+import { api } from "@/lib/api";
 import { ErrorBox, Spinner, TxLink } from "./ui";
 
 export function fmtLeft(ms: number): string {

@@ -20,17 +20,8 @@ export function getWallet(role: WalletRole): WalletProvider {
   return w;
 }
 
-export async function api<T = unknown>(path: string, body?: unknown, headers: Record<string, string> = {}): Promise<T> {
-  const res = await fetch(path, {
-    method: body === undefined ? "GET" : "POST",
-    headers: { "content-type": "application/json", ...headers },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    cache: "no-store",
-  });
-  const json = await res.json().catch(() => ({ error: `Error ${res.status}` }));
-  if (!res.ok) throw new Error(json.error ?? `Error ${res.status}`);
-  return json as T;
-}
+export { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
 
 /**
  * Firma con la billetera lo que armó el servidor y lo envía; el servidor agrega el fee bump.

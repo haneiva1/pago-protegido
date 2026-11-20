@@ -94,16 +94,23 @@ async function pagar(
   const page = await (await browser.newContext()).newPage();
   await page.goto(url);
   await expect(page.getByTestId("codigo")).toHaveText(/Compra protegida · PP-\d{4,5}/);
-  await expect(page.getByTestId("promesa")).toContainText("Tu plata no llega al vendedor hasta que recibas tu pedido.");
+  // Primer pantallazo: producto, total, "Dos salidas" y el botón de pagar fijo abajo.
+  await expect(page.getByTestId("promesa")).toContainText("Tu plata queda guardada. Solo tiene dos salidas:");
+  await expect(page.getByTestId("salida-comprador")).toContainText("De vuelta a ti, si no lo despacha hasta el");
+  await expect(page.getByTestId("reputacion")).toBeVisible();
   await expect(page.getByTestId("antifraude")).toContainText("Si un QR de Trato está a nombre de una persona, es estafa.");
   await expect(page.getByTestId("modo-practica")).toContainText("Modo práctica: no se mueve dinero real");
   if (o.antes) await o.antes(page);
   if (o.capturas) await capturar(page, "06-comprador-antes-de-pagar");
+  // El botón fijo abre la hoja con los datos de entrega; al continuar se muestra el QR.
+  await page.getByTestId("barra-pagar").getByRole("button", { name: /Pagar Bs .* con QR/ }).click();
+  await expect(page.getByTestId("datos-entrega")).toBeVisible();
   await page.getByLabel("Quién recibe").fill(o.quien ?? "Ana Pérez");
   await page.getByLabel("Ciudad de destino").selectOption(o.ciudad ?? "Cochabamba");
   if (o.agencia) await page.getByLabel(/Agencia preferida/).fill(o.agencia);
   if (o.whatsapp) await page.getByLabel(/Tu WhatsApp para avisarte/).fill(o.whatsapp);
-  await page.getByRole("button", { name: /Pagar Bs .* con QR/ }).click();
+  if (o.capturas) await capturar(page, "06b-comprador-datos-de-entrega");
+  await page.getByRole("button", { name: /Ver el QR para pagar Bs/ }).click();
   await expect(page.getByTestId("rampa-simulada")).toHaveText("Rampa simulada en testnet. En producción la hace una entidad certificada por ASFI.");
   if (o.capturas) await capturar(page, "07-comprador-qr-rampa-simulada");
   // El pago encadena varias transacciones en testnet (rampa, deploy del escrow, fondeo). Si la red falla,
@@ -186,7 +193,9 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
     agencia: "Trans Copacabana, terminal",
     antes: async (p) => {
       await expect(p.getByTestId("vendedor")).toContainText("Vendedor: Tienda Sofi · Santa Cruz");
-      await expect(p.getByTestId("vendedor")).toContainText("0 ventas protegidas, 0 reclamos");
+      await expect(p.getByTestId("reputacion")).toContainText("Tienda Sofi · Santa Cruz");
+      await expect(p.getByTestId("reputacion")).toContainText("Tienda nueva · igual tu plata queda guardada");
+      await expect(p.getByTestId("vendedor")).toContainText("Tienda nueva");
       await expect(p.getByTestId("vendedor")).toContainText("Verificación de identidad: pendiente");
       await expect(p.getByTestId("proteccion")).toContainText("Bs 6,75");
       await expect(p.getByTestId("proteccion")).toContainText("Bs 456,75");
@@ -527,6 +536,12 @@ test("palabras prohibidas en todas las pantallas, /verificar, /pedir, /piloto y 
   await expect(res).toContainText("Chamarra de cuero");
   await expect(res).toContainText("Esperando pago");
   await capturar(page, "61-verificar");
+  // Un link que no existe: 404 con el aviso de que puede ser falso.
+  expect((await request.get("/p/no-existe-0000")).status()).toBe(404);
+  await page.goto("/p/no-existe-0000");
+  await expect(page.getByTestId("link-no-encontrado")).toContainText("Puede ser un link falso");
+  await capturar(page, "64-comprador-link-no-existe");
+
   await page.goto("/verificar?codigo=PP-0001");
   await expect(page.getByTestId("error")).toContainText("No encontramos un pedido con ese código");
 

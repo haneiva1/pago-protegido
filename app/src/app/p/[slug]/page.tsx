@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { fmtBs } from "@/lib/format";
 import { TAGLINE } from "@/lib/og";
 import { orders, sellers } from "@/lib/server/db";
@@ -22,6 +23,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   };
 }
 
-export default function Page() {
+export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
+  // Un link que no existe responde 404 con el aviso de que puede ser falso (not-found.tsx).
+  if (!orders.get((await params).slug)) notFound();
   return <PaginaDePago />;
 }
