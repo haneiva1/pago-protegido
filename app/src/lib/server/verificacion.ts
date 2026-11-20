@@ -27,8 +27,14 @@ export const REGLAS: readonly { regla: Regla; cumple: string; falla: string }[] 
   { regla: "moneda", cumple: "Su moneda es LABUSD.", falla: "No usa LABUSD" },
   { regla: "fondeo", cumple: "El pago movió LABUSD del comprador al escrow (transferencia del SAC).", falla: "El pago no movió la plata" },
   // initialize_escrow de TW no pide la firma de la plataforma ni del vendedor: sin esta regla, cualquiera arma un escrow
-  // genuino con los roles de Trato y, con 1 stroop, le suma ventas o reclamos a otra tienda.
-  { regla: "origen", cumple: "Lo creó Trato para un link de pago (está registrado en un pedido de la app).", falla: "No lo creó Trato" },
+  // genuino con los roles de Trato y, con 1 stroop, le suma ventas o reclamos a otra tienda. La app patrocina con fee bump
+  // de la cuenta plataforma solo las transacciones que ella misma armó (tabla `pending`): el `fee_account` del pago,
+  // público en Horizon, prueba que el pago salió de un link de Trato. Cualquiera lo puede comprobar.
+  {
+    regla: "origen",
+    cumple: "El pago lo hizo la app de Trato: la cuenta de Trato pagó su comisión de red (fee bump), y eso solo lo hace con los pagos que arma.",
+    falla: "El pago no lo hizo la app de Trato",
+  },
 ];
 
 /** Lo que se espera de un escrow de Trato (valores públicos de contracts/DEPLOYED.md). */
@@ -72,8 +78,11 @@ export interface Transferencia {
  * Se guardan en escrow_verificado para reevaluar sin releer la red.
  */
 export interface Hechos {
-  /** El escrow es el de un pedido de la app (orders.escrow_id): lo creó Trato. Se lee de la base, no de la red. */
-  creadoPorTrato: boolean | null;
+  /**
+   * Cuenta que pagó la comisión de la transacción del fondeo (`fee_account` en Horizon; con fee bump, la que patrocinó).
+   * `false` si Horizon respondió sin ese dato.
+   */
+  patrocinador: string | false | null;
   wasmHash: string | null;
   roles: Roles | false | null;
   token: string | false | null;
@@ -132,14 +141,15 @@ export function evaluar(c: CompraFondeada, h: Hechos, r: Reglas): Resultado {
         ? null
         : transferencias.some((t) => t.token === r.labusdSac && t.from === c.buyer && t.to === c.escrow && entero(t.amount) === monto),
   );
-  regla("origen", h.creadoPorTrato ?? null);
+  const patrocinador = h.patrocinador ?? null;
+  regla("origen", patrocinador === null ? null : patrocinador === r.platform);
   return { ok: fallas.length === 0 && faltan.length === 0, fallas, faltan };
 }
 
 /** Huella de las reglas: si cambia un valor esperado, se vuelve a verificar todo. */
 export function firmaReglas(r: Reglas): string {
   const pares = r.pares.map((p) => `${p.guardian}/${p.arbiter}`).join(",");
-  return createHash("sha256").update(`v2|${REGLAS.map((x) => x.regla).join(",")}|${r.wasmHash}|${r.labusdSac}|${r.platform}|${pares}`).digest("hex").slice(0, 16);
+  return createHash("sha256").update(`v3|${REGLAS.map((x) => x.regla).join(",")}|${r.wasmHash}|${r.labusdSac}|${r.platform}|${pares}`).digest("hex").slice(0, 16);
 }
 
 // ---------- Lectura de la red ----------
@@ -302,6 +312,17 @@ async function transferenciasDelPago(s: rpc.Server, hash: string, horizonUrl: st
   return transferenciasDeEfectos(body._embedded?.records ?? [], networkPassphrase);
 }
 
+/** Quién pagó la comisión de red del fondeo (Horizon guarda el historial completo). `null` si Horizon todavía no la tiene. */
+async function patrocinadorDelPago(hash: string, horizonUrl: string): Promise<string | false | null> {
+  const res = await fetch(`${horizonUrl}/transactions/${hash}`, { cache: "no-store" });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new ErrorDeRed(`Horizon respondió ${res.status}`);
+  const body = (await res.json().catch((e: Error) => {
+    throw new ErrorDeRed(`Horizon no devolvió JSON: ${e.message}`);
+  })) as { fee_account?: unknown };
+  return esTexto(body.fee_account) ? body.fee_account : false;
+}
+
 /**
  * Lee de la red lo necesario para `evaluar`. Los hechos ya conocidos (`previos`) no se vuelven a leer: una instancia
  * archivada después de verificarse no pierde lo que ya se leyó. Lanza solo ante errores transitorios.
@@ -309,14 +330,15 @@ async function transferenciasDelPago(s: rpc.Server, hash: string, horizonUrl: st
 export async function hechosDe(
   c: CompraFondeada,
   s: rpc.Server,
-  opts: { horizonUrl: string; networkPassphrase?: string; creadoPorTrato: boolean; previos?: Hechos | null },
+  opts: { horizonUrl: string; networkPassphrase?: string; previos?: Hechos | null },
 ): Promise<Hechos> {
   const np = opts.networkPassphrase ?? Networks.TESTNET;
   const p = opts.previos;
-  const [wasmHash, escrow, transferencias] = await Promise.all([
+  const [wasmHash, escrow, transferencias, patrocinador] = await Promise.all([
     p?.wasmHash ?? wasmDeInstancia(s, c.escrow),
     p?.roles != null && p.token != null && p.monto != null ? { roles: p.roles, token: p.token, monto: p.monto } : escrowDe(s, c.escrow, np),
     p?.transferencias ?? transferenciasDelPago(s, c.tx_fondeo, opts.horizonUrl, np),
+    p?.patrocinador ?? patrocinadorDelPago(c.tx_fondeo, opts.horizonUrl),
   ]);
-  return { creadoPorTrato: opts.creadoPorTrato, wasmHash, roles: escrow?.roles ?? null, token: escrow?.token ?? null, monto: escrow?.monto ?? null, transferencias };
+  return { patrocinador, wasmHash, roles: escrow?.roles ?? null, token: escrow?.token ?? null, monto: escrow?.monto ?? null, transferencias };
 }

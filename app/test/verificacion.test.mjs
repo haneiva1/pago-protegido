@@ -31,7 +31,7 @@ const rolesTrato = (pares = V1) => ({
   receiver: compra.seller,
   service_provider: compra.seller,
 });
-const hechosReales = () => ({ creadoPorTrato: true, wasmHash: TW_WASM, roles: rolesTrato(), token: LABUSD, monto: compra.amount, transferencias: transferenciasDeXdr(eventosReales) });
+const hechosReales = () => ({ patrocinador: PLATAFORMA, wasmHash: TW_WASM, roles: rolesTrato(), token: LABUSD, monto: compra.amount, transferencias: transferenciasDeXdr(eventosReales) });
 
 test("un fondeo real de testnet trae la transferencia del SAC del comprador al escrow", () => {
   const t = transferenciasDeXdr(eventosReales);
@@ -42,9 +42,9 @@ test("escrow verdadero: cumple las cinco reglas y cuenta", () => {
   assert.deepEqual(evaluar(compra, hechosReales(), reglas), { ok: true, fallas: [], faltan: [] });
 });
 
-test("5.ª regla: el mismo escrow genuino de TW, si no es de un pedido de Trato → descartada por origen", () => {
+test("5.ª regla: el mismo escrow genuino de TW, si su pago no lo patrocinó la cuenta de Trato (lo mandó un tercero por su cuenta) → descartada por origen", () => {
   // initialize_escrow no pide la firma de la plataforma ni del vendedor: cualquiera arma un escrow así con 1 stroop.
-  assert.deepEqual(evaluar(compra, { ...hechosReales(), creadoPorTrato: false }, reglas), { ok: false, fallas: ["origen"], faltan: [] });
+  assert.deepEqual(evaluar(compra, { ...hechosReales(), patrocinador: TERCERO }, reglas), { ok: false, fallas: ["origen"], faltan: [] });
 });
 
 test("escrow verdadero de v2 también cuenta (pares guardián/árbitro v1 y v2)", () => {
@@ -54,7 +54,7 @@ test("escrow verdadero de v2 también cuenta (pares guardián/árbitro v1 y v2)"
 test("PoC (a): escrow falso que imita a TW, venta de USD 5.000 sin mover plata → descartada", () => {
   const falso = { escrow: "CBFAKE".padEnd(56, "A"), buyer: TERCERO, seller: compra.seller, amount: "50000000000", tx_fondeo: "ff".repeat(32) };
   // El contrato falso devuelve los roles que quiera, con la moneda real, pero su `fund_escrow` no transfiere nada.
-  const h = { creadoPorTrato: false, wasmHash: OTRO_WASM, roles: { ...rolesTrato(V2), platform: TERCERO }, token: LABUSD, monto: falso.amount, transferencias: [] };
+  const h = { patrocinador: TERCERO, wasmHash: OTRO_WASM, roles: { ...rolesTrato(V2), platform: TERCERO }, token: LABUSD, monto: falso.amount, transferencias: [] };
   const r = evaluar(falso, h, reglas);
   assert.equal(r.ok, false);
   assert.deepEqual(r.fallas, ["wasm", "roles", "fondeo", "origen"]);
@@ -63,7 +63,7 @@ test("PoC (a): escrow falso que imita a TW, venta de USD 5.000 sin mover plata �
 test("PoC (b): reclamo plantado a un vendedor honesto con 1 unidad de polvo → descartada", () => {
   const falso = { ...compra, escrow: "CBFAKE".padEnd(56, "B"), buyer: TERCERO, amount: "15000000000" };
   const polvo = [{ token: LABUSD, from: TERCERO, to: falso.escrow, amount: "1" }];
-  const h = { creadoPorTrato: false, wasmHash: OTRO_WASM, roles: rolesTrato(V2), token: LABUSD, monto: falso.amount, transferencias: polvo };
+  const h = { patrocinador: TERCERO, wasmHash: OTRO_WASM, roles: rolesTrato(V2), token: LABUSD, monto: falso.amount, transferencias: polvo };
   assert.deepEqual(evaluar(falso, h, reglas).fallas, ["wasm", "fondeo", "origen"]);
 });
 
@@ -88,7 +88,7 @@ test("fondeo: monto distinto, otro pagador u otro destino → descartada", () =>
 });
 
 test("sin datos no hay prueba, pero tampoco falla: instancia o transacción no encontradas → no cuenta y queda pendiente", () => {
-  const r = evaluar(compra, { creadoPorTrato: true, wasmHash: null, roles: null, token: null, monto: null, transferencias: null }, reglas);
+  const r = evaluar(compra, { patrocinador: PLATAFORMA, wasmHash: null, roles: null, token: null, monto: null, transferencias: null }, reglas);
   assert.deepEqual(r, { ok: false, fallas: [], faltan: ["wasm", "roles", "moneda", "fondeo"] });
 });
 

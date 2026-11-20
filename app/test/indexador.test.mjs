@@ -50,15 +50,31 @@ test("una compra genuina creada por Trato cuenta", async () => {
   assert.equal(estadoIndexador().ok.has(c.escrow), true);
 });
 
-test("5.ª regla: un escrow genuino de TW creado por un tercero (pasa las otras cuatro reglas) no cuenta, y no se lee la red", async () => {
-  const deTrato = pedido(fondeo(red.genuina(compra(1))));
-  const deTercero = fondeo(red.genuina(compra(2)), 1001); // mismos roles, moneda y transfer exacto, pero no es de un pedido
+test("5.ª regla: un escrow genuino de TW fondeado por un tercero por su cuenta (pasa las otras cuatro reglas) no cuenta", async () => {
+  const deTrato = fondeo(red.genuina(compra(1)));
+  // Mismos roles, moneda y transfer exacto, pero el pago no pasó por la app: la comisión la pagó el propio comprador.
+  const c2 = compra(2);
+  const deTercero = fondeo(red.genuina(c2, V2, c2.buyer), 1001);
   await verificarPendientes();
   const st = estadoIndexador();
   assert.equal(st.ok.has(deTrato.escrow), true);
   assert.equal(st.ok.has(deTercero.escrow), false, "el escrow del tercero suma una venta");
   assert.equal(motivoDe(deTercero), "origen");
-  assert.deepEqual(red.de(deTercero), [], "un escrow ajeno no gasta lecturas del RPC");
+});
+
+test("5.ª regla con datos públicos: una compra de la app cuenta aunque esta base no tenga su pedido (otra instancia o base nueva)", async () => {
+  // Antes la regla miraba orders.escrow_id: en una base nueva todas las compras del equipo salían «No lo creó Trato».
+  const c = fondeo(red.genuina(compra(1)));
+  await verificarPendientes();
+  assert.equal(estadoIndexador().ok.has(c.escrow), true);
+});
+
+test("5.ª regla: si Horizon todavía no tiene el pago (404), la compra queda pendiente y no se descarta", async () => {
+  const c = fondeo(red.genuina(compra(1)));
+  red.patrocinios.delete(c.tx_fondeo);
+  await verificarPendientes();
+  assert.equal(motivoDe(c), undefined);
+  assert.equal(estadoIndexador().ok.has(c.escrow), false);
 });
 
 // ---------- Falta de dato transitoria: pendiente, nunca descartada ----------

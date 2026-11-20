@@ -60,6 +60,8 @@ export function redFalsa() {
   const rpcTx = new Map();
   /** hash → efectos | código HTTP | Error (sin entrada: 404) */
   const horizon = new Map();
+  /** hash → `fee_account` de la transacción en Horizon (quién pagó su comisión) | código HTTP | Error (sin entrada: 404) */
+  const patrocinios = new Map();
   /** Eventos de getEvents y filtros con los que se pidieron. */
   const eventos = [];
   const filtros = [];
@@ -105,6 +107,15 @@ export function redFalsa() {
   };
 
   const fetch = async (url) => {
+    const tx = String(url).match(/\/transactions\/([0-9a-f]+)$/);
+    if (tx) {
+      llamadas.push(["horizon-tx", tx[1]]);
+      const v = patrocinios.get(tx[1]);
+      lanzarSi(v);
+      if (v === undefined) return new Response("{}", { status: 404 });
+      if (typeof v === "number") return new Response("{}", { status: v });
+      return new Response(JSON.stringify({ hash: tx[1], fee_account: v, successful: true }), { status: 200 });
+    }
     const m = String(url).match(/\/transactions\/([0-9a-f]+)\/effects/);
     if (!m) throw new Error(`fetch inesperado: ${url}`);
     llamadas.push(["horizon", m[1]]);
@@ -115,16 +126,20 @@ export function redFalsa() {
     return new Response(JSON.stringify({ _embedded: { records: v } }), { status: 200 });
   };
 
-  /** Registra una compra genuina de Trato: escrow de TW con los roles de Trato y el pago visto por Horizon. */
-  function genuina(c, pares = V2) {
+  /**
+   * Registra una compra genuina de Trato: escrow de TW con los roles de Trato y el pago visto por Horizon. `patrocinador`
+   * es quien pagó la comisión del fondeo: la app lo patrocina con la cuenta plataforma (fee bump).
+   */
+  function genuina(c, pares = V2, patrocinador = PLATAFORMA) {
     instancias.set(c.escrow, TW_WASM);
     escrows.set(c.escrow, escrowDeTrato(c, pares));
     horizon.set(c.tx_fondeo, efectosDe(c.buyer, c.escrow, c.amount));
+    patrocinios.set(c.tx_fondeo, patrocinador);
     return c;
   }
 
   /** Lecturas de red hechas para una compra (por su escrow o por el hash de su pago). */
   const de = (c) => llamadas.filter(([, id]) => id === c.escrow || id === c.tx_fondeo);
 
-  return { server, fetch, llamadas, instancias, escrows, rpcTx, horizon, eventos, filtros, genuina, de };
+  return { server, fetch, llamadas, instancias, escrows, rpcTx, horizon, patrocinios, eventos, filtros, genuina, de };
 }

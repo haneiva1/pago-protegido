@@ -142,19 +142,13 @@ export function comprasFondeadas(events: PpEvent[] = loadEvents()): CompraFondea
   return [...seen.values()];
 }
 
-/** Escrows que creó la app para un pedido (5.ª regla, "origen"). */
-function escrowsDeTrato(): Set<string> {
-  const rows = db().prepare(`SELECT escrow_id FROM orders WHERE escrow_id IS NOT NULL`).all() as { escrow_id: string }[];
-  return new Set(rows.map((r) => r.escrow_id));
-}
-
 /** Intentos por escrow: después queda pendiente sin releer la red (unas 41 h de espera creciente en total). */
 export const MAX_INTENTOS = 12;
 
 /** Espera antes de releer la red para una compra pendiente, según los intentos hechos: 1 min, 2, 4… hasta 12 h. */
 export const esperaReintento = (intentos: number) => Math.min(60_000 * 2 ** Math.max(0, intentos - 1), 12 * 3_600_000);
 
-const SIN_HECHOS: Hechos = { creadoPorTrato: null, wasmHash: null, roles: null, token: null, monto: null, transferencias: null };
+const SIN_HECHOS: Hechos = { patrocinador: null, wasmHash: null, roles: null, token: null, monto: null, transferencias: null };
 
 interface FilaVerificada {
   escrow: string;
@@ -192,15 +186,14 @@ export async function verificarPendientes(opts: { limiteMs?: number; ahora?: num
     guardar.run(c.escrow, firma, r.ok ? 1 : 0, r.fallas.join(","), h.wasmHash, ahora, estado, JSON.stringify(h), n, proximo, error);
   };
 
-  const trato = escrowsDeTrato();
   const porLeer: { c: CompraFondeada; previos: Hechos; intentos: number }[] = [];
   for (const c of comprasFondeadas().reverse()) {
     const f = filas.get(c.escrow);
     const mismas = f?.reglas === firma;
     if (mismas && f.estado !== "pendiente") continue; // ya resuelta con estas reglas
     if (mismas && (f.intentos >= MAX_INTENTOS || (f.proximo_at ?? 0) > ahora)) continue; // pendiente: sin intentos o esperando
-    // Primero con lo que ya se sabe (hechos guardados y el origen, que es local): puede alcanzar sin leer la red.
-    const previos: Hechos = { ...SIN_HECHOS, ...(f?.hechos_json ? (JSON.parse(f.hechos_json) as Partial<Hechos>) : {}), creadoPorTrato: trato.has(c.escrow) };
+    // Primero con lo que ya se sabe (hechos guardados): puede alcanzar sin leer la red.
+    const previos: Hechos = { ...SIN_HECHOS, ...(f?.hechos_json ? (JSON.parse(f.hechos_json) as Partial<Hechos>) : {}) };
     const intentos = mismas ? f.intentos : 0;
     const r = evaluar(c, previos, reglas);
     if (r.ok || r.fallas.length) anotar(c, previos, r, intentos);
@@ -215,7 +208,7 @@ export async function verificarPendientes(opts: { limiteMs?: number; ahora?: num
     await Promise.all(
       porLeer.slice(i, i + 6).map(async ({ c, previos, intentos }) => {
         try {
-          const h = await hechosDe(c, s, { horizonUrl: HORIZON_URL, networkPassphrase: NETWORK_PASSPHRASE, creadoPorTrato: true, previos });
+          const h = await hechosDe(c, s, { horizonUrl: HORIZON_URL, networkPassphrase: NETWORK_PASSPHRASE, previos });
           anotar(c, h, evaluar(c, h, reglas), intentos);
           verificadas++;
         } catch (e) {
