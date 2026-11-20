@@ -128,6 +128,8 @@ describe("guion del video y quién paga la protección", () => {
     expect(detectIntent("Yo la regalo")).toEqual({ kind: "proteccion", who: "vendedor", code: undefined });
     expect(detectIntent("la paga mi cliente")).toEqual({ kind: "proteccion", who: "comprador", code: undefined });
     expect(detectIntent("yo la regalo PP-4821")).toEqual({ kind: "proteccion", who: "vendedor", code: "pp-4821" });
+    expect(detectIntent("yo la regalo PP-7KM4Q9TX")).toEqual({ kind: "proteccion", who: "vendedor", code: "pp-7km4q9tx" });
+    expect(detectIntent("estado pp 7km4q9tx")).toEqual({ kind: "status", code: "pp-7km4q9tx" });
     expect(step(undefined, "Yo la regalo", 0).command).toEqual({ kind: "proteccion", who: "vendedor", code: undefined });
   });
 });

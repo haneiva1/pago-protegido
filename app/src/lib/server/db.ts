@@ -153,6 +153,8 @@ const MIGRATIONS: Record<string, [string, string][]> = {
     ["ship_deadline", "INTEGER"],
     ["extended", "INTEGER NOT NULL DEFAULT 0"],
     ["refunded_at", "INTEGER"],
+    // Hasta cuándo queda fijado el comprador que empezó a pagar y todavía no firmó el fondeo (lib/server/orders.ts).
+    ["buyer_lease_until", "INTEGER"],
   ],
 };
 
@@ -229,6 +231,8 @@ export interface OrderRow {
   extended: number;
   /** v2: devolución por falta de despacho (refund_unshipped). */
   refunded_at: number | null;
+  /** Mientras está esperando pago: hasta cuándo queda fijado `buyer_pubkey` si no firma el fondeo (ms). */
+  buyer_lease_until: number | null;
   dispute_video: string | null;
   resolution_reason: string | null;
   buyer_bps: number | null;
@@ -480,6 +484,10 @@ export const txs = {
   forOrder(slug: string): TxRow[] {
     return db().prepare(`SELECT * FROM txs WHERE order_slug = ? ORDER BY id ASC`).all(slug) as TxRow[];
   },
+  /** Registro de un intento de pago que venció sin fondeo (rampa y contrato de ese comprador). */
+  dropAttempt(slug: string) {
+    db().prepare(`DELETE FROM txs WHERE order_slug = ? AND kind IN ('rampa', 'escrow')`).run(slug);
+  },
 };
 
 export const evidence = {
@@ -521,6 +529,10 @@ export const pending = {
          VALUES (@hash, @order_slug, @action, @step, @signer, @params, @created_at)`,
       )
       .run({ ...p, created_at: now() });
+  },
+  /** Borra las transacciones de un intento de pago que venció (ya no se aceptan en /api/tx/submit). */
+  dropForOrder(slug: string, step: string) {
+    db().prepare(`DELETE FROM pending WHERE order_slug = ? AND step = ?`).run(slug, step);
   },
   take(hash: string): PendingRow | undefined {
     const d = db();

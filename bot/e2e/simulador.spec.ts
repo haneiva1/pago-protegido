@@ -30,7 +30,7 @@ test("vender zapatillas 450 → devuelve un link de pago, y avisa cuando pagan",
   const view = await (await request.get(`${MOCK}/api/orders/${slug}`)).json();
   expect(view.order).toMatchObject({ product: "Zapatillas", price_bs_cents: 45000, delivery_days: 3, status: "esperando_pago", proteccion: "comprador" });
   const code = view.order.code as string;
-  expect(code).toMatch(/^PP-\d{4}$/);
+  expect(code).toMatch(/^PP-[2-9A-HJKMNP-Z]{8}$/);
 
   // El comprador paga en la web: el poller lo ve en /api/bot/changes y avisa al vendedor.
   expect((await request.post(`${MOCK}/__mock/advance`, { data: { slug, action: "pagar" } })).ok()).toBe(true);

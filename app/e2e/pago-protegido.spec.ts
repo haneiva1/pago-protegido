@@ -94,7 +94,7 @@ async function pagar(
 ) {
   const page = await (await browser.newContext()).newPage();
   await page.goto(url);
-  await expect(page.getByTestId("codigo")).toHaveText(/Compra protegida · PP-\d{4,5}/);
+  await expect(page.getByTestId("codigo")).toHaveText(/Compra protegida · PP-[2-9A-HJKMNP-Z]{8}/);
   await expect(page.getByTestId("promesa")).toContainText("Tu plata no llega al vendedor hasta que recibas tu pedido.");
   await expect(page.getByTestId("antifraude")).toContainText("Si un QR de Trato está a nombre de una persona, es estafa.");
   await expect(page.getByTestId("modo-practica")).toContainText("Modo práctica: no se mueve dinero real");
@@ -521,13 +521,14 @@ test("palabras prohibidas en todas las pantallas, /verificar, /pedir, /piloto y 
     slug: string;
     code: string;
   };
-  expect(link.code).toMatch(/^PP-\d{4,5}$/);
+  expect(link.code).toMatch(/^PP-[2-9A-HJKMNP-Z]{8}$/);
 
   await page.goto(`/verificar?codigo=${link.code}`);
   const res = page.getByTestId("resultado-verificar");
   await expect(res).toContainText("Tienda Verificable");
   await expect(res).toContainText("Chamarra de cuero");
   await expect(res).toContainText("Esperando pago");
+  await expect(res.getByRole("link", { name: "Abrir el link auténtico" })).toHaveAttribute("href", `/p/${link.slug}`);
   await capturar(page, "61-verificar");
   await page.goto("/verificar?codigo=PP-0001");
   await expect(page.getByTestId("error")).toContainText("No encontramos un pedido con ese código");

@@ -184,7 +184,7 @@ test("video de la demo v2 (2 minutos o menos)", async ({ browser }) => {
     const link = p.locator('[data-testid="bot-msg"] a[href*="/p/celular-samsung-a54-"]').first();
     await expect(link).toBeVisible({ timeout: 60_000 });
     url = (await link.getAttribute("href"))!;
-    await expect(p.getByTestId("bot-msg").filter({ hasText: /PP-\d{4,5}/ }).first()).toBeVisible();
+    await expect(p.getByTestId("bot-msg").filter({ hasText: /PP-[2-9A-HJKMNP-Z]{8}/ }).first()).toBeVisible();
     await sub(p, "Recibe su link de pago con código PP, listo para mandárselo a su cliente", 1800);
     await shot(p, "01-bot-link-whatsapp");
     await p.waitForTimeout(800);
