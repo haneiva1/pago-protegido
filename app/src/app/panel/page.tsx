@@ -141,8 +141,8 @@ export default function Panel() {
       {banco && <PasarAMiBanco saldo={saldo} onCerrar={() => setBanco(false)} />}
 
       <p data-testid="antifraude-vendedor" className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
-        🛡️ <strong>Para cobrar no tienes que abrir ningún link.</strong> Lo que vendes te llega solo cuando el comprador confirma. Nadie de Pago
-        Protegido te va a pedir códigos ni contraseñas.
+        🛡️ <strong>Para cobrar no tienes que abrir ningún link.</strong> Lo que vendes te llega solo cuando el comprador confirma. Nadie de Trato te va a
+        pedir códigos ni contraseñas.
       </p>
 
       <Pendientes pedidos={orders} onIr={irAlPedido} />

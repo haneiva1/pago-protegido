@@ -21,6 +21,10 @@ const PROHIBIDAS: [string, RegExp][] = [
   ["wallet", /(?<!\p{L})wallets?(?!\p{L})/iu],
   ["llave", /(?<!\p{L})llaves?(?!\p{L})/iu],
   ["blockchain", /blockchain/iu],
+  // Nombre viejo del producto: en pantallas y mensajes es Trato. Con mayúsculas, porque "link de pago protegido"
+  // describe lo que es. Los identificadores (pp_guardian, PP-, pago-protegido) son código y no se revisan; la nota
+  // "Trato antes se llamaba Pago Protegido", si algún día va en una pantalla, entra en EXCEPCIONES.
+  ["Pago Protegido", /Pago\s+Protegido/u],
 ];
 
 /**
