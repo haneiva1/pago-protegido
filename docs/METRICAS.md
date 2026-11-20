@@ -1,4 +1,4 @@
-# Métricas on-chain de Pago Protegido
+# Métricas on-chain de Trato (antes Pago Protegido)
 
 Las métricas públicas salen **solo de eventos on-chain** de `pp_guardian` y `pp_arbiter`, sin base de datos privada. Cualquiera puede recalcularlas con un RPC de Stellar.
 
@@ -79,7 +79,7 @@ v2 agrega a cada compra los campos `version`, `plazo` (`ship_deadline` en v2, `d
 | `comisiones_estimadas` | Nominales sobre compras cerradas: 2% plataforma y 0,3% TW. Es una estimación: el script no lee el `platform_fee` de cada escrow, que se define al crear el pedido (2% si el vendedor regala la protección; menos si la paga el comprador). Ver la [tarifa del README](../README.md#tarifa). |
 | `compras[]` | Detalle por compra: escrow, monto, estado, fechas, disputa, resolución y links a stellar.expert |
 
-Un mismo escrow puede aparecer en `liberadas_*` o en `disputas`, pero no en ambas: en Pago Protegido una compra liberada no puede disputarse por el guardián.
+Un mismo escrow puede aparecer en `liberadas_*` o en `disputas`, pero no en ambas: en Trato una compra liberada no puede disputarse por el guardián.
 
 ## Cómo la consume la app: página `/transparencia`
 

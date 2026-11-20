@@ -1,4 +1,4 @@
-# Seguridad de Pago Protegido (contratos, testnet)
+# Seguridad de Trato (antes Pago Protegido): contratos en testnet
 
 > **Resumen para el jurado**
 > 1. La plata del comprador queda en un escrow de Trustless Work. Los roles que la mueven (aprobar, liberar y resolver) son contratos nuestros sin llave privada, así que nadie puede firmar por ellos.
@@ -91,7 +91,7 @@ En la v1 del escrow que usamos (commit `f0b706e`), un escrow ya liberado se pued
 
 - **Reproducido en testnet** con la compra de ejemplo p1. El escrow quedó con `released = true` y `disputed = true` a la vez. Hashes y pasos en la [nota técnica de H-1](reporte-trustless-work.md).
 - **La v2 de Trustless Work ya lo impide** (`single-release-develop-v2` y `single-release-main-v2` responden `EscrowAlreadyReleased`). Pendiente: evaluar la migración a la v2 (plan de 30 días).
-- **Impacto en Pago Protegido: ninguno sobre los fondos**, porque el saldo es 0 y el árbitro responde `EmptyEscrow`. `pp_guardian.dispute` lo bloquea con `EscrowAlreadyReleased` (#21). La app debe mostrar "liberado" por encima de "en disputa".
+- **Impacto en Trato: ninguno sobre los fondos**, porque el saldo es 0 y el árbitro responde `EmptyEscrow`. `pp_guardian.dispute` lo bloquea con `EscrowAlreadyReleased` (#21). La app debe mostrar "liberado" por encima de "en disputa".
 - **Test:** `disputa_directa_tras_liberar_es_inofensiva`.
 
 ### H-2: el guardián no puede verificar on-chain que el escrow sea el de Trustless Work
@@ -110,7 +110,7 @@ Otros hallazgos menores (H-3 a H-8) están en [`contracts/DECISIONES.md`](../con
 
 El red team revisó el código de la v1 de TW (commit `f0b706e`). Son **decisiones de diseño de un escrow genérico, no errores**: el escrow deja que las partes elijan roles, hitos y a quién se reparte. Para compras entre desconocidos, los contratos v2 de Pago Protegido (ronda 4) suman una regla extra a cada uno. Los tests están en `contracts/integration-tests/tests/red_team_v2.rs`, y la evidencia on-chain, en `contracts/scripts/out/flujo-v2/` y en DEPLOYED.md §v2.
 
-| Hallazgo en TW | Riesgo para Pago Protegido | La regla extra (v2) | Test | Testnet (flujo v2) |
+| Hallazgo en TW | Riesgo para Trato | La regla extra (v2) | Test | Testnet (flujo v2) |
 |---|---|---|---|---|
 | **TW-1**: `platform` también puede abrir disputas (`dispute_escrow` acepta cualquier rol salvo el resolver) | Una plataforma comprometida congela los fondos o impide la liberación automática | `auto_release`, `confirm` y `extend` leen el flag **real** de TW (`disputed`), así que cualquier disputa bloquea la liberación. La resolución sigue acotada a comprador y vendedor. Abrirla por el guardián sigue reservado a ellos dos. | `tw1_disputa_de_platform_bloquea_auto_release` | — (lo cubre el test; en testnet no se usa `plataforma` para no chocar con la app) |
 | **TW-2**: con fondos adentro, `platform` puede agregar hitos sin aprobar (`update_escrow`), y `release_funds` exige todos aprobados | `confirm` y `auto_release` quedarían bloqueados para siempre | `confirm` y `auto_release` **aprueban todos los hitos pendientes** y liberan en la misma invocación. Si un hito agregado tiene status vacío, TW no deja aprobarlo (`#30`): el guardián responde `#29 MilestoneNotApprovable` sin tocar nada y queda la vía de disputa y árbitro. | `tw2_hito_agregado_confirm_aprueba_todos_y_libera`, `tw2_auto_release_tambien_aprueba_todos`, `tw2_hito_con_status_vacio_queda_la_disputa` | `confirm` de (a): "aprueba todos los hitos y libera" |

@@ -6,7 +6,7 @@ Esta plantilla sirve para registrar cada conversación con vendedores (y comprad
 
 ## Nota de consentimiento (leer antes de cada entrevista)
 
-> "Estamos armando Pago Protegido, un pago contra confirmación de entrega para ventas por redes. ¿Podemos tomar notas de esta conversación?
+> "Estamos armando Trato (antes Pago Protegido), un pago contra confirmación de entrega para ventas por redes. ¿Podemos tomar notas de esta conversación?
 > - Usamos lo que nos cuentes solo para mejorar el producto.
 > - No publicamos tu nombre ni tu número.
 > - Si citamos una frase tuya, lo hacemos sin identificarte, salvo que nos autorices.
@@ -39,7 +39,7 @@ Reglas para quien registra:
 
 ## Pilotos
 
-| Fecha de inicio | Tienda (alias) | Ciudad | Pedidos con Pago Protegido | Confirmados | Con reclamo | Comentarios |
+| Fecha de inicio | Tienda (alias) | Ciudad | Pedidos con Trato | Confirmados | Con reclamo | Comentarios |
 |---|---|---|---:|---:|---:|---|
 | | | | | | | |
 

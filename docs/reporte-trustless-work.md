@@ -62,7 +62,7 @@ stellar contract invoke --network testnet --id <ESCROW_LIBERADO> --source <servi
 
 ### Cómo lo cubrimos
 
-- **En el contrato:** en Pago Protegido la disputa pasa por `pp_guardian`, que rechaza abrirla sobre un escrow liberado (`#21`, `EscrowAlreadyReleased`). Lo cubre el test `disputa_directa_tras_liberar_es_inofensiva`.
+- **En el contrato:** en Trato (antes Pago Protegido) la disputa pasa por `pp_guardian`, que rechaza abrirla sobre un escrow liberado (`#21`, `EscrowAlreadyReleased`). Lo cubre el test `disputa_directa_tras_liberar_es_inofensiva`.
 - **En la app:** el estado on-chain manda, y "liberado" se muestra por encima de "en disputa" ([app/DECISIONES.md](../app/DECISIONES.md) §36).
 - **A futuro:** evaluar la migración a Trustless Work v2, que ya trae esta verificación.
 
@@ -107,4 +107,4 @@ Reutiliza el error existente `#35 EscrowAlreadyReleased`, así que no cambia la 
 - **v2:** branches `single-release-develop-v2` and `single-release-main-v2` return `EscrowAlreadyReleased`.
 - **Testnet repro (v1):** escrow `CDBOEPQVMZ3HB33WOJFB63IOAGT6GFMACGVQOZJX333YD7CENYRGFWSC`. Release tx `2594aa6fbb5e307d35af028cb2c2b39d8ba59a659a4216e000beb5ce14f3e208`. Post-release dispute by the service provider, accepted: tx `8315f9c353d0177be12669090af6e880e2f41767d7f79af6b356e35ff78b7d26`.
 - **Impact:** low. No funds can move, because the balance is 0 and `resolve_dispute` needs a positive total. The escrow is left in a permanent inconsistent state.
-- **In Pago Protegido:** `pp_guardian` rejects disputes on released escrows (`#21`), and the app shows "released" over "disputed". Pending: evaluate migrating to Trustless Work v2.
+- **In Trato (formerly Pago Protegido):** `pp_guardian` rejects disputes on released escrows (`#21`), and the app shows "released" over "disputed". Pending: evaluate migrating to Trustless Work v2.
