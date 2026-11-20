@@ -22,6 +22,8 @@ export interface TrackedOrder {
   warned?: { pagado?: boolean; enviado?: boolean };
   /** `updated_at` de la última vez que se leyó el pedido. */
   updatedAt?: number;
+  /** Devolución completa: desde cuándo el aviso de la devolución espera a que se confirme el reintegro. */
+  reintegroDesde?: number;
 }
 
 export interface PollerState {
@@ -53,6 +55,13 @@ export interface Sent {
 }
 
 const FINAL: OrderStatus[] = ["liberado", "resuelto", "devuelto"];
+
+/**
+ * Devolución completa (PP_DEVOLUCION_COMPLETA=1 en la app): el aviso de una devolución espera a que el reintegro se
+ * confirme, como mucho este tiempo, para que el comprador reciba un solo mensaje con todo lo que pagó. Después de eso,
+ * va el aviso de siempre. Sin reintegro en la vista (interruptor apagado), no se espera nada.
+ */
+export const REINTEGRO_ESPERA_MS = 10 * 60_000;
 
 /** Qué avisar, y a quién, cuando un pedido llega a su estado actual. Pura. */
 export function noticesFor(view: OrderView, appUrl: string, sellerPhone: string, buyerPhone: string | null): Omit<Sent, "slug">[] {
@@ -147,7 +156,12 @@ export class Poller {
       }
     };
 
-    for (const { slug, buyerWhatsapp } of await this.changed()) {
+    // Más los avisos de devolución que esperan el reintegro: se revisan en cada vuelta, aunque el feed no los traiga.
+    const toCheck = new Map<string, { slug: string; buyerWhatsapp?: string | null }>();
+    for (const [slug, t] of Object.entries(this.state.orders)) if (t.reintegroDesde != null) toCheck.set(slug, { slug });
+    for (const c of await this.changed()) toCheck.set(c.slug, c);
+
+    for (const { slug, buyerWhatsapp } of toCheck.values()) {
       const view = await this.d.client.order(slug).catch(() => null);
       if (!view) continue;
       const prevT = this.state.orders[slug];
@@ -156,6 +170,14 @@ export class Poller {
       const extended = Boolean(o.extended);
       const sellerPhone = normPhone(view.seller.whatsapp);
       const buyerPhone = buyerWhatsapp ? normPhone(buyerWhatsapp) : (this.state.orders[slug]?.buyerPhone ?? null);
+      // Devolución completa: el aviso de la devolución espera a que se confirme el reintegro (REINTEGRO_ESPERA_MS).
+      if (view.reintegro && view.reintegro.estado !== "confirmado" && prev !== o.status && (o.status === "devuelto" || o.status === "resuelto")) {
+        const desde = prevT?.reintegroDesde ?? this.now();
+        if (this.now() - desde < REINTEGRO_ESPERA_MS) {
+          this.state.orders[slug] = { ...prevT, status: prev, sellerPhone, buyerPhone, reintegroDesde: desde };
+          continue;
+        }
+      }
       const t = (this.state.orders[slug] = {
         ...this.state.orders[slug],
         status: o.status,
@@ -165,6 +187,7 @@ export class Poller {
         shippedAt: o.shipped_at,
         extended,
         updatedAt: o.updated_at,
+        reintegroDesde: undefined,
       });
       const changedStatus = prev !== o.status;
       if (changedStatus) for (const n of noticesFor(view, this.appUrl, sellerPhone, buyerPhone)) await deliver(slug, n);

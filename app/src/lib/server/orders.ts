@@ -33,6 +33,7 @@ import {
   tokenBalance,
   withLock,
 } from "./stellar";
+import { reintegroTrasDevolucion, reintentarReintegros, vistaReintegro } from "./reintegro-red";
 
 export class AppError extends Error {
   status: number;
@@ -599,6 +600,7 @@ export async function refundUnshipped(slug: string) {
     }
     orders.update(slug, { status: "devuelto", refunded_at: now, resolved_at: now, buyer_bps: 10000, resolution_reason: "No despachó a tiempo" });
     txs.add({ order_slug: slug, actor: "plataforma", kind: "devolucion", label: "Se devolvió el pago al comprador: el vendedor no despachó a tiempo", hash });
+    reintegroTrasDevolucion(o, hash); // H-4: solo con PP_DEVOLUCION_COMPLETA=1
     return { hash, already: false };
   });
 }
@@ -618,6 +620,7 @@ export function sweepOverdue(force = false): Promise<void> {
       for (const o of orders.overdueUnshipped(Date.now() - CHAIN_MARGIN_MS)) {
         await refundUnshipped(o.slug).catch((e) => console.error(`[devolución] ${o.slug}: ${(e as Error).message}`));
       }
+      await reintentarReintegros(); // H-4: solo con PP_DEVOLUCION_COMPLETA=1
     } finally {
       sweeping = false;
     }
@@ -640,6 +643,7 @@ export async function resolveDispute(slug: unknown, buyerBps: unknown, reason: u
     const pct = (bps / 100).toLocaleString("es-BO");
     const pctSeller = ((10000 - bps) / 100).toLocaleString("es-BO");
     txs.add({ order_slug: slug, actor: "revisor", kind: "resolucion", label: `El revisor repartió: ${pct}% para el comprador y ${pctSeller}% para el vendedor (${why})`, hash });
+    if (bps === 10000) reintegroTrasDevolucion(o, hash); // H-4: solo con PP_DEVOLUCION_COMPLETA=1
     return { hash };
   });
 }
@@ -793,6 +797,7 @@ export async function orderView(slug: string, withOnchain: boolean) {
   if (withOnchain && o.escrow_id) onchain = await escrowService().readState(o.escrow_id).catch(() => null);
   o = reconcile(o, onchain);
   return {
+    ...vistaReintegro(slug), // H-4: vacío salvo PP_DEVOLUCION_COMPLETA=1
     order: publicOrder(o),
     seller: sellerCard(o.seller_pubkey),
     txs: txs.forOrder(slug),

@@ -391,6 +391,22 @@ function refundBsCents(v: OrderView): number {
   return unitsToBsCents(net, o.fx);
 }
 
+/**
+ * Devolución completa (PP_DEVOLUCION_COMPLETA=1 en la app), ya confirmada en la red: lo que pagó, lo que devolvió el
+ * contrato y lo que transfirió Trato, con el link a las dos transacciones (/registro/<hash> de la app, que lleva al
+ * registro público). Sin reintegro confirmado, null: el aviso queda como siempre.
+ */
+function fullRefund(appUrl: string, v: OrderView): string | null {
+  const r = v.reintegro;
+  if (!r || r.estado !== "confirmado" || !r.hash) return null;
+  const bs = (u: string) => fmtBs(unitsToBsCents(u, v.order.fx));
+  return [
+    `Te devolvimos todo lo que pagaste: ${bs(r.pagado)}. El contrato te devolvió ${bs(r.recibido)} y Trato te transfirió las comisiones (${bs(r.monto)}).`,
+    `Devolución: ${appUrl}/registro/${r.devolucion_hash}`,
+    `Reintegro: ${appUrl}/registro/${r.hash}`,
+  ].join("\n");
+}
+
 // ---------- Avisos del poller ----------
 
 export interface NoticeData {
@@ -463,6 +479,8 @@ export const notice = {
     const o = view.order;
     const b = (o.buyer_bps ?? 0) / 100;
     const mine = to === "vendedor" ? `${100 - b}% para ti y ${b}% para el comprador` : `${b}% para ti y ${100 - b}% para el vendedor`;
+    const full = to === "comprador" ? fullRefund(appUrl, view) : null;
+    if (full) return { text: `⚖️ ${orderCode(o)}: el revisor resolvió el reclamo de *${o.product}* a tu favor. ${full}\n${linkUrl(appUrl, o.slug)}` };
     return { text: `⚖️ ${orderCode(o)}: el revisor resolvió el reclamo de *${o.product}*: ${mine}. El contrato ya hizo los pagos.\n${linkUrl(appUrl, o.slug)}` };
   },
 
@@ -473,6 +491,8 @@ export const notice = {
     if (to === "vendedor") {
       return { text: `↩️ ${orderCode(o)}: no se marcó el envío a tiempo. Devolvimos ${bs} al comprador. El pedido de *${o.product}* quedó cerrado.`, buttons: [BTN.otro, BTN.ventas] };
     }
+    const full = fullRefund(appUrl, view);
+    if (full) return { text: `↩️ ${orderCode(o)}: el vendedor no marcó el envío de *${o.product}* a tiempo. ${full}\n${linkUrl(appUrl, o.slug)}` };
     return { text: `↩️ ${orderCode(o)}: el vendedor no marcó el envío de *${o.product}* a tiempo. Te devolvimos ${bs} (tu pago menos las comisiones).\n${linkUrl(appUrl, o.slug)}` };
   },
 

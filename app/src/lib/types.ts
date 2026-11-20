@@ -103,6 +103,8 @@ export type SellerOrderFields = { recipient_name: string | null; dest_city: stri
 export interface MoneyView {
   breakdown?: { seller: string; platform: string; tw: string };
   split?: { buyer: string; seller: string; platform: string; tw: string };
+  /** Solo en la vista del pedido y con PP_DEVOLUCION_COMPLETA=1 (ver ReintegroView). */
+  reintegro?: ReintegroView;
 }
 
 export interface SellerCard {
@@ -165,4 +167,22 @@ export interface InfoData {
   contracts: { label: string; id: string; kind: "contract" | "account" }[];
   capabilities: { extend: boolean; clockFromShipping: boolean; refundUnshipped?: boolean; proteccionPatch?: boolean };
   demoTimers: boolean;
+}
+
+/**
+ * Devolución completa (PP_DEVOLUCION_COMPLETA=1): después de una devolución total, Trato le transfiere al comprador lo
+ * que el contrato descontó como comisiones. Solo aparece con el interruptor encendido. Montos en unidades de 7 decimales.
+ */
+export interface ReintegroView {
+  estado: "pendiente" | "enviado" | "confirmado" | "revisar";
+  /** Lo que pagó el comprador. */
+  pagado: string;
+  /** Lo que le devolvió el contrato (pagado menos las comisiones). */
+  recibido: string;
+  /** Lo que le transfiere Trato: la diferencia. */
+  monto: string;
+  /** Transacción de la devolución (refund_unshipped o resolve). */
+  devolucion_hash: string;
+  /** Transacción del reintegro, cuando ya está confirmada. */
+  hash: string | null;
 }
