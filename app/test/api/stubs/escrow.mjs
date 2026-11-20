@@ -7,7 +7,7 @@ export const escrows = [];
  * Lo que "dice la red" de cada escrow en los tests: `compras` es lo que devolvería pp_guardian.purchase (escrowId →
  * compra registrada) y, con `caida`, la consulta falla como cuando el RPC no responde.
  */
-export const cadena = { compras: new Map(), estados: new Map(), caida: false, consultas: 0 };
+export const cadena = { compras: new Map(), estados: new Map(), caida: false, consultas: 0, liberados: [], devueltos: [] };
 
 const fake = {
   mode: "guardian",
@@ -28,6 +28,14 @@ const fake = {
   steps: (action) => (action === "confirm" ? ["approve", "release"] : [action]),
   async readState(escrowId) {
     return cadena.estados.get(escrowId) ?? null;
+  },
+  async autoRelease(ctx) {
+    cadena.liberados.push(ctx.escrowId);
+    return { hash: `liberacion-${cadena.liberados.length}` };
+  },
+  async refundUnshipped(ctx) {
+    cadena.devueltos.push(ctx.escrowId);
+    return { disputeHash: null, hash: `devolucion-${cadena.devueltos.length}` };
   },
   async purchase(escrowId) {
     cadena.consultas++;

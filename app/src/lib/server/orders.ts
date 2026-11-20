@@ -542,7 +542,12 @@ export async function prepareAction(slug: string, body: Record<string, unknown>,
 
   if (action === "ship") {
     if (signer !== o.seller_pubkey) throw new AppError("Solo el vendedor puede registrar el envío", 403);
-    if (o.status !== "pagado") throw new AppError("Solo puedes marcar como enviado un pedido pagado", 409);
+    // Con un reclamo abierto también se puede (pp_guardian, D-18: evidencia nueva para el revisor, dentro del plazo).
+    // Si no, un comprador reclama "No envió" apenas paga, el vendedor ya no puede registrar el envío y al vencer el
+    // plazo la devolución automática le da todo al comprador sin que decida el revisor.
+    const conReclamo = o.status === "en_disputa" && !o.shipped_at;
+    if (o.status !== "pagado" && !conReclamo) throw new AppError("Solo puedes marcar como enviado un pedido pagado", 409);
+    if (o.ship_deadline && Date.now() >= o.ship_deadline) throw new AppError("Ya venció el plazo para registrar el envío", 409);
     params = shipParams(o, body, host);
   } else if (action === "confirm") {
     if (signer !== o.buyer_pubkey) throw new AppError("Solo el comprador puede pagar al vendedor", 403);
@@ -557,6 +562,11 @@ export async function prepareAction(slug: string, body: Record<string, unknown>,
     const isBuyer = signer === o.buyer_pubkey;
     if (!isBuyer && signer !== o.seller_pubkey) throw new AppError("Solo el comprador o el vendedor pueden reclamar", 403);
     if (o.status !== "pagado" && o.status !== "enviado") throw new AppError("Este pedido ya no admite reclamos", 409);
+    // Pasada la revisión, el pago le corresponde al vendedor (lo libera el barrido). pp_guardian.dispute todavía no
+    // mira la hora (H-10): la app no lo ofrece, y el barrido cierra la ventana en la práctica.
+    if (isBuyer && o.status === "enviado" && o.deadline && Date.now() >= o.deadline) {
+      throw new AppError("Ya terminó tu tiempo de revisión: el pago es del vendedor", 409);
+    }
     params.reason = clean(body.reason, 80);
     params.text = clean(body.text, 600);
     params.photo = clean(body.photo, 500);
@@ -641,7 +651,8 @@ export async function submitSigned(signedXdr: unknown): Promise<{ hash: string; 
       // v2: release_at = shipped_at + inspect_secs, ambos con la hora del ledger (pp_guardian.mark_shipped).
       const onchain = await escrowService().purchase(o.escrow_id!).catch(() => null);
       orders.update(slug, {
-        status: "enviado",
+        // Con un reclamo abierto, el pedido sigue en disputa: el envío queda como evidencia y decide el revisor.
+        status: o.status === "en_disputa" ? "en_disputa" : "enviado",
         shipped_evidence: params.evidence,
         shipped_at: onchain?.shippedAt ?? now,
         deadline: onchain?.releaseAt ?? (onchain?.shippedAt ?? now) + inspectSecs(o) * 1000,
@@ -803,7 +814,15 @@ export function sweepOverdue(force = false): Promise<void> {
       for (const o of orders.overdueUnshipped(Date.now() - CHAIN_MARGIN_MS)) {
         await refundUnshipped(o.slug).catch((e) => console.error(`[devolución] ${o.slug}: ${(e as Error).message}`));
       }
+      // "Se libera sola": si el comprador no confirmó ni reclamó, al vencer la revisión se le paga al vendedor.
+      // Con un reclamo abierto en la red, autoRelease no lo intenta (decide el revisor).
+      for (const o of orders.overdueShipped(Date.now() - CHAIN_MARGIN_MS)) {
+        await autoRelease(o.slug).catch((e) => console.error(`[liberación] ${o.slug}: ${(e as Error).message}`));
+      }
       await reintentarReintegros(); // H-4: solo con PP_DEVOLUCION_COMPLETA=1
+    } catch (e) {
+      // Lo llaman las páginas con `void sweepOverdue()`: un error acá (base ocupada, disco lleno) no puede tirar el proceso.
+      console.error(`[barrido] ${(e as Error).message}`);
     } finally {
       barrido = null;
     }

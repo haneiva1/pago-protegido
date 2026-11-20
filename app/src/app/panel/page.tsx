@@ -385,6 +385,15 @@ function OrderCard({
             <textarea id={`rp-${o.slug}`} className="input min-h-20" value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Comprobante de la empresa, foto del producto en el paquete con el código del pedido…" />
             <button className="btn-secondary w-full">{o.seller_reply ? "Actualizar mi versión" : "Enviar mi versión"}</button>
           </form>
+          {!o.shipped_at && o.ship_deadline && o.ship_deadline > Date.now() && (
+            <div data-testid="envio-con-reclamo" className="space-y-2">
+              <p className="text-sm text-slate-700">
+                ¿Ya despachaste? Registra el envío igual: queda como prueba para el revisor y frena la devolución automática por falta de
+                despacho.
+              </p>
+              <EnvioForm o={o} sellerPubkey={sellerPubkey} prefill={null} onDone={onChange} />
+            </div>
+          )}
         </>
       )}
 

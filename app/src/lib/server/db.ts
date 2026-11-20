@@ -498,6 +498,12 @@ export const orders = {
       )
       .all(now, now - ventanaMs) as OrderRow[];
   },
+  /** Pedidos enviados con la revisión vencida: el barrido los libera al vendedor (pp_guardian.auto_release). */
+  overdueShipped(now: number): OrderRow[] {
+    return db()
+      .prepare(`SELECT * FROM orders WHERE status = 'enviado' AND deadline IS NOT NULL AND deadline <= ? AND escrow_id IS NOT NULL ORDER BY deadline`)
+      .all(now) as OrderRow[];
+  },
   overdueUnshipped(now: number): OrderRow[] {
     return db()
       .prepare(
