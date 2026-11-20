@@ -16,6 +16,7 @@ import {
   splitPreview,
 } from "@/lib/format";
 import { parseFlete } from "@/lib/comprador";
+import { esperaParaConfirmar } from "@/lib/ciudades";
 import { NETWORK_PASSPHRASE, cfg } from "./config";
 import { type OrderRow, evidence, kv, orders, pending, pilot, sellers, txs } from "./db";
 import { linkAmounts as amountsFor } from "@/lib/format";
@@ -114,12 +115,13 @@ const CHAIN_MARGIN_MS = 10_000;
 /** Modo demo (PP_DEMO=1): "Pagar al vendedor" se habilita 1 minuto después del envío. */
 export const demoTimers = () => process.env.PP_DEMO === "1";
 
-/** "Pagar al vendedor" se habilita 2 h después del envío en la misma ciudad y 24 h si es otra ciudad. */
+/**
+ * "Pagar al vendedor" se habilita 2 h después del envío en la misma ciudad y 24 h si es otra ciudad.
+ * La Paz y El Alto cuentan como la misma ciudad (`mismaCiudad`, lib/ciudades.ts).
+ */
 export function confirmDelay(o: OrderRow): { ms: number; label: string } {
   if (demoTimers()) return { ms: 60_000, label: "1 minuto (modo demo)" };
-  const sellerCity = sellers.get(o.seller_pubkey)?.city;
-  const same = Boolean(sellerCity && o.dest_city && sellerCity === o.dest_city && o.dest_city !== "Otra");
-  return same ? { ms: 2 * 3600_000, label: "2 horas (misma ciudad)" } : { ms: 24 * 3600_000, label: "24 horas (otra ciudad)" };
+  return esperaParaConfirmar(sellers.get(o.seller_pubkey)?.city, o.dest_city);
 }
 
 function ctxOf(o: OrderRow): EscrowCtx {
