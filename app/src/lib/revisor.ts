@@ -1,7 +1,10 @@
 /**
- * Lógica pura del panel del revisor (M10, sin imports en tiempo de ejecución): qué regla de la política de reclamos
- * aplica a cada reclamo, los plazos y la evidencia de cada parte. La prueban los tests unitarios con `node --test`.
+ * Lógica pura del panel del revisor (M10): qué regla de la política de reclamos aplica a cada reclamo, los plazos y
+ * la evidencia de cada parte. Solo importa lib/comprador.ts (también pura, por el umbral del video), con la extensión
+ * para que `node --test` la resuelva. La prueban los tests unitarios.
  */
+
+import { VIDEO_OBLIGATORIO_DESDE_BS_CENTS } from "./comprador.ts";
 
 const HORA = 3600_000;
 
@@ -23,6 +26,8 @@ const CON_VIDEO = ["Llegó vacío o con otro producto", "Dañado o distinto a lo
 
 export interface ReclamoRevisor {
   status: string;
+  /** Precio del producto: desde Bs 300 el video del desempaque es obligatorio. */
+  price_bs_cents?: number | null;
   dispute_reason?: string | null;
   dispute_by?: string | null;
   dispute_video?: string | null;
@@ -80,6 +85,15 @@ export function reglaDelReclamo(d: ReclamoRevisor, ahora: number): Regla {
   }
   if (CON_VIDEO.includes(motivo)) {
     if (!d.dispute_video) {
+      // Bajo el umbral la app le dijo al comprador que el video era opcional: no se le puede dar por perdido.
+      if (d.price_bs_cents != null && d.price_bs_cents < VIDEO_OBLIGATORIO_DESDE_BS_CENTS) {
+        return {
+          criterio: 2,
+          titulo: `Entrega registrada y sin video, pero bajo Bs ${VIDEO_OBLIGATORIO_DESDE_BS_CENTS / 100} el video no era obligatorio`,
+          detalle: `El envío está registrado (${guia}) y no hay video del desempaque. Bajo Bs ${VIDEO_OBLIGATORIO_DESDE_BS_CENTS / 100} el video es opcional: decide con la foto del paquete cerrado, el peso${d.ship_weight ? ` (${d.ship_weight} kg)` : ""} y la respuesta del vendedor.`,
+          gana: null,
+        };
+      }
       return {
         criterio: 2,
         titulo: CRITERIOS[2],
@@ -169,4 +183,43 @@ export function evidenciaDeLasPartes(rows: EvidenciaRow[]): { comprador: Archivo
     }
   }
   return out;
+}
+
+// ---------- Huella de cada archivo ----------
+
+/**
+ * Lo que de verdad comprueba la huella. El archivo se guarda con su SHA-256 como nombre: que el SHA-256 que calcula
+ * el navegador del revisor sea el del nombre solo prueba que nadie lo cambió después de subirlo, no que la foto sea
+ * de este paquete (el vendedor puede subir una foto vieja o la de otra venta).
+ */
+export const TEXTO_HUELLA = {
+  sinCambios: "✓ El archivo no cambió desde que se subió. No prueba que sea este paquete.",
+  cambio: "✗ El archivo cambió después de subirlo: no es el que se registró.",
+  enContrato: "Su huella está en la evidencia que guardó el contrato al registrar el envío (mark_shipped).",
+  noEnContrato: "⚠ Su huella no está en la evidencia que guardó el contrato al registrar el envío.",
+  enApp: "Su huella está en el envío que guardó la app. No se pudo leer el contrato para comprobarlo.",
+  noEnApp: "⚠ Su huella no está en el envío que guardó la app.",
+} as const;
+
+/** Lo mínimo de la vista del revisor para comparar una huella con la evidencia de mark_shipped. */
+export interface EnvioRegistrado {
+  shipped_evidence?: string | null;
+  /** Estado del contrato: mark_shipped deja la evidencia en el hito (y en el Purchase de pp_guardian). */
+  onchain?: { milestone?: { evidence?: string | null } | null } | null;
+}
+
+/**
+ * Si la huella está en la evidencia del envío. Manda la que guardó el contrato; la de la base de la app solo se usa
+ * si la vista no trae la del contrato, y se dice cuál se usó. null: no hay envío registrado.
+ */
+export function huellaEnElEnvio(huella: string, d: EnvioRegistrado): { fuente: "contrato" | "app"; esta: boolean } | null {
+  const contrato = d.onchain?.milestone?.evidence;
+  if (contrato) return { fuente: "contrato", esta: contrato.includes(huella) };
+  if (d.shipped_evidence) return { fuente: "app", esta: d.shipped_evidence.includes(huella) };
+  return null;
+}
+
+/** Otros pedidos (sus códigos) donde aparece la misma huella: una foto reutilizada. */
+export function pedidosConLaMismaHuella(huella: string, otros: Record<string, string[]> | null | undefined): string[] {
+  return otros?.[huella] ?? [];
 }

@@ -24,6 +24,11 @@ export async function body(req: Request): Promise<Record<string, unknown>> {
   }
 }
 
+/** El host de la app según el pedido (detrás del proxy, x-forwarded-host), como lo usa /api/evidencia en sus links. */
+export function hostDe(req: Request): string | null {
+  return req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+}
+
 export function checkArbitro(req: Request) {
   const key = req.headers.get("x-arbitro-key") ?? "";
   if (!cfg().arbitroPanelKey || key !== cfg().arbitroPanelKey) throw new AppError("Clave del revisor incorrecta", 401);

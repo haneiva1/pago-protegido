@@ -25,6 +25,16 @@ export const RETIRED_V1 = {
 };
 
 /**
+ * Pares guardián/árbitro de cada despliegue de Trato en testnet (contracts/deployments/testnet.json, DEPLOYED.md), para
+ * el indexador: sus compras siguen contando y sus eventos se siguen leyendo aunque la config apunte a otra versión.
+ * Lista fija: al desplegar una versión nueva, se agrega acá la que deja de ser la actual.
+ */
+export const PARES_HISTORICOS: readonly { guardian: string; arbiter: string }[] = [
+  { guardian: DEPLOYED.guardian, arbiter: DEPLOYED.arbiter }, // v2
+  { guardian: RETIRED_V1.guardian, arbiter: RETIRED_V1.arbiter }, // v1
+];
+
+/**
  * Valores públicos de testnet (contracts/DEPLOYED.md) para las reglas del indexador (H-9, docs/METRICAS.md).
  * No dependen de .env.local: cualquiera puede repetir la verificación con estos mismos valores.
  */

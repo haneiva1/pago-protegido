@@ -9,7 +9,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test:unit": "node --test \"test/*.test.mjs\"",
+    "test:unit": "node --import ./test/hooks.mjs --test \"test/*.test.mjs\"",
     "test:e2e": "playwright test",
     "smoke": "node scripts/smoke-api.mjs",
     "test:api": "node --import ./test/api/registro.mjs --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test 'test/api/*.test.mjs'",
