@@ -11,6 +11,8 @@ const DIR = path.join(__dirname, "capturas");
 fs.mkdirSync(DIR, { recursive: true });
 const MOBILE = { width: 390, height: 844 };
 const DESKTOP = { width: 1280, height: 900 };
+// Para interactuar: alto suficiente para que los dos celulares quepan enteros (la barra fija de "Pagar" vive abajo del marco).
+const ESCRITORIO_ALTO = { width: 1280, height: 1400 };
 const CHAIN = { timeout: 240_000 };
 const TX_LINK = 'a[href*="stellar.expert/explorer/testnet/tx/"]';
 const PROHIBIDAS = [
@@ -43,7 +45,7 @@ async function revisarPalabras(page: Page) {
 
 async function capturar(page: Page, nombre: string) {
   await revisarPalabras(page);
-  const original = page.viewportSize() ?? DESKTOP;
+  const original = page.viewportSize() ?? ESCRITORIO_ALTO;
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.setViewportSize(MOBILE);
   await page.waitForTimeout(400);
@@ -56,7 +58,7 @@ async function capturar(page: Page, nombre: string) {
 }
 
 test("/probar: dos celulares reales, registro en vivo, desvío rechazado por el contrato y pago al vendedor", async ({ browser, baseURL }) => {
-  const ctx = await browser.newContext({ viewport: DESKTOP, deviceScaleFactor: 1 });
+  const ctx = await browser.newContext({ viewport: ESCRITORIO_ALTO, deviceScaleFactor: 1 });
   const page = await ctx.newPage();
   const lecturas: Promise<void>[] = [];
   const conSecreto: string[] = [];
@@ -109,14 +111,14 @@ test("/probar: dos celulares reales, registro en vivo, desvío rechazado por el 
 
   const link = page.getByTestId("paso-registro-link");
   await expect(link).toHaveAttribute("data-hecho", "si", { timeout: 30_000 });
-  await expect(link).toContainText("Se activó la cuenta de cobro de la tienda");
+  await expect(link).toContainText("Se activó la cuenta de cobro del vendedor");
   await expect(link).toContainText(/Link PP-\d{4,5} creado: todavía no se movió plata/);
   await expect(link.locator(TX_LINK)).toHaveCount(1);
 
   // El link llega solo al celular del comprador.
   const comprador = page.frameLocator('iframe[name="comprador"]');
   await expect(comprador.getByTestId("codigo")).toHaveText(/Compra protegida · PP-\d{4,5}/, { timeout: 30_000 });
-  await expect(page.getByTestId("ahora")).toContainText("El link llegó al celular de quien compra");
+  await expect(page.getByTestId("ahora")).toContainText("El link llegó al celular del comprador");
   await capturar(page, "81-probar-link-en-el-comprador");
 
   // 2. Pagar: datos de entrega, QR y pago simulado del banco (con reintentos si la red falla, como el e2e con pagos).
@@ -141,7 +143,7 @@ test("/probar: dos celulares reales, registro en vivo, desvío rechazado por el 
   await expect(pago).toHaveAttribute("data-hecho", "si", { timeout: 30_000 });
   await expect(pago).toContainText("Pago simulado del banco");
   await expect(pago).toContainText("Se creó el contrato de este pedido");
-  await expect(pago).toContainText("Quien compra guardó el pago en el contrato");
+  await expect(pago).toContainText("El comprador guardó el pago en el contrato");
   expect(await pago.locator(TX_LINK).count()).toBeGreaterThanOrEqual(3);
   await expect(page.getByTestId("registro-contrato")).toHaveAttribute("href", /stellar\.expert\/explorer\/testnet\/contract\/C[A-Z2-7]{55}$/);
 
@@ -177,12 +179,12 @@ test("/probar: dos celulares reales, registro en vivo, desvío rechazado por el 
   await expect(comprador.getByTestId("estado-pedido")).toContainText("Se pagó al vendedor", CHAIN);
   const cobro = page.getByTestId("paso-registro-cobro");
   await expect(cobro).toHaveAttribute("data-hecho", "si", { timeout: 30_000 });
-  await expect(cobro).toContainText("Se pagó a la tienda");
+  await expect(cobro).toContainText("Se pagó al vendedor");
   await expect(cobro.locator(TX_LINK)).toHaveCount(1);
   await expect(vendedor.getByTestId("saldo")).toHaveText("Bs 450,04", { timeout: 60_000 });
   await expect(page.getByTestId("desviar")).toBeDisabled();
   await expect(page.getByTestId("desvio-espera")).toHaveText("La plata ya salió del contrato por una de sus salidas.");
-  await expect(page.getByTestId("ahora")).toContainText("Listo: la tienda cobró");
+  await expect(page.getByTestId("ahora")).toContainText("Listo: el vendedor cobró");
   await capturar(page, "83-probar-pagado-al-vendedor");
 
   // Celular: el vendedor y el comprador van en pestañas.
@@ -195,7 +197,7 @@ test("/probar: dos celulares reales, registro en vivo, desvío rechazado por el 
   await expect(page.getByTestId("marco-comprador")).toBeVisible();
   await expect(page.getByTestId("marco-vendedor")).toBeHidden();
   await page.screenshot({ path: path.join(DIR, "84-probar-pestanas-celular.png") });
-  await page.setViewportSize(DESKTOP);
+  await page.setViewportSize(ESCRITORIO_ALTO);
 
   // Cada rol con su propia cuenta de prueba, aparte de las de la app.
   const cuentas = await page.evaluate(() => ["pp.probar.vendedor", "pp.probar.comprador", "pp.billetera.vendedor", "pp.billetera.comprador"].map((k) => localStorage.getItem(k) !== null));

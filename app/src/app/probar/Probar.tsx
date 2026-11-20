@@ -84,6 +84,8 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
   const wallet = useRef<typeof import("@/lib/wallet") | null>(null);
   const status = registro?.pedido?.status ?? null;
   const prevStatus = useRef<string | null>(null);
+  // Sube con "Empezar de nuevo": una consulta que salió antes no puede traer de vuelta el pedido anterior.
+  const generacion = useRef(0);
 
   // Prueba nueva: el servidor la cuenta para el límite por IP. Si esta pestaña ya tenía una, se retoma.
   useEffect(() => {
@@ -100,14 +102,16 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
   }, []);
 
   const cargar = useCallback(async () => {
+    const gen = generacion.current;
     wallet.current ??= await import("@/lib/wallet");
     const pk = wallet.current.getWallet("vendedor").publicKey();
     if (!pk) {
-      setRegistro(null);
+      if (gen === generacion.current) setRegistro(null);
       return;
     }
     try {
-      setRegistro(await api<Registro>(`/api/probar/registro?vendedor=${pk}`));
+      const r = await api<Registro>(`/api/probar/registro?vendedor=${pk}`);
+      if (gen === generacion.current) setRegistro(r);
     } catch {
       // Un corte de red no borra lo que ya se ve: el próximo ciclo vuelve a intentar.
     }
@@ -158,6 +162,7 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
       window.localStorage.removeItem(probarStorageKey("comprador"));
     } catch {}
     guardarSesion();
+    generacion.current += 1;
     prevStatus.current = null;
     setRegistro(null);
     setCompradorSlug(null);
@@ -347,9 +352,9 @@ function RegistroEnVivo({ registro, filas, desvios }: { registro: Registro | nul
   const p = registro?.pedido ?? null;
   const hecho: Record<PasoId, boolean> = {
     link: Boolean(p),
-    pago: filas.some((f) => f.paso === "pago" && f.texto.startsWith("Quien compra guardó")),
+    pago: filas.some((f) => f.kind === "fondeo"),
     envio: filas.some((f) => f.paso === "envio"),
-    cobro: filas.some((f) => f.paso === "cobro" && f.texto === "Se pagó a la tienda"),
+    cobro: filas.some((f) => f.kind === "liberacion"),
   };
   const otros = filas.filter((f) => f.paso === "otro");
   return (

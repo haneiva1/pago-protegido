@@ -1,5 +1,5 @@
 /**
- * /probar: la tienda y quien compra corren las páginas reales (/vender, /panel y /p/<slug>) dentro de dos marcos de
+ * /probar: el vendedor y el comprador corren las páginas reales (/vender, /panel y /p/<slug>) dentro de dos marcos de
  * celular (iframes del mismo origen). Sin dependencias ni alias `@/`: lo usan el navegador, el servidor y los tests.
  */
 export type RolProbar = "vendedor" | "comprador";
@@ -47,21 +47,22 @@ export const PASOS: { id: PasoId; titulo: string }[] = [
 
 /** A qué paso del registro va cada movimiento y cómo se cuenta (los textos del servidor le hablan al comprador). */
 const MOVIMIENTOS: Record<string, { paso: PasoId | "otro"; texto: string }> = {
-  "trustline:vendedor": { paso: "link", texto: "Se activó la cuenta de cobro de la tienda" },
-  "trustline:comprador": { paso: "pago", texto: "Se activó la cuenta de quien compra" },
-  rampa: { paso: "pago", texto: "Pago simulado del banco: la plata llegó a la cuenta de quien compra" },
+  "trustline:vendedor": { paso: "link", texto: "Se activó la cuenta de cobro del vendedor" },
+  "trustline:comprador": { paso: "pago", texto: "Se activó la cuenta del comprador" },
+  rampa: { paso: "pago", texto: "Pago simulado del banco: la plata llegó a la cuenta del comprador" },
   escrow: { paso: "pago", texto: "Se creó el contrato de este pedido" },
-  fondeo: { paso: "pago", texto: "Quien compra guardó el pago en el contrato" },
-  envio: { paso: "envio", texto: "La tienda registró el envío" },
-  aprobacion: { paso: "cobro", texto: "Quien compra confirmó que recibió" },
-  liberacion: { paso: "cobro", texto: "Se pagó a la tienda" },
-  extension: { paso: "otro", texto: "Quien compra pidió más tiempo para revisar" },
+  fondeo: { paso: "pago", texto: "El comprador guardó el pago en el contrato" },
+  envio: { paso: "envio", texto: "El vendedor registró el envío" },
+  aprobacion: { paso: "cobro", texto: "El comprador confirmó que recibió" },
+  liberacion: { paso: "cobro", texto: "Se pagó al vendedor" },
+  extension: { paso: "otro", texto: "El comprador pidió más tiempo para revisar" },
   disputa: { paso: "otro", texto: "Se abrió un reclamo: la plata quedó congelada" },
   resolucion: { paso: "otro", texto: "El revisor repartió entre comprador y vendedor" },
-  devolucion: { paso: "otro", texto: "La tienda no despachó a tiempo: la plata volvió a quien compra" },
+  devolucion: { paso: "otro", texto: "El vendedor no despachó a tiempo: la plata volvió al comprador" },
 };
 
 export interface FilaRegistro {
+  kind: string;
   paso: PasoId | "otro";
   texto: string;
   hash: string | null;
@@ -74,31 +75,31 @@ export function filasRegistro(txs: TxProbar[], vendedor: string): FilaRegistro[]
     .map((t) => {
       const clave = t.kind === "trustline" ? `trustline:${t.actor === vendedor ? "vendedor" : "comprador"}` : t.kind;
       const m = MOVIMIENTOS[clave] ?? { paso: "otro" as const, texto: "Otro movimiento del pedido" };
-      return { paso: m.paso, texto: m.texto, hash: t.hash, at: t.created_at };
+      return { kind: t.kind, paso: m.paso, texto: m.texto, hash: t.hash, at: t.created_at };
     })
     .sort((a, b) => a.at - b.at);
 }
 
 /** Estado del pedido → qué hacer ahora (la guía de arriba de /probar). */
 export function siguientePaso(p: { tienda: boolean; status: string | null }): string {
-  if (!p.tienda) return "Crea la tienda en el celular de la izquierda: nombre, ciudad y WhatsApp.";
+  if (!p.tienda) return "Crea la tienda en el celular del vendedor: nombre, ciudad y WhatsApp.";
   switch (p.status) {
     case null:
-      return "Crea un link en el panel de la tienda: producto y precio.";
+      return "Crea un link en el panel del vendedor: producto y precio.";
     case "esperando_pago":
-      return "El link llegó al celular de quien compra: paga con el QR simulado.";
+      return "El link llegó al celular del comprador: paga con el QR simulado.";
     case "pagado":
-      return "La plata quedó guardada en el contrato. Intenta desviarla, y después registra el envío desde la tienda (tienes 2 minutos).";
+      return "La plata quedó guardada en el contrato. Intenta desviarla, y después registra el envío desde el celular del vendedor (tiene 2 minutos).";
     case "enviado":
-      return "Envío registrado. En 1 minuto, quien compra puede confirmar y pagar a la tienda.";
+      return "Envío registrado. En 1 minuto, el comprador puede confirmar y pagar al vendedor.";
     case "liberado":
-      return "Listo: la tienda cobró. La plata salió por una de sus dos salidas.";
+      return "Listo: el vendedor cobró. La plata salió por una de sus dos salidas.";
     case "devuelto":
-      return "La tienda no registró el envío a tiempo y la plata volvió sola a quien compra: la otra salida.";
+      return "El vendedor no registró el envío a tiempo y la plata volvió sola al comprador: la otra salida.";
     case "en_disputa":
       return "Hay un reclamo abierto: la plata queda congelada hasta que decida el revisor.";
     case "resuelto":
-      return "El revisor repartió la plata entre quien compra y la tienda.";
+      return "El revisor repartió la plata entre el comprador y el vendedor.";
     default:
       return "Sigue el pedido en los dos celulares.";
   }
