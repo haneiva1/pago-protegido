@@ -66,7 +66,7 @@ Hay **una sola tarifa**, y en cada link el vendedor elige quién la paga:
 | **El comprador** (por defecto) | **1,5% del precio, mínimo Bs 5 y tope Bs 50** | precio + protección | el precio completo |
 | **El vendedor** ("Yo la regalo") | **2,3% de la venta**: 2% de la plataforma y 0,3% de Trustless Work | el precio | el precio menos 2,3% |
 
-Ejemplos (los mismos que verifica el e2e de la app, al tipo de cambio de la demo):
+Ejemplos, al tipo de cambio de la demo (Bs 11,7 por dólar). Los verifica todos el test unitario `app/test/tarifa.test.mjs`, incluidos los 117 bps de abajo; el e2e con pagos además comprueba en pantalla Bs 456,75, Bs 450,04 y "Pagar Bs 300,00":
 
 - **Bs 450, la paga el comprador:** protección Bs 6,75; el comprador paga **Bs 456,75** y el vendedor recibe **Bs 450,04**.
 - **Bs 300, la regala el vendedor:** el comprador paga **Bs 300,00** y al vendedor le quedan **Bs 293,10** (Bs 300 − 2,3%).
