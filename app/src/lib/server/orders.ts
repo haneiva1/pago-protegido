@@ -219,6 +219,10 @@ export function createLink(input: Record<string, unknown>) {
   if (input.flete && !flete) throw new AppError("Escribe el monto del flete en Bs");
   // `proteccion` (APP-ENDPOINTS §6 del bot) y `feePayer` (panel) son lo mismo.
   const fee_payer = (input.proteccion ?? input.feePayer) === "vendedor" ? "vendedor" : "comprador";
+  // Plazos de 2 minutos solo con el servidor en modo demo: si los eligiera quien llama a la API, un vendedor
+  // registraría un envío falso y cobraría a los 2 minutos, antes de que el paquete exista.
+  const demo = input.demoWindow === true;
+  if (demo && !demoTimers()) throw new AppError("Los plazos de demostración solo funcionan con el servidor en modo demo");
   const fx = cfg().fx;
   const price_bs_cents = Math.round(priceBs * 100);
   const a = linkAmounts(price_bs_cents, fx, fee_payer);
@@ -233,9 +237,9 @@ export function createLink(input: Record<string, unknown>) {
     amount_units: a.amount.toString(),
     fx,
     delivery_days: days,
-    window_secs: input.demoWindow === true ? DEMO_WINDOW_SECS : null,
-    ship_secs: input.demoWindow === true ? DEMO_WINDOW_SECS : days * 86400,
-    inspect_secs: input.demoWindow === true ? DEMO_WINDOW_SECS : (days + cfg().extraWindowDays) * 86400,
+    window_secs: demo ? DEMO_WINDOW_SECS : null,
+    ship_secs: demo ? DEMO_WINDOW_SECS : days * 86400,
+    inspect_secs: demo ? DEMO_WINDOW_SECS : (days + cfg().extraWindowDays) * 86400,
     code: newCode(),
     category,
     fee_payer,
