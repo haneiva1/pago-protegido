@@ -1,67 +1,118 @@
 "use client";
 
 import { useState } from "react";
-import { Spinner } from "@/components/ui";
-import { MOTIVOS, MOTIVOS_CON_VIDEO, MOTIVO_PRESION } from "@/lib/format";
+import { ErrorBox, Spinner } from "@/components/ui";
+import { fmtDate } from "@/lib/format";
+import { DESCRIPCION_MOTIVO, evidenciaPedida, motivosReclamo } from "@/lib/comprador";
+import type { PublicOrder } from "@/lib/types";
 
-const MOTIVOS_COMPRADOR = MOTIVOS.filter((m) => m !== MOTIVO_PRESION);
+/** Campo de evidencia: un link https://… (el punto siguiente lo cambia por cámara o galería). */
+function CampoEvidencia({ id, label, nota, value, onChange }: { id: string; label: string; nota: string; value: string; onChange: (url: string) => void; pedido: string; tipo: "foto" | "video" }) {
+  return (
+    <div>
+      <label className="label" htmlFor={id}>
+        {label} <span className="font-normal text-slate-400">{nota}</span>
+      </label>
+      <input id={id} className="input" value={value} onChange={(e) => onChange(e.target.value)} inputMode="url" placeholder="https://…" />
+    </div>
+  );
+}
 
+/**
+ * Reclamo guiado (M8): motivos según el estado, qué evidencia hace falta y los plazos. Al enviar, la plata queda
+ * congelada y decide un revisor.
+ */
 export function Reclamo({
+  order,
   busy,
-  priceBsCents,
   onCancel,
   onSubmit,
 }: {
+  order: PublicOrder;
   busy: boolean;
-  priceBsCents: number;
   onCancel: () => void;
   onSubmit: (x: Record<string, string>) => void;
 }) {
-  const [reason, setReason] = useState<string>(MOTIVOS_COMPRADOR[1]);
+  const motivos = motivosReclamo(order.status);
+  const [reason, setReason] = useState<string>(motivos[0] ?? "");
   const [text, setText] = useState("");
   const [photo, setPhoto] = useState("");
   const [video, setVideo] = useState("");
-  const needsVideo = MOTIVOS_CON_VIDEO.includes(reason) && priceBsCents >= 30000;
+  const [error, setError] = useState<string | null>(null);
+  const ev = evidenciaPedida(reason, order.price_bs_cents);
+  if (!motivos.length) return null;
   return (
     <form
-      className="card space-y-3 ring-2 ring-amber-200"
+      className="card space-y-4 ring-2 ring-amber-200"
       data-testid="reclamo"
       onSubmit={(e) => {
         e.preventDefault();
-        onSubmit({ reason, text, photo, video });
+        if (ev.video === "obligatorio" && !video) return setError("Para este motivo, desde Bs 300, el video continuo del desempaque es obligatorio.");
+        if (text.trim().length < 5) return setError("Cuéntanos en una frase qué pasó.");
+        setError(null);
+        onSubmit({ reason, text, photo: ev.foto === "no" ? "" : photo, video: ev.video === "no" ? "" : video });
       }}
     >
-      <h2 className="font-bold">¿Qué pasó?</h2>
-      <p className="muted">Al enviar, la plata queda congelada y un revisor ve la evidencia de los dos lados. Arrepentirse no es motivo de reclamo.</p>
       <div>
-        <label className="label" htmlFor="motivo">
-          Motivo
-        </label>
-        <select id="motivo" className="input" value={reason} onChange={(e) => setReason(e.target.value)}>
-          {MOTIVOS_COMPRADOR.map((m) => (
-            <option key={m}>{m}</option>
-          ))}
-        </select>
+        <h2 className="text-lg font-bold">¿Qué pasó?</h2>
+        <p className="muted">Al enviar, la plata queda congelada y un revisor ve la evidencia de los dos lados. Arrepentirse no es motivo de reclamo.</p>
       </div>
+
+      <fieldset className="space-y-2" data-testid="motivos">
+        <legend className="label">Motivo</legend>
+        {motivos.map((m) => (
+          <label key={m} className={`flex cursor-pointer gap-3 rounded-xl p-3 ring-1 ${reason === m ? "bg-amber-50 ring-amber-300" : "bg-white ring-slate-200"}`}>
+            <input type="radio" name="motivo" value={m} checked={reason === m} onChange={() => setReason(m)} className="mt-1 accent-amber-600" />
+            <span className="text-sm">
+              <span className="block font-semibold">{m}</span>
+              <span className="text-slate-600">{DESCRIPCION_MOTIVO[m]}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
+
+      {reason === "No envió" && (
+        <p className="rounded-xl bg-brand-50 p-3 text-sm text-brand-900 ring-1 ring-brand-100" data-testid="no-envio-solo">
+          Si la tienda no despacha {order.ship_deadline ? `hasta el ${fmtDate(order.ship_deadline)}` : "a tiempo"}, el pago vuelve a ti solo, sin reclamo. Reclama
+          ahora solo si te dijo que no lo va a enviar.
+        </p>
+      )}
+
+      <div className="rounded-xl bg-slate-50 p-3 text-sm" data-testid="evidencia-pedida">
+        <p className="font-semibold">Qué evidencia hace falta</p>
+        <ul className="mt-1 list-disc space-y-0.5 pl-5 text-slate-700">
+          {ev.pasos.map((p) => (
+            <li key={p}>{p}</li>
+          ))}
+        </ul>
+      </div>
+
       <div>
         <label className="label" htmlFor="detalle">
-          Cuéntanos más
+          Cuéntanos qué pasó
         </label>
-        <textarea id="detalle" className="input min-h-24" value={text} onChange={(e) => setText(e.target.value)} maxLength={600} placeholder="Describe el problema" />
+        <textarea id="detalle" className="input min-h-24" value={text} onChange={(e) => setText(e.target.value)} maxLength={600} placeholder="Ej.: abrí el paquete y venía otro modelo" />
       </div>
-      <div>
-        <label className="label" htmlFor="foto">
-          Foto del paquete cerrado <span className="font-normal text-slate-400">(link https://…)</span>
-        </label>
-        <input id="foto" className="input" value={photo} onChange={(e) => setPhoto(e.target.value)} inputMode="url" placeholder="https://…" />
-      </div>
-      <div>
-        <label className="label" htmlFor="video">
-          Video continuo del desempaque{" "}
-          <span className="font-normal text-slate-400">{needsVideo ? "(obligatorio para este motivo desde Bs 300)" : "(opcional)"}</span>
-        </label>
-        <input id="video" className="input" value={video} onChange={(e) => setVideo(e.target.value)} inputMode="url" placeholder="https://…" />
-      </div>
+      {ev.foto !== "no" && (
+        <CampoEvidencia id="foto" tipo="foto" pedido={order.slug} label="Foto del paquete" nota={ev.foto === "pedida" ? "(pedida)" : "(opcional)"} value={photo} onChange={setPhoto} />
+      )}
+      {ev.video !== "no" && (
+        <CampoEvidencia
+          id="video"
+          tipo="video"
+          pedido={order.slug}
+          label="Video continuo del desempaque"
+          nota={ev.video === "obligatorio" ? "(obligatorio para este motivo desde Bs 300)" : "(opcional)"}
+          value={video}
+          onChange={setVideo}
+        />
+      )}
+
+      <p className="text-xs text-slate-600" data-testid="plazos-reclamo">
+        <strong>Plazos:</strong> la tienda responde en 48 h, tú puedes sumar evidencia en 48 h y el revisor decide en 72 h. Mientras tanto, nadie puede mover la
+        plata.
+      </p>
+      <ErrorBox error={error} />
       <div className="flex gap-2">
         <button type="button" className="btn-secondary" onClick={onCancel} disabled={busy}>
           Cancelar

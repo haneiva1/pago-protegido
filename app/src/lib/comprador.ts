@@ -28,6 +28,48 @@ export function plazosDelPedido(o: { ship_secs?: number | null; inspect_secs?: n
   };
 }
 
+// ---------- Reclamo guiado (M8) ----------
+
+/** Motivos que tienen sentido en cada estado (los mismos textos que valida el servidor en MOTIVOS). */
+export function motivosReclamo(status: string): string[] {
+  if (status === "pagado") return ["No envió"];
+  if (status === "enviado") return ["No llegó", "Llegó vacío o con otro producto", "Dañado o distinto a lo descrito"];
+  return [];
+}
+
+export const DESCRIPCION_MOTIVO: Record<string, string> = {
+  "No envió": "La tienda no despachó el pedido o te dijo que no lo va a enviar.",
+  "No llegó": "Lo despachó, pero no llegó a la agencia o no te lo entregan.",
+  "Llegó vacío o con otro producto": "Abriste el paquete y no está lo que compraste.",
+  "Dañado o distinto a lo descrito": "Llegó roto, usado o distinto a lo que te ofrecieron.",
+};
+
+export interface EvidenciaPedida {
+  foto: "pedida" | "opcional" | "no";
+  video: "obligatorio" | "opcional" | "no";
+  pasos: string[];
+}
+
+/** Qué evidencia hace falta según el motivo (política de reclamos; el video desde Bs 300 lo exige también el servidor). */
+export function evidenciaPedida(motivo: string, precioBsCents: number): EvidenciaPedida {
+  if (motivo === "No envió") return { foto: "no", video: "no", pasos: ["No necesitas evidencia: el registro muestra si hubo envío o no."] };
+  if (motivo === "No llegó")
+    return {
+      foto: "opcional",
+      video: "no",
+      pasos: ["Cuéntanos qué te dijo la agencia y cuándo preguntaste.", "Si tienes foto del aviso o del comprobante de la agencia, súbela."],
+    };
+  const obligatorio = precioBsCents >= 30000;
+  return {
+    foto: "pedida",
+    video: obligatorio ? "obligatorio" : "opcional",
+    pasos: [
+      "Foto del paquete cerrado, con la guía a la vista.",
+      `Video continuo del desempaque, sin cortes${obligatorio ? " (obligatorio desde Bs 300)" : ""}.`,
+    ],
+  };
+}
+
 // ---------- Acceso a la compra (M6) ----------
 
 export type AppInterna = "Facebook" | "Messenger" | "Instagram" | "TikTok";

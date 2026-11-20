@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { fmtLeft } from "@/components/Guardian";
 import { Spinner } from "@/components/ui";
 import type { OrderView } from "@/lib/types";
@@ -51,6 +52,22 @@ export function PreguntaConfirmar({
   onTodaviaNo: () => void;
   onPresion: () => void;
 }) {
+  const [presion, setPresion] = useState(false);
+  if (presion)
+    return (
+      <section className="card space-y-3 ring-2 ring-amber-300" data-testid="confirmar-presion">
+        <h2 className="text-lg font-bold">¿La tienda te pide que le pagues antes de tener el producto?</h2>
+        <p className="text-sm text-slate-700">
+          Vamos a abrir un reclamo por presión para confirmar: la plata queda congelada y un revisor ve el caso. La tienda no cobra mientras tanto.
+        </p>
+        <button className="btn w-full bg-amber-500 text-white hover:bg-amber-600" disabled={busy} onClick={onPresion}>
+          {busy ? <Spinner /> : null} Sí, abrir un reclamo
+        </button>
+        <button className="btn-secondary w-full" disabled={busy} onClick={() => setPresion(false)}>
+          No, volver
+        </button>
+      </section>
+    );
   return (
     <section className="card space-y-3 ring-2 ring-brand-200" data-testid="pregunta-confirmar">
       <h2 className="text-lg font-bold">¿Tienes el producto en tus manos y lo revisaste?</h2>
@@ -60,7 +77,7 @@ export function PreguntaConfirmar({
       <button className="btn-secondary w-full" disabled={busy} onClick={onTodaviaNo}>
         Todavía no
       </button>
-      <button className="btn-danger w-full" disabled={busy} onClick={onPresion}>
+      <button className="btn-danger w-full" disabled={busy} onClick={() => setPresion(true)}>
         El vendedor me pide que confirme
       </button>
     </section>

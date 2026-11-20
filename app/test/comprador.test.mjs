@@ -1,7 +1,22 @@
 // Tests unitarios de la lógica pura del comprador: `npm run test:unit` (node --test, sin dependencias).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fmtPlazo, linkAbrirEnChrome, navegadorInterno, plataforma, plazosDelPedido } from "../src/lib/comprador.ts";
+import { evidenciaPedida, fmtPlazo, linkAbrirEnChrome, motivosReclamo, navegadorInterno, plataforma, plazosDelPedido } from "../src/lib/comprador.ts";
+
+test("reclamo guiado: motivos según el estado del pedido", () => {
+  assert.deepEqual(motivosReclamo("pagado"), ["No envió"]);
+  assert.deepEqual(motivosReclamo("enviado"), ["No llegó", "Llegó vacío o con otro producto", "Dañado o distinto a lo descrito"]);
+  assert.deepEqual(motivosReclamo("liberado"), []);
+  assert.deepEqual(motivosReclamo("en_disputa"), []);
+});
+
+test("reclamo guiado: evidencia pedida por motivo y precio (video obligatorio desde Bs 300, como el servidor)", () => {
+  assert.equal(evidenciaPedida("No envió", 100000).video, "no");
+  assert.equal(evidenciaPedida("No llegó", 100000).foto, "opcional");
+  assert.equal(evidenciaPedida("Llegó vacío o con otro producto", 30000).video, "obligatorio");
+  assert.equal(evidenciaPedida("Dañado o distinto a lo descrito", 29999).video, "opcional");
+  assert.equal(evidenciaPedida("Dañado o distinto a lo descrito", 45000).foto, "pedida");
+});
 
 test("plazos: despacho y revisión del pedido (v2), con los valores por defecto", () => {
   assert.deepEqual(plazosDelPedido({ ship_secs: 120, inspect_secs: 120, delivery_days: 1 }), { despacho: 120, revision: 120 });

@@ -228,7 +228,7 @@ export default function PaginaDePago() {
         />
       )}
 
-      {problem && <Reclamo busy={busy} priceBsCents={o.price_bs_cents} onCancel={() => setProblem(false)} onSubmit={(x) => accion("dispute", x)} />}
+      {problem && <Reclamo order={o} busy={busy} onCancel={() => setProblem(false)} onSubmit={(x) => accion("dispute", x)} />}
 
       <LineaDeTiempo v={v} onReload={load} onExtend={isBuyer ? () => accion("extend") : undefined} />
       <Cierre v={v} />

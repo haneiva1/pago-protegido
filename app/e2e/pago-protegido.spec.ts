@@ -308,6 +308,10 @@ test("presión para confirmar abre un reclamo; el vendedor regala la protección
   await buyer.reload();
   await abrirPregunta(buyer);
   await buyer.getByRole("button", { name: "El vendedor me pide que confirme" }).click();
+  // Pide una confirmación antes de abrir el reclamo por presión (antes bastaba un toque).
+  await expect(buyer.getByTestId("confirmar-presion")).toContainText("¿La tienda te pide que le pagues antes de tener el producto?");
+  await capturar(buyer, "19-comprador-confirma-presion");
+  await buyer.getByRole("button", { name: "Sí, abrir un reclamo" }).click();
   await expect(buyer.getByTestId("aviso-presion")).toBeVisible();
   await expect(buyer.getByTestId("estado-pedido")).toContainText("Reclamo abierto", CHAIN);
   await expect(buyer.getByTestId("linea-de-tiempo")).toContainText("Presión para confirmar");
