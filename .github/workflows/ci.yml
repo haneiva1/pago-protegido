@@ -1,0 +1,79 @@
+# CI de Trato: contratos (Rust), bot y app (Node).
+# Cada job corre el mismo script que scripts/test.sh corre en Docker
+# (scripts/ci/<parte>.sh), con las mismas versiones:
+#   - Node: .nvmrc
+#   - Rust: contracts/rust-toolchain.toml si existe; si no, RUST_VERSION.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RUST_VERSION: "1.99.1"
+  CARGO_TERM_COLOR: always
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  contratos:
+    name: Contratos (Rust)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Toolchain de Rust
+        working-directory: contracts
+        run: |
+          if [ -f rust-toolchain.toml ]; then
+            echo "Uso contracts/rust-toolchain.toml"
+            rustup toolchain install
+          else
+            echo "Sin rust-toolchain.toml: uso Rust ${RUST_VERSION}"
+            rustup toolchain install "${RUST_VERSION}" --profile minimal
+            echo "RUSTUP_TOOLCHAIN=${RUST_VERSION}" >> "$GITHUB_ENV"
+          fi
+          rustc --version
+
+      - uses: Swatinem/rust-cache@v2.9.3
+        with:
+          workspaces: contracts
+
+      - run: bash scripts/ci/contratos.sh
+
+  bot:
+    name: Bot
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: bot/package-lock.json
+
+      - run: bash scripts/ci/bot.sh
+
+  app:
+    name: App
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - run: bash scripts/ci/app.sh
