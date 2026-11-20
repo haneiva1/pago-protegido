@@ -15,8 +15,15 @@ paso "Versiones" bash -c 'node --version && npm --version'
 paso "npm ci" npm ci --no-audit --no-fund
 paso "tsc --noEmit" npx tsc --noEmit
 
+# Si existe `test`, es el que junta todo (en la integración corre test:unit y
+# test:api): se corre solo ese, para no correr los mismos tests dos veces.
+if tiene_script test; then
+  scripts=(test)
+else
+  scripts=(test:unit test:api)
+fi
 corridos=0
-for s in test test:unit test:api; do
+for s in "${scripts[@]}"; do
   if tiene_script "$s"; then
     paso "npm run $s" npm run "$s"
     corridos=$((corridos + 1))

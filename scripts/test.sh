@@ -68,6 +68,10 @@ mkdir -p /work/${dir} /work/scripts
 tar -C /src/${dir} --exclude=./node_modules --exclude=./target --exclude='./.next*' \
   --exclude=./test_snapshots --exclude=./test-results --exclude=./playwright-report -cf - . \
   | tar -C /work/${dir} -xf -
+if [ "${dir}" = "bot" ]; then
+  # El test de palabras prohibidas del bot también lee los textos de app/src.
+  mkdir -p /work/app && tar -C /src/app -cf - src | tar -C /work/app -xf -
+fi
 tar -C /src/scripts -cf - ci | tar -C /work/scripts -xf -
 cp /src/.nvmrc /work/.nvmrc
 exec bash /work/scripts/ci/${parte}.sh
