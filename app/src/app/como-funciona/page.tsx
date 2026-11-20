@@ -58,7 +58,7 @@ export default async function ComoFunciona() {
         </Node>
         <Arrow />
         <Node n="4" title="El vendedor registra el envío" tone="slate">
-          Empresa, número de guía, peso, foto y destino (y el IMEI si es un celular). En el contrato queda la evidencia compacta: empresa|guía|peso|hash de la foto.
+          Empresa, número de guía, peso, destino y las fotos de la guía y del paquete desde la cámara (y el IMEI si es un celular). En el contrato queda la evidencia compacta: empresa|guía|peso|huella de cada foto.
           {guardian
             ? " Se registra una sola vez con pp_guardian.mark_shipped, antes del plazo de despacho, y desde ahí corre la revisión. Si no despacha a tiempo, la plataforma abre la disputa y pp_arbiter.refund_unshipped le devuelve el pago al comprador, sin que tenga que reclamar."
             : ""}

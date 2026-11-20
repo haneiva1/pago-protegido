@@ -16,6 +16,7 @@ import {
   splitPreview,
 } from "@/lib/format";
 import { parseFlete } from "@/lib/comprador";
+import { huellaDeLink } from "@/lib/evidencia";
 import { esperaParaConfirmar } from "@/lib/ciudades";
 import { NETWORK_PASSPHRASE, cfg } from "./config";
 import { type OrderRow, evidence, kv, orders, pending, pilot, sellers, txs } from "./db";
@@ -346,17 +347,21 @@ function shipParams(o: OrderRow, body: Record<string, unknown>): Record<string, 
   const tracking = clean(body.tracking, 60);
   const weightNum = Number(String(body.weight ?? "").replace(",", "."));
   const photo = clean(body.photo, 500);
+  // Envío con foto desde la cámara (M9): la guía y el paquete, cada una con su huella.
+  const photoGuia = clean(body.photoGuia, 500);
   const city = clean(body.city, 40) || o.dest_city || "";
   const imei = clean(body.imei, 20).replace(/\D/g, "");
   if (!inList(EMPRESAS, company)) throw new AppError("Elige la empresa de envío de la lista");
   if (company !== "Entrega en persona" && tracking.length < 3) throw new AppError("Escribe el número de guía");
   if (!Number.isFinite(weightNum) || weightNum <= 0 || weightNum > 500) throw new AppError("Escribe el peso declarado en kg");
-  if (!isUrl(photo)) throw new AppError("La foto tiene que ser un link (https://…)");
+  if (!isUrl(photo) || !isUrl(photoGuia)) throw new AppError("La foto tiene que ser un link (https://…)");
   if (!inList(CIUDADES, city)) throw new AppError("Elige la ciudad de destino");
   if (o.category === "Celular" && !/^\d{15}$/.test(imei)) throw new AppError("Para celulares el IMEI es obligatorio (15 dígitos)");
   const weight = String(Math.round(weightNum * 100) / 100);
-  const compact = `${company}|${tracking || "-"}|${weight}kg|${photo ? sha(photo).slice(0, 12) : "-"}`;
-  return { company, tracking, weight, photo, city, imei, evidence: compact };
+  // Foto subida a /api/evidencia: va su huella SHA-256 completa (la del archivo); un link externo, el hash corto del link.
+  const huella = (u: string) => (u ? (huellaDeLink(u) ?? sha(u).slice(0, 12)) : "-");
+  const compact = [company, tracking || "-", `${weight}kg`, huella(photo), ...(photoGuia ? [huella(photoGuia)] : [])].join("|");
+  return { company, tracking, weight, photo, city, imei, evidence: compact, ...(photoGuia ? { photoGuia } : {}) };
 }
 
 export async function prepareAction(slug: string, body: Record<string, unknown>): Promise<PreparedDto> {
