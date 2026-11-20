@@ -1,7 +1,7 @@
 "use client";
 
 import { fmtBsUnits, fmtDate } from "@/lib/format";
-import type { MoneyView, PublicOrder, TxRow } from "@/lib/types";
+import type { MoneyView, PublicOrder, ReintegroView, TxRow } from "@/lib/types";
 import { TxLink } from "./ui";
 
 /** Cómo se repartió el pago liberado, en Bs. */
@@ -46,7 +46,31 @@ export function SplitView({ money, buyerBps, fx }: { money: MoneyView; buyerBps:
       <p className="col-span-2 text-xs text-slate-500">
         Netos. Comisiones descontadas por el contrato: plataforma {fmtBsUnits(s.platform, fx)} · Trustless Work {fmtBsUnits(s.tw, fx)}.
       </p>
+      {money.reintegro && <Reintegro r={money.reintegro} fx={fx} />}
     </dl>
+  );
+}
+
+/** Devolución completa (PP_DEVOLUCION_COMPLETA=1): Trato le transfiere al comprador las comisiones de la devolución. */
+function Reintegro({ r, fx }: { r: ReintegroView; fx: number }) {
+  if (r.estado === "confirmado" && r.hash) {
+    return (
+      <div data-testid="reintegro" className="col-span-2 space-y-1 rounded-xl bg-emerald-50 p-3 text-left ring-1 ring-emerald-100">
+        <p className="font-bold text-emerald-900">Te devolvimos todo lo que pagaste: {fmtBsUnits(r.pagado, fx)}</p>
+        <p className="text-xs text-emerald-900">
+          El contrato te devolvió {fmtBsUnits(r.recibido, fx)} y Trato te transfirió las comisiones ({fmtBsUnits(r.monto, fx)}).
+        </p>
+        <p className="flex flex-wrap gap-x-4 gap-y-1">
+          <TxLink hash={r.devolucion_hash} label="Ver la devolución" />
+          <TxLink hash={r.hash} label="Ver el reintegro" />
+        </p>
+      </div>
+    );
+  }
+  return (
+    <p data-testid="reintegro" className="col-span-2 rounded-xl bg-amber-50 p-3 text-left text-xs text-amber-900 ring-1 ring-amber-100">
+      Trato te va a transferir las comisiones ({fmtBsUnits(r.monto, fx)}) para que recibas todo lo que pagaste.
+    </p>
   );
 }
 
@@ -61,6 +85,7 @@ const ICON: Record<string, string> = {
   resolucion: "⚖️",
   extension: "⏳",
   devolucion: "↩️",
+  reintegro: "💸",
 };
 
 /** Línea de tiempo del pedido, con "Ver registro público" en cada transacción. */

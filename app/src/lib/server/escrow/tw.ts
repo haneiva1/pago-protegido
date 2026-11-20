@@ -146,7 +146,7 @@ export async function verifyEscrowInstance(escrowId: string, expected: Roles, la
     { label: `Aprueba y libera: ${labels.approver}`, ok: r?.approver === expected.approver && r?.release_signer === expected.release_signer },
     { label: `Resuelve reclamos: ${labels.resolver}`, ok: r?.dispute_resolver === expected.dispute_resolver },
     { label: "Cobra: el vendedor", ok: r?.receiver === expected.receiver && r?.service_provider === expected.service_provider },
-    { label: "Comisión de la plataforma: la cuenta de Pago Protegido", ok: r?.platform === expected.platform },
+    { label: "Comisión de la plataforma: la cuenta de Trato", ok: r?.platform === expected.platform },
   ];
   return { ok: checks.every((c) => c.ok), escrowId, wasmHash, checks, at: Date.now() };
 }

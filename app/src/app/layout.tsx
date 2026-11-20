@@ -2,9 +2,10 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { WalletRuntime } from "@/components/WalletRuntime";
+import { SCRIPT_MARCO } from "@/lib/probar";
 import "./globals.css";
 
-const OG_TITLE = "Pago Protegido: vende a otras ciudades sin que desconfíen de ti";
+const OG_TITLE = "Trato: vende a otras ciudades sin que desconfíen de ti";
 const OG_DESC = "Pago contra confirmación de entrega: tu cliente paga por adelantado y su plata queda guardada hasta que recibe. También entre ciudades.";
 
 /** WhatsApp y las redes necesitan URLs absolutas: se arman con el host del request (sirve también detrás de un túnel). */
@@ -15,9 +16,9 @@ export async function generateMetadata(): Promise<Metadata> {
   const proto = h.get("x-forwarded-proto") ?? (local ? "http" : "https");
   return {
     metadataBase: new URL(`${proto}://${host}`),
-    title: "Pago Protegido",
+    title: "Trato · pago protegido para ventas por redes",
     description: "Pago contra confirmación de entrega para ventas entre ciudades por encomienda. Modo práctica.",
-    openGraph: { title: OG_TITLE, description: OG_DESC, type: "website", siteName: "Pago Protegido", locale: "es_BO" },
+    openGraph: { title: OG_TITLE, description: OG_DESC, type: "website", siteName: "Trato", locale: "es_BO" },
     twitter: { card: "summary_large_image", title: OG_TITLE, description: OG_DESC },
   };
 }
@@ -36,16 +37,19 @@ function Shield() {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es">
+    // data-marco lo pone SCRIPT_MARCO en el navegador (dentro de /probar): por eso el aviso de hidratación se ignora.
+    <html lang="es" suppressHydrationWarning>
       <body className="min-h-screen">
-        <div className="bg-amber-50 px-4 py-1.5 text-center text-xs text-amber-800">
+        {/* Modo embebido de /probar: corre antes de pintar, así el encabezado nunca aparece dentro del marco. */}
+        <script dangerouslySetInnerHTML={{ __html: SCRIPT_MARCO }} />
+        <div data-chrome className="bg-amber-50 px-4 py-1.5 text-center text-xs text-amber-800">
           Modo práctica: no se mueve dinero real.
         </div>
-        <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/90 backdrop-blur">
+        <header data-chrome className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/90 backdrop-blur">
           <nav className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
             <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
               <Shield />
-              Pago Protegido
+              Trato
             </Link>
             <div className="flex items-center gap-4 text-sm font-medium text-slate-600">
               <Link href="/como-funciona" className="hover:text-slate-900">
@@ -62,8 +66,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </header>
         <main className="mx-auto max-w-5xl px-4 pb-16 pt-6">{children}</main>
         <WalletRuntime />
-        <footer className="border-t border-slate-200 py-6 text-center text-xs text-slate-500">
-          Pago Protegido · modo práctica ·{" "}
+        <footer data-chrome className="border-t border-slate-200 py-6 text-center text-xs text-slate-500">
+          Trato · pago protegido · modo práctica ·{" "}
           <Link href="/verificar" className="underline">
             Verificar un link
           </Link>{" "}

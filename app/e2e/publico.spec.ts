@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
+import { sembrarTiendaAjena } from "./firma";
 
 // Solo lectura contra Stellar TESTNET: métricas en vivo, perfil verificable de la tienda y tarjeta del vendedor, con
 // los eventos reales de los contratos v2 (compras de las pruebas del equipo). No firma ni envía transacciones.
@@ -15,7 +16,7 @@ const WHATSAPP = { "user-agent": "WhatsApp/2.24.20.80 A" };
 const TIENDA_WA = "59170004444";
 
 // Misma lista que pago-protegido.spec.ts. /metricas y /tienda son pantallas de usuarios: van las dos listas.
-const LEGALES = [/\bseguro\b/i, /garant[ií]a/i, /garantizad/i, /100\s?%/, /custodia/i, /plataforma de pagos/i, /pasarela/i, /billetera Pago Protegido/i, /arbitraje/i, /árbitro/i];
+const LEGALES = [/\bseguro\b/i, /garant[ií]a/i, /garantizad/i, /100\s?%/, /custodia/i, /plataforma de pagos/i, /pasarela/i, /billetera Pago Protegido/i, /billetera Trato/i, /arbitraje/i, /árbitro/i];
 const TECNICAS = [/cripto/i, /\btoken/i, /stablecoin/i, /\bwallet\b/i, /\bllaves?\b/i, /billetera propia/i, /blockchain/i, /stellar/i];
 
 async function revisarPalabras(page: Page) {
@@ -122,7 +123,8 @@ test("métricas en vivo: piloto y pruebas del equipo por separado, cada número 
 
 test("perfil verificable de la tienda (/tienda/<slug>): mismos números que la tarjeta del vendedor, insignia OG y sin datos personales", async ({ page, request }) => {
   // Una cuenta de vendedor de las pruebas del equipo con ventas reales en testnet. Se registra como tienda solo en esta
-  // base local (crear la tienda no firma nada, DECISIONES 15): sus números salen del registro público.
+  // base local, sembrada directo en la base: por la API, crear la tienda o el link pide la firma de esa cuenta y el test
+  // no tiene su clave. Sus números salen del registro público.
   const t = (await (await request.get("/api/transparencia")).json()) as { compras: { seller: string; state: string }[] };
   // Que todavía no sea tienda en esta base: con `npm run test:e2e` corre después del flujo con pagos, que ya registró
   // sus tiendas, y el slug se asigna una sola vez y no cambia al renombrar (DECISIONES 93).
@@ -130,10 +132,12 @@ test("perfil verificable de la tienda (/tienda/<slug>): mismos números que la t
   let vendedor: string | undefined;
   for (const s of pagadas) if ((await request.get(`/api/sellers/${s}`)).status() === 404) { vendedor = s; break; }
   expect(vendedor, "una compra pagada en testnet a una cuenta que todavía no es tienda en esta base").toBeTruthy();
-  expect((await request.post("/api/sellers", { data: { pubkey: vendedor, storeName: "Calzados Sofi", whatsapp: TIENDA_WA, city: "Cochabamba" } })).ok()).toBe(true);
-  const link = (await (await request.post("/api/links", { data: { sellerPubkey: vendedor, product: "Zapatillas urbanas talla 40", priceBs: 450, deliveryDays: 3 } })).json()) as {
-    slug: string;
-  };
+  // Por la API, sin la firma de esa cuenta, no se puede (DECISIONES de la API firmada).
+  expect((await request.post("/api/sellers", { data: { pubkey: vendedor, storeName: "Calzados Sofi", whatsapp: TIENDA_WA, city: "Cochabamba" } })).status()).toBe(401);
+  const link = sembrarTiendaAjena(
+    { pubkey: vendedor!, storeName: "Calzados Sofi", whatsapp: TIENDA_WA, city: "Cochabamba" },
+    { product: "Zapatillas urbanas talla 40", priceBs: 450, deliveryDays: 3 },
+  );
 
   // Página de pago del comprador: la tarjeta del vendedor muestra los números y enlaza al perfil.
   await page.goto(`/p/${link.slug}`);
@@ -150,8 +154,8 @@ test("perfil verificable de la tienda (/tienda/<slug>): mismos números que la t
   await expect(page).toHaveURL(/\/tienda\/calzados-sofi-[0-9a-f]{4}$/);
   const slug = new URL(page.url()).pathname.split("/").pop()!;
   await expect(page.getByTestId("perfil-nombre")).toHaveText("Calzados Sofi");
-  await expect(page.getByTestId("sello")).toContainText("Vende con Pago Protegido");
-  await expect(page.getByTestId("perfil-tienda")).toContainText(/Vende con Pago Protegido desde \S+ de \d{4}/);
+  await expect(page.getByTestId("sello")).toContainText("Vende con Trato");
+  await expect(page.getByTestId("perfil-tienda")).toContainText(/Vende con Trato desde \S+ de \d{4}/);
   await expect(page.getByTestId("verificacion")).toHaveText("Verificación de identidad: pendiente (modo práctica)");
   // Los mismos números que la tarjeta del comprador.
   for (const [id, v] of Object.entries(enTarjeta)) await expect(page.getByTestId("perfil-tienda").getByTestId(id).locator("p").first()).toHaveText(v);
@@ -164,19 +168,17 @@ test("perfil verificable de la tienda (/tienda/<slug>): mismos números que la t
   expect(html).not.toContain(TIENDA_WA.slice(-8));
   expect(await page.locator("body").innerText()).not.toMatch(/WhatsApp|direcci[oó]n:/i);
 
-  // Insignia para la bio: link y texto listos para copiar, imagen para descargar.
-  const url = await page.getByTestId("link-perfil").innerText();
-  expect(url).toMatch(new RegExp(`^http://localhost:\\d+/tienda/${slug}$`));
-  await expect(page.getByTestId("insignia").getByRole("button", { name: "Copiar link" })).toBeVisible();
-  await expect(page.getByTestId("insignia").getByRole("button", { name: "Copiar texto para la bio" })).toBeVisible();
+  // La insignia para la bio ya no está aquí, donde la ve el comprador: está en el panel del vendedor (M9).
+  // La imagen se sigue descargando desde /tienda/<slug>/insignia.
+  await expect(page.getByTestId("insignia")).toHaveCount(0);
   const descarga = await request.get(`/tienda/${slug}/insignia`);
   expect(descarga.status()).toBe(200);
   expect(descarga.headers()["content-type"]).toContain("image/png");
   await capturar(page, "73-tienda-perfil");
 
-  // Vista previa al pegar el link en Instagram, TikTok o WhatsApp: "Vende con Pago Protegido" y sus números.
+  // Vista previa al pegar el link en Instagram, TikTok o WhatsApp: "Vende con Trato" y sus números.
   const meta = metas(await (await request.get(`/tienda/${slug}`, { headers: WHATSAPP })).text());
-  expect(meta["og:title"]).toBe("Calzados Sofi vende con Pago Protegido");
+  expect(meta["og:title"]).toBe("Calzados Sofi vende con Trato");
   expect(meta["og:description"]).toContain(`${numero(enTarjeta["num-ventas"])} venta`);
   expect(meta["og:description"]).toContain("sin reclamo");
   expect(meta["og:description"]).not.toContain(TIENDA_WA);

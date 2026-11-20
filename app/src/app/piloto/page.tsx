@@ -52,7 +52,7 @@ export default function Piloto() {
     <div className="mx-auto max-w-md space-y-4">
       <h1 className="text-2xl font-bold">Piloto con vendedores reales</h1>
       <p className="text-slate-600">
-        Buscamos tiendas que vendan a otras ciudades por encomienda (tickets de Bs 300 a 3.000). Anótate y te acompañamos en tus primeras ventas protegidas.
+        Buscamos tiendas de celulares y electrónica que vendan a otras ciudades por encomienda (tickets de Bs 1.000 a 7.000). Anótate y te acompañamos en tus primeras ventas protegidas.
       </p>
       <form className="card space-y-3" onSubmit={submit} data-testid="form-piloto">
         {field("name", "Tu nombre", "Nombre y apellido")}
@@ -74,7 +74,7 @@ export default function Piloto() {
         {field("whatsapp", "WhatsApp", "Ej.: 591 71234567", { inputMode: "tel" })}
         <label className="flex items-start gap-2 text-sm text-slate-700">
           <input type="checkbox" className="mt-1" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-          <span>Acepto que Pago Protegido guarde estos datos y me escriba por WhatsApp sobre el piloto.</span>
+          <span>Acepto que Trato guarde estos datos y me escriba por WhatsApp sobre el piloto.</span>
         </label>
         <ErrorBox error={error} />
         <button className="btn-primary w-full" disabled={busy}>

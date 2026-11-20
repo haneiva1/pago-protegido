@@ -81,6 +81,16 @@ CREATE TABLE IF NOT EXISTS pp_events (
   data_json TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS pp_events_escrow ON pp_events(escrow);
+-- H-9: resultado del indexador verificado por escrow (docs/METRICAS.md §Reglas del indexador).
+-- reglas es la huella de los valores esperados: si cambian, el escrow se vuelve a verificar.
+CREATE TABLE IF NOT EXISTS escrow_verificado (
+  escrow TEXT PRIMARY KEY,
+  reglas TEXT NOT NULL,
+  ok INTEGER NOT NULL,
+  fallas TEXT NOT NULL,
+  wasm_hash TEXT,
+  verificado_at INTEGER NOT NULL
+);
 -- Historial de versiones de la evidencia (envío, reclamo, respuesta), con hora.
 CREATE TABLE IF NOT EXISTS evidence (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -105,6 +115,14 @@ CREATE TABLE IF NOT EXISTS pilot_waitlist (
   consent INTEGER NOT NULL,
   seller_pubkey TEXT,
   created_at INTEGER NOT NULL
+);
+-- Desafíos de un solo uso para probar que una cuenta es tuya (lib/server/firma.ts): se borran al usarlos.
+CREATE TABLE IF NOT EXISTS firma_desafios (
+  nonce TEXT PRIMARY KEY,
+  cuenta TEXT NOT NULL,
+  alcance TEXT NOT NULL,
+  mensaje TEXT NOT NULL,
+  vence INTEGER NOT NULL
 );
 `;
 
@@ -138,6 +156,9 @@ const MIGRATIONS: Record<string, [string, string][]> = {
     ["ship_imei", "TEXT"],
     ["confirm_after", "INTEGER"],
     ["dispute_video", "TEXT"],
+    // Último tramo (M7): teléfono de quien recoge (privado, como los datos de entrega) y flete acordado.
+    ["pickup_phone", "TEXT"],
+    ["flete", "TEXT"],
     ["resolution_reason", "TEXT"],
     // Contratos v2: plazo de despacho y ventana de revisión (desde el envío), extend y devolución.
     ["ship_secs", "INTEGER"],
@@ -145,6 +166,8 @@ const MIGRATIONS: Record<string, [string, string][]> = {
     ["ship_deadline", "INTEGER"],
     ["extended", "INTEGER NOT NULL DEFAULT 0"],
     ["refunded_at", "INTEGER"],
+    // Hasta cuándo queda fijado el comprador que empezó a pagar y todavía no firmó el fondeo (lib/server/orders.ts).
+    ["buyer_lease_until", "INTEGER"],
   ],
 };
 
@@ -205,6 +228,10 @@ export interface OrderRow {
   dest_city: string | null;
   pref_agency: string | null;
   delivery_hash: string | null;
+  /** Teléfono de quien recoge: solo servidor y panel del vendedor. */
+  pickup_phone?: string | null;
+  /** Flete acordado: "incluido", "por_pagar" o "aparte:<Bs>" (no cambia el monto protegido). */
+  flete?: string | null;
   ship_company: string | null;
   ship_tracking: string | null;
   ship_weight: string | null;
@@ -221,6 +248,8 @@ export interface OrderRow {
   extended: number;
   /** v2: devolución por falta de despacho (refund_unshipped). */
   refunded_at: number | null;
+  /** Mientras está esperando pago: hasta cuándo queda fijado `buyer_pubkey` si no firma el fondeo (ms). */
+  buyer_lease_until: number | null;
   dispute_video: string | null;
   resolution_reason: string | null;
   buyer_bps: number | null;
@@ -472,6 +501,16 @@ export const txs = {
   forOrder(slug: string): TxRow[] {
     return db().prepare(`SELECT * FROM txs WHERE order_slug = ? ORDER BY id ASC`).all(slug) as TxRow[];
   },
+  /** Registro de un intento de pago que venció sin fondeo (rampa y contrato de ese comprador). */
+  dropAttempt(slug: string) {
+    db().prepare(`DELETE FROM txs WHERE order_slug = ? AND kind IN ('rampa', 'escrow')`).run(slug);
+  },
+  /** Activación de una cuenta (trustline a la moneda de prueba): no pertenece a ningún pedido. */
+  activation(pubkey: string): TxRow | undefined {
+    return db().prepare(`SELECT * FROM txs WHERE order_slug IS NULL AND kind = 'trustline' AND actor = ? ORDER BY id DESC LIMIT 1`).get(pubkey) as
+      | TxRow
+      | undefined;
+  },
 };
 
 export const evidence = {
@@ -514,11 +553,37 @@ export const pending = {
       )
       .run({ ...p, created_at: now() });
   },
+  /** Borra las transacciones de un intento de pago que venció (ya no se aceptan en /api/tx/submit). */
+  dropForOrder(slug: string, step: string) {
+    db().prepare(`DELETE FROM pending WHERE order_slug = ? AND step = ?`).run(slug, step);
+  },
   take(hash: string): PendingRow | undefined {
     const d = db();
     const row = d.prepare(`SELECT * FROM pending WHERE hash = ?`).get(hash) as PendingRow | undefined;
     if (row) d.prepare(`DELETE FROM pending WHERE hash = ?`).run(hash);
     return row;
+  },
+};
+
+export interface DesafioRow {
+  nonce: string;
+  cuenta: string;
+  /** "MÉTODO /ruta" para la que vale la firma. */
+  alcance: string;
+  /** Texto exacto que firma la cuenta (SEP-53). */
+  mensaje: string;
+  vence: number;
+}
+
+export const desafios = {
+  add(d: DesafioRow) {
+    const t = now();
+    db().prepare(`DELETE FROM firma_desafios WHERE vence < ?`).run(t);
+    db().prepare(`INSERT INTO firma_desafios (nonce, cuenta, alcance, mensaje, vence) VALUES (@nonce, @cuenta, @alcance, @mensaje, @vence)`).run(d);
+  },
+  /** Lo saca de la tabla en la misma sentencia: un nonce sirve una sola vez, aunque lleguen dos pedidos juntos. */
+  take(nonce: string): DesafioRow | undefined {
+    return db().prepare(`DELETE FROM firma_desafios WHERE nonce = ? RETURNING *`).get(nonce) as DesafioRow | undefined;
   },
 };
 

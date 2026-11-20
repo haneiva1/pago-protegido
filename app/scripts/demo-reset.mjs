@@ -13,6 +13,7 @@ import { existsSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { headerFirma } from "./firma.mjs";
 
 const APP = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DB = resolve(APP, process.env.PP_DB_PATH || join("data", "pp.db"));
@@ -117,13 +118,13 @@ async function activate(kp) {
 async function sale(seller, p) {
   const buyer = Keypair.random();
   const { recipient: _r, city: _c, ship: _s, ...linkFields } = p;
-  const link = await api("/api/links", { sellerPubkey: seller.publicKey(), ...linkFields });
+  const link = await api("/api/links", { sellerPubkey: seller.publicKey(), ...linkFields }, await headerFirma(BASE, seller, "POST", "/api/links"));
   console.log(`  · ${p.product} (Bs ${p.priceBs}) → /p/${link.slug}`);
   await activate(buyer);
   // El pago encadena varias transacciones: si la red falla, se reintenta (el flujo es idempotente).
   for (let i = 1; ; i++) {
     try {
-      await sign(buyer, await api(`/api/orders/${link.slug}/pay`, { buyer: buyer.publicKey(), whatsapp: BUYER_WA, recipient: p.recipient, city: p.city }));
+      await sign(buyer, await api(`/api/orders/${link.slug}/pay`, { buyer: buyer.publicKey(), whatsapp: BUYER_WA, recipient: p.recipient, city: p.city }, await headerFirma(BASE, buyer, "POST", `/api/orders/${link.slug}/pay`)));
       break;
     } catch (e) {
       if (i >= 3) throw e;
@@ -145,15 +146,15 @@ try {
   console.log("Sembrando:");
   const seller = Keypair.random();
   await activate(seller);
-  await api("/api/sellers", { pubkey: seller.publicKey(), storeName: "Tienda Sofi", whatsapp: SELLER_WA, city: "Santa Cruz" });
+  await api("/api/sellers", { pubkey: seller.publicKey(), storeName: "Tienda Sofi", whatsapp: SELLER_WA, city: "Santa Cruz" }, await headerFirma(BASE, seller, "POST", "/api/sellers"));
 
   // (c) Devolución por no despacho: link con plazos de demo (2 min) que nadie despacha. Se paga primero y
   // corre en paralelo con (a) y (b); al vencer el despacho, la app la devuelve sola (disputa de plataforma +
   // pp_arbiter.refund_unshipped).
   const c = await sale(seller, {
-    product: "Celular Motorola G24",
+    product: "Celular Samsung Galaxy A35",
     description: "Nuevo, en caja.",
-    priceBs: 950,
+    priceBs: 2500,
     deliveryDays: 2,
     category: "Celular",
     demoWindow: true,
@@ -203,7 +204,7 @@ try {
       video: "https://example.com/desempaque.mp4",
     }),
   );
-  await api(`/api/orders/${b.slug}/reply`, { pubkey: seller.publicKey(), text: "Envié el modelo publicado; acepto devolver una parte." });
+  await api(`/api/orders/${b.slug}/reply`, { pubkey: seller.publicKey(), text: "Envié el modelo publicado; acepto devolver una parte." }, await headerFirma(BASE, seller, "POST", `/api/orders/${b.slug}/reply`));
   const r = await api("/api/arbitro/resolve", { slug: b.slug, buyerBps: 7000, reason: "Dañado o distinto a lo descrito" }, { "x-arbitro-key": env.ARBITRO_PANEL_KEY });
   console.log(`    ✓ El revisor repartió 70/30  https://stellar.expert/explorer/testnet/tx/${r.hash}`);
 

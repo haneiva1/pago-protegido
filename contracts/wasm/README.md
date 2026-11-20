@@ -1,6 +1,6 @@
 # WASM del escrow de Trustless Work
 
-`escrow.wasm` es el escrow **single-release** de Trustless Work compilado **sin modificaciones**. Lo usan los 38 tests de `integration-tests/` (`include_bytes!` en `tests/common/mod.rs`) y es el mismo WASM instalado en testnet.
+`escrow.wasm` es el escrow **single-release** de Trustless Work compilado **sin modificaciones**. Lo usan los tests de `integration-tests/` (`include_bytes!` en `tests/common/mod.rs`) y es el mismo WASM instalado en testnet.
 
 | | |
 |---|---|

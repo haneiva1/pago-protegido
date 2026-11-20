@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const MOCK = process.env.E2E_MOCK_URL!;
-const FAKE = "⚠️ Este link NO es de Pago Protegido. No pagues.";
+const FAKE = "⚠️ Este link NO es de Trato. No pagues.";
 
 async function say(page: Page, text: string) {
   const input = page.getByLabel("Mensaje");

@@ -62,3 +62,18 @@ input[type="range"] {
 @utility muted {
   @apply text-sm text-slate-500;
 }
+
+/* /probar: las páginas reales dentro de los marcos de celular, sin encabezado ni pie (SCRIPT_MARCO en el layout). */
+html[data-marco] [data-chrome] {
+  display: none;
+}
+
+html[data-marco] main {
+  padding-top: 0.75rem;
+  padding-bottom: 2rem;
+}
+
+/* /probar necesita más ancho que el resto: dos celulares y el registro en vivo. */
+main:has(> [data-probar-ancho]) {
+  max-width: 88rem;
+}

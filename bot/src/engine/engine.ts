@@ -92,7 +92,7 @@ export function detectIntent(text: string): Intent {
   // Quién paga la protección: botones del link recién creado (llevan el slug) o el texto escrito.
   const prot = /^(regalo|cliente)\s+([a-z0-9-]{8,40})$/.exec(t);
   if (prot) return { kind: "proteccion", who: prot[1] === "regalo" ? "vendedor" : "comprador", code: prot[2] };
-  const protText = /^(?:(yo )?la regalo|la regalo yo|regalo la proteccion|(?:la )?paga (?:mi |el )?cliente|la paga el comprador)(?:\s+(pp-\d{4,5}|[0-9a-f]{6}))?$/.exec(t);
+  const protText = /^(?:(yo )?la regalo|la regalo yo|regalo la proteccion|(?:la )?paga (?:mi |el )?cliente|la paga el comprador)(?:\s+(pp-\d{4,5}|pp-(?=[a-z]{0,7}[2-9])[2-9a-hjkmnp-z]{8}|[0-9a-f]{6}))?$/.exec(t);
   if (protText) return { kind: "proteccion", who: /regalo/.test(t) ? "vendedor" : "comprador", code: protText[2] };
 
   if (/^(cancelar|cancela|cancelalo|salir|olvidalo|olvida|nada|ya no|stop)$/.test(t)) return { kind: "cancel" };

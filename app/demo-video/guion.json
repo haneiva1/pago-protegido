@@ -1,0 +1,121 @@
+{
+  "_fuente": "stellar-lab/docs-pp/council/entrega/GUION-VIDEO.md, columna «Voz», en el mismo orden. Cada bloque es un subtítulo de una o dos líneas (\n separa las líneas). Cambios pedidos: «38 tests» → 47 (el número real del repo) y sin «[Cita de una entrevista, si la hay]». «voz» es el texto completo de la escena: los bloques, unidos, tienen que dar exactamente ese texto (lo revisa demo.spec.ts). «desde» y «hasta» son la ventana del guion, en segundos.",
+  "lectura": { "base": 0.8, "cps": 16, "min": 2.2 },
+  "prohibidas": [
+    "garant[ií]a",
+    "\\bseguro\\b",
+    "custodia",
+    "arbitraje",
+    "árbitro",
+    "100\\s?%",
+    "plataforma de pagos",
+    "cripto",
+    "\\btoken",
+    "\\bwallet\\b",
+    "\\bllaves?\\b",
+    "blockchain"
+  ],
+  "escenas": [
+    {
+      "id": "portada",
+      "tipo": "placa",
+      "desde": 0,
+      "hasta": 20,
+      "voz": "En Bolivia hicimos 892 millones de pagos con QR el año pasado. Pero si le compras a alguien de otra ciudad por Facebook o WhatsApp, alguien tiene que confiar primero. En octubre, un falso vendedor de iPhone cobró por adelantado a seis compradores de tres departamentos.",
+      "bloques": [
+        "En Bolivia hicimos 892 millones de pagos con QR el año pasado.",
+        "Pero si le compras a alguien de otra ciudad por Facebook o WhatsApp,\nalguien tiene que confiar primero.",
+        "En octubre, un falso vendedor de iPhone cobró por adelantado\na seis compradores de tres departamentos."
+      ]
+    },
+    {
+      "id": "problema",
+      "tipo": "placa",
+      "desde": 20,
+      "hasta": 35,
+      "voz": "Y al vendedor tampoco le sirve una captura: ASFI advierte sobre comprobantes falsificados.",
+      "bloques": ["Y al vendedor tampoco le sirve una captura:\nASFI advierte sobre comprobantes falsificados."]
+    },
+    {
+      "id": "bot",
+      "tipo": "clip",
+      "desde": 35,
+      "hasta": 55,
+      "voz": "Trato es el contra entrega que cruza departamentos. El vendedor crea un link desde WhatsApp en segundos y se lo manda al comprador.",
+      "bloques": ["Trato es el contra entrega que cruza departamentos.", "El vendedor crea un link desde WhatsApp en segundos\ny se lo manda al comprador."]
+    },
+    {
+      "id": "comprador",
+      "tipo": "clip",
+      "desde": 55,
+      "hasta": 80,
+      "voz": "El comprador ve a dónde puede ir su plata: a la tienda cuando confirme, o de vuelta a él si no hay despacho. Paga con el QR de su banco. Para la demo, la rampa en bolivianos está simulada en testnet.",
+      "bloques": [
+        "El comprador ve a dónde puede ir su plata:",
+        "a la tienda cuando confirme,\no de vuelta a él si no hay despacho.",
+        "Paga con el QR de su banco.",
+        "Para la demo, la rampa en bolivianos\nestá simulada en testnet."
+      ]
+    },
+    {
+      "id": "despacho",
+      "tipo": "clip",
+      "desde": 80,
+      "hasta": 100,
+      "voz": "El vendedor despacha y saca una foto de la guía. La huella de esa foto queda registrada en el contrato.",
+      "bloques": ["El vendedor despacha y saca una foto de la guía.", "La huella de esa foto queda registrada\nen el contrato."]
+    },
+    {
+      "id": "cobro",
+      "tipo": "clip",
+      "desde": 100,
+      "hasta": 120,
+      "voz": "Cuando el comprador lo tiene en sus manos, confirma y el vendedor cobra en una sola transacción. Si no responde, se libera solo al vencer el plazo. Si nunca despachan, la plata vuelve.",
+      "bloques": [
+        "Cuando el comprador lo tiene en sus manos, confirma",
+        "y el vendedor cobra en una sola transacción.",
+        "Si no responde, se libera solo al vencer el plazo.\nSi nunca despachan, la plata vuelve."
+      ]
+    },
+    {
+      "id": "probar",
+      "tipo": "clip",
+      "opcional": true,
+      "desde": 120,
+      "hasta": 140,
+      "voz": "¿Y si alguien intenta quedarse con la plata? Ni el revisor ni nosotros podemos: el contrato rechaza cualquier destino que no sea el vendedor o el comprador.",
+      "bloques": [
+        "¿Y si alguien intenta quedarse con la plata?",
+        "Ni el revisor ni nosotros podemos: el contrato rechaza\ncualquier destino que no sea el vendedor o el comprador."
+      ]
+    },
+    {
+      "id": "stellar",
+      "tipo": "placa",
+      "desde": 140,
+      "hasta": 160,
+      "voz": "Usamos el escrow de Trustless Work y le sumamos dos contratos propios en Soroban. Tenemos 47 tests contra el código real y 9 intentos de desvío rechazados en testnet. La reputación de cada tienda solo cuenta compras verificadas.",
+      "bloques": [
+        "Usamos el escrow de Trustless Work\ny le sumamos dos contratos propios en Soroban.",
+        "Tenemos 47 tests contra el código real\ny 9 intentos de desvío rechazados en testnet.",
+        "La reputación de cada tienda solo cuenta compras verificadas."
+      ]
+    },
+    {
+      "id": "plan",
+      "tipo": "placa",
+      "desde": 160,
+      "hasta": 175,
+      "voz": "En 30 días: app pública, piloto medido con 20 vendedores y contratos listos para auditoría.",
+      "bloques": ["En 30 días: app pública, piloto medido con 20 vendedores\ny contratos listos para auditoría."]
+    },
+    {
+      "id": "cierre",
+      "tipo": "placa",
+      "desde": 175,
+      "hasta": 180,
+      "voz": "Trato. Dos salidas, nunca una tercera.",
+      "bloques": ["Trato. Dos salidas, nunca una tercera."]
+    }
+  ]
+}

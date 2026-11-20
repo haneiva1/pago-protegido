@@ -212,7 +212,12 @@ Las instancias huérfanas de esas corridas (un escrow sin inicializar en la corr
 - El script verifica los roles después del init.
 - La app debería preferir `tw_new_single_release_escrow`, que despliega e inicializa en una sola transacción.
 
-**H-4. Un reembolso también paga comisiones** (hallazgo 3 del spike). Con 100% al comprador, recupera 146,55 de 150: pierde el 2% de la plataforma y el 0,3% de TW. No se cambió: SPEC fija las comisiones y no dice nada sobre reembolsos. *(Decisión del 19-nov: se mantiene, porque cambiarlo exige contratos nuevos, y queda explicado en la [tarifa del README](../README.md#tarifa): en devoluciones y disputas, Trustless Work descuenta las comisiones.)*
+**H-4. Un reembolso también paga comisiones** (hallazgo 3 del spike). Con 100% al comprador, recupera 146,55 de 150: pierde el 2% de la plataforma y el 0,3% de TW. No se cambió: SPEC fija las comisiones y no dice nada sobre reembolsos. *(Decisión del 19-nov: se mantiene, porque cambiarlo exige contratos nuevos, y queda explicado en la [tarifa de docs/TECNICO.md](../docs/TECNICO.md#tarifa): en devoluciones y disputas, Trustless Work descuenta las comisiones.)*
+- **Opción lista para activar (20-nov), sin tocar los contratos:** la devolución completa en la app, detrás del interruptor `PP_DEVOLUCION_COMPLETA` (apagado por defecto; ver `deploy/app.env.example`).
+  - Con `PP_DEVOLUCION_COMPLETA=1`, después de una devolución total confirmada en la red (`refund_unshipped`, o `resolve` con todo para el comprador), Trato le transfiere al comprador la diferencia entre lo que pagó y lo que le devolvió el contrato: un pago de LABUSD desde la cuenta `plataforma`, con fee bump. En el ejemplo de arriba, 3,45 de 150.
+  - No se paga dos veces: un reintegro por pedido (clave única en SQLite), el sobre firmado se guarda antes de enviarlo y, si la red falla, se reenvía el mismo sobre o se arma otro solo cuando el anterior ya no puede entrar. Lo prueban `app/test/reintegro.test.mjs` y el e2e `app/e2e-devolucion/`.
+  - La página del pedido y el aviso del bot dicen "Te devolvimos todo lo que pagaste", con el link a las dos transacciones. Apagado, todo queda como antes.
+  - Activarlo es decisión de producto de Hans: el costo para Trato es la comisión de TW (0,3%) más la propia (2%) en cada devolución total.
 
 **H-5. La plataforma puede agregar hitos con fondos adentro** (`update_escrow`, hallazgo 8 del spike).
 - Si lo hace, `confirm` y `auto_release` dejan de funcionar (`#5 EscrowNotCompleted`), porque el guardián solo aprueba el hito 0.

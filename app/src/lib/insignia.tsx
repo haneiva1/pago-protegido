@@ -5,11 +5,11 @@ import { ogFonts } from "@/lib/og-fonts";
 import type { PerfilTienda } from "@/lib/types";
 
 /**
- * Insignia "Vende con Pago Protegido" para la bio de Instagram o TikTok: es la imagen OG de /tienda/<slug>
+ * Insignia "Vende con Trato" para la bio de Instagram o TikTok: es la imagen OG de /tienda/<slug>
  * y la que se descarga desde el perfil. Solo nombre, ciudad y números del registro público (sin teléfono).
  */
 export async function insigniaImage(p: PerfilTienda | null) {
-  const store = p?.store_name ?? "Pago Protegido";
+  const store = p?.store_name ?? "Trato";
   const k = p?.kpis;
   const stats: [string, string][] = k
     ? [
@@ -31,7 +31,7 @@ export async function insigniaImage(p: PerfilTienda | null) {
           <div style={{ display: "flex", width: 64, height: 64, borderRadius: 32, background: "#fff", alignItems: "center", justifyContent: "center" }}>
             <ShieldLogo size={46} />
           </div>
-          Vende con Pago Protegido
+          Vende con Trato
         </div>
         <div style={{ display: "flex", flex: 1, flexDirection: "column", justifyContent: "space-between", padding: "40px 64px 44px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 22 }}>

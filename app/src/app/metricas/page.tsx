@@ -7,7 +7,7 @@ import type { Grupo, GrupoMetricas } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
-  title: "Métricas en vivo · Pago Protegido",
+  title: "Métricas en vivo · Trato",
   description: "Compras protegidas, monto, reclamos y tiempos de cobro, calculados con el registro público de cada compra.",
 };
 

@@ -4,6 +4,7 @@
 // Uso: con la app corriendo (npm run dev), `node scripts/smoke-api.mjs [feliz|disputa]`.
 import { Keypair, Networks, TransactionBuilder } from "@stellar/stellar-sdk";
 import { readFileSync } from "node:fs";
+import { headerFirma } from "./firma.mjs";
 
 const BASE = process.env.BASE_URL || "http://localhost:3000";
 const env = Object.fromEntries(
@@ -46,11 +47,11 @@ async function setupOrder(product, priceBs, days, opts = {}) {
   const seller = Keypair.random();
   const buyer = Keypair.random();
   await activate(seller);
-  await api("/api/sellers", { pubkey: seller.publicKey(), storeName: "Tienda Humo", whatsapp: "59171234567", city: "Santa Cruz" });
-  const link = await api("/api/links", { sellerPubkey: seller.publicKey(), product, priceBs, deliveryDays: days, demoWindow: Boolean(opts.demo) });
+  await api("/api/sellers", { pubkey: seller.publicKey(), storeName: "Tienda Humo", whatsapp: "59171234567", city: "Santa Cruz" }, await headerFirma(BASE, seller, "POST", "/api/sellers"));
+  const link = await api("/api/links", { sellerPubkey: seller.publicKey(), product, priceBs, deliveryDays: days, demoWindow: Boolean(opts.demo) }, await headerFirma(BASE, seller, "POST", "/api/links"));
   console.log(`link /p/${link.slug}  ${link.amount_units} unidades`);
   await activate(buyer);
-  const fund = await api(`/api/orders/${link.slug}/pay`, { buyer: buyer.publicKey(), recipient: "Ana Pérez", city: "Cochabamba" });
+  const fund = await api(`/api/orders/${link.slug}/pay`, { buyer: buyer.publicKey(), recipient: "Ana Pérez", city: "Cochabamba" }, await headerFirma(BASE, buyer, "POST", `/api/orders/${link.slug}/pay`));
   await signRun(buyer, fund);
   if (opts.noShip) return { seller, buyer, slug: link.slug };
   const ship = await api(`/api/orders/${link.slug}/action`, { action: "ship", signer: seller.publicKey(), company: "Trans Copacabana (encomiendas)", tracking: "SRV-2026-118734", weight: "1" });
@@ -73,7 +74,7 @@ async function feliz() {
   }
   const v = await api(`/api/orders/${slug}?onchain=1`);
   console.log("estado:", v.order.status, "desglose:", v.breakdown, "on-chain:", v.onchain?.flags, v.onchain?.balance);
-  const s = await api(`/api/sellers/${seller.publicKey()}`);
+  const s = await api(`/api/sellers/${seller.publicKey()}/panel`, undefined, await headerFirma(BASE, seller, "GET", `/api/sellers/${seller.publicKey()}/panel`));
   console.log("saldo vendedor:", s.balance);
 }
 

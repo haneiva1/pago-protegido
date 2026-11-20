@@ -1,11 +1,12 @@
-# Seguridad de Pago Protegido (contratos, testnet)
+# Seguridad de Trato (antes Pago Protegido): contratos en testnet
 
 > **Resumen para el jurado**
 > 1. La plata del comprador queda en un escrow de Trustless Work. Los roles que la mueven (aprobar, liberar y resolver) son contratos nuestros sin llave privada, así que nadie puede firmar por ellos.
 > 2. El árbitro solo elige un porcentaje. El contrato reparte únicamente entre el comprador registrado y el vendedor, y no existe ninguna función que acepte otra dirección de destino.
 > 3. Confirmar es aprobar y liberar en la misma transacción. Si el vendedor despachó y el comprador no responde, el pago se libera solo al vencer el plazo, y cualquiera puede dispararlo.
-> 4. Los 9 invariantes y los hallazgos del red team sobre Trustless Work tienen tests (38 en total, v2) contra el WASM real de Trustless Work. En testnet se rechazaron 9 desvíos con v2 (y 5 ataques con v1), y el saldo del tercero no cambió.
+> 4. Los 9 invariantes y los hallazgos del red team sobre Trustless Work tienen 47 tests en v2 (26 de invariantes, 12 del red team, 4 de los hallazgos del jurado y 5 con 200 secuencias aleatorias) contra el WASM real de Trustless Work. En testnet se rechazaron 9 desvíos con v2 (y 5 ataques con v1), y el saldo del tercero no cambió.
 > 5. H-1: en la v1 del escrow que usamos (commit `f0b706e`), un escrow ya liberado se puede marcar en disputa sin mover fondos; la v2 de Trustless Work ya lo impide, y `pp_guardian` también lo bloquea (#21). Antes de mainnet faltan una auditoría, un multisig para el admin, una billetera recuperable para el comprador y la gestión de TTL.
+> 6. H-9 (reputación fabricada con escrows falsos) está mitigado en el indexador: una compra cuenta solo si su escrow es el de Trustless Work, con los roles de Trato, LABUSD y un pago que movió la plata. H-10 (un reclamo sin plazo bloquea la liberación automática) es conocido y se arregla en v3.
 
 Todo lo de este documento corre **solo en testnet**. Código: [`contracts/`](../contracts/). Despliegue y transacciones: [`contracts/DEPLOYED.md`](../contracts/DEPLOYED.md). Decisiones: [`contracts/DECISIONES.md`](../contracts/DECISIONES.md).
 
@@ -19,7 +20,7 @@ Todo lo de este documento corre **solo en testnet**. Código: [`contracts/`](../
 **Supuestos:**
 - el escrow de TW es el WASM `1b367bc8…196660` (commit `f0b706e`);
 - Stellar/Soroban y el SAC de LABUSD funcionan según su especificación;
-- la plataforma no tiene las llaves del comprador ni del vendedor. En testnet, el comprador firma con una llave creada en su navegador, y el vendedor entra con la billetera embebida de Pollar (o con una llave local en el navegador). Qué llaves tiene el servidor y qué puede hacer cada una: [README, Llaves](../README.md#llaves).
+- la plataforma no tiene las llaves del comprador ni del vendedor. En testnet, el comprador firma con una llave creada en su navegador, y el vendedor entra con la billetera embebida de Pollar (o con una llave local en el navegador). Qué llaves tiene el servidor y qué puede hacer cada una: [TECNICO, Llaves](TECNICO.md#llaves).
 
 | Actor | Qué podría intentar | Qué lo impide | Evidencia |
 |---|---|---|---|
@@ -54,9 +55,13 @@ Todos los tests están en `contracts/integration-tests/tests/invariantes.rs` y c
 | 8 | El reparto suma el saldo del escrow y el redondeo nunca favorece a un tercero | `redondeo_nunca_favorece_a_terceros`, `resolve_nunca_paga_a_terceros`, `resolve_70_30_montos_exactos` |
 | 9 | Comisiones documentadas con números reales (2% y 0,3%) | `caso_feliz_fund_ship_confirm_comisiones_exactas`, `resolve_70_30_montos_exactos`, `auto_release_tras_release_at_sin_auth`; montos on-chain en DEPLOYED.md |
 
+**Secuencias aleatorias** (`contracts/integration-tests/tests/secuencias_aleatorias.rs`). 200 semillas fijas, de 40 a 80 pasos cada una, mezclan todas las operaciones (fondeo, envío, confirmación, más tiempo, reclamos, `resolve` con bps válidos e inválidos, `auto_release`, `refund_unshipped`, saltos de tiempo y llamadas directas de terceros al escrow de TW) sobre 2 o 3 escrows reales. Después de cada paso comprueban que el saldo total se conserva, que ningún tercero cobra, que cada compra tiene un solo desenlace con comisiones exactas, y que cada llamada acierta o falla según las reglas. Corren en unos 25 s dentro de `cargo test`. Con `SECUENCIAS_SEMILLAS=1000` (unos 62.500 pasos) también pasan. Sin querer, llegan solas a H-10: son 10 reclamos tardíos en las 200 semillas.
+
+**Build reproducible.** `contracts/rust-toolchain.toml` fija rustc 1.99.1. Con stellar-cli 30.0.1, `bash contracts/scripts/verify-wasm.sh` compila los dos contratos y confirma que sus sha256 son los desplegados de DEPLOYED.md (ver [contracts/README.md](../contracts/README.md)).
+
 ## 3. Los 5 ataques del escenario (d) en testnet (v1)
 
-> Con los contratos v2 la prueba se repitió con **9 desvíos**, todos rechazados: ver la tabla de [Evidencia del README](../README.md#evidencia) y [`contracts/DEPLOYED.md`](../contracts/DEPLOYED.md). Esta sección es la corrida de v1.
+> Con los contratos v2 la prueba se repitió con **9 desvíos**, todos rechazados: ver la tabla de [Evidencia de TECNICO](TECNICO.md#evidencia) y [`contracts/DEPLOYED.md`](../contracts/DEPLOYED.md). Esta sección es la corrida de v1.
 
 `scripts/flujo-testnet.sh` (escenario d) preparó el ataque así:
 
@@ -91,7 +96,7 @@ En la v1 del escrow que usamos (commit `f0b706e`), un escrow ya liberado se pued
 
 - **Reproducido en testnet** con la compra de ejemplo p1. El escrow quedó con `released = true` y `disputed = true` a la vez. Hashes y pasos en la [nota técnica de H-1](reporte-trustless-work.md).
 - **La v2 de Trustless Work ya lo impide** (`single-release-develop-v2` y `single-release-main-v2` responden `EscrowAlreadyReleased`). Pendiente: evaluar la migración a la v2 (plan de 30 días).
-- **Impacto en Pago Protegido: ninguno sobre los fondos**, porque el saldo es 0 y el árbitro responde `EmptyEscrow`. `pp_guardian.dispute` lo bloquea con `EscrowAlreadyReleased` (#21). La app debe mostrar "liberado" por encima de "en disputa".
+- **Impacto en Trato: ninguno sobre los fondos**, porque el saldo es 0 y el árbitro responde `EmptyEscrow`. `pp_guardian.dispute` lo bloquea con `EscrowAlreadyReleased` (#21). La app debe mostrar "liberado" por encima de "en disputa".
 - **Test:** `disputa_directa_tras_liberar_es_inofensiva`.
 
 ### H-2: el guardián no puede verificar on-chain que el escrow sea el de Trustless Work
@@ -106,11 +111,56 @@ soroban-sdk 28 no tiene API para leer el WASM de otro contrato. Un contrato fals
 
 Otros hallazgos menores (H-3 a H-8) están en [`contracts/DECISIONES.md`](../contracts/DECISIONES.md).
 
+H-9 y H-10 los encontró el jurado técnico del consejo (20-nov) con una prueba de concepto. Esa PoC ahora está en el repo como tests de integración: `contracts/integration-tests/tests/hallazgos_jurado.rs`.
+
+### H-9: la reputación se podía fabricar con escrows falsos
+
+**Estado: mitigado en el indexador de la app.** Los contratos no cambian.
+
+`pp_guardian.fund` no puede leer el WASM del escrow (H-2), y no pide la firma del vendedor. `pp_arbiter.refund_unshipped` no pide ninguna firma. Con un contrato que imita la interfaz de Trustless Work, los contratos reales emiten eventos auténticos sin que se mueva plata:
+
+- **(a) Reputación inflada.** Un estafador registra una venta "confirmada" de USD 5.000 pagada desde una cuenta con saldo 0. Test: `h9_mitigado_en_app_escrow_falso_infla_reputacion_sin_mover_plata`.
+- **(b) Difamación.** Un tercero le planta a un vendedor honesto un reclamo y una "devolución por no despachar", sin ninguna firma del vendedor. Test: `h9_mitigado_en_app_escrow_falso_difama_vendedor_sin_su_firma`.
+- **Con un token propio** y el WASM real de TW se puede armar "100 ventas, 0 reclamos" sin plata real (abogado del diablo, §3.4).
+
+**La plata nunca estuvo en riesgo:** el ataque es contra los números públicos. Antes, `metrics.ts` y `kpis.ts` contaban cada `pp_funded`, y de ahí salían `/tienda/<slug>`, la insignia y `/metricas`.
+
+**Mitigación (indexador verificado).** Una compra cuenta solo si su escrow corre el WASM de TW, tiene los roles de Trato, usa LABUSD y su pago trae la transferencia del SAC del comprador al escrow por el monto exacto. Las reglas y cómo se comprueban están en [METRICAS.md](METRICAS.md#reglas-del-indexador-qué-compras-cuentan-h-9). `/transparencia` muestra cuántas compras descartó y por qué. Tests unitarios: `app/test/verificacion.test.mjs`, con un fondeo real de testnet y los escrows falsos de (a) y (b). El test de contraste `h9_contraste_fondeo_real_mueve_el_sac` muestra la propiedad que comprueba la regla 4: con el escrow real, `fund` mueve el saldo del comprador al escrow.
+
+**Lo que queda (para v3).** Una venta a sí mismo pagada con LABUSD real pasa las cuatro reglas, aunque cuesta el 2,3% de comisiones. Para v3 está previsto que `platform` co-firme `fund` y que los eventos lleven la moneda y la plataforma. Así, solo cuentan las compras armadas por la app y el indexador no necesita leer el escrow.
+
+### H-10: un reclamo sin plazo bloquea la liberación automática
+
+**Estado: conocido. Arreglo previsto en la v3 de los contratos.** No se redespliega ahora.
+
+`pp_guardian.dispute` (`pp_guardian/src/lib.rs`, cerca de la línea 452) solo mira los flags del escrow, no la hora. Si después de `release_at` nadie llamó `auto_release`, el comprador (o el vendedor) todavía puede abrir un reclamo, aunque hayan pasado 30 días. Desde ese momento `auto_release` falla con `EscrowDisputed` (#20) y la compra pasa al árbitro.
+
+- **Test:** `h10_conocido_reclamo_tardio_bloquea_auto_release`, con el WASM real de TW. Afirma el comportamiento de hoy, así que va a fallar cuando v3 lo arregle.
+- **Impacto:** la promesa "se libera sola" depende de que alguien llame `auto_release` a tiempo. La plata no se pierde: el árbitro solo puede repartir entre comprador y vendedor. Pero el vendedor cobra más tarde.
+- **Mitigación sin cambiar contratos:** `auto_release` no pide firma, así que cualquiera puede llamarlo; hoy lo dispara la app cuando alguien abre el pedido. Falta el worker de plazos que lo llame apenas vence `release_at` (mejora 2 del jurado). Lo hace Joaquín y no es parte de este cambio.
+- **Arreglo en v3:** `dispute` solo se acepta hasta `release_at` más un período de gracia. Pasado ese límite, solo queda `auto_release`. Va en el mismo redespliegue que la co-firma de `platform` (H-9) y `set_admin` en dos pasos (abajo). Como los contratos no son actualizables, v3 tendrá IDs nuevos, igual que pasó de v1 a v2.
+
+### Riesgo: perder la llave `arbitro`
+
+`arbitro` (`GBCSZ6TJ…UDRJT`) es el admin de `pp_guardian` y de `pp_arbiter`, y hoy es **una sola llave**.
+
+- **Si se pierde:** nadie puede llamar `resolve`. Todo reclamo de una compra con envío registrado queda bloqueado para siempre: `auto_release` falla por la disputa y `refund_unshipped` no aplica porque hubo envío. Tampoco se puede cambiar de admin, porque `set_admin` exige la firma del admin actual y se hace en un solo paso (`pp_arbiter/src/lib.rs`, cerca de la línea 179).
+- **Si la roban:** quien la tenga puede resolver los reclamos abiertos con cualquier reparto entre comprador y vendedor (nunca hacia un tercero: ver los invariantes) y quedarse con el admin.
+
+**Plan: multisig 2 de 3 nativo de Stellar.** No requiere cambiar los contratos. Cuando un contrato llama `require_auth` sobre una cuenta G, Soroban exige las firmas que alcancen el **umbral medio** de esa cuenta.
+
+1. Se agregan a la cuenta `arbitro` tres firmantes de peso 1 (dos personas del equipo y una llave de respaldo guardada fuera de línea) y se fijan los umbrales bajo, medio y alto en 2. La llave maestra pasa a peso 0.
+2. Se prueba primero con un script en testnet: `resolve` falla con 1 firma y pasa con 2.
+3. Después se suma la co-firma en `/revisor`: un revisor propone el reparto y otro lo firma.
+4. Así se cubren la pérdida de una llave (quedan 2 de 3) y la colusión de una sola persona.
+
+En v3, `set_admin` pasa a dos pasos (proponer y aceptar), para que un error al tipear la cuenta nueva no deje el admin en una cuenta inaccesible. Este plan no está aplicado todavía: cambiar los firmantes de `arbitro` es una operación sobre credenciales y la decide el equipo.
+
 ## 4b. Red team de Trustless Work (TW-1 a TW-5) y cómo los cubre v2
 
 El red team revisó el código de la v1 de TW (commit `f0b706e`). Son **decisiones de diseño de un escrow genérico, no errores**: el escrow deja que las partes elijan roles, hitos y a quién se reparte. Para compras entre desconocidos, los contratos v2 de Pago Protegido (ronda 4) suman una regla extra a cada uno. Los tests están en `contracts/integration-tests/tests/red_team_v2.rs`, y la evidencia on-chain, en `contracts/scripts/out/flujo-v2/` y en DEPLOYED.md §v2.
 
-| Hallazgo en TW | Riesgo para Pago Protegido | La regla extra (v2) | Test | Testnet (flujo v2) |
+| Hallazgo en TW | Riesgo para Trato | La regla extra (v2) | Test | Testnet (flujo v2) |
 |---|---|---|---|---|
 | **TW-1**: `platform` también puede abrir disputas (`dispute_escrow` acepta cualquier rol salvo el resolver) | Una plataforma comprometida congela los fondos o impide la liberación automática | `auto_release`, `confirm` y `extend` leen el flag **real** de TW (`disputed`), así que cualquier disputa bloquea la liberación. La resolución sigue acotada a comprador y vendedor. Abrirla por el guardián sigue reservado a ellos dos. | `tw1_disputa_de_platform_bloquea_auto_release` | — (lo cubre el test; en testnet no se usa `plataforma` para no chocar con la app) |
 | **TW-2**: con fondos adentro, `platform` puede agregar hitos sin aprobar (`update_escrow`), y `release_funds` exige todos aprobados | `confirm` y `auto_release` quedarían bloqueados para siempre | `confirm` y `auto_release` **aprueban todos los hitos pendientes** y liberan en la misma invocación. Si un hito agregado tiene status vacío, TW no deja aprobarlo (`#30`): el guardián responde `#29 MilestoneNotApprovable` sin tocar nada y queda la vía de disputa y árbitro. | `tw2_hito_agregado_confirm_aprueba_todos_y_libera`, `tw2_auto_release_tambien_aprueba_todos`, `tw2_hito_con_status_vacio_queda_la_disputa` | `confirm` de (a): "aprueba todos los hitos y libera" |
@@ -129,14 +179,16 @@ El red team revisó el código de la v1 de TW (commit `f0b706e`). Son **decision
 | Tema | Estado en testnet | Qué hace falta |
 |---|---|---|
 | **Auditoría** | Tests propios con el WASM real, sin revisión externa | Auditoría independiente de `pp_guardian`, `pp_arbiter` y de su integración con TW (en especial reentrada entre contratos, árboles de auth y redondeo). También revisar la versión de TW que se use en mainnet. |
-| **Admin del árbitro** | Una sola llave (`arbitro`) | Multisig en la cuenta admin (por ejemplo 2 de 3, con umbrales de Stellar) o un contrato de cuenta con política. `set_admin` ya existe para migrar. Conviene además un registro público de resoluciones con su evidencia. |
+| **Admin del árbitro** | Una sola llave (`arbitro`) | Multisig 2 de 3 nativo de Stellar en la cuenta admin, sin cambiar contratos (plan en [§4, la llave `arbitro`](#riesgo-perder-la-llave-arbitro)). `set_admin` en dos pasos en v3. Conviene además un registro público de resoluciones con su evidencia. |
+| **Reputación (H-9)** | Mitigado: el indexador cuenta solo escrows verificados | v3: `fund` co-firmado por `platform` y eventos con la moneda y la plataforma. |
+| **Reclamo sin plazo (H-10)** | Conocido: un reclamo después de `release_at` bloquea `auto_release` | v3: reclamo solo hasta `release_at` más una gracia. Mientras tanto, el worker de plazos. |
 | **Admin del guardián** | Solo puede `set_arbiter`, una vez | Fijar el árbitro en el mismo flujo de despliegue para que no quede ventana. |
 | **TTL y renta** | Instancias extendidas 30 días por llamada, `Purchase` 120 días, escrow de TW 1 año (su código) | Un bot que extienda el TTL de la instancia y del código WASM de los contratos (`extend_ttl`) y monitoree los vencimientos. Definir quién paga la renta. |
 | **Verificación del escrow (H-2, TW-4)** | La app verifica el hash del WASM y los roles antes de cada firma | Mantenerlo, o un `pp_factory` on-chain que registre las instancias legítimas. |
 | **Inicialización atómica (H-3)** | deploy + init en dos transacciones | `tw_new_single_release_escrow` o una factory propia. |
 | **H-1 (v1 de TW)** | En la v1 del escrow que usamos (commit `f0b706e`), un escrow ya liberado se puede marcar en disputa sin mover fondos; la v2 de Trustless Work ya lo impide, y `pp_guardian` también lo bloquea (#21) | La v2 de Trustless Work ya lo impide: evaluar la migración (plan de 30 días, semana 4). Exige contratos nuevos. |
-| **Comisiones en devoluciones y disputas** | Trustless Work descuenta la comisión fija del pedido también cuando la plata vuelve al comprador | Se mantiene y queda documentado en la [Tarifa del README](../README.md#tarifa). Cambiarlo exige contratos nuevos. |
-| **Llave del comprador** | Llave creada en el navegador, sin respaldo | Billetera recuperable (login o passkey) antes de mainnet ([README, Llaves](../README.md#llaves)). |
+| **Comisiones en devoluciones y disputas** | Trustless Work descuenta la comisión fija del pedido también cuando la plata vuelve al comprador | Se mantiene y queda documentado en la [Tarifa de TECNICO](TECNICO.md#tarifa). Cambiarlo exige contratos nuevos. |
+| **Llave del comprador** | Llave creada en el navegador, sin respaldo | Billetera recuperable (login o passkey) antes de mainnet ([TECNICO, Llaves](TECNICO.md#llaves)). |
 | **Moneda** | LABUSD de prueba | USDC real, verificando su SAC. |
 | **Actualizaciones** | Los contratos no son actualizables (no exponen `update_current_contract_wasm`) | Mantenerlos así (es más prudente) y versionar con despliegues nuevos. |
 | **Monitoreo** | Script de métricas sobre `getEvents` (ventana de ~7 días del RPC) | Un indexador persistente y alertas ante disputas, resoluciones atípicas y cambios de admin. |

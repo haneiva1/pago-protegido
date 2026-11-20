@@ -12,14 +12,16 @@ IDs, hashes y transacciones reales: [DEPLOYED.md](DEPLOYED.md). Decisiones y hal
 ```
 contracts/
 ├── Cargo.toml                 workspace (soroban-sdk =28.0.0, perfil release de TW)
+├── rust-toolchain.toml        fija rustc 1.99.1 + wasm32v1-none (build reproducible)
 ├── shared/escrow_iface.rs     tipos Escrow/Roles/… + cliente mínimo del escrow de TW (include! en ambos contratos)
 ├── pp_guardian/src/lib.rs
 ├── pp_arbiter/src/lib.rs
-├── integration-tests/tests/   38 tests (v2) con el WASM REAL de TW: invariantes + red team
+├── integration-tests/tests/   47 tests (v2) con el WASM REAL de TW: invariantes, red team, hallazgos del jurado y secuencias aleatorias
 ├── wasm/escrow.wasm           WASM de TW (sha256 1b367bc8…196660), versionado con git add -f
 ├── scripts/
 │   ├── lib.sh                 helpers (tx con hash/fee, expect_fail, saldos)
 │   ├── deploy-testnet.sh      despliega guardián + árbitro y los conecta
+│   ├── verify-wasm.sh         recompila y compara con los hashes de DEPLOYED.md
 │   ├── flujo-v2-testnet.sh    escenarios v2 en testnet (flujo-testnet.sh: v1)
 │   ├── bindings.sh            bindings TypeScript
 │   └── out/                   evidencia de cada corrida (tsv, json, resumen.md)
@@ -30,7 +32,7 @@ contracts/
 
 ## Requisitos
 
-- Rust 1.99.1 con target `wasm32v1-none`, y Stellar CLI 30.0.1.
+- Rust 1.99.1 con target `wasm32v1-none` (lo fija `rust-toolchain.toml`; rustup lo instala solo), y Stellar CLI 30.0.1.
 - `jq` y `perl` (los scripts los usan para medir tiempos y procesar JSON).
 - Para testnet, las identidades del CLI `plataforma`, `arbitro`, `comprador`, `vendedor`, `twfee` y `lab` (emisor de LABUSD). El flujo crea `tercero` si no existe.
 
@@ -41,6 +43,43 @@ cd pago-protegido/contracts
 stellar contract build
 # → target/wasm32v1-none/release/pp_guardian.wasm y pp_arbiter.wasm
 ```
+
+## Build reproducible
+
+Cualquiera puede comprobar que los WASM desplegados en testnet salen de este código:
+
+```bash
+bash contracts/scripts/verify-wasm.sh    # funciona desde cualquier carpeta
+```
+
+El script:
+
+- compila `pp_guardian` y `pp_arbiter` con `stellar contract build --locked`;
+- compara su sha256 con las filas de [DEPLOYED.md](DEPLOYED.md);
+- revisa también `wasm/escrow.wasm` contra el hash de Trustless Work;
+- imprime `OK` o `DIFERENTE` por contrato y termina con código ≠ 0 si algo no coincide. No usa la red.
+
+Salida esperada:
+
+```
+OK         pp_guardian   1a3a475bab2b5c5caabc08f07c03855ade94644db2b59c593a9867071842f887
+OK         pp_arbiter    194fe3615f6e31621daa3ff73162e0f7d2c16c35a04e13345315bd0e5063a6c7
+OK         escrow-tw     1b367bc8476cf80b89f6396e2aa07b602b78361dd829b5ce9b64ada365196660
+```
+
+Versiones fijadas:
+
+- **rustc 1.99.1** con target `wasm32v1-none`, en `rust-toolchain.toml`. rustup la instala sola la primera vez; si no, `rustup toolchain install 1.99.1 --target wasm32v1-none`.
+- **stellar-cli 30.0.1** (`cargo install --locked stellar-cli@30.0.1`). El script avisa si tienes otra.
+
+Las dos versiones quedan escritas dentro del WASM (metadatos `rsver` y `cliver`). Con otra versión el hash cambia aunque el código sea el mismo.
+
+El build válido es `stellar contract build`, no `cargo build`:
+
+- soroban-sdk 28 no compila a WASM fuera del CLI;
+- el CLI filtra la spec del contrato y optimiza con wasm-opt.
+
+La carpeta del repo no cambia el hash: el despliegue se compiló en otra ruta y da los mismos bytes. Con esta misma toolchain, el código de v1 (commit `903b354`) también da los hashes de [DEPLOYED-v1.md](DEPLOYED-v1.md). Lo probamos en macOS (Apple Silicon); en Linux todavía no.
 
 ## Testear
 
@@ -53,12 +92,14 @@ cargo test
 - `mock_all_auths` se usa solo para preparar el escenario;
 - las aserciones de autorización usan `set_auths(&[])` o `mock_auths` con una dirección concreta (auth real).
 
-**38 tests (v2)** en dos archivos:
+**47 tests (v2)** en cuatro archivos:
 
 | Archivo | Tests | Qué cubre |
 |---|---:|---|
 | `tests/invariantes.rs` | 26 | Los 9 invariantes de SPEC §4 sobre la interfaz v2 |
 | `tests/red_team_v2.rs` | 12 | TW-1, TW-2, TW-3 y TW-5; `mark_shipped`; `extend`; `refund_unshipped` por plazo de despacho; TTL de `Purchase`; contratos no actualizables |
+| `tests/hallazgos_jurado.rs` | 4 | H-9 (un escrow falso hace emitir eventos auténticos sin mover plata o difama a un vendedor, y el contraste con el WASM real) y H-10 (un reclamo tardío bloquea `auto_release`). Documentan el comportamiento de hoy |
+| `tests/secuencias_aleatorias.rs` | 5 | 200 semillas fijas en 4 lotes, de 40 a 80 operaciones al azar cada una: el saldo se conserva, ningún tercero cobra y cada compra tiene un solo desenlace. El quinto test comprueba que el generador es determinista |
 
 Qué test cubre cada invariante y cada hallazgo: [`../docs/SEGURIDAD.md`](../docs/SEGURIDAD.md), §2 y §4b.
 

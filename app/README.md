@@ -1,4 +1,4 @@
-# Pago Protegido: app web (testnet, modo práctica)
+# Trato: app web (testnet, modo práctica)
 
 Links de pago protegidos para ventas por redes:
 
@@ -11,14 +11,14 @@ Links de pago protegidos para ventas por redes:
 
 Especificación: [`docs/SPEC.md`](../docs/SPEC.md). Decisiones tomadas fuera del SPEC: [`DECISIONES.md`](DECISIONES.md).
 
-## Producto v2 (segmento: ventas entre ciudades por encomienda, Bs 300 a 3.000)
+## Producto v2 (segmento: celulares y electrónica entre ciudades por encomienda, Bs 1.000 a 7.000)
 
 - **Pago contra confirmación de entrega.**
   - El comprador deja los datos de entrega y paga.
   - El vendedor registra el envío con evidencia estructurada: empresa, guía, peso, foto, destino y, si es un celular, IMEI.
   - "Pagar al vendedor (irreversible)" se habilita 2 h (misma ciudad) o 24 h (otra ciudad) después del envío, y pregunta antes si el producto está en sus manos. Con `PP_DEMO=1`, 1 minuto.
   - "El vendedor me pide que confirme" abre un reclamo por presión.
-- **Quién paga la protección** se elige en cada link: el comprador (1,5%, mín. Bs 5, tope Bs 50; el vendedor recibe el precio completo) o el vendedor ("Yo la regalo": se le descuenta 2,3%, 2% de la plataforma y 0,3% de Trustless Work). Es la misma tarifa del [README](../README.md#tarifa).
+- **Quién paga la protección** se elige en cada link: el comprador (1,5%, mín. Bs 5, tope Bs 50; el vendedor recibe el precio completo) o el vendedor ("Yo la regalo": se le descuenta 2,3%, 2% de la plataforma y 0,3% de Trustless Work). Es la misma tarifa de [docs/TECNICO.md](../docs/TECNICO.md#tarifa).
 - **Revisor de reclamos** (`/revisor`, antes "árbitro"): motivo obligatorio, reparto sin valor por defecto e historial de evidencia. La política de reclamos está en `/como-funciona#reclamos`.
 - **Páginas nuevas:**
   - `/verificar` (con el código PP-#### del pedido);
@@ -92,7 +92,7 @@ npm run demo:reset   # con la demo apagada
 
 Deja la base local de la demo (`data/pp.db`) limpia y con tres pedidos históricos reales de testnet, sobre los contratos v2:
 
-- **"Tienda Sofi"** (+591 71234567): "Polera Adidas talla M" liberado por confirmación, "Audífonos Sony WH-1000" resuelto 70/30 por `pp_arbiter` y "Celular Motorola G24" devuelto porque no se despachó a tiempo (`refund_unshipped`).
+- **"Tienda Sofi"** (+591 71234567): "Polera Adidas talla M" liberado por confirmación, "Audífonos Sony WH-1000" resuelto 70/30 por `pp_arbiter` y "Celular Samsung Galaxy A35" (Bs 2.500) devuelto porque no se despachó a tiempo (`refund_unshipped`).
 - Borra pedidos, tiendas, transacciones y evidencias locales (por ejemplo, las disputas repetidas de pruebas) y el estado del bot de la demo (`../bot/data/bot-state.json`).
 - Verifica que la app esté en modo guardián v2 antes de sembrar.
 - Conserva la fábrica del escrow y los eventos on-chain ya ingeridos. Lo on-chain no se puede borrar y `/transparencia` lo sigue mostrando.
@@ -108,7 +108,7 @@ npm run demo:video:join   # solo vuelve a armar el mp4 con los clips ya grabados
 
 El video final dura **≈ 1:52** (1280x720):
 
-- placa inicial de 3 s: "Pago Protegido · Pagos protegidos para ventas por redes · sobre Stellar";
+- placa inicial de 3 s: "Pago Protegido · Pagos protegidos para ventas por redes · sobre Stellar" (el video v2 se grabó con el nombre anterior; al regrabarlo hay que cambiar la placa en `scripts/video-join.mjs`);
 - el recorrido con subtítulos;
 - placa final de 4 s: "Contratos en Stellar testnet · pp_guardian · pp_arbiter · Trustless Work · Pollar".
 
@@ -137,7 +137,7 @@ Cuando el vendedor pega `/p/<slug>` en un chat, WhatsApp muestra una tarjeta con
 
 - el producto y el precio en Bs (aprox. en USD de prueba);
 - la tienda;
-- el escudo "Pago protegido";
+- el escudo "Trato · pago protegido";
 - "Tu plata queda guardada hasta que confirmes que te llegó".
 
 Cómo está hecho:
@@ -267,7 +267,7 @@ PP_ARBITER_ID=C...
 
 ### Billetera Pollar
 
-`NEXT_PUBLIC_WALLET=local|pollar`. Con las llaves de `.env.pollar` (raíz del repo, no se versiona), `npm run setup` deja `pollar` como billetera **del vendedor**. Tiene login con Google o email y billetera embebida, sin frases secretas. **Pollar es solo para el vendedor:** el comprador nunca ve un login y firma con una llave creada en su navegador (`LocalWallet`), aunque `NEXT_PUBLIC_WALLET=pollar` (`src/lib/wallet/index.ts`). Riesgos de esa llave y plan para producción: [README, Llaves](../README.md#llaves).
+`NEXT_PUBLIC_WALLET=local|pollar`. Con las llaves de `.env.pollar` (raíz del repo, no se versiona), `npm run setup` deja `pollar` como billetera **del vendedor**. Tiene login con Google o email y billetera embebida, sin frases secretas. **Pollar es solo para el vendedor:** el comprador nunca ve un login y firma con una llave creada en su navegador (`LocalWallet`), aunque `NEXT_PUBLIC_WALLET=pollar` (`src/lib/wallet/index.ts`). Riesgos de esa llave y plan para producción: [docs/TECNICO.md, Llaves](../docs/TECNICO.md#llaves).
 
 - La firma va por `signTx(xdr, { skipSponsorship: true })` y la comisión la patrocina nuestra plataforma con fee bump, igual que con la billetera local.
 - Pollar acepta los orígenes `http://localhost:3000` y `http://localhost:3020`; en modo Pollar la app tiene que correr en uno de esos puertos.
@@ -287,6 +287,12 @@ PP_ARBITER_ID=C...
 ## Métricas en vivo y perfil de la tienda
 
 - `/metricas`: KPIs con datos públicos de testnet (eventos de los contratos v2). Piloto y pruebas del equipo, siempre por separado. Cada número abre `/metricas/<equipo|piloto>/<kpi>` con las operaciones y sus links a stellar.expert. JSON en `/api/metricas`.
-- `/tienda/<slug>`: perfil verificable del vendedor, sin teléfono ni dirección, con la insignia "Vende con Pago Protegido" (imagen OG y `/tienda/<slug>/insignia`). La tarjeta del vendedor en la página de pago enlaza ahí, y el bot responde "mi perfil" con el link.
+- `/tienda/<slug>`: perfil verificable del vendedor, sin teléfono ni dirección, con la insignia "Vende con Trato" (imagen OG y `/tienda/<slug>/insignia`). La tarjeta del vendedor en la página de pago enlaza ahí, y el bot responde "mi perfil" con el link.
 - `npm run test:e2e:publico`: e2e de solo lectura contra testnet, sin claves (puerto 3140). `npm run test:e2e` incluye además los pasos con pagos.
 - Detalle y definiciones: DECISIONES 86–99.
+
+## `/probar`: Trato de punta a punta en un pantallazo
+
+- Solo con `PP_PROBAR=1` (apagado por defecto). El vendedor y el comprador corren las páginas reales en dos marcos de celular (en el celular, en pestañas), cada uno con su propia cuenta de prueba creada en el navegador. Ninguna clave del equipo llega al navegador.
+- Al lado: el registro en vivo (crear el link, pagar, registrar el envío y pagar al vendedor, con cada transacción en stellar.expert), "Intenta desviar la plata" (simulación real, rechazada con `Error(Contract, #12)`) y "Empezar de nuevo". Plazos de demo y un límite de pruebas por IP.
+- `npm run test:e2e:probar`: el flujo completo contra testnet (también corre dentro de `npm run test:e2e`). Detalle: DECISIONES 100–109.

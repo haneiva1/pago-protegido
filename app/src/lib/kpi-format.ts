@@ -41,7 +41,7 @@ export const fmtDiaCorto = (dia: string) =>
 
 /** Desde cuándo vende: la primera compra protegida en el registro público; si no hay, la fecha de la tienda. */
 export function desdeTexto(k: Kpis, tiendaDesde: number): string {
-  return k.desde ? `Vende con Pago Protegido desde ${fmtMesAnio(k.desde)}` : `Tienda creada en ${fmtMesAnio(tiendaDesde)} · todavía sin ventas protegidas`;
+  return k.desde ? `Vende con Trato desde ${fmtMesAnio(k.desde)}` : `Tienda creada en ${fmtMesAnio(tiendaDesde)} · todavía sin ventas protegidas`;
 }
 
 export const DESENLACE_LABEL: Record<Desenlace, string> = {

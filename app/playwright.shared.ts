@@ -23,6 +23,7 @@ export function makeConfig(o: {
   }
   const APP_URL = `http://localhost:${o.port}`;
   process.env.E2E_SIM_URL = `http://localhost:${o.simPort}`;
+  process.env.E2E_DB ||= o.db;
   process.env.E2E_SELLER_WA ||= o.sellerWa;
   process.env.E2E_BUYER_WA ||= "59176543210";
 
@@ -50,7 +51,7 @@ export function makeConfig(o: {
       {
         // Build propio (.next-e2e) con la billetera local y base de datos aparte.
         command: `npm run build && npx next start -p ${o.port}`,
-        env: { NEXT_DIST_DIR: ".next-e2e", NEXT_PUBLIC_WALLET: "local", PP_DB_PATH: o.db, PP_MODE: process.env.PP_MODE || "guardian", PP_DEMO: "1" },
+        env: { NEXT_DIST_DIR: ".next-e2e", NEXT_PUBLIC_WALLET: "local", PP_DB_PATH: o.db, PP_MODE: process.env.PP_MODE || "guardian", PP_DEMO: "1", PP_PROBAR: "1" },
         url: `${APP_URL}/api/info`,
         timeout: 10 * 60_000,
         reuseExistingServer: !process.env.CI,

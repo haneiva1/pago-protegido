@@ -19,6 +19,7 @@ export interface OutMsg {
 }
 
 const nf2 = new Intl.NumberFormat("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const nf = new Intl.NumberFormat("es-BO", { maximumFractionDigits: 2 });
 
 /** "Bs 450,00" (igual que la app). */
 export const fmtBs = (cents: number) => `Bs ${nf2.format(cents / 100)}`;
@@ -32,6 +33,36 @@ export function fmtUsd(units: string | bigint): string {
 /** Centavos de Bs a partir de unidades base (7 decimales) y el tipo de cambio del pedido. */
 export function unitsToBsCents(units: string | bigint, fx: number): number {
   return Math.round((Number(BigInt(units)) * fx) / 100_000);
+}
+
+/**
+ * Envío legible para el cliente: "Bolívar (encomiendas) · guía SRV-2026-120033 · 0,6 kg" (igual que `fmtEnvio` de la app).
+ * La app guarda el envío compacto ("empresa|guía|pesokg|huella de la foto"); la huella no se muestra.
+ * Si no viene compacto (una guía o un link sueltos), se devuelve tal cual.
+ */
+export function fmtEnvio(ev?: string | null): string {
+  const s = (ev ?? "").trim();
+  if (!s.includes("|")) return s;
+  const [empresa = "", guia = "", peso = ""] = s.split("|").map((x) => x.trim());
+  const kg = peso.replace(/\s*kg$/i, "");
+  return [empresa !== "-" && empresa, guia && guia !== "-" && `guía ${guia}`, kg && kg !== "-" && `${kg.replace(".", ",")} kg`]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/**
+ * Reparto del revisor sin "100%": si es total, "todo para el comprador" o "todo para el vendedor".
+ * Con `yo`, esa parte se nombra "ti" y va primero: "30% para ti y 70% para el comprador".
+ */
+export function fmtReparto(buyerPct: number, yo?: "vendedor" | "comprador"): string {
+  const comprador = yo === "comprador" ? "ti" : "el comprador";
+  const vendedor = yo === "vendedor" ? "ti" : "el vendedor";
+  if (buyerPct >= 100) return `todo para ${comprador}`;
+  if (buyerPct <= 0) return `todo para ${vendedor}`;
+  const pct = (n: number) => `${nf.format(Math.round(n * 100) / 100)}%`;
+  return yo === "vendedor"
+    ? `${pct(100 - buyerPct)} para ti y ${pct(buyerPct)} para el comprador`
+    : `${pct(buyerPct)} para ${comprador} y ${pct(100 - buyerPct)} para ${vendedor}`;
 }
 
 export function fmtDate(ms: number): string {
@@ -84,7 +115,7 @@ export const QR_WARNING = "Ojo: el QR de pago nunca está a nombre de una person
 export const ANTI_PRESSURE =
   "Tu plata está bloqueada en un contrato público. Nadie necesita que confirmes para enviar: ni el vendedor, ni la flota, ni el courier. Si te lo piden, es la señal número 1 de estafa. Puedes verificar cualquier link reenviándolo a este número.";
 /** Respuesta del verificador a todo lo que no sea un link auténtico. */
-export const VERIFY_FAKE = "⚠️ Este link NO es de Pago Protegido. No pagues.";
+export const VERIFY_FAKE = "⚠️ Este link NO es de Trato. No pagues.";
 
 /** Estado para quien no es el vendedor (comprador que verifica un link). */
 export const STATUS_PUBLIC: Record<OrderStatus, string> = {
@@ -118,8 +149,8 @@ const HOW_TO = [
   "Escríbeme nomás:",
   "• *vendo zapatillas nike 40 a 450 bs entrega 3 días*",
   "• *mis ventas*",
-  "• *estado PP-4821*",
-  "• *enviado PP-4821 <guía>*",
+  "• *estado PP-7KM4Q9TX*",
+  "• *enviado PP-7KM4Q9TX <guía>*",
   "• *saldo*",
   "• *mi perfil*",
 ].join("\n");
@@ -127,14 +158,14 @@ const HOW_TO = [
 export const msg = {
   help(store?: string): OutMsg {
     return {
-      text: `¡Hola${store ? ` ${store}` : ""}! 👋 Soy el asistente de *Pago Protegido*.\nCreo tus links de pago y te aviso de cada pedido. Tu cliente paga por adelantado y su plata queda protegida hasta que recibe.\n\n${HOW_TO}`,
+      text: `¡Hola${store ? ` ${store}` : ""}! 👋 Soy el asistente de *Trato*.\nCreo tus links de pago y te aviso de cada pedido. Tu cliente paga por adelantado y su plata queda protegida hasta que recibe.\n\n${HOW_TO}`,
       buttons: [BTN.vender, BTN.ventas, BTN.saldo],
     };
   },
 
   notRegistered(appUrl: string, phone: string): OutMsg {
     return {
-      text: `¡Hola! 👋 Este número todavía no tiene tienda en *Pago Protegido*.\nCréala en 1 minuto (nombre, WhatsApp y listo):\n👉 ${registerUrl(appUrl, phone)}\n\nCuando termines, escríbeme *hola*.\n\n🔒 ${SELLER_NO_LINK}\n\n¿Te mandaron un link para pagar? Reenvíamelo y te digo si es de verdad.`,
+      text: `¡Hola! 👋 Este número todavía no tiene tienda en *Trato*.\nCréala en 1 minuto (nombre, WhatsApp y listo):\n👉 ${registerUrl(appUrl, phone)}\n\nCuando termines, escríbeme *hola*.\n\n🔒 ${SELLER_NO_LINK}\n\n¿Te mandaron un link para pagar? Reenvíamelo y te digo si es de verdad.`,
     };
   },
 
@@ -168,7 +199,7 @@ export const msg = {
 
   askDays(again = false): OutMsg {
     return {
-      text: `${again ? "No entendí los días 🙈. " : ""}¿En cuántos días entregas? (de 1 a 15)`,
+      text: `${again ? "No entendí los días 🙈. " : ""}¿En cuántos días lo despachas? (de 1 a 15)`,
       buttons: [
         { id: "1 día", title: "1 día" },
         { id: "3 días", title: "3 días" },
@@ -178,7 +209,7 @@ export const msg = {
   },
 
   daysOutOfRange(): OutMsg {
-    return { ...msg.askDays(), text: "Los días de entrega van de 1 a 15. ¿En cuántos días entregas?" };
+    return { ...msg.askDays(), text: "Los días de despacho van de 1 a 15. ¿En cuántos días lo despachas?" };
   },
 
   linkCreated(appUrl: string, o: Order, store?: string): OutMsg[] {
@@ -230,7 +261,7 @@ export const msg = {
 
   askCode(cmd: "estado" | "enviado"): OutMsg {
     return {
-      text: cmd === "estado" ? "¿De qué pedido? Escribe *estado <código>*. Ej.: *estado PP-4821*. Los códigos están en *mis ventas*." : "¿Qué pedido enviaste? Escribe *enviado <código> <guía>*. Ej.: *enviado PP-4821 OLV-12345*",
+      text: cmd === "estado" ? "¿De qué pedido? Escribe *estado <código>*. Ej.: *estado PP-7KM4Q9TX*. Los códigos están en *mis ventas*." : "¿Qué pedido enviaste? Escribe *enviado <código> <guía>*. Ej.: *enviado PP-7KM4Q9TX OLV-12345*",
       buttons: [BTN.ventas],
     };
   },
@@ -249,17 +280,17 @@ export const msg = {
         next = `La plata está protegida en el contrato. Despacha${o.ship_deadline ? ` antes del ${fmtDate(o.ship_deadline)}` : ""} y luego escríbeme:\n*enviado ${code} <código de encomienda>*${o.ship_deadline ? "\nSi no se marca enviado a tiempo, la plata vuelve sola a tu cliente." : ""}`;
         break;
       case "enviado":
-        next = `Enviado con: ${o.shipped_evidence ?? "-"}. Se libera cuando tu cliente confirme${o.deadline ? ` o, si no dice nada, el ${fmtDate(o.deadline)}` : ""}.${o.extended ? " Tu cliente ya pidió más tiempo una vez." : ""}`;
+        next = `Enviado con: ${fmtEnvio(o.shipped_evidence) || "-"}. Se libera cuando tu cliente confirme${o.deadline ? ` o, si no dice nada, el ${fmtDate(o.deadline)}` : ""}.${o.extended ? " Tu cliente ya pidió más tiempo una vez." : ""}`;
         break;
       case "liberado":
-        next = v.breakdown ? `Recibiste *${fmtUsd(v.breakdown.seller)} USD de prueba* en tu billetera 🙌` : "El pago ya se liberó a tu billetera 🙌";
+        next = v.breakdown ? `Recibiste *${fmtUsd(v.breakdown.seller)} USD de prueba* en tu cuenta 🙌` : "El pago ya se liberó a tu cuenta 🙌";
         break;
       case "en_disputa":
         next = `Hay un reclamo${o.dispute_reason ? `: “${o.dispute_reason}”` : ""}. La plata queda congelada hasta que decida el revisor. Cuenta tu versión en ${appUrl}/panel`;
         break;
       case "resuelto": {
         const b = (o.buyer_bps ?? 0) / 100;
-        next = `El revisor repartió ${b}% para el comprador y ${100 - b}% para ti${v.split ? ` (*${fmtUsd(v.split.seller)} USD de prueba*)` : ""}.`;
+        next = `El revisor resolvió el reclamo: ${fmtReparto(b, "vendedor")}.${v.split ? ` Te tocan *${fmtUsd(v.split.seller)} USD de prueba*.` : ""}`;
         break;
       }
       case "devuelto":
@@ -289,7 +320,7 @@ export const msg = {
 
   shipLink(appUrl: string, o: Order, evidence: string): OutMsg {
     return {
-      text: `📦 Para marcar *${o.product}* (${orderCode(o)}) como enviado con *${evidence}*, confírmalo con tu billetera aquí:\n👉 ${shipUrl(appUrl, o.slug, evidence)}\n\n🔐 Yo no puedo firmar por ti: solo tú confirmas, desde tu billetera.`,
+      text: `📦 Para marcar *${o.product}* (${orderCode(o)}) como enviado con *${evidence}*, confírmalo desde tu cuenta aquí:\n👉 ${shipUrl(appUrl, o.slug, evidence)}\n\n🔐 Yo no puedo firmar por ti: solo tú confirmas, desde tu cuenta.`,
     };
   },
 
@@ -298,7 +329,7 @@ export const msg = {
     if (!s.slug) return { text: `Tu perfil público todavía no está listo. Ábrelo desde tu panel: ${appUrl}/panel` };
     const url = profileUrl(appUrl, s.slug);
     return {
-      text: `🛡️ Tu perfil público de *${s.store_name}*:\n${url}\n\nAhí tus clientes ven tus ventas protegidas, cuántas terminaron sin reclamo y cuánto tardas en despachar, calculado con el registro público de cada compra. No muestra tu teléfono ni tu dirección.\n\nPégalo en la bio de tu Instagram o TikTok:\n*Vendo con Pago Protegido ✅ ${url}*`,
+      text: `🛡️ Tu perfil público de *${s.store_name}*:\n${url}\n\nAhí tus clientes ven tus ventas protegidas, cuántas terminaron sin reclamo y cuánto tardas en despachar, calculado con el registro público de cada compra. No muestra tu teléfono ni tu dirección.\n\nPégalo en la bio de tu Instagram o TikTok:\n*Vendo con Trato ✅ ${url}*`,
     };
   },
 
@@ -351,7 +382,7 @@ export const msg = {
   },
 
   reportThanks(host: string): OutMsg {
-    return { text: `🙏 ¡Gracias por avisar! Guardé tu reporte de *${host}* para revisarlo y alertar a más gente.\nRecuerda: nadie de Pago Protegido te pide pagar fuera de nuestro link ni confirmar antes de recibir.` };
+    return { text: `🙏 ¡Gracias por avisar! Guardé tu reporte de *${host}* para revisarlo y alertar a más gente.\nRecuerda: nadie de Trato te pide pagar fuera de nuestro link ni confirmar antes de recibir.` };
   },
 
   reportAsk(): OutMsg {
@@ -391,6 +422,22 @@ function refundBsCents(v: OrderView): number {
   return unitsToBsCents(net, o.fx);
 }
 
+/**
+ * Devolución completa (PP_DEVOLUCION_COMPLETA=1 en la app), ya confirmada en la red: lo que pagó, lo que devolvió el
+ * contrato y lo que transfirió Trato, con el link a las dos transacciones (/registro/<hash> de la app, que lleva al
+ * registro público). Sin reintegro confirmado, null: el aviso queda como siempre.
+ */
+function fullRefund(appUrl: string, v: OrderView): string | null {
+  const r = v.reintegro;
+  if (!r || r.estado !== "confirmado" || !r.hash) return null;
+  const bs = (u: string) => fmtBs(unitsToBsCents(u, v.order.fx));
+  return [
+    `Te devolvimos todo lo que pagaste: ${bs(r.pagado)}. El contrato te devolvió ${bs(r.recibido)} y Trato te transfirió las comisiones (${bs(r.monto)}).`,
+    `Devolución: ${appUrl}/registro/${r.devolucion_hash}`,
+    `Reintegro: ${appUrl}/registro/${r.hash}`,
+  ].join("\n");
+}
+
 // ---------- Avisos del poller ----------
 
 export interface NoticeData {
@@ -406,7 +453,7 @@ export const notice = {
     const by = o.ship_deadline ? ` antes del ${fmtDate(o.ship_deadline)}` : "";
     const refund = o.ship_deadline ? " Si no se marca enviado a tiempo, la plata vuelve sola a tu cliente." : "";
     return {
-      text: `💸 ${code}: tu cliente pagó ${fmtBs(o.price_bs_cents)} por *${o.product}* y el pago está GUARDADO, todavía no en tu cuenta.\n\nDespacha${by} y marca enviado: escríbeme *enviado ${code} <código de encomienda>*.${refund}\nCobras cuando tu cliente confirme o, si no dice nada, al terminar su tiempo de revisión, que cuenta desde el envío. Vale tu panel, no una captura.\nSeguimiento: ${linkUrl(appUrl, o.slug)}`,
+      text: `💸 ${code}: tu cliente pagó ${fmtBs(o.price_bs_cents)} por *${o.product}* y el pago está GUARDADO en el contrato, todavía no en tu cuenta.\n\nDespacha${by} y marca enviado: escríbeme *enviado ${code} <código de encomienda>*.${refund}\nCobras cuando tu cliente confirme o, si no dice nada, al terminar su tiempo de revisión, que cuenta desde el envío.\n\n🔒 Este aviso sale del contrato, no de una captura: una captura de pago se puede falsificar. Compruébalo en tu panel:\n👉 ${appUrl}/panel\nSeguimiento: ${linkUrl(appUrl, o.slug)}`,
     };
   },
 
@@ -423,14 +470,14 @@ export const notice = {
     const o = view.order;
     const when = o.deadline ? `\nSi no haces nada, el pago se libera solo al vendedor el ${fmtDate(o.deadline)}.` : "";
     return {
-      text: `📦 ${orderCode(o)}: ¡Hola! ${view.seller.store_name} ya envió tu *${o.product}*${o.shipped_evidence ? ` (guía: ${o.shipped_evidence})` : ""}.\n\n¿Te llegó? Revísalo antes de pagar. Si está todo bien, toca *Pagar al vendedor*. Si hay un problema, toca *Tengo un problema*. ¿Todavía no llega? Toca *Necesito más tiempo* (una sola vez).${when}\n👉 ${linkUrl(appUrl, o.slug)}\n\n🛡️ ${ANTI_PRESSURE}`,
+      text: `📦 ${orderCode(o)}: ¡Hola! ${view.seller.store_name} ya envió tu *${o.product}*${o.shipped_evidence ? ` (${fmtEnvio(o.shipped_evidence)})` : ""}.\n\n¿Te llegó? Revísalo antes de pagar. Si está todo bien, toca *Pagar al vendedor*. Si hay un problema, toca *Tengo un problema*. ¿Todavía no llega? Toca *Necesito más tiempo* (una sola vez).${when}\n👉 ${linkUrl(appUrl, o.slug)}\n\n🛡️ ${ANTI_PRESSURE}`,
     };
   },
 
   /** Al vendedor cuando se libera el pago. */
   released({ view }: NoticeData): OutMsg {
     const o = view.order;
-    const amount = view.breakdown ? ` Te llegaron *${fmtUsd(view.breakdown.seller)} USD de prueba*` : " La plata ya está en tu billetera";
+    const amount = view.breakdown ? ` Te llegaron *${fmtUsd(view.breakdown.seller)} USD de prueba*` : " La plata ya está en tu cuenta";
     return { text: `✅ ${orderCode(o)}: ¡Liberado! Tu cliente recibió *${o.product}*.${amount}. ¡Gracias por vender protegido! 🙌`, buttons: [BTN.otro, BTN.saldo] };
   },
 
@@ -462,7 +509,9 @@ export const notice = {
   resolved({ appUrl, view }: NoticeData, to: "vendedor" | "comprador"): OutMsg {
     const o = view.order;
     const b = (o.buyer_bps ?? 0) / 100;
-    const mine = to === "vendedor" ? `${100 - b}% para ti y ${b}% para el comprador` : `${b}% para ti y ${100 - b}% para el vendedor`;
+    const mine = fmtReparto(b, to);
+    const full = to === "comprador" ? fullRefund(appUrl, view) : null;
+    if (full) return { text: `⚖️ ${orderCode(o)}: el revisor resolvió el reclamo de *${o.product}* a tu favor. ${full}\n${linkUrl(appUrl, o.slug)}` };
     return { text: `⚖️ ${orderCode(o)}: el revisor resolvió el reclamo de *${o.product}*: ${mine}. El contrato ya hizo los pagos.\n${linkUrl(appUrl, o.slug)}` };
   },
 
@@ -473,6 +522,8 @@ export const notice = {
     if (to === "vendedor") {
       return { text: `↩️ ${orderCode(o)}: no se marcó el envío a tiempo. Devolvimos ${bs} al comprador. El pedido de *${o.product}* quedó cerrado.`, buttons: [BTN.otro, BTN.ventas] };
     }
+    const full = fullRefund(appUrl, view);
+    if (full) return { text: `↩️ ${orderCode(o)}: el vendedor no marcó el envío de *${o.product}* a tiempo. ${full}\n${linkUrl(appUrl, o.slug)}` };
     return { text: `↩️ ${orderCode(o)}: el vendedor no marcó el envío de *${o.product}* a tiempo. Te devolvimos ${bs} (tu pago menos las comisiones).\n${linkUrl(appUrl, o.slug)}` };
   },
 
