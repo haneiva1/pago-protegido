@@ -9,7 +9,7 @@ Este documento tiene el detalle técnico de Trato. El resumen para el jurado, el
 | **Contratos v2 (Stellar testnet)** | `pp_guardian` [`CDKYF7OA…UOATOT`](https://stellar.expert/explorer/testnet/contract/CDKYF7OAJTACP4JNJSGGXDRA3DHE442R26CT5ZE5DJHNSHH7XJUOATOT) · `pp_arbiter` [`CDTEA424…TEVU5UA`](https://stellar.expert/explorer/testnet/contract/CDTEA424AWSIIHEQ4FIQHFQOTWS3XAVLQHX7FI3MU6JZP4OPMTEVU5UA) |
 | **Escrow de Trustless Work** | una instancia por compra; ejemplo del caso feliz: [`CCS74JS3…YVA6U6E`](https://stellar.expert/explorer/testnet/contract/CCS74JS3QVAXAI2GCTOP5BEUP47FSB36HOYURDCRR2A5PK7B5YVA6U6E) |
 | **Dólar de prueba (LABUSD)** | [`CC65P6TQ…OGBD4S`](https://stellar.expert/explorer/testnet/contract/CC65P6TQQ646YDXVS3PM6YVZASXW6WM5B67YKI46JH4EG65LJPOGBD4S) |
-| **Video** | `[link al video]` (copia local: [demo/v2/pago-protegido-demo-v2.mp4](../demo/v2/pago-protegido-demo-v2.mp4)) |
+| **Video** | `[link al video]` (copia local, sin narrar: [demo/v3/trato-demo-v3.mp4](../demo/v3/trato-demo-v3.mp4)) |
 | **Demo** | `[link a la demo]` |
 
 El vendedor comparte un link. El comprador paga y la plata queda en un contrato (un escrow de Trustless Work) hasta que confirma que recibió. Si hay un problema, un revisor decide el reparto.
@@ -66,7 +66,7 @@ Hay **una sola tarifa**, y en cada link el vendedor elige quién la paga:
 | **El comprador** (por defecto) | **1,5% del precio, mínimo Bs 5 y tope Bs 50** | precio + protección | el precio completo |
 | **El vendedor** ("Yo la regalo") | **2,3% de la venta**: 2% de la plataforma y 0,3% de Trustless Work | el precio | el precio menos 2,3% |
 
-Ejemplos (los mismos que verifica el e2e de la app, al tipo de cambio de la demo):
+Ejemplos, al tipo de cambio de la demo (Bs 11,7 por dólar). Los verifica todos el test unitario `app/test/tarifa.test.mjs`, incluidos los 117 bps de abajo; el e2e con pagos además comprueba en pantalla Bs 456,75, Bs 450,04 y "Pagar Bs 300,00":
 
 - **Bs 450, la paga el comprador:** protección Bs 6,75; el comprador paga **Bs 456,75** y el vendedor recibe **Bs 450,04**.
 - **Bs 300, la regala el vendedor:** el comprador paga **Bs 300,00** y al vendedor le quedan **Bs 293,10** (Bs 300 − 2,3%).
@@ -171,10 +171,10 @@ Cada afirmación, con el comando que la comprueba, el resultado y el link a la r
 | **Desvío 9 (d14):** un tercero pide más tiempo haciéndose pasar por el comprador | ídem | Rechazado: `Error(Contract, #7)` | **sin hash: rechazado en la simulación** · [evidencia](../contracts/scripts/out/flujo-v2/fallo-d-d14.txt) |
 | (d) Después de los 9 desvíos, el pedido se cierra por la vía legítima y el tercero no recibe nada | ídem | 50/50: comprador +24,425 y vendedor +24,425; `tercero` 0 → 0 ([saldos.tsv](../contracts/scripts/out/flujo-v2/saldos.tsv)) | resolve [`71a5d5fb…`](https://stellar.expert/explorer/testnet/tx/71a5d5fba9547815375fdee6f414ce3efe209eb8a47e4ac8b53307e39c1e2d2c) |
 | Una compra completa cuesta ≈0,138 XLM de comisión de red, y la paga la plataforma | ídem | Escenario (a), del despliegue del escrow a `confirm`: 1.377.750 stroops | [txlog.tsv](../contracts/scripts/out/flujo-v2/txlog.tsv) |
-| El bot crea links, verifica links y avisa en cada paso | `cd bot && npm test` | @@BOT_UNIT@@ unitarios + @@BOT_E2E@@ e2e del simulador, en verde (corrido el 20-nov) | [bot/test/](../bot/test/) · [bot/e2e/](../bot/e2e/) |
+| El bot crea links, verifica links y avisa en cada paso | `cd bot && npm test` | 191 unitarios + 4 e2e del simulador, en verde (corrido el 20-nov) | [bot/test/](../bot/test/) · [bot/e2e/](../bot/e2e/) |
 | Los tests de la app corren sin red: unitarios (indexador verificado, comprador, evidencia, vendedor, revisor y ciudades) y cada ruta de la API firmada | `cd app && npm test` | Los tests de la API cambian las funciones de red por stubs: ninguno toca testnet. Los corrimos con Node 25 | [app/test/](../app/test/) |
 | La app compila y sus páginas públicas leen testnet sin claves | `cd app && npm run build && npm run test:e2e:publico` | Build en 0; e2e de solo lectura de `/metricas`, `/tienda` y la insignia | [app/e2e/publico.spec.ts](../app/e2e/publico.spec.ts) |
-| La app recorre el flujo v2 completo con pagos reales en testnet | `cd app && npm run test:e2e` (necesita las llaves del equipo) | @@E2E_PAGOS@@/@@E2E_PAGOS@@ en verde (corrido el 20-nov), con capturas de cada pantalla | [app/e2e/capturas/](../app/e2e/capturas/) |
+| La app recorre el flujo v2 completo con pagos reales en testnet | `cd app && npm run test:e2e` (necesita las llaves del equipo) | 12 de 12 pruebas de punta a punta contra testnet, 6 de ellas con pagos reales, en verde (corrido el 20-nov), con capturas de cada pantalla. Pagan: caso feliz, presión 70/30, celular con IMEI, devolución automática, bot y `/probar`; las otras 6 (og, transparencia, palabras prohibidas, límite de `/probar` y las 2 públicas) leen testnet sin pagar | [app/e2e/capturas/](../app/e2e/capturas/) |
 
 Los desvíos los rechaza la **simulación** de Soroban, antes de enviarse: por eso no tienen hash. Su evidencia es el error completo que guardó el script. Las cuentas que debían cobrar en cada escenario se leyeron antes y después de la transacción final ([saldos.tsv](../contracts/scripts/out/flujo-v2/saldos.tsv)); el script termina con código distinto de 0 si un intento que debía fallar no falla.
 
@@ -194,7 +194,7 @@ Hay dos caminos. El primero no necesita ninguna clave.
 # 1. Contratos: 47 tests contra el WASM real de Trustless Work (menos de 1 minuto)
 cd contracts && cargo test && cd ..
 
-# 2. Bot: @@BOT_UNIT@@ unitarios + @@BOT_E2E@@ e2e del simulador, sin red
+# 2. Bot: 191 unitarios + 4 e2e del simulador, sin red
 cd bot && npm ci && npx playwright install chromium && npm test && cd ..
 
 # 3. App: build y e2e público de solo lectura contra testnet (no firma nada)
@@ -297,8 +297,8 @@ Los montos en bolivianos de la app, del bot y de las métricas usan **11,70 Bs p
 | **Contratos v2** (Soroban), desplegados en testnet | IDs arriba; hashes, transacciones y comisiones en [contracts/DEPLOYED.md](../contracts/DEPLOYED.md). **No son actualizables.** |
 | **47 tests de contratos** | `cargo test` contra el **WASM real** de Trustless Work: los 9 invariantes de seguridad, el red team, los hallazgos del jurado (H-9, H-10) y 200 secuencias aleatorias. `scripts/verify-wasm.sh` reproduce los hashes desplegados. |
 | **Flujo v2 en testnet** | 6 escenarios con código 0, incluidos **9 desvíos rechazados**: nadie, ni el admin del revisor ni la plataforma, pudo mandar el pago a un tercero ([Evidencia](#evidencia)). |
-| **App web** (Next.js, mobile-first, en español) | Panel del vendedor (link rápido, pendientes de hoy, envío con fotos y huella, "Pasar a mi banco" simulado), link del comprador ("Dos salidas", QR, acceso a su compra, reclamo guiado con evidencia de la cámara y seguimiento), panel del revisor (`/revisor`, con la regla que aplica y "✓ coincide") y "Cómo funciona", sobre los contratos v2: los dos plazos al pagar, `mark_shipped`, "Necesito más tiempo" (`extend`), la devolución si no se despacha (`refund_unshipped`) y `auto_release`, que respeta la disputa. La API exige la firma de cada acción (SEP-53). e2e con Playwright contra testnet, con capturas en [app/e2e/capturas/](../app/e2e/capturas/). Video y capturas de la demo v2: [demo/v2/](../demo/v2/). |
-| **Bot de WhatsApp** | Crea links desde el chat (con código PP- de 8 caracteres y quién paga la protección), verifica links, avisa en cada paso y recuerda desde el envío. @@BOT_UNIT@@ tests unitarios y @@BOT_E2E@@ e2e del simulador. |
+| **App web** (Next.js, mobile-first, en español) | Panel del vendedor (link rápido, pendientes de hoy, envío con fotos y huella, "Pasar a mi banco" simulado), link del comprador ("Dos salidas", QR, acceso a su compra, reclamo guiado con evidencia de la cámara y seguimiento), panel del revisor (`/revisor`, con la regla que aplica y "✓ coincide") y "Cómo funciona", sobre los contratos v2: los dos plazos al pagar, `mark_shipped`, "Necesito más tiempo" (`extend`), la devolución si no se despacha (`refund_unshipped`) y `auto_release`, que respeta la disputa. La API exige la firma de cada acción (SEP-53). e2e con Playwright contra testnet, con capturas en [app/e2e/capturas/](../app/e2e/capturas/). Video y capturas clave de la demo v3: [demo/v3/](../demo/v3/) (la v2, con el nombre anterior, sigue en [demo/v2/](../demo/v2/)). |
+| **Bot de WhatsApp** | Crea links desde el chat (con código PP- de 8 caracteres y quién paga la protección), verifica links, avisa en cada paso y recuerda desde el envío. 191 tests unitarios y 4 e2e del simulador. |
 | **Métricas en vivo y perfil de la tienda** | `/metricas` calcula los números con eventos on-chain (cada número enlaza a sus compras en stellar.expert). Solo cuentan las compras verificadas: el escrow corre el WASM de Trustless Work, con los roles de Trato, en LABUSD y con un pago que movió la plata (H-9); `/transparencia` muestra cuántas descartó y por qué. `/tienda/<slug>` es el perfil verificable del vendedor; la insignia "Vendo con Trato" está en el panel. |
 | **Métricas on-chain** | `contracts/scripts/metricas.sh` las calcula solo con eventos públicos (`getEvents`). Corrida del 18-nov: **47 compras de prueba** en v1 y v2 (incluidas las del equipo), por ≈ USD 2.227 de prueba (≈ Bs 26.052 al [tipo de cambio](#tipo-de-cambio) de la demo). Detalle en [METRICAS.md](METRICAS.md). |
 | **Hallazgo H-1** | En la v1 del escrow que usamos (commit `f0b706e`), un escrow ya liberado se puede marcar en disputa sin mover fondos; la v2 de Trustless Work ya lo impide, y `pp_guardian` también lo bloquea (#21). Reproducido en testnet: [reporte-trustless-work.md](reporte-trustless-work.md). |
@@ -336,7 +336,8 @@ pago-protegido/
 │   ├── wasm/             escrow de Trustless Work (commit f0b706e) que usan los tests
 │   ├── DEPLOYED.md       v2: IDs, hashes, transacciones y comisiones reales (v1: DEPLOYED-v1.md)
 │   └── DECISIONES.md     decisiones, interfaz v2 y hallazgos
-├── demo/v2/      video y capturas clave de la demo v2
+├── demo/v3/      video de la demo v3 (sin narrar), su lámina y las capturas clave
+├── demo/v2/      video y capturas de la demo v2 (con el nombre anterior)
 ├── deploy/       Dockerfiles, docker-compose + Caddy, Railway, túnel para la demo
 ├── docs/
 │   ├── TECNICO.md        este documento

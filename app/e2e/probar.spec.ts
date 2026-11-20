@@ -96,10 +96,13 @@ test("/probar: dos celulares reales, registro en vivo, desvío rechazado por el 
   await vendedor.getByRole("button", { name: "Continuar" }).click();
   await vendedor.getByRole("button", { name: "Crear mi cuenta de cobro y continuar" }).click();
   await expect(vendedor.getByTestId("tienda")).toHaveText("Tienda Sofi", CHAIN);
+  // Link rápido (PR #7): producto, precio y días para despachar; la categoría va en "Más detalles".
   await vendedor.getByLabel("Producto").fill("Zapatillas Nike talla 40");
-  await vendedor.getByLabel("Categoría").selectOption("Ropa y calzado");
   await vendedor.getByLabel("Precio en Bs").fill("450");
-  await vendedor.getByLabel("Días de entrega", { exact: true }).selectOption("3");
+  await vendedor.getByLabel("Días para despachar", { exact: true }).selectOption("3");
+  const mas = vendedor.getByTestId("mas-detalles");
+  if (!(await mas.evaluate((e) => (e as HTMLDetailsElement).open))) await mas.locator("summary").click();
+  await vendedor.getByLabel(/^Categoría/).selectOption("Ropa y calzado");
   await vendedor.getByRole("button", { name: "Crear link" }).click();
   const url = (await vendedor.getByTestId("link-url").textContent())!.trim();
   const slug = url.split("/p/")[1];
@@ -112,12 +115,12 @@ test("/probar: dos celulares reales, registro en vivo, desvío rechazado por el 
   const link = page.getByTestId("paso-registro-link");
   await expect(link).toHaveAttribute("data-hecho", "si", { timeout: 30_000 });
   await expect(link).toContainText("Se activó la cuenta de cobro del vendedor");
-  await expect(link).toContainText(/Link PP-\d{4,5} creado: todavía no se movió plata/);
+  await expect(link).toContainText(/Link PP-[2-9A-HJKMNP-Z]{8} creado: todavía no se movió plata/);
   await expect(link.locator(TX_LINK)).toHaveCount(1);
 
   // El link llega solo al celular del comprador.
   const comprador = page.frameLocator('iframe[name="comprador"]');
-  await expect(comprador.getByTestId("codigo")).toHaveText(/Compra protegida · PP-\d{4,5}/, { timeout: 30_000 });
+  await expect(comprador.getByTestId("codigo")).toHaveText(/Compra protegida · PP-[2-9A-HJKMNP-Z]{8}/, { timeout: 30_000 });
   await expect(page.getByTestId("ahora")).toContainText("El link llegó al celular del comprador");
   await capturar(page, "81-probar-link-en-el-comprador");
 

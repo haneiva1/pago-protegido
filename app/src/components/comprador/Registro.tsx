@@ -11,8 +11,9 @@ export function LineaDeTiempo({ v, onReload, onExtend }: { v: OrderView; onReloa
   const o = v.order;
   return (
     <section className="card space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="font-bold">Seguimiento · {o.code}</h2>
+      {/* Con el código de 8 caracteres, en celular la etiqueta de estado baja en vez de cortar el título. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+        <h2 className="min-w-0 font-bold">Seguimiento · {o.code}</h2>
         <StatusBadge status={o.status} />
       </div>
       <Timeline order={o} txs={v.txs} />
