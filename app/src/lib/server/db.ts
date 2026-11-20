@@ -102,6 +102,14 @@ CREATE TABLE IF NOT EXISTS evidence (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS evidence_order ON evidence(order_slug);
+-- Archivos subidos a /api/evidencia, por pedido: el cupo por pedido se cuenta acá (un archivo repetido no suma).
+CREATE TABLE IF NOT EXISTS evidencias (
+  sha256 TEXT NOT NULL,
+  order_slug TEXT NOT NULL,
+  bytes INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (order_slug, sha256)
+);
 -- Lista de espera del piloto (/piloto).
 CREATE TABLE IF NOT EXISTS pilot_waitlist (
   id TEXT PRIMARY KEY,
@@ -534,6 +542,23 @@ export const evidence = {
   },
   forOrder(slug: string): EvidenceRow[] {
     return db().prepare(`SELECT * FROM evidence WHERE order_slug = ? ORDER BY id ASC`).all(slug) as EvidenceRow[];
+  },
+};
+
+/** Archivos de evidencia guardados en disco, por pedido (tabla `evidencias`, cupo de /api/evidencia). */
+export const evidencias = {
+  tiene(order_slug: string, sha256: string): boolean {
+    return Boolean(db().prepare(`SELECT 1 FROM evidencias WHERE order_slug = ? AND sha256 = ?`).get(order_slug, sha256));
+  },
+  uso(order_slug: string): { archivos: number; bytes: number } {
+    return db()
+      .prepare(`SELECT COUNT(*) AS archivos, COALESCE(SUM(bytes), 0) AS bytes FROM evidencias WHERE order_slug = ?`)
+      .get(order_slug) as { archivos: number; bytes: number };
+  },
+  add(e: { sha256: string; order_slug: string; bytes: number }) {
+    db()
+      .prepare(`INSERT OR IGNORE INTO evidencias (sha256, order_slug, bytes, created_at) VALUES (?, ?, ?, ?)`)
+      .run(e.sha256, e.order_slug, e.bytes, now());
   },
 };
 

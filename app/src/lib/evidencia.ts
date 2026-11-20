@@ -6,6 +6,35 @@
 export const MAX_FOTO_BYTES = 8 * 1024 * 1024;
 export const MAX_VIDEO_BYTES = 40 * 1024 * 1024;
 
+/** Cupo por pedido (la ruta no pide firma todavía): archivos distintos y bytes en total. */
+export const MAX_ARCHIVOS_POR_PEDIDO = 8;
+export const MAX_BYTES_POR_PEDIDO = 150 * 1024 * 1024;
+/** Subidas por IP en una ventana de un minuto. */
+export const SUBIDAS_POR_MINUTO = 20;
+
+/**
+ * Límite en memoria por clave con ventana fija: devuelve una función que dice si la clave todavía puede pasar.
+ * Las ventanas vencidas se limpian cuando el mapa crece, para que no acumule IPs para siempre.
+ */
+export function limitePorVentana(max: number, ventanaMs: number, ahora: () => number = Date.now) {
+  const vistas = new Map<string, { desde: number; n: number }>();
+  return (clave: string): boolean => {
+    const t = ahora();
+    if (vistas.size > 10_000) for (const [k, v] of vistas) if (t - v.desde >= ventanaMs) vistas.delete(k);
+    const v = vistas.get(clave);
+    if (!v || t - v.desde >= ventanaMs) {
+      vistas.set(clave, { desde: t, n: 1 });
+      return true;
+    }
+    return ++v.n <= max;
+  };
+}
+
+/** La IP del cliente: la última entrada de x-forwarded-for, la que agrega nuestro proxy (las primeras las puede inventar). */
+export function ipDeReenvio(xff: string | null): string {
+  return (xff ?? "").split(",").map((s) => s.trim()).filter(Boolean).at(-1) ?? "sin-ip";
+}
+
 export interface TipoEvidencia {
   ext: "jpg" | "png" | "webp" | "mp4" | "mov" | "webm";
   mime: string;
