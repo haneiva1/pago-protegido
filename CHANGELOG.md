@@ -43,7 +43,7 @@ Las ramas de la noche entraron juntas en `noche/integracion`. Ningún contrato c
   - la reputación entra entera en celular: sale el link "Ver tienda" de esa línea, porque la tarjeta del vendedor ya lo tiene;
   - el panel del vendedor muestra el teléfono de quien recoge y el flete.
 - **Documentación:** el README queda con los cinco criterios, el avance y el plan de 30 días v2; el detalle técnico pasa a [docs/TECNICO.md](docs/TECNICO.md) y el problema, con 24 casos públicos y sus fuentes, a [docs/PROBLEMA.md](docs/PROBLEMA.md).
-- **Pruebas:** contratos, 47 tests; bot, 191 unitarios y 4 e2e; app, 12/12 e2e con pagos en testnet.
+- **Pruebas:** contratos, 47 tests; bot, 191 unitarios y 4 e2e; app, 12 de 12 pruebas de punta a punta contra testnet, 6 de ellas con pagos reales (caso feliz, presión 70/30, celular con IMEI, devolución automática, bot y `/probar`).
 
 ## Entrega 1 (19-nov)
 
