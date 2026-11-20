@@ -90,7 +90,7 @@ async function crearLink(
 async function pagar(
   browser: Browser,
   url: string,
-  o: { capturas?: boolean; whatsapp?: string; quien?: string; ciudad?: string; agencia?: string; antes?: (p: Page) => Promise<void> } = {},
+  o: { capturas?: boolean; whatsapp?: string; quien?: string; ciudad?: string; agencia?: string; telefono?: string; flete?: string; antes?: (p: Page) => Promise<void> } = {},
 ) {
   const page = await (await browser.newContext()).newPage();
   await page.goto(url);
@@ -110,6 +110,8 @@ async function pagar(
   await page.getByLabel("Ciudad de destino").selectOption(o.ciudad ?? "Cochabamba");
   if (o.agencia) await page.getByLabel(/Agencia preferida/).fill(o.agencia);
   if (o.whatsapp) await page.getByLabel(/Tu WhatsApp para avisarte/).fill(o.whatsapp);
+  if (o.telefono) await page.getByLabel(/Teléfono de quien recoge/).fill(o.telefono);
+  if (o.flete) await page.getByLabel(/¿Y el flete\?/).selectOption(o.flete);
   if (o.capturas) await capturar(page, "06b-comprador-datos-de-entrega");
   await page.getByRole("button", { name: /Ver el QR para pagar Bs/ }).click();
   await expect(page.getByTestId("rampa-simulada")).toHaveText("Rampa simulada en testnet. En producción la hace una entidad certificada por ASFI.");
@@ -200,6 +202,8 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
     quien: "Ana Pérez",
     ciudad: "Cochabamba",
     agencia: "Trans Copacabana, terminal",
+    telefono: "70011223",
+    flete: "por_pagar",
     antes: async (p) => {
       await expect(p.getByTestId("vendedor")).toContainText("Vendedor: Tienda Sofi · Santa Cruz");
       await expect(p.getByTestId("reputacion")).toContainText("Tienda Sofi · Santa Cruz");
@@ -257,6 +261,22 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
   expect(createHash("sha256").update(await vuelta.body()).digest("hex")).toBe(subida.sha256);
   expect((await buyer.request.post("/api/evidencia?pedido=no-existe", { data: foto })).status()).toBe(404);
   expect((await buyer.request.post(`/api/evidencia?pedido=${slug}`, { data: Buffer.from("no es una imagen ni un video") })).status()).toBe(415);
+
+  // Seguimiento tipo delivery: "Tu próximo paso" dice dónde recoger, con la guía y el flete; "Ya lo recogí" avanza.
+  const paso = buyer.getByTestId("proximo-paso");
+  await expect(paso).toContainText("Recoge en Trans Copacabana (encomiendas) con tu carnet y la guía SRV-2026-118734");
+  await expect(paso).toContainText("Flete por pagar al recoger");
+  await expect(paso.getByRole("button", { name: "Todavía no llegó" })).toBeVisible();
+  await expect(buyer.getByTestId("paso-2")).toHaveAttribute("data-hecho", "si");
+  await expect(buyer.getByTestId("paso-3")).toHaveAttribute("data-hecho", "no");
+  await capturar(buyer, "09c-comprador-proximo-paso");
+  await paso.getByRole("button", { name: "Ya lo recogí" }).click();
+  await expect(buyer.getByTestId("paso-3")).toHaveAttribute("data-hecho", "si");
+  await expect(paso).toContainText("Revísalo antes de pagar");
+  // El teléfono de quien recoge no sale en la vista pública (sí el flete).
+  const vista = await (await buyer.request.get(`/api/orders/${slug}`)).text();
+  expect(vista).not.toContain("70011223");
+  expect(vista).toContain('"flete":"por_pagar"');
   await expect(buyer.getByRole("button", { name: "Pagar al vendedor (irreversible)" })).toBeDisabled();
   await expect(buyer.getByTestId("espera-confirmar")).toBeVisible();
   await expect(buyer.getByText("Después ya no puedes reclamar.")).toBeVisible();

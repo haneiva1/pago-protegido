@@ -143,6 +143,11 @@ export interface DatosEntrega {
   city: string;
   agency: string;
   whatsapp?: string;
+  /** Teléfono de quien recoge (las empresas lo piden para entregar). */
+  pickupPhone?: string;
+  /** "incluido" | "por_pagar" | "aparte" (con fleteBs). */
+  flete?: string;
+  fleteBs?: string;
 }
 
 /** Hoja que sube desde abajo con los datos de entrega. Al continuar se muestra el QR. */
@@ -182,7 +187,7 @@ export function HojaEntrega({
 }
 
 function FormEntrega({ total, onCerrar, onContinuar }: { total: string; onCerrar: () => void; onContinuar: (x: DatosEntrega) => void }) {
-  const [f, setF] = useState({ recipient: "", city: "", agency: "", whatsapp: "" });
+  const [f, setF] = useState({ recipient: "", city: "", agency: "", whatsapp: "", pickupPhone: "", flete: "", fleteBs: "" });
   const [error, setError] = useState<string | null>(null);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
   return (
@@ -193,8 +198,16 @@ function FormEntrega({ total, onCerrar, onContinuar }: { total: string; onCerrar
         e.preventDefault();
         if (f.recipient.trim().length < 2) return setError("Escribe quién recibe el pedido");
         if (!f.city) return setError("Elige la ciudad de destino");
+        if (f.flete === "aparte" && !(Number(f.fleteBs.replace(",", ".")) > 0)) return setError("Escribe cuánto es el flete en Bs");
         setError(null);
-        onContinuar({ recipient: f.recipient, city: f.city, agency: f.agency, ...(f.whatsapp.trim() ? { whatsapp: f.whatsapp } : {}) });
+        onContinuar({
+          recipient: f.recipient,
+          city: f.city,
+          agency: f.agency,
+          ...(f.whatsapp.trim() ? { whatsapp: f.whatsapp } : {}),
+          ...(f.pickupPhone.trim() ? { pickupPhone: f.pickupPhone } : {}),
+          ...(f.flete ? { flete: f.flete, ...(f.flete === "aparte" ? { fleteBs: f.fleteBs } : {}) } : {}),
+        });
       }}
     >
       <h2 id="hoja-entrega-titulo" className="text-lg font-bold">
@@ -222,6 +235,28 @@ function FormEntrega({ total, onCerrar, onContinuar }: { total: string; onCerrar
           Agencia preferida <span className="font-normal text-slate-400">(opcional)</span>
         </label>
         <input id="agency" className="input" value={f.agency} onChange={set("agency")} placeholder="Ej.: Trans Copacabana, terminal" />
+      </div>
+      <div>
+        <label className="label" htmlFor="pickup-phone">
+          Teléfono de quien recoge <span className="font-normal text-slate-400">(opcional)</span>
+        </label>
+        <input id="pickup-phone" className="input" inputMode="tel" value={f.pickupPhone} onChange={set("pickupPhone")} placeholder="Ej.: 591 70011223" />
+        <p className="mt-1 text-xs text-slate-500">Las empresas de encomiendas lo piden para entregar. Solo lo ve la tienda.</p>
+      </div>
+      <div>
+        <label className="label" htmlFor="flete">
+          ¿Y el flete? <span className="font-normal text-slate-400">(opcional)</span>
+        </label>
+        <select id="flete" className="input" value={f.flete} onChange={set("flete")}>
+          <option value="">Lo veo con la tienda</option>
+          <option value="incluido">Incluido en el precio</option>
+          <option value="por_pagar">Por pagar al recoger</option>
+          <option value="aparte">Aparte: más Bs …</option>
+        </select>
+        {f.flete === "aparte" && (
+          <input id="flete-bs" aria-label="Flete en Bs" className="input mt-2" inputMode="decimal" value={f.fleteBs} onChange={set("fleteBs")} placeholder="Ej.: 25" />
+        )}
+        <p className="mt-1 text-xs text-slate-500">Es lo que acordaron; no cambia el monto que queda guardado.</p>
       </div>
       <div>
         <label className="label" htmlFor="buyer-wa">

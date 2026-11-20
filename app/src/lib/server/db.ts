@@ -138,6 +138,9 @@ const MIGRATIONS: Record<string, [string, string][]> = {
     ["ship_imei", "TEXT"],
     ["confirm_after", "INTEGER"],
     ["dispute_video", "TEXT"],
+    // Último tramo (M7): teléfono de quien recoge (privado, como los datos de entrega) y flete acordado.
+    ["pickup_phone", "TEXT"],
+    ["flete", "TEXT"],
     ["resolution_reason", "TEXT"],
     // Contratos v2: plazo de despacho y ventana de revisión (desde el envío), extend y devolución.
     ["ship_secs", "INTEGER"],
@@ -205,6 +208,10 @@ export interface OrderRow {
   dest_city: string | null;
   pref_agency: string | null;
   delivery_hash: string | null;
+  /** Teléfono de quien recoge: solo servidor y panel del vendedor. */
+  pickup_phone?: string | null;
+  /** Flete acordado: "incluido", "por_pagar" o "aparte:<Bs>" (no cambia el monto protegido). */
+  flete?: string | null;
   ship_company: string | null;
   ship_tracking: string | null;
   ship_weight: string | null;

@@ -12,6 +12,7 @@ import { Antifraude, Esqueleto, EstadoPedido, LinkNoEncontrado } from "@/compone
 import { PagoQr } from "@/components/comprador/PagoQr";
 import { Reclamo } from "@/components/comprador/Reclamo";
 import { Cierre, LineaDeTiempo, RegistroPedido } from "@/components/comprador/Registro";
+import { Seguimiento, useRecogido } from "@/components/comprador/Seguimiento";
 import { TarjetaVendedor } from "@/components/comprador/Vendedor";
 import { ApiError, api } from "@/lib/api";
 import { DOLLAR_NOTE, MOTIVO_PRESION, fmtBs, fmtBsUnits } from "@/lib/format";
@@ -41,6 +42,7 @@ export default function PaginaDePago() {
   const [delivery, setDelivery] = useState<DatosEntrega | null>(null);
   const progress = useProgress();
   const now = useNow();
+  const [recogido, marcarRecogido] = useRecogido(slug);
 
   const load = useCallback(async () => {
     try {
@@ -191,6 +193,7 @@ export default function PaginaDePago() {
           <p className="mt-1">Abrimos un reclamo por presión para confirmar y le avisamos al revisor. Tu plata sigue guardada en el contrato.</p>
         </div>
       )}
+      <Seguimiento v={v} esComprador={isBuyer} recogido={recogido} busy={busy} onRecogido={marcarRecogido} onNoLlego={() => accion("extend")} />
       <PublicRecord v={o.verification} escrowId={o.escrow_id} status={o.status} role="comprador" />
       {isBuyer && (o.status === "pagado" || o.status === "enviado" || o.status === "en_disputa") && <CompraEnEsteNavegador />}
 

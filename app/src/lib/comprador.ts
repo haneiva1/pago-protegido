@@ -52,6 +52,27 @@ export function textoRegistroPublico(status: string | undefined, role: "comprado
   }
 }
 
+// ---------- Último tramo: flete (M7) ----------
+
+/** Flete guardado como "incluido", "por_pagar" o "aparte:<Bs>". No cambia el monto protegido: es lo acordado. */
+export function parseFlete(tipo: unknown, montoBs?: unknown): string | null {
+  if (tipo === "incluido" || tipo === "por_pagar") return tipo;
+  if (tipo === "aparte") {
+    const n = Number(String(montoBs ?? "").replace(",", "."));
+    if (!Number.isFinite(n) || n <= 0 || n > 5000) return null;
+    return `aparte:${Math.round(n * 100) / 100}`;
+  }
+  return null;
+}
+
+export function fmtFlete(flete: string | null | undefined): string | null {
+  if (!flete) return null;
+  if (flete === "incluido") return "Flete incluido en el precio";
+  if (flete === "por_pagar") return "Flete por pagar al recoger";
+  const m = /^aparte:(\d+(?:\.\d+)?)$/.exec(flete);
+  return m ? `Flete aparte: más Bs ${Number(m[1]).toLocaleString("es-BO")}, fuera de este pago` : null;
+}
+
 // ---------- Reclamo guiado (M8) ----------
 
 /** Motivos que tienen sentido en cada estado (los mismos textos que valida el servidor en MOTIVOS). */

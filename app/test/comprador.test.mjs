@@ -15,6 +15,19 @@ test("registro público: 'bloqueado' solo mientras la plata sigue en el contrato
   for (const s of ["liberado", "devuelto", "resuelto"]) for (const r of ["comprador", "vendedor"]) assert.doesNotMatch(t(s, r), /bloqueado/);
 });
 
+test("flete: incluido, por pagar o aparte con monto; no cambia el pago", async () => {
+  const { parseFlete, fmtFlete } = await import("../src/lib/comprador.ts");
+  assert.equal(parseFlete("incluido"), "incluido");
+  assert.equal(parseFlete("por_pagar"), "por_pagar");
+  assert.equal(parseFlete("aparte", "25,5"), "aparte:25.5");
+  assert.equal(parseFlete("aparte", ""), null);
+  assert.equal(parseFlete("aparte", "-3"), null);
+  assert.equal(parseFlete("gratis"), null);
+  assert.equal(fmtFlete("por_pagar"), "Flete por pagar al recoger");
+  assert.match(fmtFlete("aparte:25.5"), /más Bs 25,5, fuera de este pago/);
+  assert.equal(fmtFlete(null), null);
+});
+
 test("reclamo guiado: motivos según el estado del pedido", () => {
   assert.deepEqual(motivosReclamo("pagado"), ["No envió"]);
   assert.deepEqual(motivosReclamo("enviado"), ["No llegó", "Llegó vacío o con otro producto", "Dañado o distinto a lo descrito"]);
