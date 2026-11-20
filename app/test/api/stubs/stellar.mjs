@@ -17,3 +17,11 @@ export async function mintLabusd(to, units) {
 export async function tokenBalance() {
   return 1234n;
 }
+
+/** Lo que "entró en la red": cada transacción que la app mandó con fee bump. */
+red.enviadas = [];
+export async function feeBumpAndSend(inner) {
+  const hash = Buffer.from(inner.hash()).toString("hex");
+  red.enviadas.push(hash);
+  return { hash, ledger: 1 };
+}

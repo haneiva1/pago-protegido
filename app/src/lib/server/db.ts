@@ -102,6 +102,14 @@ CREATE TABLE IF NOT EXISTS evidence (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS evidence_order ON evidence(order_slug);
+-- Archivos subidos a /api/evidencia, por pedido: el cupo por pedido se cuenta acá (un archivo repetido no suma).
+CREATE TABLE IF NOT EXISTS evidencias (
+  sha256 TEXT NOT NULL,
+  order_slug TEXT NOT NULL,
+  bytes INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (order_slug, sha256)
+);
 -- Lista de espera del piloto (/piloto).
 CREATE TABLE IF NOT EXISTS pilot_waitlist (
   id TEXT PRIMARY KEY,
@@ -168,6 +176,15 @@ const MIGRATIONS: Record<string, [string, string][]> = {
     ["refunded_at", "INTEGER"],
     // Hasta cuándo queda fijado el comprador que empezó a pagar y todavía no firmó el fondeo (lib/server/orders.ts).
     ["buyer_lease_until", "INTEGER"],
+  ],
+  // Indexador: una falta de dato deja la compra pendiente (con intentos y espera creciente), no descartada; y los
+  // hechos leídos quedan guardados para reevaluar sin releer la red si cambian las reglas.
+  escrow_verificado: [
+    ["estado", "TEXT"],
+    ["hechos_json", "TEXT"],
+    ["intentos", "INTEGER NOT NULL DEFAULT 0"],
+    ["proximo_at", "INTEGER"],
+    ["error", "TEXT"],
   ],
 };
 
@@ -468,6 +485,25 @@ export const orders = {
       .all(since) as BotChange[];
   },
   /** v2: pedidos pagados (o en reclamo) sin envío registrado y con el plazo de despacho vencido. */
+  /**
+   * Intentos de pago con contrato creado cuya reserva venció hace menos de `ventanaMs`, más los de antes de que
+   * existiera la reserva (`buyer_lease_until` NULL). Los más recientes primero.
+   */
+  intentosVencidos(now: number, ventanaMs: number): OrderRow[] {
+    return db()
+      .prepare(
+        `SELECT * FROM orders WHERE status = 'esperando_pago' AND buyer_pubkey IS NOT NULL AND escrow_id IS NOT NULL
+         AND (buyer_lease_until IS NULL OR (buyer_lease_until <= ? AND buyer_lease_until > ?))
+         ORDER BY buyer_lease_until DESC`,
+      )
+      .all(now, now - ventanaMs) as OrderRow[];
+  },
+  /** Pedidos enviados con la revisión vencida: el barrido los libera al vendedor (pp_guardian.auto_release). */
+  overdueShipped(now: number): OrderRow[] {
+    return db()
+      .prepare(`SELECT * FROM orders WHERE status = 'enviado' AND deadline IS NOT NULL AND deadline <= ? AND escrow_id IS NOT NULL ORDER BY deadline`)
+      .all(now) as OrderRow[];
+  },
   overdueUnshipped(now: number): OrderRow[] {
     return db()
       .prepare(
@@ -521,6 +557,33 @@ export const evidence = {
   },
   forOrder(slug: string): EvidenceRow[] {
     return db().prepare(`SELECT * FROM evidence WHERE order_slug = ? ORDER BY id ASC`).all(slug) as EvidenceRow[];
+  },
+  /** Códigos (o slugs) de otros pedidos cuya evidencia menciona este texto, p. ej. la huella de una foto. */
+  otherOrdersMentioning(text: string, exceptSlug: string): string[] {
+    const rows = db()
+      .prepare(
+        `SELECT DISTINCT e.order_slug AS slug, o.code AS code FROM evidence e LEFT JOIN orders o ON o.slug = e.order_slug
+         WHERE e.order_slug != ? AND instr(e.data_json, ?) > 0 LIMIT 5`,
+      )
+      .all(exceptSlug, text) as { slug: string; code: string | null }[];
+    return rows.map((r) => r.code ?? r.slug);
+  },
+};
+
+/** Archivos de evidencia guardados en disco, por pedido (tabla `evidencias`, cupo de /api/evidencia). */
+export const evidencias = {
+  tiene(order_slug: string, sha256: string): boolean {
+    return Boolean(db().prepare(`SELECT 1 FROM evidencias WHERE order_slug = ? AND sha256 = ?`).get(order_slug, sha256));
+  },
+  uso(order_slug: string): { archivos: number; bytes: number } {
+    return db()
+      .prepare(`SELECT COUNT(*) AS archivos, COALESCE(SUM(bytes), 0) AS bytes FROM evidencias WHERE order_slug = ?`)
+      .get(order_slug) as { archivos: number; bytes: number };
+  },
+  add(e: { sha256: string; order_slug: string; bytes: number }) {
+    db()
+      .prepare(`INSERT OR IGNORE INTO evidencias (sha256, order_slug, bytes, created_at) VALUES (?, ?, ?, ?)`)
+      .run(e.sha256, e.order_slug, e.bytes, now());
   },
 };
 

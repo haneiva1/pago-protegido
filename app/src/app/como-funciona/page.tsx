@@ -89,7 +89,7 @@ export default async function ComoFunciona() {
           <li>Plazos: el vendedor responde en 48 h, el comprador agrega evidencia en 48 h y el revisor decide en 72 h. Si el vendedor no responde, el comprador recupera todo su pago.</li>
           <li>
             Criterios, en este orden: sin prueba de envío, gana el comprador → entrega no registrada o dirección distinta a la del link, gana el comprador → entrega
-            registrada y sin video de desempaque, gana el vendedor → peso que no coincide, gana el comprador → distinto o dañado: primero vuelve el producto y después
+            registrada y sin video de desempaque (desde Bs 300), gana el vendedor → peso que no coincide, gana el comprador → distinto o dañado: primero vuelve el producto y después
             el reembolso → reparto parcial solo con acuerdo de las partes o daño parcial probado.
           </li>
           <li>Si alguien te pide que confirmes antes de tener el producto, no lo hagas: responde «El vendedor me pide que confirme» y se abre un reclamo.</li>

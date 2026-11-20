@@ -65,6 +65,14 @@ export function parseFlete(tipo: unknown, montoBs?: unknown): string | null {
   return null;
 }
 
+/**
+ * El flete que queda en el pedido: si el vendedor lo fijó al crear el link, se conserva (el comprador no lo pisa);
+ * si no, el que eligió el comprador en el checkout.
+ */
+export function fleteFinal(vendedor: string | null | undefined, comprador: string | null | undefined): string | null {
+  return vendedor || comprador || null;
+}
+
 export function fmtFlete(flete: string | null | undefined): string | null {
   if (!flete) return null;
   if (flete === "incluido") return "Flete incluido en el precio";
@@ -95,7 +103,13 @@ export interface EvidenciaPedida {
   pasos: string[];
 }
 
-/** Qué evidencia hace falta según el motivo (política de reclamos; el video desde Bs 300 lo exige también el servidor). */
+/** Desde Bs 300 el video continuo del desempaque es obligatorio para los motivos con video (política de reclamos). */
+export const VIDEO_OBLIGATORIO_DESDE_BS_CENTS = 30000;
+
+/**
+ * Qué evidencia hace falta según el motivo (política de reclamos). El mismo umbral lo exige el servidor y lo aplica
+ * la regla del revisor.
+ */
 export function evidenciaPedida(motivo: string, precioBsCents: number): EvidenciaPedida {
   if (motivo === "No envió") return { foto: "no", video: "no", pasos: ["No necesitas evidencia: el registro muestra si hubo envío o no."] };
   if (motivo === "No llegó")
@@ -104,7 +118,7 @@ export function evidenciaPedida(motivo: string, precioBsCents: number): Evidenci
       video: "no",
       pasos: ["Cuéntanos qué te dijo la agencia y cuándo preguntaste.", "Si tienes foto del aviso o del comprobante de la agencia, súbela."],
     };
-  const obligatorio = precioBsCents >= 30000;
+  const obligatorio = precioBsCents >= VIDEO_OBLIGATORIO_DESDE_BS_CENTS;
   return {
     foto: "pedida",
     video: obligatorio ? "obligatorio" : "opcional",
@@ -144,4 +158,19 @@ export function linkAbrirEnChrome(url: string): string | null {
   const m = /^(https?):\/\/(.+)$/i.exec(url);
   if (!m) return null;
   return `intent://${m[2]}#Intent;scheme=${m[1].toLowerCase()};package=com.android.chrome;end`;
+}
+
+export const NO_CARGO_CUENTA = "No pudimos cargar tu cuenta. Recarga la página.";
+
+/**
+ * Carga perezosa que se recuerda cuando sale bien. Si falla (el chunk no bajó), se olvida para que la próxima
+ * llamada lo vuelva a intentar, en vez de guardar para siempre la promesa rechazada.
+ */
+export function cargaUnaVez<T>(cargar: () => Promise<T>): () => Promise<T> {
+  let p: Promise<T> | null = null;
+  return () =>
+    (p ??= cargar().catch((e) => {
+      p = null;
+      throw e;
+    }));
 }

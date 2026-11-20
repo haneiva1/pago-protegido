@@ -1,8 +1,20 @@
 import { rpc, scValToNative } from "@stellar/stellar-sdk";
-import { DEPLOYED, HORIZON_URL, NETWORK_PASSPHRASE, RETIRED_V1, TESTNET_PUBLICO, cfg } from "./config";
+import { DEPLOYED, HORIZON_URL, NETWORK_PASSPHRASE, PARES_HISTORICOS, TESTNET_PUBLICO, cfg } from "./config";
 import { db, kv } from "./db";
 import { server, withLock } from "./stellar";
-import { REGLAS, evaluar, firmaReglas, hechosDe, type CompraFondeada, type Regla, type Reglas } from "./verificacion";
+import {
+  FALLA_LECTURA,
+  REGLAS,
+  esErrorDeRed,
+  evaluar,
+  firmaReglas,
+  hechosDe,
+  type CompraFondeada,
+  type Hechos,
+  type Motivo,
+  type Reglas,
+  type Resultado,
+} from "./verificacion";
 
 /**
  * Métricas públicas de Pago Protegido calculadas SOLO con eventos on-chain de pp_guardian y pp_arbiter
@@ -10,7 +22,7 @@ import { REGLAS, evaluar, firmaReglas, hechosDe, type CompraFondeada, type Regla
  * público solo guarda unos 7 días; la referencia de las reglas es contracts/scripts/metricas.sh.
  *
  * H-9: un evento auténtico de pp_guardian no prueba una compra real. Cada compra pasa por el indexador
- * verificado (verificacion.ts) y solo cuenta si su escrow cumple las cuatro reglas públicas.
+ * verificado (verificacion.ts) y solo cuenta si su escrow cumple las cinco reglas públicas.
  */
 
 /** Ledger del despliegue de los contratos (contracts/deployments/testnet.json). */
@@ -36,9 +48,8 @@ export async function ingestEvents(force = false): Promise<{ added: number; late
   return withLock("ingest-events", async () => {
     const lastRun = Number(kv.get("events:last_run") ?? 0);
     if (!force && Date.now() - lastRun < 15_000) return { added: 0, latestLedger: Number(kv.get("events:latest") ?? 0) };
-    const c = cfg();
-    // v2 (compras nuevas) + v1 (historial): docs/METRICAS.md lee los dos.
-    const ids = [...new Set([c.guardianId!, c.arbiterId!, RETIRED_V1.guardian, RETIRED_V1.arbiter])];
+    // El par actual (compras nuevas) y todos los anteriores (historial): docs/METRICAS.md los lee todos.
+    const ids = [...new Set(paresIndexador().flatMap((p) => [p.guardian, p.arbiter]))];
     const filters: rpc.Api.EventFilter[] = [{ type: "contract", contractIds: ids }];
     const s = server();
     const insert = db().prepare(
@@ -90,6 +101,19 @@ export function loadEvents(): PpEvent[] {
 
 // ---------- Indexador verificado (H-9) ----------
 
+/** Pares guardián/árbitro aceptados: el de la config y los de cada despliegue anterior, sin repetidos. */
+export function paresIndexador(): { guardian: string; arbiter: string }[] {
+  const c = cfg();
+  const actual = { guardian: c.guardianId ?? DEPLOYED.guardian, arbiter: c.arbiterId ?? DEPLOYED.arbiter };
+  const vistos = new Set<string>();
+  return [actual, ...PARES_HISTORICOS].filter((p) => {
+    const k = `${p.guardian}/${p.arbiter}`;
+    if (vistos.has(k)) return false;
+    vistos.add(k);
+    return true;
+  });
+}
+
 /** Lo que se espera de cada escrow: valores de la configuración o, sin .env.local, los públicos de DEPLOYED.md. */
 export function reglasIndexador(): Reglas {
   const c = cfg();
@@ -103,10 +127,7 @@ export function reglasIndexador(): Reglas {
     wasmHash: process.env.ESCROW_WASM_HASH || TESTNET_PUBLICO.twWasmHash,
     labusdSac: process.env.LABUSD_SAC || TESTNET_PUBLICO.labusdSac,
     platform,
-    pares: [
-      { guardian: c.guardianId ?? DEPLOYED.guardian, arbiter: c.arbiterId ?? DEPLOYED.arbiter },
-      { guardian: RETIRED_V1.guardian, arbiter: RETIRED_V1.arbiter },
-    ],
+    pares: paresIndexador(),
   };
 }
 
@@ -121,30 +142,82 @@ export function comprasFondeadas(events: PpEvent[] = loadEvents()): CompraFondea
   return [...seen.values()];
 }
 
-/** Verifica por RPC (y Horizon para pagos viejos) las compras sin resultado guardado. Cada escrow se verifica una vez. */
-export async function verificarPendientes(limiteMs = 120_000): Promise<{ verificadas: number; errores: number }> {
+/** Intentos por escrow: después queda pendiente sin releer la red (unas 41 h de espera creciente en total). */
+export const MAX_INTENTOS = 12;
+
+/** Espera antes de releer la red para una compra pendiente, según los intentos hechos: 1 min, 2, 4… hasta 12 h. */
+export const esperaReintento = (intentos: number) => Math.min(60_000 * 2 ** Math.max(0, intentos - 1), 12 * 3_600_000);
+
+const SIN_HECHOS: Hechos = { patrocinador: null, wasmHash: null, roles: null, token: null, monto: null, transferencias: null };
+
+interface FilaVerificada {
+  escrow: string;
+  reglas: string;
+  estado: "ok" | "descartada" | "pendiente" | null;
+  hechos_json: string | null;
+  intentos: number;
+  proximo_at: number | null;
+}
+
+/**
+ * Verifica por RPC (y Horizon para pagos viejos) las compras sin resultado guardado con las reglas de hoy.
+ * - Solo una contradicción probada descarta. Si falta un dato o falla la red, la compra queda pendiente y se relee con
+ *   espera creciente, hasta MAX_INTENTOS. Cualquier otra excepción se guarda como falla «lectura»: no se reintenta.
+ * - Los hechos leídos quedan guardados: si cambian las reglas, se reevalúa con ellos sin releer la red.
+ * - Un escrow que no es de un pedido de la app se descarta sin leer la red: no le cuesta nada al RPC.
+ * - Primero lo más nuevo: un escrow que no se puede leer no deja sin verificar a las compras recientes.
+ */
+export async function verificarPendientes(opts: { limiteMs?: number; ahora?: number } = {}): Promise<{ verificadas: number; errores: number }> {
+  const ahora = opts.ahora ?? Date.now();
   const reglas = reglasIndexador();
   const firma = firmaReglas(reglas);
-  const hechas = new Set((db().prepare(`SELECT escrow FROM escrow_verificado WHERE reglas = ?`).all(firma) as { escrow: string }[]).map((r) => r.escrow));
-  const pendientes = comprasFondeadas().filter((c) => !hechas.has(c.escrow));
-  const guardar = db().prepare(
-    `INSERT OR REPLACE INTO escrow_verificado (escrow, reglas, ok, fallas, wasm_hash, verificado_at) VALUES (?, ?, ?, ?, ?, ?)`,
+  const filas = new Map(
+    (db().prepare(`SELECT escrow, reglas, estado, hechos_json, intentos, proximo_at FROM escrow_verificado`).all() as FilaVerificada[]).map((f) => [f.escrow, f]),
   );
+  const guardar = db().prepare(
+    `INSERT OR REPLACE INTO escrow_verificado (escrow, reglas, ok, fallas, wasm_hash, verificado_at, estado, hechos_json, intentos, proximo_at, error)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  /** Guarda el resultado. Pendiente: suma un intento y agenda el próximo. */
+  const anotar = (c: CompraFondeada, h: Hechos, r: Pick<Resultado, "ok" | "faltan"> & { fallas: Motivo[] }, intentos: number, error: string | null = null) => {
+    const estado = r.ok ? "ok" : r.fallas.length ? "descartada" : "pendiente";
+    const n = estado === "pendiente" ? intentos + 1 : intentos;
+    const proximo = estado === "pendiente" ? ahora + esperaReintento(n) : null;
+    guardar.run(c.escrow, firma, r.ok ? 1 : 0, r.fallas.join(","), h.wasmHash, ahora, estado, JSON.stringify(h), n, proximo, error);
+  };
+
+  const porLeer: { c: CompraFondeada; previos: Hechos; intentos: number }[] = [];
+  for (const c of comprasFondeadas().reverse()) {
+    const f = filas.get(c.escrow);
+    const mismas = f?.reglas === firma;
+    if (mismas && f.estado !== "pendiente") continue; // ya resuelta con estas reglas
+    if (mismas && (f.intentos >= MAX_INTENTOS || (f.proximo_at ?? 0) > ahora)) continue; // pendiente: sin intentos o esperando
+    // Primero con lo que ya se sabe (hechos guardados): puede alcanzar sin leer la red.
+    const previos: Hechos = { ...SIN_HECHOS, ...(f?.hechos_json ? (JSON.parse(f.hechos_json) as Partial<Hechos>) : {}) };
+    const intentos = mismas ? f.intentos : 0;
+    const r = evaluar(c, previos, reglas);
+    if (r.ok || r.fallas.length) anotar(c, previos, r, intentos);
+    else porLeer.push({ c, previos, intentos });
+  }
+
   const s = server();
-  const hasta = Date.now() + limiteMs;
+  const hasta = Date.now() + (opts.limiteMs ?? 120_000);
   let verificadas = 0;
   let errores = 0;
-  for (let i = 0; i < pendientes.length && Date.now() < hasta; i += 6) {
+  for (let i = 0; i < porLeer.length && Date.now() < hasta; i += 6) {
     await Promise.all(
-      pendientes.slice(i, i + 6).map(async (c) => {
+      porLeer.slice(i, i + 6).map(async ({ c, previos, intentos }) => {
         try {
-          const h = await hechosDe(c, s, { horizonUrl: HORIZON_URL, networkPassphrase: NETWORK_PASSPHRASE });
-          const r = evaluar(c, h, reglas);
-          guardar.run(c.escrow, firma, r.ok ? 1 : 0, r.fallas.join(","), h.wasmHash, Date.now());
+          const h = await hechosDe(c, s, { horizonUrl: HORIZON_URL, networkPassphrase: NETWORK_PASSPHRASE, previos });
+          anotar(c, h, evaluar(c, h, reglas), intentos);
           verificadas++;
         } catch (e) {
-          errores++; // transitorio (RPC u Horizon caídos): queda pendiente y se reintenta en la próxima lectura
-          console.warn(`[indexador] ${c.escrow}: ${(e as Error).message}`);
+          errores++;
+          const msg = String((e as Error)?.message ?? e).slice(0, 300);
+          console.warn(`[indexador] ${c.escrow}: ${msg}`);
+          // Red (RPC u Horizon caídos): pendiente, se reintenta con espera. Cualquier otra cosa: falla guardada.
+          if (esErrorDeRed(e)) anotar(c, previos, evaluar(c, previos, reglas), intentos, msg);
+          else anotar(c, previos, { ok: false, fallas: ["lectura"], faltan: [] }, intentos, msg);
         }
       }),
     );
@@ -156,12 +229,12 @@ export interface Descartada {
   escrow: string;
   tx_fondeo: string;
   seller: string;
-  motivo: Regla;
-  fallas: Regla[];
+  motivo: Motivo;
+  fallas: Motivo[];
 }
 
 export interface EstadoIndexador {
-  /** Escrows que cumplen las cuatro reglas: los únicos que cuentan. */
+  /** Escrows que cumplen las cinco reglas: los únicos que cuentan. */
   ok: Set<string>;
   descartadas: Descartada[];
   /** Compras todavía sin verificar (no cuentan hasta que se verifiquen). */
@@ -170,17 +243,22 @@ export interface EstadoIndexador {
 
 export function estadoIndexador(events: PpEvent[] = loadEvents()): EstadoIndexador {
   const firma = firmaReglas(reglasIndexador());
-  const rows = db().prepare(`SELECT escrow, ok, fallas FROM escrow_verificado WHERE reglas = ?`).all(firma) as { escrow: string; ok: number; fallas: string }[];
+  const rows = db().prepare(`SELECT escrow, ok, fallas, estado FROM escrow_verificado WHERE reglas = ?`).all(firma) as {
+    escrow: string;
+    ok: number;
+    fallas: string;
+    estado: string | null;
+  }[];
   const res = new Map(rows.map((r) => [r.escrow, r]));
   const ok = new Set<string>();
   const descartadas: Descartada[] = [];
   let pendientes = 0;
   for (const c of comprasFondeadas(events)) {
     const r = res.get(c.escrow);
-    if (!r) pendientes++;
+    if (!r || r.estado === "pendiente") pendientes++;
     else if (r.ok) ok.add(c.escrow);
     else {
-      const fallas = r.fallas.split(",").filter(Boolean) as Regla[];
+      const fallas = r.fallas.split(",").filter(Boolean) as Motivo[];
       descartadas.push({ escrow: c.escrow, tx_fondeo: c.tx_fondeo, seller: c.seller, motivo: fallas[0] ?? "wasm", fallas });
     }
   }
@@ -193,7 +271,10 @@ export function resumenIndexador(st: EstadoIndexador) {
     contadas: st.ok.size,
     pendientes: st.pendientes,
     descartadas: st.descartadas.length,
-    por_motivo: REGLAS.map((r) => ({ regla: r.regla, texto: r.falla, compras: st.descartadas.filter((d) => d.motivo === r.regla).length })),
+    por_motivo: [...REGLAS.map((r) => ({ regla: r.regla as Motivo, texto: r.falla })), { regla: "lectura" as Motivo, texto: FALLA_LECTURA }].map((r) => ({
+      ...r,
+      compras: st.descartadas.filter((d) => d.motivo === r.regla).length,
+    })),
     reglas: REGLAS.map((r) => ({ regla: r.regla, texto: r.cumple })),
     ejemplos: st.descartadas.slice(-10).reverse(),
   };
