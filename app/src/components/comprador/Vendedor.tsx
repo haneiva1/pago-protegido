@@ -22,7 +22,10 @@ export function reputacionTexto(k: Kpis): string {
   return `${plural(k.pagadas_al_vendedor, "venta protegida", "ventas protegidas")} · ${sin === "Todas" ? "todas" : sin} sin reclamo`;
 }
 
-/** Primer pantallazo: quién vende y su reputación, en una línea cada uno. */
+/**
+ * Primer pantallazo: quién vende y su reputación, en una línea cada uno. Sin link a la tienda: en celular le quitaba
+ * espacio a la reputación, y la tarjeta del vendedor ya lo tiene ("Ver el perfil de la tienda").
+ */
 export function Reputacion({ v }: { v: OrderView }) {
   const s = v.seller;
   return (
@@ -35,11 +38,6 @@ export function Reputacion({ v }: { v: OrderView }) {
         </p>
         <p className="truncate text-slate-600">{reputacionTexto(s.kpis)}</p>
       </div>
-      {s.slug && (
-        <a className="flex-none text-xs font-semibold text-brand-700 underline" href={`/tienda/${s.slug}`}>
-          Ver tienda
-        </a>
-      )}
     </div>
   );
 }
