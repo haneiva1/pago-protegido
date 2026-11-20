@@ -451,8 +451,13 @@ test("presión para confirmar abre un reclamo; el vendedor regala la protección
   await expect(dispute.getByTestId("plazos-revisor")).toContainText("Decides");
   const partes = dispute.getByTestId("evidencia-partes");
   await expect(partes.getByTestId("miniatura")).toHaveCount(2);
-  await expect(partes.getByTestId("coincide")).toHaveCount(2, { timeout: 30_000 });
-  await expect(partes).toContainText("La misma huella está en la evidencia que registró mark_shipped.");
+  // La huella solo prueba que el archivo no cambió desde que se subió; la del vendedor se busca en la evidencia del contrato.
+  await expect(partes.getByTestId("sin-cambios")).toHaveCount(2, { timeout: 30_000 });
+  await expect(partes.getByTestId("sin-cambios").first()).toHaveText("✓ El archivo no cambió desde que se subió. No prueba que sea este paquete.");
+  await expect(partes.getByTestId("huella-en-envio")).toHaveCount(2);
+  await expect(partes.getByTestId("huella-en-envio").first()).toHaveText(
+    "Su huella está en la evidencia que guardó el contrato al registrar el envío (mark_shipped).",
+  );
   await partes.scrollIntoViewIfNeeded();
   await capturar(rev, "81-revisor-regla-y-evidencia", "tecnica");
   const resolver = dispute.getByRole("button", { name: "Resolver" });

@@ -1,7 +1,9 @@
 // Tests unitarios del panel del revisor (M10): regla que aplica, plazos y evidencia de cada parte.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CRITERIOS, evidenciaDeLasPartes, plazosDelReclamo, reglaDelReclamo } from "../src/lib/revisor.ts";
+import * as revisor from "../src/lib/revisor.ts";
+
+const { CRITERIOS, evidenciaDeLasPartes, plazosDelReclamo, reglaDelReclamo } = revisor;
 
 const hora = 3600_000;
 const ahora = Date.UTC(2026, 10, 20, 14);
@@ -118,4 +120,37 @@ test("evidencia de las partes: guía y paquete del vendedor, foto y video del co
       ["Video del desempaque", "https://x/v.mp4"],
     ],
   );
+});
+
+test("huella del revisor: el rótulo dice lo que comprueba y no promete que sea este paquete", () => {
+  const { TEXTO_HUELLA } = revisor;
+  assert.equal(TEXTO_HUELLA?.sinCambios, "✓ El archivo no cambió desde que se subió. No prueba que sea este paquete.");
+  for (const t of Object.values(TEXTO_HUELLA)) assert.doesNotMatch(t, /coincide/);
+});
+
+test("huella del revisor: se compara contra la evidencia que guardó el contrato, no contra la base de la app", () => {
+  const { huellaEnElEnvio } = revisor;
+  assert.equal(typeof huellaEnElEnvio, "function");
+  const h = "d".repeat(64);
+  const otra = "e".repeat(64);
+  const base = `Bolívar (encomiendas)|OLVA-1|0.4kg|${h}|-`;
+  // La base dice una cosa y el contrato otra: manda el contrato.
+  const contrato = { milestone: { status: "enviado", evidence: `Bolívar (encomiendas)|OLVA-1|0.4kg|${otra}`, approved: false } };
+  assert.deepEqual(huellaEnElEnvio(h, { shipped_evidence: base, onchain: contrato }), { fuente: "contrato", esta: false });
+  assert.deepEqual(huellaEnElEnvio(otra, { shipped_evidence: base, onchain: contrato }), { fuente: "contrato", esta: true });
+  // Sin lectura del contrato (o sin evidencia en el hito), se usa la base, y se dice.
+  assert.deepEqual(huellaEnElEnvio(h, { shipped_evidence: base, onchain: null }), { fuente: "app", esta: true });
+  const sinEvidencia = { milestone: { status: "", evidence: "", approved: false } };
+  assert.deepEqual(huellaEnElEnvio(h, { shipped_evidence: base, onchain: sinEvidencia }), { fuente: "app", esta: true });
+  assert.equal(huellaEnElEnvio(h, { shipped_evidence: null, onchain: null }), null);
+});
+
+test("huella del revisor: avisa si la misma foto aparece en otro pedido", () => {
+  const { pedidosConLaMismaHuella } = revisor;
+  assert.equal(typeof pedidosConLaMismaHuella, "function");
+  const h = "f".repeat(64);
+  const otros = { [h]: ["PP-1111", "PP-2222"] };
+  assert.deepEqual(pedidosConLaMismaHuella(h, otros), ["PP-1111", "PP-2222"]);
+  assert.deepEqual(pedidosConLaMismaHuella("0".repeat(64), otros), []);
+  assert.deepEqual(pedidosConLaMismaHuella(h, undefined), []);
 });

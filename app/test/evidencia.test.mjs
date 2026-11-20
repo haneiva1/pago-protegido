@@ -47,3 +47,19 @@ test("nombres: solo <sha256>.<ext>; la huella sale del link", () => {
   assert.equal(huellaDeLink(`https://trato.example/api/evidencia/${sha}.png`), sha);
   assert.equal(huellaDeLink("https://example.com/foto.jpg"), null);
 });
+
+test("huellaPropia: solo cuenta la huella de un link de esta app (mismo host o ruta relativa); otro host es un link externo", async () => {
+  const { huellaPropia } = await import("../src/lib/evidencia.ts");
+  const h = "c".repeat(64);
+  assert.equal(huellaPropia(`https://trato.example/api/evidencia/${h}.jpg`, "trato.example"), h);
+  assert.equal(huellaPropia(`http://localhost:3000/api/evidencia/${h}.png?v=1`, "localhost:3000"), h);
+  assert.equal(huellaPropia(`/api/evidencia/${h}.webp`, "trato.example"), h);
+  assert.equal(huellaPropia(`/api/evidencia/${h}.webp`, null), h);
+  // Otro host con la misma ruta: puede apuntar a la foto de otra venta. Es un link externo.
+  assert.equal(huellaPropia(`https://cualquier-host.example/api/evidencia/${h}.jpg`, "trato.example"), null);
+  assert.equal(huellaPropia(`https://trato.example.otro.com/api/evidencia/${h}.jpg`, "trato.example"), null);
+  assert.equal(huellaPropia(`https://trato.example/x/api/evidencia/${h}.jpg`, "trato.example"), null);
+  assert.equal(huellaPropia(`//cualquier-host.example/api/evidencia/${h}.jpg`, "trato.example"), null);
+  assert.equal(huellaPropia(`https://trato.example/api/evidencia/${h}.jpg`, null), null);
+  assert.equal(huellaPropia("https://trato.example/foto.jpg", "trato.example"), null);
+});

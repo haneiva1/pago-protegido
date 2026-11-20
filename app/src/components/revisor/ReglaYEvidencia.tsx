@@ -2,9 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { sha256Hex } from "@/components/EvidenciaInput";
-import { huellaDeLink } from "@/lib/evidencia";
+import { huellaPropia } from "@/lib/evidencia";
 import { fmtDate } from "@/lib/format";
-import { CRITERIOS, REPARTO_PARCIAL, evidenciaDeLasPartes, plazosDelReclamo, reglaDelReclamo, type Archivo } from "@/lib/revisor";
+import {
+  CRITERIOS,
+  REPARTO_PARCIAL,
+  TEXTO_HUELLA,
+  evidenciaDeLasPartes,
+  huellaEnElEnvio,
+  pedidosConLaMismaHuella,
+  plazosDelReclamo,
+  reglaDelReclamo,
+  type Archivo,
+} from "@/lib/revisor";
 import type { DisputeItem } from "@/lib/types";
 
 /** La regla de la política que aplica a este reclamo (M10), con los criterios en orden y el que aplica marcado. */
@@ -57,11 +67,13 @@ export function PlazosReclamo({ d, ahora }: { d: DisputeItem; ahora: number }) {
 const corta = (h: string) => `${h.slice(0, 8)}…${h.slice(-6)}`;
 
 /**
- * Una foto o un video con su miniatura. Si viene de /api/evidencia, el navegador del revisor la descarga, calcula su
- * SHA-256 y la compara con la huella registrada (la del link, que es la misma que va en la evidencia del envío).
+ * Una foto o un video con su miniatura. Si viene de /api/evidencia de esta app, el navegador del revisor la descarga y
+ * calcula su SHA-256: si es el del nombre, el archivo no cambió desde que se subió (no prueba que sea este paquete).
+ * Las fotos del vendedor se buscan además en la evidencia de mark_shipped que guardó el contrato, y se avisa si la
+ * misma huella aparece en otro pedido.
  */
-function ArchivoVerificado({ a, registroEnvio }: { a: Archivo; registroEnvio: string | null }) {
-  const huella = huellaDeLink(a.url);
+function ArchivoVerificado({ a, d }: { a: Archivo; d: DisputeItem }) {
+  const huella = huellaPropia(a.url, typeof window === "undefined" ? null : window.location.host);
   const src = huella ? new URL(a.url, "http://x").pathname : a.url;
   const [estado, setEstado] = useState<"verificando" | "coincide" | "no-coincide" | "error">("verificando");
 
@@ -81,7 +93,8 @@ function ArchivoVerificado({ a, registroEnvio }: { a: Archivo; registroEnvio: st
     };
   }, [huella, src]);
 
-  const enElEnvio = Boolean(huella && registroEnvio?.includes(huella));
+  const envio = huella && a.parte === "vendedor" ? huellaEnElEnvio(huella, d) : null;
+  const otros = huella ? pedidosConLaMismaHuella(huella, d.huellas_en_otros) : [];
   return (
     <li className="flex gap-3 rounded-lg bg-white p-2 ring-1 ring-slate-200" data-testid="archivo-evidencia">
       <a href={src} target="_blank" rel="noreferrer" className="flex-none" aria-label={`Abrir ${a.etiqueta}`}>
@@ -101,17 +114,32 @@ function ArchivoVerificado({ a, registroEnvio }: { a: Archivo; registroEnvio: st
         {huella ? (
           <>
             {estado === "coincide" && (
-              <p className="font-semibold text-brand-700" data-testid="coincide">
-                ✓ coincide
+              <p className="font-semibold text-brand-700" data-testid="sin-cambios">
+                {TEXTO_HUELLA.sinCambios}
               </p>
             )}
-            {estado === "no-coincide" && <p className="font-semibold text-rose-700">✗ no coincide: el archivo no es el que se registró</p>}
+            {estado === "no-coincide" && <p className="font-semibold text-rose-700">{TEXTO_HUELLA.cambio}</p>}
             {estado === "verificando" && <p className="text-slate-500">Comprobando la huella…</p>}
             {estado === "error" && <p className="text-amber-800">No se pudo descargar para comprobarla</p>}
             <p className="truncate font-mono text-slate-500" title={huella}>
               SHA-256 {corta(huella)}
             </p>
-            {enElEnvio && <p className="text-slate-600">La misma huella está en la evidencia que registró mark_shipped.</p>}
+            {envio && (
+              <p className={envio.esta ? "text-slate-600" : "font-semibold text-rose-700"} data-testid="huella-en-envio">
+                {envio.fuente === "contrato"
+                  ? envio.esta
+                    ? TEXTO_HUELLA.enContrato
+                    : TEXTO_HUELLA.noEnContrato
+                  : envio.esta
+                    ? TEXTO_HUELLA.enApp
+                    : TEXTO_HUELLA.noEnApp}
+              </p>
+            )}
+            {otros.length > 0 && (
+              <p className="font-semibold text-amber-800" data-testid="huella-repetida">
+                ⚠ El mismo archivo aparece en otro pedido ({otros.join(", ")}): puede ser una foto reutilizada.
+              </p>
+            )}
           </>
         ) : (
           <p className="text-slate-600">
@@ -135,7 +163,7 @@ export function EvidenciaPartes({ d }: { d: DisputeItem }) {
       {lista.length ? (
         <ul className="space-y-2">
           {lista.map((a) => (
-            <ArchivoVerificado key={a.url} a={a} registroEnvio={d.shipped_evidence ?? null} />
+            <ArchivoVerificado key={a.url} a={a} d={d} />
           ))}
         </ul>
       ) : (

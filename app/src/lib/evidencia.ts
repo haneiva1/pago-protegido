@@ -93,3 +93,22 @@ export function huellaDeLink(url: string): string | null {
   const m = /\/api\/evidencia\/([0-9a-f]{64})\.(?:jpg|png|webp|mp4|mov|webm)(?:[?#].*)?$/.exec(url);
   return m ? m[1] : null;
 }
+
+/**
+ * La huella de un link de evidencia de esta app: ruta relativa /api/evidencia/… o el mismo host. Un link de otro host
+ * con la misma ruta puede apuntar a cualquier archivo (la foto de otra venta, por ejemplo): es un link externo, null.
+ */
+export function huellaPropia(url: string, host: string | null | undefined): string | null {
+  const h = huellaDeLink(url);
+  if (!h) return null;
+  if (url.startsWith("/api/evidencia/")) return h;
+  if (!host) return null;
+  try {
+    const u = new URL(url);
+    return (u.protocol === "https:" || u.protocol === "http:") && u.host.toLowerCase() === host.toLowerCase() && u.pathname.startsWith("/api/evidencia/")
+      ? h
+      : null;
+  } catch {
+    return null;
+  }
+}

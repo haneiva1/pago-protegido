@@ -184,3 +184,42 @@ export function evidenciaDeLasPartes(rows: EvidenciaRow[]): { comprador: Archivo
   }
   return out;
 }
+
+// ---------- Huella de cada archivo ----------
+
+/**
+ * Lo que de verdad comprueba la huella. El archivo se guarda con su SHA-256 como nombre: que el SHA-256 que calcula
+ * el navegador del revisor sea el del nombre solo prueba que nadie lo cambió después de subirlo, no que la foto sea
+ * de este paquete (el vendedor puede subir una foto vieja o la de otra venta).
+ */
+export const TEXTO_HUELLA = {
+  sinCambios: "✓ El archivo no cambió desde que se subió. No prueba que sea este paquete.",
+  cambio: "✗ El archivo cambió después de subirlo: no es el que se registró.",
+  enContrato: "Su huella está en la evidencia que guardó el contrato al registrar el envío (mark_shipped).",
+  noEnContrato: "⚠ Su huella no está en la evidencia que guardó el contrato al registrar el envío.",
+  enApp: "Su huella está en el envío que guardó la app. No se pudo leer el contrato para comprobarlo.",
+  noEnApp: "⚠ Su huella no está en el envío que guardó la app.",
+} as const;
+
+/** Lo mínimo de la vista del revisor para comparar una huella con la evidencia de mark_shipped. */
+export interface EnvioRegistrado {
+  shipped_evidence?: string | null;
+  /** Estado del contrato: mark_shipped deja la evidencia en el hito (y en el Purchase de pp_guardian). */
+  onchain?: { milestone?: { evidence?: string | null } | null } | null;
+}
+
+/**
+ * Si la huella está en la evidencia del envío. Manda la que guardó el contrato; la de la base de la app solo se usa
+ * si la vista no trae la del contrato, y se dice cuál se usó. null: no hay envío registrado.
+ */
+export function huellaEnElEnvio(huella: string, d: EnvioRegistrado): { fuente: "contrato" | "app"; esta: boolean } | null {
+  const contrato = d.onchain?.milestone?.evidence;
+  if (contrato) return { fuente: "contrato", esta: contrato.includes(huella) };
+  if (d.shipped_evidence) return { fuente: "app", esta: d.shipped_evidence.includes(huella) };
+  return null;
+}
+
+/** Otros pedidos (sus códigos) donde aparece la misma huella: una foto reutilizada. */
+export function pedidosConLaMismaHuella(huella: string, otros: Record<string, string[]> | null | undefined): string[] {
+  return otros?.[huella] ?? [];
+}

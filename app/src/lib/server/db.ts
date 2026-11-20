@@ -543,6 +543,16 @@ export const evidence = {
   forOrder(slug: string): EvidenceRow[] {
     return db().prepare(`SELECT * FROM evidence WHERE order_slug = ? ORDER BY id ASC`).all(slug) as EvidenceRow[];
   },
+  /** Códigos (o slugs) de otros pedidos cuya evidencia menciona este texto, p. ej. la huella de una foto. */
+  otherOrdersMentioning(text: string, exceptSlug: string): string[] {
+    const rows = db()
+      .prepare(
+        `SELECT DISTINCT e.order_slug AS slug, o.code AS code FROM evidence e LEFT JOIN orders o ON o.slug = e.order_slug
+         WHERE e.order_slug != ? AND instr(e.data_json, ?) > 0 LIMIT 5`,
+      )
+      .all(exceptSlug, text) as { slug: string; code: string | null }[];
+    return rows.map((r) => r.code ?? r.slug);
+  },
 };
 
 /** Archivos de evidencia guardados en disco, por pedido (tabla `evidencias`, cupo de /api/evidencia). */

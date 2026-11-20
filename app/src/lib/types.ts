@@ -147,6 +147,8 @@ export interface DisputeItem extends PublicOrder, SellerOrderFields {
   txs: TxRow[];
   evidence: EvidenceRow[];
   onchain: OnchainState | null;
+  /** Huella → códigos de otros pedidos donde aparece el mismo archivo. */
+  huellas_en_otros?: Record<string, string[]>;
 }
 
 export interface ArbitroData {

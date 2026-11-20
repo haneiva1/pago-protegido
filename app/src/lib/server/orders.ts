@@ -17,7 +17,8 @@ import {
   splitPreview,
 } from "@/lib/format";
 import { VIDEO_OBLIGATORIO_DESDE_BS_CENTS, parseFlete } from "@/lib/comprador";
-import { huellaDeLink } from "@/lib/evidencia";
+import { huellaDeLink, huellaPropia } from "@/lib/evidencia";
+import { evidenciaDeLasPartes } from "@/lib/revisor";
 import { esperaParaConfirmar } from "@/lib/ciudades";
 import { NETWORK_PASSPHRASE, cfg } from "./config";
 import { type OrderRow, evidence, kv, orders, pending, pilot, sellers, txs } from "./db";
@@ -493,8 +494,11 @@ export async function startPayment(slug: string, body: Record<string, unknown>):
 
 // ---------- Acciones del comprador y del vendedor ----------
 
-/** Evidencia de envío estructurada. On-chain va compacta: "empresa|guía|peso|hash-foto". */
-function shipParams(o: OrderRow, body: Record<string, unknown>): Record<string, string> {
+/**
+ * Evidencia de envío estructurada. On-chain va compacta: "empresa|guía|peso|hash-foto". `host` es el de la app según
+ * el pedido: solo un link de evidencia de esta app lleva su huella completa.
+ */
+function shipParams(o: OrderRow, body: Record<string, unknown>, host: string | null): Record<string, string> {
   // Compatibilidad con scripts viejos: { evidence: "OLVA-123" }.
   if (!body.company && typeof body.evidence === "string") {
     body = { company: "Otra flota", tracking: body.evidence, weight: "1", city: o.dest_city ?? "Otra" };
@@ -510,17 +514,19 @@ function shipParams(o: OrderRow, body: Record<string, unknown>): Record<string, 
   if (!inList(EMPRESAS, company)) throw new AppError("Elige la empresa de envío de la lista");
   if (company !== "Entrega en persona" && tracking.length < 3) throw new AppError("Escribe el número de guía");
   if (!Number.isFinite(weightNum) || weightNum <= 0 || weightNum > 500) throw new AppError("Escribe el peso declarado en kg");
-  if (!isUrl(photo) || !isUrl(photoGuia)) throw new AppError("La foto tiene que ser un link (https://…)");
+  const linkOk = (u: string) => isUrl(u) || huellaPropia(u, null) !== null; // también /api/evidencia/<sha256>.<ext>
+  if (!linkOk(photo) || !linkOk(photoGuia)) throw new AppError("La foto tiene que ser un link (https://…)");
   if (!inList(CIUDADES, city)) throw new AppError("Elige la ciudad de destino");
   if (o.category === "Celular" && !/^\d{15}$/.test(imei)) throw new AppError("Para celulares el IMEI es obligatorio (15 dígitos)");
   const weight = String(Math.round(weightNum * 100) / 100);
-  // Foto subida a /api/evidencia: va su huella SHA-256 completa (la del archivo); un link externo, el hash corto del link.
-  const huella = (u: string) => (u ? (huellaDeLink(u) ?? sha(u).slice(0, 12)) : "-");
+  // Foto subida a /api/evidencia de esta app: va su huella SHA-256 completa (la del archivo). Un link externo, o uno de
+  // otro host con la misma ruta, va con el hash corto del link, como antes.
+  const huella = (u: string) => (u ? (huellaPropia(u, host) ?? sha(u).slice(0, 12)) : "-");
   const compact = [company, tracking || "-", `${weight}kg`, huella(photo), ...(photoGuia ? [huella(photoGuia)] : [])].join("|");
   return { company, tracking, weight, photo, city, imei, evidence: compact, ...(photoGuia ? { photoGuia } : {}) };
 }
 
-export async function prepareAction(slug: string, body: Record<string, unknown>): Promise<PreparedDto> {
+export async function prepareAction(slug: string, body: Record<string, unknown>, host: string | null = null): Promise<PreparedDto> {
   const action = body.action as UserAction;
   const signer = body.signer;
   if (!isPubkey(signer)) throw new AppError("Cuenta inválida");
@@ -532,7 +538,7 @@ export async function prepareAction(slug: string, body: Record<string, unknown>)
   if (action === "ship") {
     if (signer !== o.seller_pubkey) throw new AppError("Solo el vendedor puede registrar el envío", 403);
     if (o.status !== "pagado") throw new AppError("Solo puedes marcar como enviado un pedido pagado", 409);
-    params = shipParams(o, body);
+    params = shipParams(o, body, host);
   } else if (action === "confirm") {
     if (signer !== o.buyer_pubkey) throw new AppError("Solo el comprador puede pagar al vendedor", 403);
     if (o.status !== "enviado") throw new AppError("Primero el vendedor tiene que marcar el pedido como enviado", 409);
@@ -1049,12 +1055,22 @@ export async function disputesView() {
   const open = await Promise.all(
     orders.byStatus("en_disputa").map(async (o) => {
       const onchain = o.escrow_id ? await escrowService().readState(o.escrow_id).catch(() => null) : null;
+      const ev = evidence.forOrder(o.slug);
+      // La misma foto en otro pedido: el revisor ve el aviso junto a la miniatura.
+      const huellas_en_otros: Record<string, string[]> = {};
+      const archivos = evidenciaDeLasPartes(ev);
+      for (const a of [...archivos.comprador, ...archivos.vendedor]) {
+        const h = huellaDeLink(a.url);
+        const otros = h ? evidence.otherOrdersMentioning(h, o.slug) : [];
+        if (h && otros.length) huellas_en_otros[h] = otros;
+      }
       return {
         ...sellerOrder(reconcile(o, onchain)),
         seller: sellers.get(o.seller_pubkey),
         txs: txs.forOrder(o.slug),
-        evidence: evidence.forOrder(o.slug),
+        evidence: ev,
         onchain,
+        huellas_en_otros,
       };
     }),
   );
