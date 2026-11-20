@@ -112,6 +112,14 @@ async function pagar(
   if (o.capturas) await capturar(page, "06b-comprador-datos-de-entrega");
   await page.getByRole("button", { name: /Ver el QR para pagar Bs/ }).click();
   await expect(page.getByTestId("rampa-simulada")).toHaveText("Rampa simulada en testnet. En producción la hace una entidad certificada por ASFI.");
+  // QR como se paga en Bolivia: guardarlo o compartirlo y subirlo desde la galería del banco.
+  const qr = page.getByTestId("qr");
+  await expect(qr.getByTestId("imagen-qr")).toBeVisible();
+  await expect(qr.getByRole("button", { name: /Guardar QR/ })).toBeEnabled();
+  await expect(qr.getByRole("button", { name: /Compartir QR/ })).toBeEnabled();
+  await expect(qr.getByTestId("pasos-qr")).toContainText("Abre tu banco → Pagar con QR → Galería");
+  await expect(qr.getByTestId("esperando-pago")).toHaveText("Esperando tu pago…");
+  await expect(qr.getByTestId("qr-entidad")).toContainText("nunca de una persona");
   if (o.capturas) await capturar(page, "07-comprador-qr-rampa-simulada");
   // El pago encadena varias transacciones en testnet (rampa, deploy del escrow, fondeo). Si la red falla,
   // la pantalla muestra el error y se puede reintentar: el flujo es idempotente (no vuelve a emitir la rampa).
