@@ -2,25 +2,28 @@ import { unitsToNumber } from "@/lib/format";
 import type { CompraOnchain, Desenlace, DiaSerie, Grupo, GrupoMetricas, KpiClave, Kpis, MetricasSnapshot, PerfilTienda } from "@/lib/types";
 import { cfg } from "./config";
 import { db, kv, sellers } from "./db";
-import { ingestEvents, loadEvents, type PpEvent } from "./metrics";
+import { estadoIndexador, ingestEvents, loadEvents, type PpEvent } from "./metrics";
 
 /**
  * KPIs de /metricas, del panel del vendedor y del perfil público /tienda/<slug>. Salen SOLO de los eventos
  * on-chain de pp_guardian y pp_arbiter (v1 y v2) que ingiere metrics.ts, con las reglas de
  * contracts/scripts/metricas.sh: el primer evento terminal define cómo terminó cada compra.
  * Pruebas del equipo y piloto nunca se mezclan: cada grupo se calcula por separado (sellers.pilot).
+ * H-9: solo cuentan las compras que pasaron el indexador verificado (metrics.ts, docs/METRICAS.md).
  */
 
 const TERMINAL = new Set(["pp_confirmed", "pp_auto_released", "pp_resolved", "pp_refunded_unshipped"]);
 const secs = (a: string, b: string) => (new Date(b).getTime() - new Date(a).getTime()) / 1000;
 const TZ = "America/La_Paz";
 
-/** Una fila por compra (pp_funded), con su envío, pedido de más tiempo, reclamo y cierre. */
+/** Una fila por compra verificada (pp_funded), con su envío, pedido de más tiempo, reclamo y cierre. */
 export function comprasOnchain(): CompraOnchain[] {
   type Slots = Partial<Record<"funded" | "shipped" | "extended" | "disputed" | "terminal", PpEvent>>;
   const by = new Map<string, Slots>();
-  for (const ev of loadEvents()) {
-    if (!ev.escrow) continue;
+  const events = loadEvents();
+  const { ok } = estadoIndexador(events);
+  for (const ev of events) {
+    if (!ev.escrow || !ok.has(ev.escrow)) continue;
     const p = by.get(ev.escrow) ?? {};
     if (ev.kind === "pp_funded") p.funded ??= ev;
     else if (ev.kind === "pp_shipped") p.shipped ??= ev;
