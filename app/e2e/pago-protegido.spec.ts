@@ -266,6 +266,9 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
   await buyer.getByRole("button", { name: "Sí, lo tengo y está bien" }).click();
   await expect(buyer.getByTestId("estado-pedido")).toContainText("Se pagó al vendedor", CHAIN);
   await expect(buyer.getByTestId("desglose")).toContainText("Bs 450,04"); // el vendedor recibe el precio completo
+  // Después de liberar ya no dice "Pago bloqueado": el texto depende del estado.
+  await expect(buyer.getByTestId("registro-publico")).toContainText("Pago liberado al vendedor");
+  await expect(buyer.getByTestId("registro-publico")).not.toContainText("bloqueado");
   await capturar(buyer, "12-comprador-pagado-al-vendedor");
 
   await seller.reload();
@@ -463,6 +466,7 @@ test("devolución automática (v2): el vendedor no despacha a tiempo y el pago v
   // y pp_arbiter.refund_unshipped devuelve el pago. La página del comprador se actualiza sola.
   await expect(buyer.getByTestId("estado-pedido")).toContainText("Te devolvimos tu pago", { timeout: 6 * 60_000 });
   await expect(buyer.getByTestId("devolucion")).toContainText("El vendedor no registró el envío antes del plazo");
+  await expect(buyer.getByTestId("registro-publico")).toContainText("Te devolvimos el pago");
   await expect(buyer.getByText("Se devolvió el pago al comprador: el vendedor no despachó a tiempo")).toBeVisible();
   await expect(buyer.locator(TX_LINK).last()).toBeVisible();
   await capturar(buyer, "47-comprador-devuelto-sin-despacho");

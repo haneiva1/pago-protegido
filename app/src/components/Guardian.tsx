@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { explorer, fmtDate, type OrderStatus } from "@/lib/format";
+import { textoRegistroPublico } from "@/lib/comprador";
 import type { Verification } from "@/lib/types";
 import { api } from "@/lib/api";
 import { ErrorBox, Spinner, TxLink } from "./ui";
@@ -149,21 +150,31 @@ export function Countdown({
 }
 
 /**
- * H-2 en pantalla: el pago está bloqueado en un contrato público. La verificación técnica (WASM y roles)
- * queda detrás de "Ver registro público".
+ * H-2 en pantalla: el pago está en un contrato público. El texto depende del estado y del rol (bloqueado, liberado,
+ * devuelto o repartido). La verificación técnica (WASM y roles) queda detrás de "Ver registro público".
  */
-export function PublicRecord({ v, escrowId }: { v: Verification | null; escrowId: string | null }) {
+export function PublicRecord({
+  v,
+  escrowId,
+  status,
+  role = "comprador",
+}: {
+  v: Verification | null;
+  escrowId: string | null;
+  status?: OrderStatus;
+  role?: "comprador" | "vendedor";
+}) {
   const id = v?.escrowId ?? escrowId;
   if (!id) return null;
   return (
     <div data-testid="registro-publico" className="rounded-xl bg-brand-50 p-3 text-sm text-brand-900 ring-1 ring-brand-200">
-      <p className="font-semibold">🔒 Pago bloqueado en un contrato público: solo puede ir al vendedor o volver a ti.</p>
+      <p className="font-semibold">{textoRegistroPublico(status, role)}</p>
       <a className="mt-1 inline-block text-xs font-medium underline" href={explorer.contract(id)} target="_blank" rel="noreferrer">
         Ver registro público ↗
       </a>
       {v && (
         <details className="mt-1 text-xs text-brand-800">
-          <summary className="cursor-pointer">Qué se revisó antes de que pagaras</summary>
+          <summary className="cursor-pointer">{role === "comprador" ? "Qué se revisó antes de que pagaras" : "Qué se revisó antes del pago"}</summary>
           <ul className="mt-1 space-y-0.5">
             {v.checks.map((c) => (
               <li key={c.label}>

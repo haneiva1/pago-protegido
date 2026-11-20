@@ -191,7 +191,7 @@ export default function PaginaDePago() {
           <p className="mt-1">Abrimos un reclamo por presión para confirmar y le avisamos al revisor. Tu plata sigue guardada en el contrato.</p>
         </div>
       )}
-      <PublicRecord v={o.verification} escrowId={o.escrow_id} />
+      <PublicRecord v={o.verification} escrowId={o.escrow_id} status={o.status} role="comprador" />
       {isBuyer && (o.status === "pagado" || o.status === "enviado" || o.status === "en_disputa") && <CompraEnEsteNavegador />}
 
       {o.ship_imei && (o.status === "enviado" || o.status === "en_disputa") && (

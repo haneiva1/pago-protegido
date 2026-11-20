@@ -28,6 +28,30 @@ export function plazosDelPedido(o: { ship_secs?: number | null; inspect_secs?: n
   };
 }
 
+/**
+ * Texto del registro público (PublicRecord) según el estado y el rol: "bloqueado" solo mientras la plata sigue en el
+ * contrato; después, a dónde fue.
+ */
+export function textoRegistroPublico(status: string | undefined, role: "comprador" | "vendedor" = "comprador"): string {
+  const c = role === "comprador";
+  switch (status) {
+    case "liberado":
+      return c ? "✅ Pago liberado al vendedor. El contrato ya le pagó." : "✅ Pago liberado a ti. El contrato ya te pagó.";
+    case "devuelto":
+      return c ? "↩️ Te devolvimos el pago: el contrato lo mandó de vuelta a tu cuenta." : "↩️ El pago volvió al comprador: no se registró el envío a tiempo.";
+    case "resuelto":
+      return "⚖️ Reclamo resuelto: el contrato repartió el pago entre comprador y vendedor.";
+    case "en_disputa":
+      return c
+        ? "🔒 Pago congelado por el reclamo en un contrato público: solo puede ir al vendedor o volver a ti."
+        : "🔒 Pago congelado por el reclamo en un contrato público: solo puede ir a ti o volver al comprador.";
+    default:
+      return c
+        ? "🔒 Pago bloqueado en un contrato público: solo puede ir al vendedor o volver a ti."
+        : "🔒 Pago bloqueado en un contrato público: solo puede ir a ti o volver al comprador.";
+  }
+}
+
 // ---------- Reclamo guiado (M8) ----------
 
 /** Motivos que tienen sentido en cada estado (los mismos textos que valida el servidor en MOTIVOS). */

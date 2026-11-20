@@ -3,6 +3,18 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { evidenciaPedida, fmtPlazo, linkAbrirEnChrome, motivosReclamo, navegadorInterno, plataforma, plazosDelPedido } from "../src/lib/comprador.ts";
 
+test("registro público: 'bloqueado' solo mientras la plata sigue en el contrato, según el rol", async () => {
+  const { textoRegistroPublico: t } = await import("../src/lib/comprador.ts");
+  assert.match(t("pagado"), /Pago bloqueado.*volver a ti/);
+  assert.match(t("enviado", "vendedor"), /Pago bloqueado.*ir a ti o volver al comprador/);
+  assert.match(t("en_disputa"), /congelado por el reclamo/);
+  assert.match(t("liberado"), /Pago liberado al vendedor/);
+  assert.match(t("liberado", "vendedor"), /Pago liberado a ti/);
+  assert.match(t("devuelto"), /Te devolvimos el pago/);
+  assert.match(t("resuelto"), /repartió el pago/);
+  for (const s of ["liberado", "devuelto", "resuelto"]) for (const r of ["comprador", "vendedor"]) assert.doesNotMatch(t(s, r), /bloqueado/);
+});
+
 test("reclamo guiado: motivos según el estado del pedido", () => {
   assert.deepEqual(motivosReclamo("pagado"), ["No envió"]);
   assert.deepEqual(motivosReclamo("enviado"), ["No llegó", "Llegó vacío o con otro producto", "Dañado o distinto a lo descrito"]);
