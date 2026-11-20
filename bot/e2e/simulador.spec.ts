@@ -12,10 +12,10 @@ const lastBot = (page: Page) => page.getByTestId("bot-msg").last();
 
 test("vender zapatillas 450 → devuelve un link de pago, y avisa cuando pagan", async ({ page, request }) => {
   await page.goto("/");
-  await expect(page.getByText("Pago Protegido", { exact: true })).toBeVisible();
+  await expect(page.getByText("Trato", { exact: true })).toBeVisible();
 
   await say(page, "vender zapatillas 450");
-  await expect(lastBot(page)).toContainText("¿En cuántos días entregas?");
+  await expect(lastBot(page)).toContainText("¿En cuántos días lo despachas?");
   await page.getByRole("button", { name: "3 días" }).last().click();
 
   const link = page.locator('[data-testid="bot-msg"] a[href*="/p/zapatillas-"]').first();
@@ -30,7 +30,7 @@ test("vender zapatillas 450 → devuelve un link de pago, y avisa cuando pagan",
   const view = await (await request.get(`${MOCK}/api/orders/${slug}`)).json();
   expect(view.order).toMatchObject({ product: "Zapatillas", price_bs_cents: 45000, delivery_days: 3, status: "esperando_pago", proteccion: "comprador" });
   const code = view.order.code as string;
-  expect(code).toMatch(/^PP-\d{4}$/);
+  expect(code).toMatch(/^PP-[2-9A-HJKMNP-Z]{8}$/);
 
   // El comprador paga en la web: el poller lo ve en /api/bot/changes y avisa al vendedor.
   expect((await request.post(`${MOCK}/__mock/advance`, { data: { slug, action: "pagar" } })).ok()).toBe(true);
@@ -44,7 +44,7 @@ test("vender zapatillas 450 → devuelve un link de pago, y avisa cuando pagan",
 test("frase completa en un mensaje y el comprador recibe '¿te llegó?'", async ({ page, request }) => {
   await page.goto("/");
   await say(page, "hola");
-  await expect(lastBot(page)).toContainText("Soy el asistente de *Pago Protegido*".replace(/\*/g, ""));
+  await expect(lastBot(page)).toContainText("Soy el asistente de *Trato*".replace(/\*/g, ""));
   await expect(page.getByRole("button", { name: "🛍️ Vender" }).last()).toBeVisible();
 
   await say(page, "vendo zapatillas nike 40 a Bs 1.200 entrega 3 días");

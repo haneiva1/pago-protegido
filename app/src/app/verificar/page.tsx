@@ -15,11 +15,11 @@ interface Result {
   total: string;
   status: string;
   statusLabel: string;
-  slug: string;
+  slug: string | null;
   escrowId: string | null;
 }
 
-/** Verificar un link: con el código del pedido (PP-4821) muestra tienda, producto, monto y estado. */
+/** Verificar un link: con el código del pedido (PP-7KM4Q9TX) muestra tienda, producto, monto y estado. */
 export default function Verificar() {
   const [code, setCode] = useState("");
   const [r, setR] = useState<Result | null>(null);
@@ -50,7 +50,7 @@ export default function Verificar() {
   return (
     <div className="mx-auto max-w-md space-y-4">
       <h1 className="text-2xl font-bold">Verificar un link de pago</h1>
-      <p className="text-slate-600">Escribe el código del pedido (por ejemplo PP-4821). Si los datos no coinciden con lo que te mandaron, no pagues.</p>
+      <p className="text-slate-600">Escribe el código del pedido (por ejemplo PP-7KM4Q9TX). Si los datos no coinciden con lo que te mandaron, no pagues.</p>
       <form
         className="card flex gap-2"
         onSubmit={(e) => {
@@ -61,7 +61,7 @@ export default function Verificar() {
         <label className="sr-only" htmlFor="codigo">
           Código del pedido
         </label>
-        <input id="codigo" className="input" value={code} onChange={(e) => setCode(e.target.value)} placeholder="PP-4821" />
+        <input id="codigo" className="input" value={code} onChange={(e) => setCode(e.target.value)} placeholder="PP-7KM4Q9TX" />
         <button className="btn-primary" disabled={busy}>
           {busy ? <Spinner /> : "Verificar"}
         </button>
@@ -69,7 +69,7 @@ export default function Verificar() {
       <ErrorBox error={error} />
       {r && (
         <section className="card space-y-2" data-testid="resultado-verificar">
-          <p className="text-sm font-semibold text-brand-700">✔ Link auténtico de Pago Protegido · {r.code}</p>
+          <p className="text-sm font-semibold text-brand-700">✔ Link auténtico de Trato · {r.code}</p>
           <p>
             Tienda: <strong>{r.store}</strong>
             {r.city ? ` · ${r.city}` : ""}
@@ -84,14 +84,16 @@ export default function Verificar() {
             Estado: <strong>{r.statusLabel}</strong>
           </p>
           <div className="flex flex-wrap gap-3 pt-1 text-sm">
-            <Link className="font-medium text-brand-700 underline" href={`/p/${r.slug}`}>
-              Abrir el link auténtico
-            </Link>
+            {r.slug && (
+              <Link className="font-medium text-brand-700 underline" href={`/p/${r.slug}`}>
+                Abrir el link auténtico
+              </Link>
+            )}
             {r.escrowId && <ExplorerLink href={explorer.contract(r.escrowId)}>Ver registro público</ExplorerLink>}
           </div>
         </section>
       )}
-      <p className="text-xs text-slate-500">Si un QR de Pago Protegido está a nombre de una persona, es estafa.</p>
+      <p className="text-xs text-slate-500">Si un QR de Trato está a nombre de una persona, es estafa.</p>
     </div>
   );
 }

@@ -10,7 +10,7 @@ export const contentType = "image/png";
 
 /**
  * Tarjeta que ve el comprador cuando el vendedor pega el link en WhatsApp: producto, precio en Bs,
- * tienda, el escudo "Pago protegido" y la promesa. Solo datos públicos del link.
+ * tienda, el escudo "Trato · pago protegido" y la promesa. Solo datos públicos del link.
  */
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -19,7 +19,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   const product = o?.product ?? "Link de pago protegido";
   const price = o ? fmtBs(o.price_bs_cents) : "";
   const usd = o ? `aprox. ${fmtUsd(o.amount_units)} USD de prueba` : "";
-  const store = s?.store_name ?? "Pago Protegido";
+  const store = s?.store_name ?? "Trato";
   const initials = store
     .split(/\s+/)
     .slice(0, 2)
@@ -67,7 +67,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
               }}
             >
               <ShieldLogo size={46} />
-              Pago protegido
+              Trato · pago protegido
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>

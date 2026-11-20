@@ -31,6 +31,8 @@ export interface WalletProvider {
   connect(): Promise<string>;
   /** Firma una transacción (XDR base64) y devuelve el XDR firmado. */
   signTransaction(xdr: string): Promise<string>;
+  /** Firma un mensaje (SEP-53) y devuelve la firma en base64: prueba que la cuenta es tuya (lib/api-firmada.ts). */
+  signMessage(mensaje: string): Promise<string>;
   /** Borra la billetera de este dispositivo / cierra sesión. */
   disconnect(): Promise<void>;
 }

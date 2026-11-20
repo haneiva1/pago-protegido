@@ -6,7 +6,7 @@ Criterio: cuando el SPEC no decide algo, se elige **la opción más simple que r
 
 1. **Un link de pago es de un solo uso y es el pedido.** Cada link se comparte con un cliente; el mismo registro guarda el pedido, su escrow y su estado. `/p/[slug]` es a la vez la página de pago y la de seguimiento. Para vender lo mismo otra vez, se crea otro link (30 segundos).
 2. **El primero que inicia el pago queda como comprador.** Al tocar "Simular pago del banco", la dirección del comprador queda en los roles del escrow. Si otra persona abre el link, ve "Este link ya lo está pagando otra persona".
-3. **"Recibí conforme" se permite desde "Pagado" y desde "Enviado".** Cubre la entrega en persona sin guía. La liberación automática (`auto_release`, modo guardián) exige "enviado", como dice el SPEC.
+3. **"Recibí conforme" se permite desde "Pagado" y desde "Enviado".** *(Actualizado el 19-nov: hoy el botón se llama "Pagar al vendedor" (§61) y en v2 exige el envío registrado.)* Cubre la entrega en persona sin guía. La liberación automática (`auto_release`, modo guardián) exige "enviado", como dice el SPEC.
 4. **Plazo de liberación automática = días de entrega + 3 días, contados desde el fondeo.** Es el `window_secs` que se pasa a `pp_guardian.fund`. En modo directo el plazo se muestra pero no se ejecuta: el contrato de Trustless Work no tiene plazos (hallazgo 6 del spike), y la pantalla lo aclara.
 5. **Reclamo:**
    - Motivos fijos: "No llegó", "Llegó dañado", "No es lo que pedí", "Llegó incompleto", "Otro".
@@ -14,7 +14,7 @@ Criterio: cuando el SPEC no decide algo, se elige **la opción más simple que r
    - El vendedor responde con texto ("Tu versión para el árbitro").
    - La evidencia vive en SQLite; on-chain solo queda el estado del hito y la evidencia de envío.
 6. **"Ventas completadas" = pedidos liberados** por confirmación del comprador. No cuenta las disputas resueltas.
-7. **El reembolso por disputa también paga comisiones** (2% plataforma + 0,3% Trustless Work), porque así lo hace el contrato (hallazgo 3 del spike). El árbitro lo ve en la vista previa: con 100% para el comprador, recibe 97,7%.
+7. **El reembolso por disputa también paga comisiones** (la comisión de la plataforma del pedido + 0,3% de Trustless Work), porque así lo hace el contrato (hallazgo 3 del spike). El revisor lo ve en la vista previa. *(Actualizado el 19-nov: en v1 la comisión era siempre 2%, así que con 100% para el comprador recibía 97,7%. Desde §67 la comisión de la plataforma se define al crear cada pedido; ver la [tarifa en docs/TECNICO.md](../docs/TECNICO.md#tarifa).)*
 8. **Montos:**
    - Se calcula en unidades base (7 decimales) con la misma división entera del contrato y se muestra con 2 decimales.
    - El precio en Bs se convierte con `FX_BS_PER_USD` (11,70 por defecto), redondeado a la unidad base más cercana.
@@ -99,7 +99,7 @@ Integrado con `@pollar/react` y `@pollar/core` 0.12, siguiendo las páginas de `
 ## Segunda ronda: modo guardián por defecto
 
 34. **`PP_MODE=guardian` es el modo por defecto.**
-    - Usa `pp_guardian` `CAOX6JZV3CJZFDD22J2XI3NKY5G4NRFOYRV7IA724MSVREYVRALW4OZU` y `pp_arbiter` `CBCDVLEPJ6PN7RDC3HFGML3IUT7SOQEYSGH3LE3SWXWZJO7Z2QG2PWGU`, de `../contracts/deployments/testnet.json`.
+    - Usaba `pp_guardian` `CAOX6JZV3CJZFDD22J2XI3NKY5G4NRFOYRV7IA724MSVREYVRALW4OZU` y `pp_arbiter` `CBCDVLEPJ6PN7RDC3HFGML3IUT7SOQEYSGH3LE3SWXWZJO7Z2QG2PWGU` (v1), de `../contracts/deployments/testnet.json`. *(Actualizado el 19-nov: desde §77 la app usa los contratos v2, `CDKYF7OA…UOATOT` y `CDTEA424…TEVU5UA`.)*
     - Los IDs quedan en `.env.local` (`npm run setup`) y como valor por defecto en `config.ts`.
     - `PP_MODE=direct` sigue funcionando.
     - La interfaz real coincide con SPEC §3 y además usa `purchase`, `quote` y el `Purchase` que devuelve `fund`.
@@ -205,7 +205,7 @@ Integrado con `@pollar/react` y `@pollar/core` 0.12, siguiendo las páginas de `
     - **Stellar** solo se ve detrás de los links "Ver registro público".
     - **El test:** `revisarPalabras` en el e2e revisa cada captura y además recorre todas las pantallas.
     - **Pantallas técnicas:** el panel del revisor, `/como-funciona` y `/transparencia`. Ahí se permiten los términos técnicos, no los legales.
-    - **Pendiente fuera de la app:** los textos del bot (`../bot`) todavía dicen "árbitro" y "Recibí conforme". Ver el anexo para el capataz.
+    - **Pendiente fuera de la app:** los textos del bot (`../bot`) todavía dicen "árbitro" y "Recibí conforme". Ver el anexo para el capataz. *(Hecho: [bot/DECISIONES.md](../bot/DECISIONES.md) §46.)*
     - **Política de reclamos:** se publicó con un cambio: "recupera todo su pago" en lugar de "el 100%", para respetar la lista.
 62. **Moneda:** siempre Bs primero, con el tipo de cambio del pedido. Una sola línea al pie: "Se guarda en dólares digitales (en producción, USDC, 1 a 1 con el dólar; en esta práctica, dólares de prueba)". No dice USDC a secas porque en testnet la moneda es LABUSD.
 63. **Fricción al confirmar.**
@@ -231,7 +231,7 @@ Integrado con `@pollar/react` y `@pollar/core` 0.12, siguiendo las páginas de `
       - El comprador paga precio + protección (`amount` del escrow). La protección incluye el 0,3% de TW.
       - El `platform_fee` del escrow se calcula por pedido (`floor((amount − TW − precio) × 10000 / amount)`), así el vendedor recibe al menos el precio completo.
       - Ejemplo de Bs 450: el comprador paga Bs 456,75, el vendedor recibe Bs 450,04 y `platform_fee` es 117 bps.
-    - **"Yo la regalo":** 2% de la venta, como antes.
+    - **"Yo la regalo":** al vendedor se le descuenta 2,3% de la venta: 2% de la plataforma (`platform_fee` = 200 bps, como antes) y 0,3% de Trustless Work.
     - El ajuste del capataz (1,5%, mín. Bs 5, máx. Bs 50) reemplazó al "Bs 5 + 2%" de la consigna original.
 68. **Código de pedido corto y legible:** PP-#### (único). `/verificar?codigo=PP-4821` muestra tienda, producto, monto y estado, con el link auténtico.
 69. **Tarjeta del vendedor:**
@@ -348,3 +348,19 @@ Los contratos no cambian. Todo sale de los eventos on-chain que ya ingería `/tr
     - **`npm run test:e2e`** corre lo mismo y además, en el caso feliz, verifica la tarjeta después de la venta (1 venta, "Todas" sin reclamo), el perfil de Tienda Sofi y "Tus números" del panel. El barrido de palabras suma `/metricas` y sus detalles.
     - **En esta ronda no se corrió `npm run test:e2e`:** necesita las claves de `.env.local`, y esta sesión no tuvo acceso a ellas (regla: no tocar credenciales ni archivos `.env`).
 99. **Capturas nuevas:** `70-metricas`, `71-metricas-operaciones`, `72-comprador-tarjeta-vendedor`, `73-tienda-perfil` (celular y escritorio) y `og-tienda.png`. Las del flujo con pagos (`75`–`77`) salen al correr `npm run test:e2e`. Las 4 claves están en `pago-protegido/demo/v2/` (07–10).
+
+## Novena ronda: `/probar`, Trato de punta a punta en un pantallazo (rama `noche/probar`)
+
+100. **`/probar` existe solo con `PP_PROBAR=1`** (apagado por defecto: sin la variable, la página y `/api/probar/*` responden 404). Está en `deploy/app.env.example`, vacía.
+101. **Dos marcos de celular con las páginas reales**, no una maqueta: el vendedor corre `/vender` → `/panel` y el comprador `/p/<slug>`, en iframes del mismo origen. En escritorio van uno al lado del otro; en celular, en pestañas (cada paso lleva a la pestaña de quien tiene que actuar).
+    - **Modo embebido en el layout:** un script corto, antes de pintar, marca `<html data-marco="probar">` si la página corre dentro de un marco de `/probar`, y el CSS esconde el aviso, el encabezado y el pie (`data-chrome`). Sin parámetros en la URL: sobrevive a la navegación dentro del marco (`/vender` → `/panel?primer=1`). Un sitio ajeno que meta la app en un iframe no puede leer `top`, así que no activa el modo.
+    - **No se editaron `panel/` ni `components/comprador/`:** todo lo que cambia dentro del marco sale del layout, de `lib/wallet` y de `lib/api.ts`.
+102. **Cuentas de prueba por rol, aparte de las de la app.** En `/probar` y en sus marcos, `storageKey` usa `pp.probar.<rol>` en lugar de `pp.billetera.<rol>`, y el vendedor usa siempre la cuenta local aunque el build sea `NEXT_PUBLIC_WALLET=pollar`. Se crean al vuelo y las activa el servidor como siempre (friendbot, trustline firmada en el navegador y fee bump). Ninguna clave del equipo llega al navegador: el e2e revisa que ninguna respuesta del servidor traiga algo con forma de clave secreta.
+    - En un build Pollar, `/vender` dentro del marco se hidrata con un texto distinto al del servidor (React lo corrige solo). El deploy de ejemplo usa `local`.
+103. **El link llega solo al comprador.** `/probar` consulta cada 3 s `GET /api/probar/registro?vendedor=<cuenta>` (solo lecturas de la base: la tienda, su último pedido y sus transacciones) y, cuando aparece un link, lo abre en el marco del comprador, como si llegara por WhatsApp.
+104. **Registro en vivo en 4 pasos** (crear el link, pagar, registrar el envío y pagar al vendedor), con cada transacción y su link a stellar.expert. Crear el link no mueve plata: se muestra "sin transacción", junto a la activación de la cuenta de la tienda. Los textos son propios del registro (los de la base le hablan al comprador).
+105. **"Intenta desviar la plata"** = la misma simulación del revisor (`probeForeign`), abierta a los estados con plata en el contrato (pagado, enviado o en disputa). El escrow de Trustless Work valida el rol (`#12`) antes que la disputa (`#14`), así que el rechazo es el mismo sin reclamo abierto. No se envía nada y no hace falta la clave del panel del revisor: la ruta es `POST /api/probar/desvio`. La pantalla muestra en rojo `Error(Contract, #12)`, sacado del error crudo del host, y cierra con "Dos salidas, nunca una tercera.".
+106. **Plazos de demo sin depender de `PP_DEMO`.** Las llamadas desde los marcos llevan el header `x-pp-probar: 1`; con `PP_PROBAR=1`, `POST /api/links` crea el link con los plazos de demo (2 minutos para despachar y para revisar) y `confirmDelay` usa 1 minuto en esos links. Así el deploy solo necesita `PP_PROBAR`. El header se puede falsificar, pero no da nada nuevo: `demoWindow: true` ya se podía mandar por la API (38).
+107. **Límite por IP, en memoria** (`lib/probar-limite.ts`, ventana de una hora): 6 pruebas nuevas (al entrar o con "Empezar de nuevo"), 8 pagos con rampa desde `/probar` y 30 intentos de desvío. La IP sale de `X-Forwarded-For` (Caddy la reemplaza por la real). **Alcance:** el límite cubre lo que hace `/probar`; las rutas normales de la app quedan como estaban. Un límite general (por ejemplo en Caddy) es parte del deploy.
+108. **"Empezar de nuevo"** borra las cuentas `pp.probar.*` de este navegador, recarga los dos marcos y limpia el registro. El pedido anterior queda como estaba: si estaba pagado y sin envío, la devolución automática (79) se lo devuelve a su comprador.
+109. **e2e:** `e2e/probar.spec.ts` (`npm run test:e2e:probar`; también corre con `npm run test:e2e`, que ahora levanta la app con `PP_PROBAR=1`). Recorre el flujo completo contra testnet dentro de los marcos, verifica el registro, el desvío y el reinicio, y deja las capturas `80`–`84` en celular y escritorio, revisando las palabras prohibidas también dentro de los marcos.

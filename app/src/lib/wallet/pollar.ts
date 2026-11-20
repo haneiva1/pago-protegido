@@ -15,6 +15,8 @@ export interface PollarBridgeState {
   openLoginModal: () => void;
   logout: () => void;
   signTx: (xdr: string) => Promise<unknown>;
+  /** `client.stellar.sep53.signMessage` de @pollar/core. */
+  signMessage: (mensaje: string) => Promise<unknown>;
 }
 
 let state: PollarBridgeState | null = null;
@@ -64,6 +66,14 @@ export class PollarWallet implements WalletProvider {
     if (out?.status === "signed" && out.signedXdr) return out.signedXdr;
     if (out?.status === "cosign_pending") throw new Error("La firma quedó pendiente de aprobación en Pollar");
     throw new Error(`Pollar no firmó la transacción${out?.details ? `: ${out.details}` : out?.code ? ` (${out.code})` : ""}`);
+  }
+
+  /** SEP-53 con la cuenta de Pollar (firma en su servidor, sin enviar nada a la red). */
+  async signMessage(mensaje: string): Promise<string> {
+    if (!state) throw new Error("Primero ingresa con tu cuenta");
+    const out = (await state.signMessage(mensaje)) as { status?: string; signature?: string; details?: string } | null;
+    if (out?.status === "signed" && out.signature) return out.signature;
+    throw new Error(`Pollar no pudo confirmar que la cuenta es tuya${out?.details ? `: ${out.details}` : ""}`);
   }
 
   async disconnect(): Promise<void> {

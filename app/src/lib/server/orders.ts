@@ -8,6 +8,7 @@ import {
   MOTIVOS_CON_VIDEO,
   MOTIVO_PRESION,
   STATUS_LABEL,
+  type OrderStatus,
   fmtBs,
   fmtBsUnits,
   linkAmounts,
@@ -15,6 +16,9 @@ import {
   splitFromGross,
   splitPreview,
 } from "@/lib/format";
+import { parseFlete } from "@/lib/comprador";
+import { huellaDeLink } from "@/lib/evidencia";
+import { esperaParaConfirmar } from "@/lib/ciudades";
 import { NETWORK_PASSPHRASE, cfg } from "./config";
 import { type OrderRow, evidence, kv, orders, pending, pilot, sellers, txs } from "./db";
 import { linkAmounts as amountsFor } from "@/lib/format";
@@ -33,6 +37,7 @@ import {
   tokenBalance,
   withLock,
 } from "./stellar";
+import { reintegroTrasDevolucion, reintentarReintegros, vistaReintegro } from "./reintegro-red";
 
 export class AppError extends Error {
   status: number;
@@ -81,6 +86,8 @@ function isUrl(v: string): boolean {
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 const inList = <T extends readonly string[]>(list: T, v: string): v is T[number] => (list as readonly string[]).includes(v);
+const fmtHora = (ms: number) =>
+  new Intl.DateTimeFormat("es-BO", { hour: "2-digit", minute: "2-digit", timeZone: "America/La_Paz" }).format(new Date(ms));
 const fmtWhen = (ms: number) =>
   new Intl.DateTimeFormat("es-BO", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "America/La_Paz" }).format(new Date(ms));
 
@@ -112,13 +119,17 @@ export const DEMO_WINDOW_SECS = 120;
 const CHAIN_MARGIN_MS = 10_000;
 /** Modo demo (PP_DEMO=1): "Pagar al vendedor" se habilita 1 minuto después del envío. */
 export const demoTimers = () => process.env.PP_DEMO === "1";
+/** /probar (PP_PROBAR=1, apagado por defecto): la demo pública con dos celulares. */
+export const probarActivo = () => process.env.PP_PROBAR === "1";
 
-/** "Pagar al vendedor" se habilita 2 h después del envío en la misma ciudad y 24 h si es otra ciudad. */
+/**
+ * "Pagar al vendedor" se habilita 2 h después del envío en la misma ciudad y 24 h si es otra ciudad.
+ * La Paz y El Alto cuentan como la misma ciudad (`mismaCiudad`, lib/ciudades.ts).
+ * Con PP_PROBAR=1, los links de demo (plazos de 2 minutos) también usan la espera de demo, aunque falte PP_DEMO.
+ */
 export function confirmDelay(o: OrderRow): { ms: number; label: string } {
-  if (demoTimers()) return { ms: 60_000, label: "1 minuto (modo demo)" };
-  const sellerCity = sellers.get(o.seller_pubkey)?.city;
-  const same = Boolean(sellerCity && o.dest_city && sellerCity === o.dest_city && o.dest_city !== "Otra");
-  return same ? { ms: 2 * 3600_000, label: "2 horas (misma ciudad)" } : { ms: 24 * 3600_000, label: "24 horas (otra ciudad)" };
+  if (demoTimers() || (probarActivo() && o.window_secs === DEMO_WINDOW_SECS)) return { ms: 60_000, label: "1 minuto (modo demo)" };
+  return esperaParaConfirmar(sellers.get(o.seller_pubkey)?.city, o.dest_city);
 }
 
 function ctxOf(o: OrderRow): EscrowCtx {
@@ -165,13 +176,21 @@ function slugify(product: string): string {
   return `${base || "pedido"}-${randomBytes(3).toString("hex")}`;
 }
 
-/** Código corto y legible del pedido: PP-4821. */
-function newCode(): string {
-  for (let i = 0; i < 50; i++) {
-    const c = `PP-${randomInt(1000, 10000)}`;
-    if (!orders.byCode(c)) return c;
+/** Sin 0/O ni 1/I/L, que se confunden al copiarlos a mano. */
+const ALFABETO_CODIGO = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+const CODIGO = /^[2-9A-HJKMNP-Z]{8}$/;
+
+/**
+ * Código del pedido: PP- y 8 caracteres con al menos una letra y un número (PP-7KM4Q9TX). Son 31^8 combinaciones:
+ * no se pueden recorrer con /api/verificar para sacar los links (antes eran 4 dígitos). Con letra y número, el bot
+ * no lo confunde con una palabra ni con un código viejo.
+ */
+export function newCode(): string {
+  for (;;) {
+    const c = Array.from({ length: 8 }, () => ALFABETO_CODIGO[randomInt(ALFABETO_CODIGO.length)]).join("");
+    if (!/\d/.test(c) || !/[A-Z]/.test(c)) continue;
+    if (!orders.byCode(`PP-${c}`)) return `PP-${c}`;
   }
-  return `PP-${randomInt(10000, 100000)}`;
 }
 
 export function createLink(input: Record<string, unknown>) {
@@ -188,6 +207,9 @@ export function createLink(input: Record<string, unknown>) {
   if (!Number.isFinite(priceBs) || priceBs < 1 || priceBs > 100000) throw new AppError("El precio tiene que estar entre Bs 1 y Bs 100.000");
   if (!Number.isInteger(days) || days < 1 || days > 15) throw new AppError("Los días de entrega van de 1 a 15");
   if (!inList(CATEGORIAS, category)) throw new AppError("Elige la categoría de la lista");
+  // Link rápido (M9, opcional): el flete que acordó el vendedor. No cambia el monto protegido.
+  const flete = input.flete ? parseFlete(input.flete, input.fleteBs) : null;
+  if (input.flete && !flete) throw new AppError("Escribe el monto del flete en Bs");
   // `proteccion` (APP-ENDPOINTS §6 del bot) y `feePayer` (panel) son lo mismo.
   const fee_payer = (input.proteccion ?? input.feePayer) === "vendedor" ? "vendedor" : "comprador";
   const fx = cfg().fx;
@@ -213,13 +235,15 @@ export function createLink(input: Record<string, unknown>) {
     price_units: a.price.toString(),
     platform_bps: a.platformBps,
   });
+  if (flete) orders.update(slug, { flete });
   return publicOrder(orders.get(slug)!);
 }
 
 /** APP-ENDPOINTS §6: cambiar quién paga la protección mientras nadie empezó a pagar el link. */
 export function patchLink(slug: string, input: Record<string, unknown>) {
-  const o = mustOrder(slug);
+  let o = mustOrder(slug);
   if (input.sellerPubkey !== o.seller_pubkey) throw new AppError("Solo el vendedor puede cambiar su link", 403);
+  if (o.status === "esperando_pago" && o.buyer_pubkey && !pagoEnCurso(o)) o = liberarIntento(o);
   if (o.status !== "esperando_pago" || o.buyer_pubkey || o.escrow_id) throw new AppError("Este link ya se está pagando: no se puede cambiar", 409);
   if (input.proteccion !== "comprador" && input.proteccion !== "vendedor") throw new AppError("proteccion tiene que ser comprador o vendedor");
   const a = amountsFor(o.price_bs_cents, o.fx, input.proteccion);
@@ -246,7 +270,7 @@ function buildProps(o: OrderRow, buyer: string): EscrowProps {
     title: o.product.slice(0, 80),
     roles: escrowService().roles(buyer, o.seller_pubkey),
     // Los datos de entrega quedan ligados al escrow por su hash (no se publican en claro).
-    description: `Pago Protegido ${o.code ?? ""}: ${o.product} | entrega ${o.delivery_hash ?? "-"}`.slice(0, 200),
+    description: `Trato ${o.code ?? ""}: ${o.product} | entrega ${o.delivery_hash ?? "-"}`.slice(0, 200),
     amount: o.amount_units,
     platform_fee: o.platform_bps ?? cfg().platformFeeBps,
     milestones: [{ description: "Entrega del producto", status: "pendiente", evidence: "", approved: false }],
@@ -254,6 +278,37 @@ function buildProps(o: OrderRow, buyer: string): EscrowProps {
     trustline: { address: cfg().labusdSac },
     receiver_memo: 0,
   };
+}
+
+/**
+ * Un link no se puede bloquear: el comprador que empieza a pagar queda fijado solo `PAGO_EN_CURSO_MS` desde la
+ * última transacción de fondeo que se le armó. Esa transacción vence a los 300 s (stellar.ts, `setTimeout(300)`),
+ * así que cuando se libera el link ya no queda ningún fondeo suyo que se pueda enviar a la red. Si no lo firmó,
+ * otra persona puede pagar: el contrato se arma de nuevo con sus roles.
+ */
+export const PAGO_EN_CURSO_MS = 10 * 60_000;
+const pagoEnCurso = (o: OrderRow, now = Date.now()) => Boolean(o.buyer_pubkey && (o.buyer_lease_until ?? 0) > now);
+
+/** Deja el link como nuevo: sin comprador, datos de entrega, rampa ni contrato de ese intento. */
+function liberarIntento(o: OrderRow): OrderRow {
+  pending.dropForOrder(o.slug, "fund");
+  txs.dropAttempt(o.slug);
+  orders.update(o.slug, {
+    buyer_pubkey: null,
+    buyer_lease_until: null,
+    buyer_whatsapp: null,
+    recipient_name: null,
+    dest_city: null,
+    pref_agency: null,
+    pickup_phone: null,
+    delivery_hash: null,
+    ramp_hash: null,
+    escrow_id: null,
+    escrow_json: null,
+    verify_json: null,
+    mode: null,
+  });
+  return mustOrder(o.slug);
 }
 
 /**
@@ -270,13 +325,21 @@ export async function startPayment(slug: string, body: Record<string, unknown>):
   const agency = clean(body.agency, 80);
   if (recipient.length < 2) throw new AppError("Escribe quién recibe el pedido");
   if (!inList(CIUDADES, destCity)) throw new AppError("Elige la ciudad de destino");
+  // Último tramo (M7, opcionales): teléfono de quien recoge y flete acordado.
+  const pickupPhone = body.pickupPhone ? normPhone(body.pickupPhone) : "";
+  if (body.pickupPhone && pickupPhone.length < 7) throw new AppError("Escribe un teléfono válido para quien recoge");
+  const flete = body.flete ? parseFlete(body.flete, body.fleteBs) : null;
+  if (body.flete && !flete) throw new AppError("Escribe el monto del flete en Bs");
   return withLock(`order:${slug}`, async () => {
     let o = mustOrder(slug);
     if (o.status !== "esperando_pago") throw new AppError("Este link ya fue pagado", 409);
-    if (o.buyer_pubkey && o.buyer_pubkey !== buyer) throw new AppError("Otra persona ya está pagando este link", 409);
     if (buyer === o.seller_pubkey) throw new AppError("No puedes pagar tu propio link");
+    if (o.buyer_pubkey && o.buyer_pubkey !== buyer) {
+      if (pagoEnCurso(o)) throw new AppError(`Otra persona está pagando este link. Si no termina, se libera a las ${fmtHora(o.buyer_lease_until!)}.`, 409);
+      o = liberarIntento(o);
+    }
     if (!hasTrustline(await horizonAccount(buyer))) throw new AppError("Primero activa tu cuenta", 409);
-    if (!o.buyer_pubkey) orders.update(slug, { buyer_pubkey: buyer });
+    orders.update(slug, { buyer_pubkey: buyer, buyer_lease_until: Date.now() + PAGO_EN_CURSO_MS });
     if (buyerWa) orders.update(slug, { buyer_whatsapp: buyerWa });
     if (!o.escrow_id) {
       orders.update(slug, {
@@ -284,6 +347,8 @@ export async function startPayment(slug: string, body: Record<string, unknown>):
         dest_city: destCity,
         pref_agency: agency || null,
         delivery_hash: sha(JSON.stringify({ slug, recipient, city: destCity, agency })).slice(0, 16),
+        ...(pickupPhone ? { pickup_phone: pickupPhone } : {}),
+        ...(flete ? { flete } : {}),
       });
     }
     const svc = escrowService();
@@ -320,6 +385,8 @@ export async function startPayment(slug: string, body: Record<string, unknown>):
     }
 
     const tx = await svc.prepareStep("fund", "fund", ctxOf(o), buyer, {});
+    // El fondeo recién armado vale 300 s: el comprador queda fijado el doble desde ahora.
+    orders.update(slug, { buyer_lease_until: Date.now() + PAGO_EN_CURSO_MS });
     return { ...register(tx, { order_slug: slug, action: "fund", step: "fund", signer: buyer }), verification };
   });
 }
@@ -336,17 +403,21 @@ function shipParams(o: OrderRow, body: Record<string, unknown>): Record<string, 
   const tracking = clean(body.tracking, 60);
   const weightNum = Number(String(body.weight ?? "").replace(",", "."));
   const photo = clean(body.photo, 500);
+  // Envío con foto desde la cámara (M9): la guía y el paquete, cada una con su huella.
+  const photoGuia = clean(body.photoGuia, 500);
   const city = clean(body.city, 40) || o.dest_city || "";
   const imei = clean(body.imei, 20).replace(/\D/g, "");
   if (!inList(EMPRESAS, company)) throw new AppError("Elige la empresa de envío de la lista");
   if (company !== "Entrega en persona" && tracking.length < 3) throw new AppError("Escribe el número de guía");
   if (!Number.isFinite(weightNum) || weightNum <= 0 || weightNum > 500) throw new AppError("Escribe el peso declarado en kg");
-  if (!isUrl(photo)) throw new AppError("La foto tiene que ser un link (https://…)");
+  if (!isUrl(photo) || !isUrl(photoGuia)) throw new AppError("La foto tiene que ser un link (https://…)");
   if (!inList(CIUDADES, city)) throw new AppError("Elige la ciudad de destino");
   if (o.category === "Celular" && !/^\d{15}$/.test(imei)) throw new AppError("Para celulares el IMEI es obligatorio (15 dígitos)");
   const weight = String(Math.round(weightNum * 100) / 100);
-  const compact = `${company}|${tracking || "-"}|${weight}kg|${photo ? sha(photo).slice(0, 12) : "-"}`;
-  return { company, tracking, weight, photo, city, imei, evidence: compact };
+  // Foto subida a /api/evidencia: va su huella SHA-256 completa (la del archivo); un link externo, el hash corto del link.
+  const huella = (u: string) => (u ? (huellaDeLink(u) ?? sha(u).slice(0, 12)) : "-");
+  const compact = [company, tracking || "-", `${weight}kg`, huella(photo), ...(photoGuia ? [huella(photoGuia)] : [])].join("|");
+  return { company, tracking, weight, photo, city, imei, evidence: compact, ...(photoGuia ? { photoGuia } : {}) };
 }
 
 export async function prepareAction(slug: string, body: Record<string, unknown>): Promise<PreparedDto> {
@@ -429,6 +500,9 @@ export async function submitSigned(signedXdr: unknown): Promise<{ hash: string; 
   const p = pending.take(hashHex);
   if (!p) throw new AppError("Transacción desconocida o ya enviada", 409);
   if (inner.source !== p.signer || inner.signatures.length === 0) throw new AppError("Falta la firma de tu cuenta", 400);
+  if (p.step === "fund" && orders.get(p.order_slug!)?.buyer_pubkey !== p.signer) {
+    throw new AppError("Tu intento de pago venció y otra persona tomó el link", 409);
+  }
 
   const sent = await feeBumpAndSend(inner);
   const params = JSON.parse(p.params) as Record<string, string>;
@@ -599,6 +673,7 @@ export async function refundUnshipped(slug: string) {
     }
     orders.update(slug, { status: "devuelto", refunded_at: now, resolved_at: now, buyer_bps: 10000, resolution_reason: "No despachó a tiempo" });
     txs.add({ order_slug: slug, actor: "plataforma", kind: "devolucion", label: "Se devolvió el pago al comprador: el vendedor no despachó a tiempo", hash });
+    reintegroTrasDevolucion(o, hash); // H-4: solo con PP_DEVOLUCION_COMPLETA=1
     return { hash, already: false };
   });
 }
@@ -618,6 +693,7 @@ export function sweepOverdue(force = false): Promise<void> {
       for (const o of orders.overdueUnshipped(Date.now() - CHAIN_MARGIN_MS)) {
         await refundUnshipped(o.slug).catch((e) => console.error(`[devolución] ${o.slug}: ${(e as Error).message}`));
       }
+      await reintentarReintegros(); // H-4: solo con PP_DEVOLUCION_COMPLETA=1
     } finally {
       sweeping = false;
     }
@@ -640,6 +716,7 @@ export async function resolveDispute(slug: unknown, buyerBps: unknown, reason: u
     const pct = (bps / 100).toLocaleString("es-BO");
     const pctSeller = ((10000 - bps) / 100).toLocaleString("es-BO");
     txs.add({ order_slug: slug, actor: "revisor", kind: "resolucion", label: `El revisor repartió: ${pct}% para el comprador y ${pctSeller}% para el vendedor (${why})`, hash });
+    if (bps === 10000) reintegroTrasDevolucion(o, hash); // H-4: solo con PP_DEVOLUCION_COMPLETA=1
     return { hash };
   });
 }
@@ -662,10 +739,15 @@ export async function quoteDispute(slug: unknown, buyerBps: unknown) {
   };
 }
 
-export async function probeForeign(slug: unknown) {
+/**
+ * Intento de desvío simulado. El revisor lo usa con el pedido en disputa; /probar, con cualquier estado en el que la
+ * plata siga en el contrato (el escrow rechaza al que no es su revisor antes de mirar si hay disputa: #12 antes que #14).
+ */
+export async function probeForeign(slug: unknown, estados: readonly OrderStatus[] = ["en_disputa"]) {
   if (typeof slug !== "string") throw new AppError("Falta el pedido");
   const o = mustOrder(slug);
-  if (o.status !== "en_disputa") throw new AppError("El pedido no está en disputa", 409);
+  if (!estados.includes(o.status))
+    throw new AppError(estados.length === 1 ? "El pedido no está en disputa" : "Todavía no hay plata guardada en el contrato de este pedido", 409);
   // "Otra cuenta" con trustline a LABUSD (la de la plataforma): así el único freno posible es el de los roles.
   const foreign = cfg().plataforma.publicKey();
   const r = await escrowService().probeForeignDestination(ctxOf(o), foreign);
@@ -694,10 +776,15 @@ export function joinPilot(body: Record<string, unknown>) {
   return { id, whatsapp: normPhone(f.whatsapp) };
 }
 
-/** /verificar: con el código del pedido muestra tienda, producto, monto y estado. */
+/**
+ * /verificar: con el código del pedido muestra tienda, producto, monto y estado. Los códigos de 8 caracteres traen
+ * el link; los viejos de 4 o 5 dígitos se pueden adivinar, así que se verifican sin el link (no sirven para bloquearlo).
+ */
 export function verifyCode(codeParam: string | null) {
-  const code = String(codeParam ?? "").trim().toUpperCase().replace(/^PP\s*-?\s*/, "PP-");
-  const o = /^PP-\d{4,5}$/.test(code) ? orders.byCode(code) : undefined;
+  const raw = String(codeParam ?? "").toUpperCase().replace(/\s+/g, "").replace(/^PP-?/, "");
+  const code = `PP-${raw}`;
+  const nuevo = CODIGO.test(raw);
+  const o = nuevo || /^\d{4,5}$/.test(raw) ? orders.byCode(code) : undefined;
   if (!o) throw new AppError("No encontramos un pedido con ese código. Si alguien te lo envió, no pagues.", 404);
   const s = sellers.get(o.seller_pubkey);
   return {
@@ -709,7 +796,7 @@ export function verifyCode(codeParam: string | null) {
     total: fmtBsUnits(o.amount_units, o.fx),
     status: o.status,
     statusLabel: STATUS_LABEL[o.status],
-    slug: o.slug,
+    slug: nuevo ? o.slug : null,
     escrowId: o.escrow_id,
     created_at: o.created_at,
   };
@@ -719,7 +806,9 @@ export function verifyCode(codeParam: string | null) {
 
 /** Vista pública del pedido: sin WhatsApp ni datos de entrega del comprador. */
 function publicOrder(o: OrderRow) {
-  const { escrow_json: _e, verify_json, buyer_whatsapp: _w, recipient_name: _r, dest_city: _c, pref_agency: _a, ...rest } = o;
+  const { escrow_json: _e, verify_json, buyer_whatsapp: _w, recipient_name: _r, dest_city: _c, pref_agency: _a, pickup_phone: _p, ...rest } = o;
+  // Un intento de pago vencido no bloquea el link: se muestra libre (el próximo /pay lo libera de verdad).
+  if (o.status === "esperando_pago" && o.buyer_pubkey && !pagoEnCurso(o)) Object.assign(rest, { buyer_pubkey: null, buyer_lease_until: null });
   const proteccion = o.fee_payer ?? "comprador";
   // Lo que cuesta la protección: la paga el comprador (sobre el precio) o la regala el vendedor (2,3% de la venta).
   const proteccion_bs_cents =
@@ -729,7 +818,7 @@ function publicOrder(o: OrderRow) {
 
 /** Lo que ve el vendedor (y el revisor): incluye los datos de entrega. */
 function sellerOrder(o: OrderRow) {
-  return { ...publicOrder(o), recipient_name: o.recipient_name, dest_city: o.dest_city, pref_agency: o.pref_agency };
+  return { ...publicOrder(o), recipient_name: o.recipient_name, dest_city: o.dest_city, pref_agency: o.pref_agency, pickup_phone: o.pickup_phone ?? null };
 }
 
 /**
@@ -793,6 +882,7 @@ export async function orderView(slug: string, withOnchain: boolean) {
   if (withOnchain && o.escrow_id) onchain = await escrowService().readState(o.escrow_id).catch(() => null);
   o = reconcile(o, onchain);
   return {
+    ...vistaReintegro(slug), // H-4: vacío salvo PP_DEVOLUCION_COMPLETA=1
     order: publicOrder(o),
     seller: sellerCard(o.seller_pubkey),
     txs: txs.forOrder(slug),
@@ -806,7 +896,32 @@ export async function orderView(slug: string, withOnchain: boolean) {
   };
 }
 
-export async function sellerView(pubkey: string) {
+/**
+ * GET /api/sellers/<cuenta>: solo lo público de la tienda, lo mismo que muestra /tienda/<slug>.
+ * Sin WhatsApp de la tienda ni nada de sus compradores (nombre, ciudad, contacto o pedidos).
+ */
+export function sellerPublic(pubkey: string) {
+  if (!isPubkey(pubkey)) throw new AppError("Cuenta inválida");
+  const s = sellers.get(pubkey);
+  if (!s) throw new AppError("Tienda no encontrada", 404);
+  void ingestEvents().catch(() => null);
+  return {
+    seller: {
+      pubkey: s.pubkey,
+      store_name: s.store_name,
+      city: s.city,
+      slug: sellers.ensureSlug(pubkey),
+      pilot: s.pilot === 1,
+      created_at: s.created_at,
+      completedSales: sellers.completedSales(pubkey),
+      verification: "pendiente" as const,
+    },
+    kpis: sellerKpis(pubkey),
+  };
+}
+
+/** GET /api/sellers/<cuenta>/panel: lo que ve el vendedor en su panel (y el bot), con los datos de entrega. */
+export async function sellerPanel(pubkey: string) {
   if (!isPubkey(pubkey)) throw new AppError("Cuenta inválida");
   const s = sellers.get(pubkey);
   if (!s) throw new AppError("Tienda no encontrada", 404);

@@ -193,12 +193,13 @@ Las instancias huérfanas de esas corridas (un escrow sin inicializar en la corr
 
 ## Hallazgos sobre Trustless Work (no se modificó su código)
 
-**H-1. Bug: `dispute_escrow` no revisa `flags.released`.**
-- `validate_dispute_flag_change_conditions` (`core/validators/dispute.rs`) rechaza si el escrow ya está en disputa o resuelto, pero **no si ya se liberó**.
+**H-1. En la v1 de TW, `dispute_escrow` no revisa `flags.released`.** En la v1 del escrow que usamos (commit `f0b706e`), un escrow ya liberado se puede marcar en disputa sin mover fondos; la v2 de Trustless Work ya lo impide, y `pp_guardian` también lo bloquea (#21).
+- Usamos la v1 del escrow single-release (commit `f0b706e`). La v2 de Trustless Work ya lo impide (`single-release-develop-v2` y `single-release-main-v2` responden `EscrowAlreadyReleased`). Pendiente: evaluar la migración a la v2 (plan de 30 días).
+- En la v1, `validate_dispute_flag_change_conditions` (`core/validators/dispute.rs`) rechaza si el escrow ya está en disputa o resuelto, pero **no si ya se liberó**.
 - Por eso, después de liberar, cualquier rol (vendedor, plataforma, approver o release_signer) puede poner `disputed = true` directo en el escrow.
 - En nuestro diseño es inofensivo: el saldo es 0 y el árbitro responde `EmptyEscrow`. Pero deja un escrow liberado marcado como "en disputa", y la app debe mostrar `released` con prioridad sobre `disputed`.
 - `pp_guardian.dispute` sí lo impide: devuelve `EscrowAlreadyReleased` (#21).
-- Lo cubre el test `disputa_directa_tras_liberar_es_inofensiva`. Vale la pena reportarlo a TW.
+- Lo cubre el test `disputa_directa_tras_liberar_es_inofensiva`. Nota técnica con la reproducción: [docs/reporte-trustless-work.md](../docs/reporte-trustless-work.md).
 
 **H-2. El guardián no puede verificar on-chain que `escrow` sea el WASM de TW.**
 - soroban-sdk 28 no tiene API para leer el ejecutable de otro contrato. Un contrato falso podría imitar `get_escrow` con los roles correctos.
@@ -211,7 +212,12 @@ Las instancias huérfanas de esas corridas (un escrow sin inicializar en la corr
 - El script verifica los roles después del init.
 - La app debería preferir `tw_new_single_release_escrow`, que despliega e inicializa en una sola transacción.
 
-**H-4. Un reembolso también paga comisiones** (hallazgo 3 del spike). Con 100% al comprador, recupera 146,55 de 150: pierde el 2% de la plataforma y el 0,3% de TW. No se cambió: SPEC fija las comisiones y no dice nada sobre reembolsos. → **Pregunta de producto abierta.**
+**H-4. Un reembolso también paga comisiones** (hallazgo 3 del spike). Con 100% al comprador, recupera 146,55 de 150: pierde el 2% de la plataforma y el 0,3% de TW. No se cambió: SPEC fija las comisiones y no dice nada sobre reembolsos. *(Decisión del 19-nov: se mantiene, porque cambiarlo exige contratos nuevos, y queda explicado en la [tarifa de docs/TECNICO.md](../docs/TECNICO.md#tarifa): en devoluciones y disputas, Trustless Work descuenta las comisiones.)*
+- **Opción lista para activar (20-nov), sin tocar los contratos:** la devolución completa en la app, detrás del interruptor `PP_DEVOLUCION_COMPLETA` (apagado por defecto; ver `deploy/app.env.example`).
+  - Con `PP_DEVOLUCION_COMPLETA=1`, después de una devolución total confirmada en la red (`refund_unshipped`, o `resolve` con todo para el comprador), Trato le transfiere al comprador la diferencia entre lo que pagó y lo que le devolvió el contrato: un pago de LABUSD desde la cuenta `plataforma`, con fee bump. En el ejemplo de arriba, 3,45 de 150.
+  - No se paga dos veces: un reintegro por pedido (clave única en SQLite), el sobre firmado se guarda antes de enviarlo y, si la red falla, se reenvía el mismo sobre o se arma otro solo cuando el anterior ya no puede entrar. Lo prueban `app/test/reintegro.test.mjs` y el e2e `app/e2e-devolucion/`.
+  - La página del pedido y el aviso del bot dicen "Te devolvimos todo lo que pagaste", con el link a las dos transacciones. Apagado, todo queda como antes.
+  - Activarlo es decisión de producto de Hans: el costo para Trato es la comisión de TW (0,3%) más la propia (2%) en cada devolución total.
 
 **H-5. La plataforma puede agregar hitos con fondos adentro** (`update_escrow`, hallazgo 8 del spike).
 - Si lo hace, `confirm` y `auto_release` dejan de funcionar (`#5 EscrowNotCompleted`), porque el guardián solo aprueba el hito 0.
@@ -226,4 +232,4 @@ Las instancias huérfanas de esas corridas (un escrow sin inicializar en la corr
 **H-8. Las direcciones de contrato solo se autorizan como invocador directo.**
 - `pp_guardian` y `pp_arbiter` no implementan `__check_auth`, así que nadie puede firmar en su nombre.
 - Esta es la base del invariante 1: el escrow pide `dispute_resolver.require_auth()`, y eso solo se cumple cuando el propio `pp_arbiter` hace la llamada.
-- Escenario (d) en testnet: la llamada directa a `resolve_dispute` en nombre del árbitro falla, tanto para un tercero como para el admin.
+- Escenario (d) en testnet: la llamada directa a `resolve_dispute` en nombre del árbitro se rechaza, tanto para un tercero como para el admin.

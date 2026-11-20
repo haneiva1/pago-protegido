@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { explorer, fmtPct, fmtUsd, shortAddr, unitsToNumber } from "@/lib/format";
+import { plural } from "@/lib/kpi-format";
 import { sellers } from "@/lib/server/db";
 import { computeMetrics, ingestEvents, type Metrics, type PurchaseState } from "@/lib/server/metrics";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Transparencia · Pago Protegido" };
+export const metadata = { title: "Transparencia · Trato" };
 
 const nf = (n: number, d = 0) => n.toLocaleString("es-BO", { minimumFractionDigits: d, maximumFractionDigits: d });
 
@@ -99,8 +100,8 @@ export default async function Transparencia() {
         <h2 className="font-bold">Piloto con vendedores reales</h2>
         {pm && pm.compras_protegidas > 0 ? (
           <p className="text-sm text-slate-700">
-            <strong>{pm.compras_protegidas}</strong> compras protegidas · Bs {nf(unitsToNumber(pm.volumen_unidades) * pm.tipo_cambio)} ·{" "}
-            {pm.liberadas_por_confirmacion + pm.liberadas_por_plazo} pagadas al vendedor · {pm.disputas.total} reclamos
+            <strong>{pm.compras_protegidas}</strong> {pm.compras_protegidas === 1 ? "compra protegida" : "compras protegidas"} · Bs {nf(unitsToNumber(pm.volumen_unidades) * pm.tipo_cambio)} ·{" "}
+            {plural(pm.liberadas_por_confirmacion + pm.liberadas_por_plazo, "pagada al vendedor", "pagadas al vendedor")} · {plural(pm.disputas.total, "reclamo", "reclamos")}
           </p>
         ) : (
           <p className="text-sm text-slate-600">
@@ -127,7 +128,7 @@ export default async function Transparencia() {
         <Tile
           label="Tiempo hasta que el vendedor cobra"
           value={fmtDuration(m.segundos_promedio_hasta_liberacion)}
-          sub={`Promedio desde el pago (${m.muestras_liberacion} compras)`}
+          sub={`Promedio desde el pago (${plural(m.muestras_liberacion, "compra", "compras")})`}
         />
       </section>
 
@@ -168,6 +169,50 @@ export default async function Transparencia() {
           </p>
           <p className="text-xs text-slate-500">Las comisiones de red las paga la plataforma (fee bump).</p>
         </div>
+      </section>
+
+      <section className="card space-y-3" data-testid="indexador">
+        <h2 className="font-bold">Qué compras cuentan</h2>
+        <p className="text-sm text-slate-600">
+          Un evento del guardián no alcanza: cualquiera puede imitar un escrow y generar eventos sin mover plata. Por eso cada compra se
+          comprueba en la red y cuenta solo si cumple estas cuatro reglas públicas (docs/METRICAS.md del repositorio):
+        </p>
+        <ol className="list-decimal space-y-0.5 pl-5 text-sm text-slate-700">
+          {m.indexador.reglas.map((r) => (
+            <li key={r.regla}>{r.texto}</li>
+          ))}
+        </ol>
+        <p className="text-sm text-slate-700" data-testid="indexador-resumen">
+          <strong data-testid="indexador-contadas">{nf(m.indexador.contadas)}</strong> compras verificadas ·{" "}
+          <strong data-testid="indexador-descartadas">{nf(m.indexador.descartadas)}</strong> descartadas
+          {m.indexador.pendientes > 0 ? ` · ${nf(m.indexador.pendientes)} todavía sin verificar (no cuentan hasta verificarse)` : ""}.
+        </p>
+        {m.indexador.descartadas > 0 && (
+          <>
+            <ul className="text-sm text-slate-700" data-testid="indexador-motivos">
+              {m.indexador.por_motivo
+                .filter((x) => x.compras > 0)
+                .map((x) => (
+                  <li key={x.regla}>
+                    {x.texto}: <strong>{nf(x.compras)}</strong>
+                  </li>
+                ))}
+            </ul>
+            <ul className="divide-y divide-slate-100 text-xs">
+              {m.indexador.ejemplos.map((d) => (
+                <li key={d.escrow} className="flex flex-wrap gap-x-3 py-1.5">
+                  <a className="font-mono underline" href={explorer.contract(d.escrow)} target="_blank" rel="noreferrer">
+                    {shortAddr(d.escrow)}
+                  </a>
+                  <a className="underline" href={explorer.tx(d.tx_fondeo)} target="_blank" rel="noreferrer">
+                    pago
+                  </a>
+                  <span className="text-slate-500">falla: {d.fallas.join(", ")}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </section>
 
       <section className="card space-y-3">

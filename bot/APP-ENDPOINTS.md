@@ -175,7 +175,7 @@ Con los contratos v2 (`pp_guardian` con `mark_shipped`, `extend` y los dos plazo
 | `extended` | 0/1: el comprador ya usó "Necesito más tiempo" (una sola vez, suma otra ventana de revisión) |
 | `refunded_at` | ms, devolución por no despachar a tiempo |
 
-Estado nuevo **`devuelto`** ("Devuelto (no se despachó)"): el vendedor no marcó enviado antes de `ship_deadline`; la app abre la disputa como plataforma y `pp_arbiter.refund_unshipped` devuelve la plata al comprador (menos 2% + 0,3% de comisiones). Pasa sola, sin reclamo.
+Estado nuevo **`devuelto`** ("Devuelto (no se despachó)"): el vendedor no marcó enviado antes de `ship_deadline`; la app abre la disputa como plataforma y `pp_arbiter.refund_unshipped` devuelve la plata al comprador, menos la comisión fija del pedido (el `platform_fee` del pedido + 0,3% de Trustless Work): Trustless Work descuenta las comisiones también en las devoluciones. Pasa sola, sin reclamo.
 
 `GET /api/bot/changes` → cada cambio: `{ slug, status, updated_at, buyer_whatsapp, code, deadline, ship_deadline, shipped_at, extended }`.
 

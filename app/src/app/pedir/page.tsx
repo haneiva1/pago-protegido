@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { WhatsAppBox } from "@/components/WhatsAppBox";
 
-/** "Pide compra protegida": el comprador le pide al vendedor que use Pago Protegido, con un mensaje listo. */
+/** "Pide compra protegida": el comprador le pide al vendedor que use Trato, con un mensaje listo. */
 export default function Pedir() {
   const [product, setProduct] = useState("");
   const [price, setPrice] = useState("");
@@ -11,12 +11,12 @@ export default function Pedir() {
   const [origin, setOrigin] = useState("");
   useEffect(() => setOrigin(window.location.origin), []);
 
-  const text = `Hola 👋 Quiero comprarte ${product.trim() || "el producto"}${price.trim() ? ` (Bs ${price.trim()})` : ""}. ¿Me lo vendes con Pago Protegido? Yo pago por adelantado, mi plata queda guardada hasta que me llegue y ahí se te paga. Crear el link toma 30 segundos: ${origin}/vender`;
+  const text = `Hola 👋 Quiero comprarte ${product.trim() || "el producto"}${price.trim() ? ` (Bs ${price.trim()})` : ""}. ¿Me lo vendes con Trato? Yo pago por adelantado, mi plata queda guardada hasta que me llegue y ahí se te paga. Crear el link toma 30 segundos: ${origin}/vender`;
 
   return (
     <div className="mx-auto max-w-md space-y-4">
       <h1 className="text-2xl font-bold">Pide compra protegida</h1>
-      <p className="text-slate-600">¿Te da miedo pagar por adelantado a una tienda de otra ciudad? Pídele que te venda con Pago Protegido.</p>
+      <p className="text-slate-600">¿Te da miedo pagar por adelantado a una tienda de otra ciudad? Pídele que te venda con Trato.</p>
       <div className="card space-y-3">
         <div>
           <label className="label" htmlFor="q-product">

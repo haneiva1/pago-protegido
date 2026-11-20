@@ -19,7 +19,7 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   devuelto: "Devuelto (no se despachó)",
 };
 
-/** Fila `sellers` (GET /api/sellers/:pubkey → `seller`). */
+/** Fila `sellers` (GET /api/sellers/:pubkey/panel → `seller`). */
 export interface Seller {
   pubkey: string;
   store_name: string;
@@ -79,6 +79,8 @@ export interface Order {
 export interface Money {
   breakdown?: { seller: string; platform: string; tw: string };
   split?: { buyer: string; seller: string; platform: string; tw: string };
+  /** Devolución completa: solo con PP_DEVOLUCION_COMPLETA=1 en la app (ver Reintegro). */
+  reintegro?: Reintegro;
 }
 
 /** GET /api/orders/:slug */
@@ -89,7 +91,7 @@ export interface OrderView extends Money {
   mode: "direct" | "guardian";
 }
 
-/** GET /api/sellers/:pubkey */
+/** GET /api/sellers/:pubkey/panel (x-bot-key o firma del vendedor) */
 export interface SellerData {
   seller: Seller & { completedSales: number };
   orders: (Order & Money)[];
@@ -125,4 +127,19 @@ export interface ChangesFeed {
     shipped_at?: number | null;
     extended?: number | boolean | null;
   }[];
+}
+
+/**
+ * Devolución completa (H-4, PP_DEVOLUCION_COMPLETA=1 en la app): después de una devolución total, Trato le transfiere al
+ * comprador las comisiones que descontó el contrato. Montos en unidades de 7 decimales.
+ */
+export interface Reintegro {
+  estado: "pendiente" | "enviado" | "confirmado" | "revisar";
+  pagado: string;
+  recibido: string;
+  monto: string;
+  /** Transacción de la devolución (refund_unshipped o resolve). */
+  devolucion_hash: string;
+  /** Transacción del reintegro, cuando ya está confirmada. */
+  hash: string | null;
 }

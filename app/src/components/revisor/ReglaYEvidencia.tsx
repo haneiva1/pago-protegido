@@ -1,0 +1,152 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { sha256Hex } from "@/components/EvidenciaInput";
+import { huellaDeLink } from "@/lib/evidencia";
+import { fmtDate } from "@/lib/format";
+import { CRITERIOS, REPARTO_PARCIAL, evidenciaDeLasPartes, plazosDelReclamo, reglaDelReclamo, type Archivo } from "@/lib/revisor";
+import type { DisputeItem } from "@/lib/types";
+
+/** La regla de la política que aplica a este reclamo (M10), con los criterios en orden y el que aplica marcado. */
+export function ReglaAplicada({ d, ahora }: { d: DisputeItem; ahora: number }) {
+  const r = reglaDelReclamo(d, ahora);
+  return (
+    <div className="rounded-xl border-2 border-violet-300 bg-white p-4 text-sm" data-testid="regla-aplica">
+      <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">Regla que aplica · motivo: {d.dispute_reason}</p>
+      <p className="mt-1 font-semibold text-violet-950">{r.titulo}</p>
+      <p className="mt-1 text-slate-700">{r.detalle}</p>
+      <p className="mt-1 font-semibold text-violet-900" data-testid="regla-gana">
+        {r.gana ? `Según la política, gana el ${r.gana}.` : "Comprueba eso antes de decidir el reparto."}
+      </p>
+      <ol className="mt-3 list-decimal space-y-0.5 pl-5 text-xs text-slate-500">
+        {CRITERIOS.map((c, i) => (
+          <li key={c} className={i === r.criterio || (r.criterio === 3 && i === 4) ? "font-semibold text-violet-900" : ""}>
+            {c}
+          </li>
+        ))}
+      </ol>
+      <p className="mt-1 text-xs text-slate-500">{REPARTO_PARCIAL}</p>
+    </div>
+  );
+}
+
+/** Los plazos de la política (48 h para responder y para la evidencia, 72 h para decidir), desde que se abrió el reclamo. */
+export function PlazosReclamo({ d, ahora }: { d: DisputeItem; ahora: number }) {
+  const plazos = plazosDelReclamo(d, ahora);
+  if (!plazos.length) return null;
+  return (
+    <ul className="grid gap-2 text-xs sm:grid-cols-3" data-testid="plazos-revisor">
+      {plazos.map((p) => (
+        <li
+          key={p.clave}
+          className={`rounded-lg p-2.5 ring-1 ${p.hecho ? "bg-brand-50 text-brand-900 ring-brand-100" : p.vencido ? "bg-rose-50 text-rose-900 ring-rose-200" : "bg-white text-slate-700 ring-slate-200"}`}
+        >
+          <p className="font-semibold">
+            {p.hecho ? "✓ " : p.vencido ? "⏰ " : ""}
+            {p.texto}
+          </p>
+          <p>
+            {p.hecho ? "Listo" : p.vencido ? "Venció" : "Hasta"} {p.hecho ? "" : `el ${fmtDate(p.hasta)}`}
+          </p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+const corta = (h: string) => `${h.slice(0, 8)}…${h.slice(-6)}`;
+
+/**
+ * Una foto o un video con su miniatura. Si viene de /api/evidencia, el navegador del revisor la descarga, calcula su
+ * SHA-256 y la compara con la huella registrada (la del link, que es la misma que va en la evidencia del envío).
+ */
+function ArchivoVerificado({ a, registroEnvio }: { a: Archivo; registroEnvio: string | null }) {
+  const huella = huellaDeLink(a.url);
+  const src = huella ? new URL(a.url, "http://x").pathname : a.url;
+  const [estado, setEstado] = useState<"verificando" | "coincide" | "no-coincide" | "error">("verificando");
+
+  useEffect(() => {
+    if (!huella) return;
+    let vivo = true;
+    fetch(src)
+      .then((r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.arrayBuffer();
+      })
+      .then((buf) => sha256Hex(buf))
+      .then((h) => vivo && setEstado(h === huella ? "coincide" : "no-coincide"))
+      .catch(() => vivo && setEstado("error"));
+    return () => {
+      vivo = false;
+    };
+  }, [huella, src]);
+
+  const enElEnvio = Boolean(huella && registroEnvio?.includes(huella));
+  return (
+    <li className="flex gap-3 rounded-lg bg-white p-2 ring-1 ring-slate-200" data-testid="archivo-evidencia">
+      <a href={src} target="_blank" rel="noreferrer" className="flex-none" aria-label={`Abrir ${a.etiqueta}`}>
+        {huella ? (
+          a.tipo === "foto" ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={src} alt={a.etiqueta} className="h-16 w-16 rounded-lg object-cover" data-testid="miniatura" />
+          ) : (
+            <video src={src} muted preload="metadata" className="h-16 w-16 rounded-lg object-cover" data-testid="miniatura" />
+          )
+        ) : (
+          <span className="flex h-16 w-16 items-center justify-center rounded-lg bg-slate-100 text-2xl">{a.tipo === "foto" ? "🖼️" : "🎬"}</span>
+        )}
+      </a>
+      <div className="min-w-0 flex-1 text-xs">
+        <p className="font-semibold text-slate-800">{a.etiqueta}</p>
+        {huella ? (
+          <>
+            {estado === "coincide" && (
+              <p className="font-semibold text-brand-700" data-testid="coincide">
+                ✓ coincide
+              </p>
+            )}
+            {estado === "no-coincide" && <p className="font-semibold text-rose-700">✗ no coincide: el archivo no es el que se registró</p>}
+            {estado === "verificando" && <p className="text-slate-500">Comprobando la huella…</p>}
+            {estado === "error" && <p className="text-amber-800">No se pudo descargar para comprobarla</p>}
+            <p className="truncate font-mono text-slate-500" title={huella}>
+              SHA-256 {corta(huella)}
+            </p>
+            {enElEnvio && <p className="text-slate-600">La misma huella está en la evidencia que registró mark_shipped.</p>}
+          </>
+        ) : (
+          <p className="text-slate-600">
+            Link externo, sin huella: no se puede comprobar.{" "}
+            <a className="underline" href={a.url} target="_blank" rel="noreferrer">
+              Abrir
+            </a>
+          </p>
+        )}
+      </div>
+    </li>
+  );
+}
+
+/** Evidencia de las dos partes, lado a lado, con miniaturas y la comprobación de la huella. */
+export function EvidenciaPartes({ d }: { d: DisputeItem }) {
+  const e = evidenciaDeLasPartes(d.evidence);
+  const lado = (titulo: string, lista: Archivo[], tono: string) => (
+    <div className={`space-y-2 rounded-xl p-3 ring-1 ${tono}`}>
+      <p className="text-xs font-semibold uppercase tracking-wide">{titulo}</p>
+      {lista.length ? (
+        <ul className="space-y-2">
+          {lista.map((a) => (
+            <ArchivoVerificado key={a.url} a={a} registroEnvio={d.shipped_evidence ?? null} />
+          ))}
+        </ul>
+      ) : (
+        <p className="text-xs text-slate-500">Sin fotos ni videos.</p>
+      )}
+    </div>
+  );
+  return (
+    <div className="grid gap-3 md:grid-cols-2" data-testid="evidencia-partes">
+      {lado("Fotos y videos del comprador", e.comprador, "bg-amber-50/60 text-amber-900 ring-amber-100")}
+      {lado("Fotos del vendedor", e.vendedor, "bg-sky-50/60 text-sky-900 ring-sky-100")}
+    </div>
+  );
+}

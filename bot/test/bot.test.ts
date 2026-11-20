@@ -27,7 +27,7 @@ describe("bot contra la API (mock)", () => {
   it("mi perfil → link del perfil público (/tienda/<slug>) para la bio, sin el teléfono", async () => {
     const out = await texts(SELLER, "mi perfil");
     expect(out).toContain(`https://pp.test/tienda/${DEMO_SELLER.slug}`);
-    expect(out).toContain("Vendo con Pago Protegido");
+    expect(out).toContain("Vendo con Trato");
     expect(out).not.toContain(SELLER);
   });
 

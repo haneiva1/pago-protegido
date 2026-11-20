@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { ListaOperaciones, NumerosTienda } from "@/components/Kpis";
-import { CopyButton } from "@/components/ui";
 import { explorer } from "@/lib/format";
 import { desdeTexto, fmtDuracion, fmtHora, fmtProporcion, nf } from "@/lib/kpi-format";
 import { perfilTienda } from "@/lib/server/kpis";
@@ -22,28 +20,26 @@ const resumen = (p: PerfilTienda) => {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const p = await cargar(slug);
-  if (!p) return { title: "Tienda no encontrada · Pago Protegido" };
-  const title = `${p.store_name} vende con Pago Protegido`;
+  if (!p) return { title: "Tienda no encontrada · Trato" };
+  const title = `${p.store_name} vende con Trato`;
   const description = `${resumen(p)}. Historial verificable en el registro público de cada compra.`;
   return {
     title,
     description,
-    openGraph: { title, description, type: "profile", siteName: "Pago Protegido", locale: "es_BO" },
+    openGraph: { title, description, type: "profile", siteName: "Trato", locale: "es_BO" },
     twitter: { card: "summary_large_image", title, description },
   };
 }
 
-/** Perfil público y verificable de la tienda. Sin teléfono ni dirección: solo números del registro público. */
+/**
+ * Perfil público y verificable de la tienda. Sin teléfono ni dirección: solo números del registro público.
+ * La insignia para la bio está en el panel del vendedor (M9); la imagen sigue en /tienda/<slug>/insignia.
+ */
 export default async function Tienda({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const p = await cargar(slug);
   if (!p) notFound();
   const k = p.kpis;
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost";
-  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  const url = `${proto}://${host}/tienda/${p.slug}`;
-  const bio = `Vendo con Pago Protegido ✅ ${resumen(p)} ${url}`;
   const initials = p.store_name
     .split(/\s+/)
     .slice(0, 2)
@@ -66,7 +62,7 @@ export default async function Tienda({ params }: { params: Promise<{ slug: strin
           </div>
         </div>
         <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-sm font-semibold text-brand-800 ring-1 ring-brand-200" data-testid="sello">
-          🛡️ Vende con Pago Protegido
+          🛡️ Vende con Trato
         </span>
         <NumerosTienda k={k} />
         <ul className="space-y-0.5 text-sm text-slate-600">
@@ -81,26 +77,6 @@ export default async function Tienda({ params }: { params: Promise<{ slug: strin
             {p.error ? " (no se pudo consultar la red ahora; se muestran los últimos datos guardados)" : ""}
           </li>
         </ul>
-      </section>
-
-      <section className="card space-y-3" data-testid="insignia">
-        <h2 className="font-bold">Insignia para tu bio</h2>
-        <p className="text-sm text-slate-600">
-          ¿Eres {p.store_name}? Pega este link en la bio de tu Instagram o TikTok. Quien lo abra ve estos números y puede revisar cada compra en el
-          registro público.
-        </p>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={`/tienda/${p.slug}/insignia`} alt={`${p.store_name} vende con Pago Protegido`} width={1200} height={630} className="h-auto w-full rounded-xl ring-1 ring-slate-200" />
-        <p className="break-all rounded-xl bg-slate-50 p-3 font-mono text-sm" data-testid="link-perfil">
-          {url}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <CopyButton text={url} label="Copiar link" testId="copiar-link-perfil" />
-          <CopyButton text={bio} label="Copiar texto para la bio" />
-          <a className="btn-secondary" href={`/tienda/${p.slug}/insignia`} download={`pago-protegido-${p.slug}.png`}>
-            Descargar imagen
-          </a>
-        </div>
       </section>
 
       <section className="card space-y-2">
@@ -118,7 +94,7 @@ export default async function Tienda({ params }: { params: Promise<{ slug: strin
       <p className="text-center text-xs text-slate-500">
         Este perfil no muestra el teléfono ni la dirección de la tienda. ·{" "}
         <Link className="underline" href="/metricas">
-          Métricas de Pago Protegido
+          Métricas de Trato
         </Link>
       </p>
     </div>

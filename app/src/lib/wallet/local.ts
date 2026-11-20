@@ -1,7 +1,7 @@
 import { Keypair, Networks, TransactionBuilder } from "@stellar/stellar-sdk";
+import { storageKey } from "./storage";
+import { firmarSep53 } from "@/lib/sep53";
 import type { WalletProvider, WalletRole } from "./types";
-
-const storageKey = (role: WalletRole) => `pp.billetera.${role}`;
 
 /**
  * Billetera local: un keypair generado en el navegador y guardado en localStorage.
@@ -37,6 +37,12 @@ export class LocalWallet implements WalletProvider {
     // transacción cubre también la autorización de Soroban (credenciales de cuenta de origen).
     tx.sign(Keypair.fromSecret(s));
     return tx.toXDR();
+  }
+
+  async signMessage(mensaje: string): Promise<string> {
+    const s = this.secret();
+    if (!s) throw new Error("No hay una cuenta en este dispositivo");
+    return firmarSep53(Keypair.fromSecret(s), mensaje);
   }
 
   async disconnect(): Promise<void> {

@@ -9,14 +9,18 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
+    "test:unit": "node --test \"test/*.test.mjs\"",
     "test:e2e": "playwright test",
     "smoke": "node scripts/smoke-api.mjs",
+    "test:api": "node --import ./test/api/registro.mjs --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test 'test/api/*.test.mjs'",
     "demo": "node scripts/demo.mjs",
     "demo:reset": "node scripts/demo-reset.mjs",
     "demo:video": "playwright test -c playwright.video.config.ts",
     "demo:video:join": "node scripts/video-join.mjs",
     "piloto:csv": "node scripts/piloto-csv.mjs",
-    "test:e2e:publico": "playwright test -c playwright.publico.config.ts"
+    "test:e2e:publico": "playwright test -c playwright.publico.config.ts",
+    "test": "npm run -s test:unit && npm run -s test:api",
+    "test:e2e:probar": "playwright test e2e/probar.spec.ts"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",

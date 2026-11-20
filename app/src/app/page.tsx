@@ -19,10 +19,10 @@ export default function Home() {
       <section className="grid items-center gap-10 pt-2 md:grid-cols-[1.15fr_1fr] md:pt-8">
         <div>
           <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-800 ring-1 ring-brand-200">
-            Ventas entre ciudades por encomienda · Bs 300 a 3.000
+            Celulares y electrónica entre ciudades · Bs 1.000 a 7.000
           </span>
           <h1 className="mt-4 text-4xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-5xl">Vende a otras ciudades sin que desconfíen de ti</h1>
-          <p className="mt-4 max-w-xl text-lg text-slate-600">El contra entrega no cruza departamentos. Pago Protegido sí.</p>
+          <p className="mt-4 max-w-xl text-lg text-slate-600">El contra entrega no cruza departamentos. Trato sí.</p>
           <p className="mt-2 max-w-xl text-slate-600">
             Tu cliente paga por adelantado y su plata queda guardada hasta que le llega el pedido. Tú despachas sabiendo que ya pagó.
           </p>
@@ -35,7 +35,7 @@ export default function Home() {
             </Link>
           </div>
           <p className="mt-4 text-xs text-slate-500">
-            La protección la paga el comprador (1,5%, mín. Bs 5, máx. Bs 50) o la regalas tú (2% de tu venta). ¿Quieres probarlo con tus ventas?{" "}
+            La protección la paga el comprador (1,5%, mín. Bs 5, máx. Bs 50) o la regalas tú (2,3% de tu venta). ¿Quieres probarlo con tus ventas?{" "}
             <Link href="/piloto" className="underline">
               Únete al piloto
             </Link>
@@ -52,13 +52,18 @@ export default function Home() {
         <div className="mx-auto w-full max-w-sm">
           <div className="rounded-[2rem] border border-slate-200 bg-white p-3 shadow-xl shadow-slate-200/70">
             <div className="rounded-[1.5rem] bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">Compra protegida · PP-4821</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">Compra protegida · PP-4821</p>
+                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-700" data-testid="ejemplo">
+                  Ejemplo
+                </span>
+              </div>
               <div className="mt-3 rounded-2xl bg-white p-4 ring-1 ring-slate-200">
-                <p className="text-sm text-slate-500">Zapatillas Nike talla 40</p>
-                <p className="mt-1 text-3xl font-bold">Bs 450</p>
+                <p className="text-sm text-slate-500">Celular Samsung Galaxy A35</p>
+                <p className="mt-1 text-3xl font-bold">Bs 2.500</p>
                 <p className="text-xs text-slate-500">Vendedor: Tienda Sofi · Santa Cruz · 128 ventas protegidas, 2 reclamos</p>
                 <div className="mt-4 rounded-xl bg-brand-50 p-3 text-xs text-brand-900">🔒 Tu plata no llega al vendedor hasta que recibas tu pedido.</div>
-                <div className="mt-4 rounded-xl bg-brand-600 py-3 text-center text-sm font-semibold text-white">Pagar Bs 456,75 con QR</div>
+                <div className="mt-4 rounded-xl bg-brand-600 py-3 text-center text-sm font-semibold text-white">Pagar Bs 2.537,50 con QR</div>
               </div>
             </div>
           </div>

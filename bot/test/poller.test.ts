@@ -43,7 +43,9 @@ describe("avisos por cambio de estado (GET /api/bot/changes)", () => {
       [DEMO_SELLER.whatsapp, "pagado"],
       [DEMO_BUYER_PHONE, "anti_presion"],
     ]);
-    expect(sent[0].msg.text).toMatch(/tu cliente pagó Bs 450,00 .* el pago está GUARDADO, todavía no en tu cuenta/);
+    expect(sent[0].msg.text).toMatch(/tu cliente pagó Bs 450,00 .* el pago está GUARDADO en el contrato, todavía no en tu cuenta/);
+    expect(sent[0].msg.text).toContain("no de una captura");
+    expect(sent[0].msg.text).toMatch(/Compruébalo en tu panel:\n👉 http\S+\/panel\n/);
     expect(sent[0].msg.text).not.toMatch(/te pagaron/i);
     expect(sent[0].msg.text).toMatch(new RegExp(`Despacha antes del .* y marca enviado: escríbeme \\*enviado ${o.code}`));
     expect(sent[0].msg.text).toMatch(new RegExp(`^💸 ${o.code}:`));

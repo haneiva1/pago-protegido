@@ -7,7 +7,7 @@ use pp_arbiter::{PpArbiter, PpArbiterClient};
 use pp_guardian::{Escrow, Flags, Milestone, PpGuardian, PpGuardianClient, Roles, Trustline};
 use soroban_sdk::{
     contractclient, contracterror,
-    testutils::{Address as _, Ledger},
+    testutils::{Address as _, EnvTestConfig, Ledger},
     token, vec, Address, Env, Map, String,
 };
 
@@ -127,7 +127,16 @@ pub struct Ctx {
 }
 
 pub fn setup() -> Ctx {
-    let env = Env::default();
+    setup_en(Env::default())
+}
+
+/// Igual que `setup`, pero sin escribir `test_snapshots/` al terminar. Para
+/// tests que crean cientos de entornos (secuencias aleatorias).
+pub fn setup_sin_snapshot() -> Ctx {
+    setup_en(Env::new_with_config(EnvTestConfig { capture_snapshot_at_drop: false }))
+}
+
+fn setup_en(env: Env) -> Ctx {
     env.mock_all_auths();
     env.ledger().set_timestamp(T0);
     // TTL mínimos holgados para poder avanzar ledgers en el test de TTL sin que

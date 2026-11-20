@@ -1,6 +1,6 @@
-# Arquitectura de Pago Protegido (contratos, testnet)
+# Arquitectura de Trato (antes Pago Protegido): contratos en testnet
 
-Pago Protegido usa el escrow single-release de **Trustless Work** (TW) sin modificarlo y le agrega dos contratos propios que ocupan sus roles críticos:
+Trato usa el escrow single-release de **Trustless Work** (TW) sin modificarlo y le agrega dos contratos propios que ocupan sus roles críticos:
 
 - **`pp_guardian`** ocupa los roles *approver* y *release_signer*: el comprador fondea a través de él, confirma con aprobación y liberación atómicas, y se libera solo automáticamente si vence el plazo.
 - **`pp_arbiter`** ocupa el rol *dispute_resolver*: un árbitro acotado que solo puede repartir entre el comprador registrado y el vendedor.
@@ -18,9 +18,10 @@ Cada compra es una instancia nueva del escrow de TW. Los IDs y transacciones rea
 
 | Pieza | Testnet |
 |---|---|
-| pp_guardian | [`CAOX6JZV…W4OZU`](https://stellar.expert/explorer/testnet/contract/CAOX6JZV3CJZFDD22J2XI3NKY5G4NRFOYRV7IA724MSVREYVRALW4OZU) |
-| pp_arbiter | [`CBCDVLEP…G2PWGU`](https://stellar.expert/explorer/testnet/contract/CBCDVLEPJ6PN7RDC3HFGML3IUT7SOQEYSGH3LE3SWXWZJO7Z2QG2PWGU) |
-| Escrow TW (WASM, commit `f0b706e`) | hash `1b367bc8…196660`, una instancia por compra |
+| pp_guardian v2 | [`CDKYF7OA…UOATOT`](https://stellar.expert/explorer/testnet/contract/CDKYF7OAJTACP4JNJSGGXDRA3DHE442R26CT5ZE5DJHNSHH7XJUOATOT) |
+| pp_arbiter v2 | [`CDTEA424…TEVU5UA`](https://stellar.expert/explorer/testnet/contract/CDTEA424AWSIIHEQ4FIQHFQOTWS3XAVLQHX7FI3MU6JZP4OPMTEVU5UA) |
+| Escrow TW v1 (WASM, commit `f0b706e`) | hash `1b367bc8…196660`, una instancia por compra |
+| v1 (retirado para compras nuevas) | pp_guardian [`CAOX6JZV…W4OZU`](https://stellar.expert/explorer/testnet/contract/CAOX6JZV3CJZFDD22J2XI3NKY5G4NRFOYRV7IA724MSVREYVRALW4OZU) · pp_arbiter [`CBCDVLEP…G2PWGU`](https://stellar.expert/explorer/testnet/contract/CBCDVLEPJ6PN7RDC3HFGML3IUT7SOQEYSGH3LE3SWXWZJO7Z2QG2PWGU) |
 | Moneda | LABUSD (USD de prueba, 7 decimales), SAC [`CC65P6TQ…OGBD4S`](https://stellar.expert/explorer/testnet/contract/CC65P6TQQ646YDXVS3PM6YVZASXW6WM5B67YKI46JH4EG65LJPOGBD4S) |
 
 ## 1. Roles y contratos
@@ -38,18 +39,17 @@ flowchart LR
   T["twfee<br/>0,3% Trustless Work"]
 
   P -->|"deploy + initialize_escrow"| E
-  C -->|"fund / confirm / dispute"| G
-  V -->|"dispute"| G
-  V -->|"change_milestone_status: enviado"| E
+  C -->|"fund / confirm / extend / dispute"| G
+  V -->|"mark_shipped / dispute"| G
   X -->|"auto_release"| G
   X -->|"refund_unshipped"| R
   A -->|"resolve(escrow, buyer_bps)"| R
-  G -->|"fund_escrow / approve_milestone + release_funds / dispute_escrow"| E
+  G -->|"fund_escrow / change_milestone_status: enviado / approve_milestone + release_funds / dispute_escrow"| E
   R -->|"purchase(escrow)"| G
   R -->|"resolve_dispute: solo comprador y vendedor"| E
   E -->|"monto neto"| V
   E -->|"reparto en disputa"| C
-  E -->|"2%"| P
+  E -->|"comisión del pedido"| P
   E -->|"0,3%"| T
 ```
 
@@ -64,7 +64,7 @@ Configuración del escrow en modo guardián (SPEC §2):
 | receiver | vendedor |
 | platform | cuenta de la plataforma |
 
-Además: `platform_fee` es 200 bps (2%), hay un solo hito ("Entrega del producto", con status inicial `"pendiente"`) y el token es LABUSD.
+Además: `platform_fee` es la comisión de la plataforma **que se define al crear el pedido** (200 bps si el vendedor regala la protección; si la paga el comprador, la app la calcula para que el vendedor reciba al menos el precio; ver [la tarifa de TECNICO](TECNICO.md#tarifa)), hay un solo hito ("Entrega del producto", con status inicial `"pendiente"`) y el token es LABUSD.
 
 Dos propiedades sostienen el diseño:
 
@@ -89,10 +89,10 @@ sequenceDiagram
   C->>S: Pagar protegido
   S->>E: deploy + initialize_escrow (roles del modo guardián)
   S->>S: verifica el WASM del escrow y arma la transacción
-  C->>G: fund(escrow, buyer, expected_escrow, amount, window_secs)
-  Note over C,G: el comprador firma el árbol fund → fund_escrow → transfer
+  C->>G: fund(escrow, buyer, expected_escrow, amount, ship_secs, inspect_secs)
+  Note over C,G: el comprador firma el árbol fund → fund_escrow → transfer, con los dos plazos
   G->>E: get_escrow() y valida roles, monto, hito y saldo 0
-  G->>G: registra Purchase {buyer, seller, funded_at, deadline}
+  G->>G: registra Purchase {buyer, seller, funded_at, ship_secs, inspect_secs}
   G->>E: fund_escrow(buyer, expected_escrow, amount)
   E->>T: transfer(comprador → escrow)
   V->>G: mark_shipped(escrow, vendedor, guía de encomienda)
@@ -101,7 +101,7 @@ sequenceDiagram
   C->>G: confirm(escrow, buyer)
   G->>E: approve_milestone de TODOS los hitos pendientes
   G->>E: release_funds(guardián, twfee)
-  E->>T: 0,3% a twfee, 2% a plataforma, el resto al vendedor
+  E->>T: 0,3% a twfee, el platform_fee del pedido a la plataforma, el resto al vendedor
   Note over G,E: aprobar y liberar ocurren en la misma invocación
   opt el comprador pide más tiempo, una vez, antes de release_at
     C->>G: extend(escrow, buyer), release_at más inspect_secs
@@ -127,7 +127,7 @@ sequenceDiagram
   Note over C,G: también puede abrirla el vendedor, nadie más
   G->>E: dispute_escrow(guardián)
   Note over E: disputed = true, confirm y auto_release quedan bloqueados
-  V->>E: change_milestone_status (evidencia nueva, opcional)
+  V->>A: su versión y evidencia, en la app (fuera de la cadena)
   A->>R: quote(escrow, 7000), vista previa sin firma
   A->>R: resolve(escrow, 7000)
   R->>E: get_escrow() verifica disputa y dispute_resolver
@@ -136,32 +136,31 @@ sequenceDiagram
   R->>E: resolve_dispute(árbitro, twfee, reparto comprador y vendedor)
   E-->>C: 70% menos comisiones
   E-->>V: 30% menos comisiones
-  alt el vendedor nunca marcó enviado y venció el plazo
-    C->>R: refund_unshipped(escrow), sin firma, 100% al comprador
+  alt el vendedor nunca marcó enviado y venció el plazo de despacho
+    C->>R: refund_unshipped(escrow), sin firma (cualquiera; hoy la dispara la app), todo el saldo al comprador menos comisiones
   end
 ```
 
-## 4. Máquina de estados del escrow (vista de Pago Protegido)
+## 4. Máquina de estados del escrow (vista de Trato)
 
 ```mermaid
 stateDiagram-v2
   [*] --> Inicializado: deploy + initialize_escrow
   Inicializado --> Fondeado: pp_guardian.fund
-  Fondeado --> Enviado: vendedor marca enviado
-  Fondeado --> Liberado: confirm
+  Fondeado --> Enviado: pp_guardian.mark_shipped
   Enviado --> Liberado: confirm
   Enviado --> Liberado: auto_release tras el plazo
   Fondeado --> EnDisputa: dispute
   Enviado --> EnDisputa: dispute
-  EnDisputa --> EnDisputa: vendedor agrega evidencia
+  EnDisputa --> EnDisputa: las partes agregan evidencia en la app
   EnDisputa --> Resuelto: pp_arbiter.resolve
   EnDisputa --> Resuelto: refund_unshipped sin envío y plazo vencido
   Liberado --> [*]
   Resuelto --> [*]
   note right of Liberado
-    released = true. Trustless Work todavía permite
+    released = true. La v1 de Trustless Work permite
     marcar disputed aquí sin pasar por el guardián
-    (hallazgo H-1). No mueve fondos porque el saldo es 0.
+    (H-1; la v2 ya lo impide). No mueve fondos: el saldo es 0.
   end note
 ```
 
@@ -199,23 +198,25 @@ Correspondencia con los flags on-chain del escrow:
 | `pp_guardian.set_arbiter` (una sola vez) | ❌ | ❌ | ❌ | ✅ (admin del guardián) | ❌ |
 | `pp_arbiter.set_admin` | ❌ | ❌ | ❌ | ✅ | ❌ |
 
-1. `initialize_escrow` de TW no exige firma. Si alguien se adelanta con otros roles, `fund` lo rechaza, así que solo es un DoS de esa instancia. Por eso conviene usar `tw_new_single_release_escrow`.
+1. `initialize_escrow` de TW no exige firma. Si alguien se adelanta con otros roles, `fund` lo rechaza, así que solo es un DoS de esa instancia. Por eso la app usa `tw_new_single_release_escrow`, y como esa fábrica despliega el hash que reciba (TW-4), verifica el hash del WASM antes de pedir firmas.
 2. Quien llama `fund` queda registrado como comprador y paga con su propio saldo.
 3. Esos roles son los contratos `pp_guardian` y `pp_arbiter`. Nadie puede firmar por un contrato.
 4. TW lo permite porque son roles del escrow. Solo congela los fondos, que se resuelven por `pp_arbiter`.
 5. Solo funciona con el plazo vencido, sin disputa y con el hito en `"enviado"`. Paga al vendedor.
 6. Solo funciona con disputa, plazo vencido y el hito **sin** `"enviado"`. Paga al comprador.
-7. Si la plataforma agrega un hito, `confirm` deja de funcionar, pero los fondos no se pueden desviar: queda la vía de disputa y árbitro.
+7. En v2, `confirm` y `auto_release` aprueban todos los hitos pendientes (TW-2). Si un hito agregado no se puede aprobar, queda la vía de disputa y revisor; los fondos no se pueden desviar.
 
 ## 6. Comisiones
 
-TW calcula sobre el monto liberado o repartido: 0,3% para Trustless Work (fijo en su código) y `platform_fee` = 2% para la plataforma. En una disputa, cada parte paga comisiones en proporción a lo que recibe.
+TW calcula sobre el monto liberado o repartido: 0,3% para Trustless Work (fijo en su código) y el `platform_fee` del pedido para la plataforma. Las descuenta también en devoluciones y disputas: en una disputa, cada parte paga comisiones en proporción a lo que recibe. Quién paga la protección y cuánto: [TECNICO, Tarifa](TECNICO.md#tarifa).
+
+Ejemplo con `platform_fee` = 2% (el caso "Yo la regalo", 2,3% en total):
 
 | Desenlace (compra de 150 LABUSD) | Comprador | Vendedor | Plataforma | TW |
 |---|---:|---:|---:|---:|
 | `confirm` o `auto_release` | — | 146,550 | 3,000 | 0,450 |
 | `resolve` 70/30 | 102,585 | 43,965 | 3,000 | 0,450 |
-| `refund_unshipped` (100% comprador) | 146,550 | — | 3,000 | 0,450 |
+| `refund_unshipped` (todo el saldo al comprador) | 146,550 | — | 3,000 | 0,450 |
 
 ## 7. Métricas on-chain
 
@@ -223,7 +224,7 @@ Los dos contratos emiten estos eventos `pp_*`:
 
 | Contrato | Eventos |
 |---|---|
-| pp_guardian | `pp_funded`, `pp_confirmed`, `pp_auto_released`, `pp_disputed`, `pp_arbiter_set` |
+| pp_guardian | `pp_funded`, `pp_shipped` (v2), `pp_extended` (v2), `pp_confirmed`, `pp_auto_released`, `pp_disputed`, `pp_arbiter_set` |
 | pp_arbiter | `pp_resolved`, `pp_refunded_unshipped`, `pp_admin_changed` |
 
 `contracts/scripts/metricas.sh` los lee con `getEvents` y produce las métricas públicas. Formato y uso desde la app: [METRICAS.md](METRICAS.md).

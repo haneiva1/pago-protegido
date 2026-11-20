@@ -201,9 +201,16 @@ export function orderCode(o: { slug: string; code?: string | null }): string {
   return o.code || shortCode(o.slug);
 }
 
-/** "pp 4821", "pp4821", "PP-4821" → "PP-4821" dentro de un texto (para los comandos). */
+/**
+ * Código que genera la app: PP- y 8 caracteres sin 0/O ni 1/I/L, con al menos un número (PP-7KM4Q9TX).
+ * Los pedidos viejos tienen 4 o 5 dígitos (PP-4821).
+ */
+const CODIGO_8 = "(?=[a-z]{0,7}[2-9])[2-9a-hjkmnp-z]{8}";
+const CODIGO = new RegExp(`^(?:pp-)?(\\d{4,5}|${CODIGO_8})$`);
+
+/** "pp 4821", "pp4821", "PP-4821", "pp 7km4q9tx" → "PP-4821" / "PP-7KM4Q9TX" dentro de un texto (para los comandos). */
 export function normCodes(text: string): string {
-  return text.replace(/\bpp\s*[-#]?\s*(\d{4,5})\b/gi, "PP-$1");
+  return text.replace(new RegExp(`\\bpp\\s*[-#]?\\s*(\\d{4,5}|${CODIGO_8})\\b`, "gi"), (_, c: string) => `PP-${c.toUpperCase()}`);
 }
 
 /**
@@ -213,7 +220,7 @@ export function normCodes(text: string): string {
 export function matchOrder<T extends { slug: string; code?: string | null }>(orders: T[], code: string): T | undefined {
   const c = fold(normCodes(code)).replace(/^#/, "").trim();
   if (!c) return undefined;
-  const pp = /^(?:pp-)?(\d{4,5})$/.exec(c);
+  const pp = CODIGO.exec(c);
   if (pp) {
     const found = orders.find((o) => fold(o.code ?? "") === `pp-${pp[1]}`);
     if (found) return found;
