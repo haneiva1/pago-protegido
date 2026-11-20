@@ -535,8 +535,10 @@ test("celular (v2): IMEI obligatorio, revisión desde el envío, «Necesito más
   await capturar(seller, "42-vendedor-cuenta-regresiva");
 
   const btn = buyer.getByRole("button", { name: /Liberar ahora \(plazo vencido\)/ });
-  await expect(btn).toBeVisible({ timeout: 6 * 60_000 });
-  await capturar(buyer, "43-comprador-plazo-vencido");
+  // Al vencer la revisión, el barrido del servidor libera solo (auto_release): el botón puede no llegar a verse.
+  const liberado = buyer.getByText("Venció el plazo: se pagó al vendedor");
+  await expect(btn.or(liberado)).toBeVisible({ timeout: 6 * 60_000 });
+  if (await btn.isVisible()) await capturar(buyer, "43-comprador-plazo-vencido");
   await expect(async () => {
     if (await btn.isVisible()) await btn.click({ timeout: 5_000 }).catch(() => {});
     await expect(buyer.getByTestId("estado-pedido")).toContainText("Se pagó al vendedor", { timeout: 45_000 });
