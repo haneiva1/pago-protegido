@@ -271,6 +271,9 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
   await expect(seller.getByTestId(`pendiente-${slug}`)).toHaveCount(0);
   await expect(card.getByTestId("datos-entrega-vendedor")).toContainText("Ana Pérez");
   await expect(card.getByTestId("datos-entrega-vendedor")).toContainText("Cochabamba");
+  // Lo que el comprador cargó para el último tramo: teléfono de quien recoge y flete.
+  await expect(card.getByTestId("telefono-recoge")).toContainText("70011223");
+  await expect(card.getByTestId("flete-pedido")).toContainText("Flete por pagar al recoger");
   await capturar(seller, "09-vendedor-enviado");
 
   // Comprador: "Pagar al vendedor" recién se habilita después de la espera, y pregunta antes.

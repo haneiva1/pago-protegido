@@ -312,12 +312,21 @@ function OrderCard({
       )}
 
       {o.recipient_name && o.status !== "esperando_pago" && (
-        <p data-testid="datos-entrega-vendedor" className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
-          📍 Envía a: <strong>{o.recipient_name}</strong> · {o.dest_city}
-          {o.pref_agency ? ` · agencia preferida: ${o.pref_agency}` : ""}
-          {o.pickup_phone ? ` · teléfono de quien recoge: ${o.pickup_phone}` : ""}
-          {fmtFlete(o.flete) ? ` · ${fmtFlete(o.flete)}` : ""}
-        </p>
+        <div data-testid="datos-entrega-vendedor" className="space-y-1 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+          <p>
+            📍 Envía a: <strong>{o.recipient_name}</strong> · {o.dest_city}
+            {o.pref_agency ? ` · agencia preferida: ${o.pref_agency}` : ""}
+          </p>
+          {o.pickup_phone && (
+            <p data-testid="telefono-recoge">
+              📞 Teléfono de quien recoge:{" "}
+              <a className="font-semibold text-brand-700 underline" href={`tel:${o.pickup_phone}`}>
+                {o.pickup_phone}
+              </a>
+            </p>
+          )}
+          {fmtFlete(o.flete) && <p data-testid="flete-pedido">🚚 {fmtFlete(o.flete)}</p>}
+        </div>
       )}
 
       {o.status === "pagado" && (
