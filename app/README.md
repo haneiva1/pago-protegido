@@ -11,7 +11,7 @@ Links de pago protegidos para ventas por redes:
 
 Especificación: [`docs/SPEC.md`](../docs/SPEC.md). Decisiones tomadas fuera del SPEC: [`DECISIONES.md`](DECISIONES.md).
 
-## Producto v2 (segmento: ventas entre ciudades por encomienda, Bs 300 a 3.000)
+## Producto v2 (segmento: celulares y electrónica entre ciudades por encomienda, Bs 1.000 a 7.000)
 
 - **Pago contra confirmación de entrega.**
   - El comprador deja los datos de entrega y paga.
@@ -92,7 +92,7 @@ npm run demo:reset   # con la demo apagada
 
 Deja la base local de la demo (`data/pp.db`) limpia y con tres pedidos históricos reales de testnet, sobre los contratos v2:
 
-- **"Tienda Sofi"** (+591 71234567): "Polera Adidas talla M" liberado por confirmación, "Audífonos Sony WH-1000" resuelto 70/30 por `pp_arbiter` y "Celular Motorola G24" devuelto porque no se despachó a tiempo (`refund_unshipped`).
+- **"Tienda Sofi"** (+591 71234567): "Polera Adidas talla M" liberado por confirmación, "Audífonos Sony WH-1000" resuelto 70/30 por `pp_arbiter` y "Celular Samsung Galaxy A35" (Bs 2.500) devuelto porque no se despachó a tiempo (`refund_unshipped`).
 - Borra pedidos, tiendas, transacciones y evidencias locales (por ejemplo, las disputas repetidas de pruebas) y el estado del bot de la demo (`../bot/data/bot-state.json`).
 - Verifica que la app esté en modo guardián v2 antes de sembrar.
 - Conserva la fábrica del escrow y los eventos on-chain ya ingeridos. Lo on-chain no se puede borrar y `/transparencia` lo sigue mostrando.

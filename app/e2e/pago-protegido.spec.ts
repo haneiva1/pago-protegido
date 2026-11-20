@@ -161,6 +161,10 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
   await landing.goto("/");
   await expect(landing.getByRole("heading", { level: 1 })).toHaveText("Vende a otras ciudades sin que desconfíen de ti");
   await expect(landing.getByText("El contra entrega no cruza departamentos. Trato sí.")).toBeVisible();
+  // Una sola versión: el segmento (celulares y electrónica, Bs 1.000 a 7.000) y el rótulo "Ejemplo" en los datos ilustrativos.
+  await expect(landing.getByText("Celulares y electrónica entre ciudades · Bs 1.000 a 7.000")).toBeVisible();
+  await expect(landing.getByTestId("ejemplo")).toHaveText("Ejemplo");
+  await expect(landing.getByText("Celular Samsung Galaxy A35")).toBeVisible();
   await capturar(landing, "01-landing");
   await landing.close();
 
@@ -540,6 +544,7 @@ test("palabras prohibidas en todas las pantallas, /verificar, /pedir, /piloto y 
   await page.getByLabel("Tu nombre").fill("Carla Mendoza");
   await page.getByLabel("Nombre de la tienda").fill("Tienda Piloto");
   await page.getByLabel("Ciudad", { exact: true }).selectOption("Sucre");
+  await expect(page.getByText(/celulares y electrónica .*\(tickets de Bs 1\.000 a 7\.000\)/)).toBeVisible();
   await page.getByLabel("¿Qué vendes?").fill("Celulares y accesorios");
   await page.getByLabel("¿A qué ciudades envías?").fill("La Paz, Santa Cruz");
   await page.getByLabel("Ticket promedio (Bs)").fill("900");

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Order, OrderView, SellerData } from "../src/app/types.ts";
-import { fmtBs, fmtUsd, msg, notice, type OutMsg } from "../src/engine/messages.ts";
+import { fmtBs, fmtEnvio, fmtReparto, fmtUsd, msg, notice, type OutMsg } from "../src/engine/messages.ts";
 
 const order: Order = {
   slug: "zapatillas-nike-40-a1b2c3", seller_pubkey: "G", product: "Zapatillas Nike 40", description: "", photo_url: "",
@@ -128,5 +128,37 @@ describe("mensajes", () => {
     const t = notice.reminder({ appUrl: "https://pp.test", view }, Date.UTC(2026, 10, 24, 0)).text;
     expect(t).toMatch(/en unas 15 h/);
     expect(t).toMatch(/11:00/); // 15:00 UTC = 11:00 en La Paz
+  });
+});
+
+describe("textos limpios para el cliente", () => {
+  it("fmtEnvio: empresa · guía · peso, sin el texto crudo ni la huella de la foto", () => {
+    expect(fmtEnvio("Bolívar (encomiendas)|SRV-2026-130077|0.4kg|3f9a1c2b7d8e")).toBe("Bolívar (encomiendas) · guía SRV-2026-130077 · 0,4 kg");
+    expect(fmtEnvio("Entrega en persona|-|1kg|-")).toBe("Entrega en persona · 1 kg");
+    expect(fmtEnvio("OLV-1")).toBe("OLV-1"); // guía suelta (enviado <código> <guía>)
+    expect(fmtEnvio(null)).toBe("");
+  });
+
+  it("fmtReparto: los repartos totales dicen «todo para…», nunca 100%", () => {
+    expect(fmtReparto(100)).toBe("todo para el comprador");
+    expect(fmtReparto(0)).toBe("todo para el vendedor");
+    expect(fmtReparto(70)).toBe("70% para el comprador y 30% para el vendedor");
+    expect(fmtReparto(70, "vendedor")).toBe("30% para ti y 70% para el comprador");
+    expect(fmtReparto(70, "comprador")).toBe("70% para ti y 30% para el vendedor");
+    expect(fmtReparto(100, "comprador")).toBe("todo para ti");
+    expect(fmtReparto(0, "comprador")).toBe("todo para el vendedor");
+    expect(fmtReparto(62.5)).toBe("62,5% para el comprador y 37,5% para el vendedor");
+  });
+
+  it("los avisos de envío y de reclamo resuelto usan esos textos", () => {
+    const enviado: Order = { ...order, status: "enviado", shipped_evidence: "Bolívar (encomiendas)|SRV-2026-130077|0.4kg|3f9a1c2b7d8e" };
+    const view = { order: enviado, seller: { store_name: "Tienda Sofi" } } as unknown as OrderView;
+    const t = notice.arrived({ appUrl: "https://pp.test", view }).text;
+    expect(t).toContain("(Bolívar (encomiendas) · guía SRV-2026-130077 · 0,4 kg)");
+    expect(t).not.toContain("|");
+    const total = { order: { ...order, status: "resuelto", buyer_bps: 10000 }, seller: { store_name: "Tienda Sofi" } } as unknown as OrderView;
+    expect(notice.resolved({ appUrl: "https://pp.test", view: total }, "vendedor").text).toContain("todo para el comprador");
+    expect(notice.resolved({ appUrl: "https://pp.test", view: total }, "comprador").text).toContain("todo para ti");
+    expect(notice.resolved({ appUrl: "https://pp.test", view: total }, "vendedor").text).not.toMatch(/100\s?%/);
   });
 });

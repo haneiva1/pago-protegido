@@ -1,4 +1,4 @@
-# DECISIONES: repo propio de Pago Protegido (19-nov)
+# DECISIONES: repo propio de Trato (antes Pago Protegido), 19-nov
 
 Decisiones tomadas al sacar Pago Protegido de `stellar-lab` a este repo. Cuando hubo que elegir, se eligió la opción más conservadora. Las decisiones de cada pieza siguen en [app/DECISIONES.md](app/DECISIONES.md), [bot/DECISIONES.md](bot/DECISIONES.md) y [contracts/DECISIONES.md](contracts/DECISIONES.md).
 

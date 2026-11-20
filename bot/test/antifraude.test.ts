@@ -105,7 +105,7 @@ describe("verificador de links (bot contra la app de mentira)", () => {
     const o = newLink();
     app.advance(o.slug, "pagar");
     const code = o.slug.slice(-6);
-    expect((await texts(SELLER, `enviado ${code} https://fotos.example.com/guia.jpg`)).join("\n")).toMatch(/confírmalo con tu billetera/);
+    expect((await texts(SELLER, `enviado ${code} https://fotos.example.com/guia.jpg`)).join("\n")).toMatch(/confírmalo desde tu cuenta/);
     await texts(SELLER, `enviado ${code}`); // pide la guía
     const out = (await texts(SELLER, "https://fotos.example.com/guia.jpg")).join("\n");
     expect(out).toContain(`/panel?enviar=${o.slug}&evidencia=${encodeURIComponent("https://fotos.example.com/guia.jpg")}`);

@@ -1,6 +1,12 @@
-# CHANGELOG: Pago Protegido
+# CHANGELOG: Trato (antes Pago Protegido)
 
 Todo corre en **Stellar testnet**. Las fechas son de 2026.
+
+## Sin publicar
+
+- **El producto se llama Trato.** Cambia el nombre visible en la app, el bot y la documentación. El repo, los paquetes, los contratos (`pp_guardian`, `pp_arbiter`), las variables `PP_*`, los códigos `PP-`, las rutas y los dominios conservan el nombre anterior.
+- **Textos limpios:** el envío se muestra como "empresa · guía · peso", los repartos totales dicen "todo para el comprador" o "todo para el vendedor", el bot dice "tu cuenta" y pregunta "¿En cuántos días lo despachas?". Un test del bot falla si aparece una palabra prohibida en un texto para clientes.
+- **Una sola versión:** el segmento es celulares y electrónica de Bs 1.000 a 7.000 en la portada y en `/piloto`; la portada rotula su ejemplo (un celular de Bs 2.500) y `demo:reset` siembra un celular de Bs 2.500.
 
 ## Entrega 1 (19-nov)
 

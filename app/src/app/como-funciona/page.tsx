@@ -116,7 +116,7 @@ export default async function ComoFunciona() {
               <li>El dinero: dólares de prueba (en producción, USDC)</li>
               <li>El número de WhatsApp (simulador)</li>
               <li>La verificación de identidad (KYC)</li>
-              <li>En testnet, Pollar guarda las llaves de los vendedores que entran con Google o correo</li>
+              <li>En testnet, Pollar guarda el acceso a la cuenta de los vendedores que entran con Google o correo</li>
             </ul>
           </div>
         </div>

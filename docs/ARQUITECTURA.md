@@ -1,6 +1,6 @@
-# Arquitectura de Pago Protegido (contratos, testnet)
+# Arquitectura de Trato (antes Pago Protegido): contratos en testnet
 
-Pago Protegido usa el escrow single-release de **Trustless Work** (TW) sin modificarlo y le agrega dos contratos propios que ocupan sus roles críticos:
+Trato usa el escrow single-release de **Trustless Work** (TW) sin modificarlo y le agrega dos contratos propios que ocupan sus roles críticos:
 
 - **`pp_guardian`** ocupa los roles *approver* y *release_signer*: el comprador fondea a través de él, confirma con aprobación y liberación atómicas, y se libera solo automáticamente si vence el plazo.
 - **`pp_arbiter`** ocupa el rol *dispute_resolver*: un árbitro acotado que solo puede repartir entre el comprador registrado y el vendedor.
@@ -141,7 +141,7 @@ sequenceDiagram
   end
 ```
 
-## 4. Máquina de estados del escrow (vista de Pago Protegido)
+## 4. Máquina de estados del escrow (vista de Trato)
 
 ```mermaid
 stateDiagram-v2
