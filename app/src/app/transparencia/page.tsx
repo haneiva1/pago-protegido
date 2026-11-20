@@ -174,7 +174,7 @@ export default async function Transparencia() {
         <h2 className="font-bold">Qué compras cuentan</h2>
         <p className="text-sm text-slate-600">
           Un evento del guardián no alcanza: cualquiera puede imitar un escrow y generar eventos sin mover plata. Por eso cada compra se
-          comprueba en la red y cuenta solo si cumple estas cuatro reglas públicas (docs/METRICAS.md del repositorio):
+          comprueba en la red y cuenta solo si cumple estas cinco reglas públicas (docs/METRICAS.md del repositorio):
         </p>
         <ol className="list-decimal space-y-0.5 pl-5 text-sm text-slate-700">
           {m.indexador.reglas.map((r) => (

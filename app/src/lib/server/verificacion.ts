@@ -7,13 +7,13 @@ import { createHash } from "node:crypto";
  * pp_guardian acepta cualquier contrato que imite la interfaz del escrow de Trustless Work, así que un
  * evento `pp_funded` auténtico no prueba que hubo una compra real (PoC en
  * contracts/integration-tests/tests/hallazgos_jurado.rs). Una compra cuenta para /metricas,
- * /tienda/<slug>, la insignia y /transparencia solo si su escrow cumple las cuatro reglas de abajo.
+ * /tienda/<slug>, la insignia y /transparencia solo si su escrow cumple las cinco reglas de abajo.
  *
  * Este archivo solo importa @stellar/stellar-sdk y node:crypto: lo usan la app, los tests unitarios
  * (`npm test`) y cualquiera que quiera repetir la verificación por su cuenta.
  */
 
-export type Regla = "wasm" | "roles" | "moneda" | "fondeo";
+export type Regla = "wasm" | "roles" | "moneda" | "fondeo" | "origen";
 
 /** Orden y texto público de cada regla (el primero que falla es el motivo que se muestra). */
 export const REGLAS: readonly { regla: Regla; cumple: string; falla: string }[] = [
@@ -26,6 +26,9 @@ export const REGLAS: readonly { regla: Regla; cumple: string; falla: string }[] 
   },
   { regla: "moneda", cumple: "Su moneda es LABUSD.", falla: "No usa LABUSD" },
   { regla: "fondeo", cumple: "El pago movió LABUSD del comprador al escrow (transferencia del SAC).", falla: "El pago no movió la plata" },
+  // initialize_escrow de TW no pide la firma de la plataforma ni del vendedor: sin esta regla, cualquiera arma un escrow
+  // genuino con los roles de Trato y, con 1 stroop, le suma ventas o reclamos a otra tienda.
+  { regla: "origen", cumple: "Lo creó Trato para un link de pago (está registrado en un pedido de la app).", falla: "No lo creó Trato" },
 ];
 
 /** Lo que se espera de un escrow de Trato (valores públicos de contracts/DEPLOYED.md). */
@@ -65,6 +68,8 @@ export interface Transferencia {
 
 /** Lo que dice la red. `null` = no se encontró (instancia o transacción inexistente). */
 export interface Hechos {
+  /** El escrow es el de un pedido de la app (orders.escrow_id): lo creó Trato. Se lee de la base, no de la red. */
+  creadoPorTrato: boolean | null;
   wasmHash: string | null;
   roles: Roles | null;
   token: string | null;
@@ -77,7 +82,7 @@ export interface Resultado {
   fallas: Regla[];
 }
 
-/** Aplica las cuatro reglas. Sin dato no hay prueba: la regla falla (criterio conservador). */
+/** Aplica las cinco reglas. Sin dato no hay prueba: la regla falla (criterio conservador). */
 export function evaluar(c: CompraFondeada, h: Hechos, r: Reglas): Resultado {
   const fallas: Regla[] = [];
   if (!h.wasmHash || h.wasmHash.toLowerCase() !== r.wasmHash.toLowerCase()) fallas.push("wasm");
@@ -93,13 +98,14 @@ export function evaluar(c: CompraFondeada, h: Hechos, r: Reglas): Resultado {
   const monto = BigInt(c.amount);
   const movio = (h.transferencias ?? []).some((t) => t.token === r.labusdSac && t.from === c.buyer && t.to === c.escrow && BigInt(t.amount) === monto);
   if (!movio || monto <= 0n || (h.monto !== null && BigInt(h.monto) !== monto)) fallas.push("fondeo");
+  if (h.creadoPorTrato !== true) fallas.push("origen");
   return { ok: fallas.length === 0, fallas };
 }
 
 /** Huella de las reglas: si cambia un valor esperado, se vuelve a verificar todo. */
 export function firmaReglas(r: Reglas): string {
   const pares = r.pares.map((p) => `${p.guardian}/${p.arbiter}`).join(",");
-  return createHash("sha256").update(`v1|${r.wasmHash}|${r.labusdSac}|${r.platform}|${pares}`).digest("hex").slice(0, 16);
+  return createHash("sha256").update(`v2|${REGLAS.map((x) => x.regla).join(",")}|${r.wasmHash}|${r.labusdSac}|${r.platform}|${pares}`).digest("hex").slice(0, 16);
 }
 
 // ---------- Lectura de la red ----------
@@ -207,7 +213,7 @@ async function transferenciasDelPago(s: rpc.Server, hash: string, horizonUrl: st
 export async function hechosDe(
   c: CompraFondeada,
   s: rpc.Server,
-  opts: { horizonUrl: string; networkPassphrase?: string },
+  opts: { horizonUrl: string; networkPassphrase?: string; creadoPorTrato: boolean },
 ): Promise<Hechos> {
   const np = opts.networkPassphrase ?? Networks.TESTNET;
   const [wasmHash, escrow, transferencias] = await Promise.all([
@@ -215,5 +221,5 @@ export async function hechosDe(
     escrowDe(s, c.escrow, np),
     transferenciasDelPago(s, c.tx_fondeo, opts.horizonUrl, np),
   ]);
-  return { wasmHash, roles: escrow?.roles ?? null, token: escrow?.token ?? null, monto: escrow?.monto ?? null, transferencias };
+  return { creadoPorTrato: opts.creadoPorTrato, wasmHash, roles: escrow?.roles ?? null, token: escrow?.token ?? null, monto: escrow?.monto ?? null, transferencias };
 }

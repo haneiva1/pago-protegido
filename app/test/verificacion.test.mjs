@@ -31,15 +31,20 @@ const rolesTrato = (pares = V1) => ({
   receiver: compra.seller,
   service_provider: compra.seller,
 });
-const hechosReales = () => ({ wasmHash: TW_WASM, roles: rolesTrato(), token: LABUSD, monto: compra.amount, transferencias: transferenciasDeXdr(eventosReales) });
+const hechosReales = () => ({ creadoPorTrato: true, wasmHash: TW_WASM, roles: rolesTrato(), token: LABUSD, monto: compra.amount, transferencias: transferenciasDeXdr(eventosReales) });
 
 test("un fondeo real de testnet trae la transferencia del SAC del comprador al escrow", () => {
   const t = transferenciasDeXdr(eventosReales);
   assert.deepEqual(t, [{ token: LABUSD, from: compra.buyer, to: compra.escrow, amount: compra.amount }]);
 });
 
-test("escrow verdadero: cumple las cuatro reglas y cuenta", () => {
+test("escrow verdadero: cumple las cinco reglas y cuenta", () => {
   assert.deepEqual(evaluar(compra, hechosReales(), reglas), { ok: true, fallas: [] });
+});
+
+test("5.ª regla: el mismo escrow genuino de TW, si no es de un pedido de Trato → descartada por origen", () => {
+  // initialize_escrow no pide la firma de la plataforma ni del vendedor: cualquiera arma un escrow así con 1 stroop.
+  assert.deepEqual(evaluar(compra, { ...hechosReales(), creadoPorTrato: false }, reglas), { ok: false, fallas: ["origen"] });
 });
 
 test("escrow verdadero de v2 también cuenta (pares guardián/árbitro v1 y v2)", () => {
@@ -49,17 +54,17 @@ test("escrow verdadero de v2 también cuenta (pares guardián/árbitro v1 y v2)"
 test("PoC (a): escrow falso que imita a TW, venta de USD 5.000 sin mover plata → descartada", () => {
   const falso = { escrow: "CBFAKE".padEnd(56, "A"), buyer: TERCERO, seller: compra.seller, amount: "50000000000", tx_fondeo: "ff".repeat(32) };
   // El contrato falso devuelve los roles que quiera, con la moneda real, pero su `fund_escrow` no transfiere nada.
-  const h = { wasmHash: OTRO_WASM, roles: { ...rolesTrato(V2), platform: TERCERO }, token: LABUSD, monto: falso.amount, transferencias: [] };
+  const h = { creadoPorTrato: false, wasmHash: OTRO_WASM, roles: { ...rolesTrato(V2), platform: TERCERO }, token: LABUSD, monto: falso.amount, transferencias: [] };
   const r = evaluar(falso, h, reglas);
   assert.equal(r.ok, false);
-  assert.deepEqual(r.fallas, ["wasm", "roles", "fondeo"]);
+  assert.deepEqual(r.fallas, ["wasm", "roles", "fondeo", "origen"]);
 });
 
 test("PoC (b): reclamo plantado a un vendedor honesto con 1 unidad de polvo → descartada", () => {
   const falso = { ...compra, escrow: "CBFAKE".padEnd(56, "B"), buyer: TERCERO, amount: "15000000000" };
   const polvo = [{ token: LABUSD, from: TERCERO, to: falso.escrow, amount: "1" }];
-  const h = { wasmHash: OTRO_WASM, roles: rolesTrato(V2), token: LABUSD, monto: falso.amount, transferencias: polvo };
-  assert.deepEqual(evaluar(falso, h, reglas).fallas, ["wasm", "fondeo"]);
+  const h = { creadoPorTrato: false, wasmHash: OTRO_WASM, roles: rolesTrato(V2), token: LABUSD, monto: falso.amount, transferencias: polvo };
+  assert.deepEqual(evaluar(falso, h, reglas).fallas, ["wasm", "fondeo", "origen"]);
 });
 
 test("WASM real de TW con un token propio (100 ventas, 0 reclamos) → descartada por moneda y fondeo", () => {
@@ -83,7 +88,7 @@ test("fondeo: monto distinto, otro pagador u otro destino → descartada", () =>
 });
 
 test("sin datos no hay prueba: instancia o transacción no encontradas → descartada", () => {
-  const r = evaluar(compra, { wasmHash: null, roles: null, token: null, monto: null, transferencias: null }, reglas);
+  const r = evaluar(compra, { creadoPorTrato: true, wasmHash: null, roles: null, token: null, monto: null, transferencias: null }, reglas);
   assert.deepEqual(r.fallas, ["wasm", "roles", "moneda", "fondeo"]);
 });
 
@@ -117,6 +122,6 @@ test("la huella de las reglas cambia si cambia un valor esperado; hay un texto p
   assert.equal(firmaReglas(reglas), firmaReglas({ ...reglas }));
   assert.deepEqual(
     REGLAS.map((r) => r.regla),
-    ["wasm", "roles", "moneda", "fondeo"],
+    ["wasm", "roles", "moneda", "fondeo", "origen"],
   );
 });

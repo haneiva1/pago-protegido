@@ -10,7 +10,7 @@ import { REGLAS, evaluar, firmaReglas, hechosDe, type CompraFondeada, type Regla
  * público solo guarda unos 7 días; la referencia de las reglas es contracts/scripts/metricas.sh.
  *
  * H-9: un evento auténtico de pp_guardian no prueba una compra real. Cada compra pasa por el indexador
- * verificado (verificacion.ts) y solo cuenta si su escrow cumple las cuatro reglas públicas.
+ * verificado (verificacion.ts) y solo cuenta si su escrow cumple las cinco reglas públicas.
  */
 
 /** Ledger del despliegue de los contratos (contracts/deployments/testnet.json). */
@@ -121,7 +121,16 @@ export function comprasFondeadas(events: PpEvent[] = loadEvents()): CompraFondea
   return [...seen.values()];
 }
 
-/** Verifica por RPC (y Horizon para pagos viejos) las compras sin resultado guardado. Cada escrow se verifica una vez. */
+/** Escrows que creó la app para un pedido (5.ª regla, "origen"). */
+function escrowsDeTrato(): Set<string> {
+  const rows = db().prepare(`SELECT escrow_id FROM orders WHERE escrow_id IS NOT NULL`).all() as { escrow_id: string }[];
+  return new Set(rows.map((r) => r.escrow_id));
+}
+
+/**
+ * Verifica por RPC (y Horizon para pagos viejos) las compras sin resultado guardado. Cada escrow se verifica una vez.
+ * Un escrow que no es de un pedido de la app se descarta sin leer la red: no le cuesta nada al RPC.
+ */
 export async function verificarPendientes(limiteMs = 120_000): Promise<{ verificadas: number; errores: number }> {
   const reglas = reglasIndexador();
   const firma = firmaReglas(reglas);
@@ -130,15 +139,19 @@ export async function verificarPendientes(limiteMs = 120_000): Promise<{ verific
   const guardar = db().prepare(
     `INSERT OR REPLACE INTO escrow_verificado (escrow, reglas, ok, fallas, wasm_hash, verificado_at) VALUES (?, ?, ?, ?, ?, ?)`,
   );
+  const trato = escrowsDeTrato();
+  // Sin leer la red, la única regla probada es la del origen: las demás no se evaluaron.
+  for (const c of pendientes.filter((x) => !trato.has(x.escrow))) guardar.run(c.escrow, firma, 0, "origen", null, Date.now());
+  const deTrato = pendientes.filter((x) => trato.has(x.escrow));
   const s = server();
   const hasta = Date.now() + limiteMs;
   let verificadas = 0;
   let errores = 0;
-  for (let i = 0; i < pendientes.length && Date.now() < hasta; i += 6) {
+  for (let i = 0; i < deTrato.length && Date.now() < hasta; i += 6) {
     await Promise.all(
-      pendientes.slice(i, i + 6).map(async (c) => {
+      deTrato.slice(i, i + 6).map(async (c) => {
         try {
-          const h = await hechosDe(c, s, { horizonUrl: HORIZON_URL, networkPassphrase: NETWORK_PASSPHRASE });
+          const h = await hechosDe(c, s, { horizonUrl: HORIZON_URL, networkPassphrase: NETWORK_PASSPHRASE, creadoPorTrato: true });
           const r = evaluar(c, h, reglas);
           guardar.run(c.escrow, firma, r.ok ? 1 : 0, r.fallas.join(","), h.wasmHash, Date.now());
           verificadas++;
@@ -161,7 +174,7 @@ export interface Descartada {
 }
 
 export interface EstadoIndexador {
-  /** Escrows que cumplen las cuatro reglas: los únicos que cuentan. */
+  /** Escrows que cumplen las cinco reglas: los únicos que cuentan. */
   ok: Set<string>;
   descartadas: Descartada[];
   /** Compras todavía sin verificar (no cuentan hasta que se verifiquen). */
