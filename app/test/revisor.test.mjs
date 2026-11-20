@@ -31,14 +31,31 @@ test("regla: dirección distinta a la del link gana el comprador", () => {
   assert.match(r.detalle, /pedía el envío a Oruro .* a Potosí/);
 });
 
-test("regla: vacío o dañado sin video del desempaque gana el vendedor; con video, se compara el peso", () => {
-  const sin = reglaDelReclamo({ ...enviado, dispute_reason: "Llegó vacío o con otro producto" }, ahora);
+test("regla: desde Bs 300, vacío o dañado sin video del desempaque gana el vendedor; con video, se compara el peso", () => {
+  const sin = reglaDelReclamo({ ...enviado, dispute_reason: "Llegó vacío o con otro producto", price_bs_cents: 45000 }, ahora);
   assert.equal(sin.criterio, 2);
   assert.equal(sin.gana, "vendedor");
   const con = reglaDelReclamo({ ...enviado, dispute_reason: "Dañado o distinto a lo descrito", dispute_video: "https://x/v.mp4" }, ahora);
   assert.equal(con.criterio, 3);
   assert.equal(con.gana, null);
   assert.match(con.detalle, /0\.4 kg/);
+});
+
+test("regla: bajo Bs 300 el video es opcional, así que sin video no gana nadie todavía; desde Bs 300, el vendedor", async () => {
+  const { evidenciaPedida, VIDEO_OBLIGATORIO_DESDE_BS_CENTS } = await import("../src/lib/comprador.ts");
+  const motivo = "Llegó vacío o con otro producto";
+  // Bs 299: la app le dijo al comprador que el video era opcional.
+  assert.equal(evidenciaPedida(motivo, 29900).video, "opcional");
+  const bajo = reglaDelReclamo({ ...enviado, dispute_reason: motivo, price_bs_cents: 29900 }, ahora);
+  assert.equal(bajo.gana, null);
+  assert.equal(bajo.criterio, 2);
+  assert.match(bajo.detalle, /Bajo Bs 300 el video es opcional/);
+  assert.match(bajo.detalle, /decide con la foto del paquete cerrado, el peso \(0\.4 kg\) y la respuesta del vendedor/);
+  // Bs 300: el video era obligatorio; sin video, gana el vendedor.
+  assert.equal(evidenciaPedida(motivo, 30000).video, "obligatorio");
+  assert.equal(reglaDelReclamo({ ...enviado, dispute_reason: motivo, price_bs_cents: 30000 }, ahora).gana, "vendedor");
+  // Un solo umbral para el comprador, el servidor y el revisor.
+  assert.equal(VIDEO_OBLIGATORIO_DESDE_BS_CENTS, 30000);
 });
 
 test("regla: no llegó y presión para confirmar piden comprobar la guía con la empresa", () => {

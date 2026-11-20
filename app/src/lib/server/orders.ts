@@ -16,7 +16,7 @@ import {
   splitFromGross,
   splitPreview,
 } from "@/lib/format";
-import { parseFlete } from "@/lib/comprador";
+import { VIDEO_OBLIGATORIO_DESDE_BS_CENTS, parseFlete } from "@/lib/comprador";
 import { huellaDeLink } from "@/lib/evidencia";
 import { esperaParaConfirmar } from "@/lib/ciudades";
 import { NETWORK_PASSPHRASE, cfg } from "./config";
@@ -553,7 +553,7 @@ export async function prepareAction(slug: string, body: Record<string, unknown>)
     if (!inList(MOTIVOS, params.reason)) throw new AppError("Elige un motivo de la lista");
     if (params.reason === MOTIVO_PRESION && !isBuyer) throw new AppError("Ese motivo solo lo puede usar el comprador");
     if (!isUrl(params.photo) || !isUrl(params.video)) throw new AppError("La foto y el video tienen que ser links (https://…)");
-    if (isBuyer && MOTIVOS_CON_VIDEO.includes(params.reason) && o.price_bs_cents >= 30000 && !params.video) {
+    if (isBuyer && MOTIVOS_CON_VIDEO.includes(params.reason) && o.price_bs_cents >= VIDEO_OBLIGATORIO_DESDE_BS_CENTS && !params.video) {
       throw new AppError("Para este motivo, desde Bs 300, el video continuo del desempaque es obligatorio");
     }
   } else {

@@ -1,7 +1,10 @@
 /**
- * Lógica pura del panel del revisor (M10, sin imports en tiempo de ejecución): qué regla de la política de reclamos
- * aplica a cada reclamo, los plazos y la evidencia de cada parte. La prueban los tests unitarios con `node --test`.
+ * Lógica pura del panel del revisor (M10): qué regla de la política de reclamos aplica a cada reclamo, los plazos y
+ * la evidencia de cada parte. Solo importa lib/comprador.ts (también pura, por el umbral del video), con la extensión
+ * para que `node --test` la resuelva. La prueban los tests unitarios.
  */
+
+import { VIDEO_OBLIGATORIO_DESDE_BS_CENTS } from "./comprador.ts";
 
 const HORA = 3600_000;
 
@@ -23,6 +26,8 @@ const CON_VIDEO = ["Llegó vacío o con otro producto", "Dañado o distinto a lo
 
 export interface ReclamoRevisor {
   status: string;
+  /** Precio del producto: desde Bs 300 el video del desempaque es obligatorio. */
+  price_bs_cents?: number | null;
   dispute_reason?: string | null;
   dispute_by?: string | null;
   dispute_video?: string | null;
@@ -80,6 +85,15 @@ export function reglaDelReclamo(d: ReclamoRevisor, ahora: number): Regla {
   }
   if (CON_VIDEO.includes(motivo)) {
     if (!d.dispute_video) {
+      // Bajo el umbral la app le dijo al comprador que el video era opcional: no se le puede dar por perdido.
+      if (d.price_bs_cents != null && d.price_bs_cents < VIDEO_OBLIGATORIO_DESDE_BS_CENTS) {
+        return {
+          criterio: 2,
+          titulo: `Entrega registrada y sin video, pero bajo Bs ${VIDEO_OBLIGATORIO_DESDE_BS_CENTS / 100} el video no era obligatorio`,
+          detalle: `El envío está registrado (${guia}) y no hay video del desempaque. Bajo Bs ${VIDEO_OBLIGATORIO_DESDE_BS_CENTS / 100} el video es opcional: decide con la foto del paquete cerrado, el peso${d.ship_weight ? ` (${d.ship_weight} kg)` : ""} y la respuesta del vendedor.`,
+          gana: null,
+        };
+      }
       return {
         criterio: 2,
         titulo: CRITERIOS[2],
