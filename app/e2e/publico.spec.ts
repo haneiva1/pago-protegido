@@ -168,11 +168,9 @@ test("perfil verificable de la tienda (/tienda/<slug>): mismos números que la t
   expect(html).not.toContain(TIENDA_WA.slice(-8));
   expect(await page.locator("body").innerText()).not.toMatch(/WhatsApp|direcci[oó]n:/i);
 
-  // Insignia para la bio: link y texto listos para copiar, imagen para descargar.
-  const url = await page.getByTestId("link-perfil").innerText();
-  expect(url).toMatch(new RegExp(`^http://localhost:\\d+/tienda/${slug}$`));
-  await expect(page.getByTestId("insignia").getByRole("button", { name: "Copiar link" })).toBeVisible();
-  await expect(page.getByTestId("insignia").getByRole("button", { name: "Copiar texto para la bio" })).toBeVisible();
+  // La insignia para la bio ya no está aquí, donde la ve el comprador: está en el panel del vendedor (M9).
+  // La imagen se sigue descargando desde /tienda/<slug>/insignia.
+  await expect(page.getByTestId("insignia")).toHaveCount(0);
   const descarga = await request.get(`/tienda/${slug}/insignia`);
   expect(descarga.status()).toBe(200);
   expect(descarga.headers()["content-type"]).toContain("image/png");

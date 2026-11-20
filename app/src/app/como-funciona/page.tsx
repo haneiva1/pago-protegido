@@ -58,7 +58,7 @@ export default async function ComoFunciona() {
         </Node>
         <Arrow />
         <Node n="4" title="El vendedor registra el envío" tone="slate">
-          Empresa, número de guía, peso, foto y destino (y el IMEI si es un celular). En el contrato queda la evidencia compacta: empresa|guía|peso|hash de la foto.
+          Empresa, número de guía, peso, destino y las fotos de la guía y del paquete desde la cámara (y el IMEI si es un celular). En el contrato queda la evidencia compacta: empresa|guía|peso|huella de cada foto.
           {guardian
             ? " Se registra una sola vez con pp_guardian.mark_shipped, antes del plazo de despacho, y desde ahí corre la revisión. Si no despacha a tiempo, la plataforma abre la disputa y pp_arbiter.refund_unshipped le devuelve el pago al comprador, sin que tenga que reclamar."
             : ""}
@@ -66,7 +66,7 @@ export default async function ComoFunciona() {
         <Arrow />
         <div className="grid gap-3 md:grid-cols-2">
           <Node n="5a" title="Lo tiene en sus manos → paga al vendedor">
-            Se habilita 2 h después del envío en la misma ciudad y 24 h si es otra ciudad, y pregunta antes: «¿Tienes el producto en tus manos y lo revisaste?».
+            Se habilita 2 h después del envío en la misma ciudad (La Paz y El Alto cuentan como una) y 24 h si es otra ciudad, y pregunta antes: «¿Tienes el producto en tus manos y lo revisaste?».
             {guardian ? " pp_guardian aprueba y paga en la misma operación." : ""} Es irreversible.
           </Node>
           <Node n="5b" title="Tengo un problema → revisión de reclamos por un tercero" tone="violet">

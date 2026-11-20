@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { SplitView, TxList } from "@/components/OrderBits";
 import { ErrorBox, ExplorerLink, Spinner, StatusBadge, TxLink } from "@/components/ui";
+import { EvidenciaPartes, PlazosReclamo, ReglaAplicada } from "@/components/revisor/ReglaYEvidencia";
 import { MOTIVOS, explorer, fmtBs, fmtBsUnits, fmtDate, fmtPct, fmtUsd, shortAddr, splitPreview } from "@/lib/format";
 import type { ArbitroData, DisputeItem, EvidenceRow } from "@/lib/types";
 import { api } from "@/lib/wallet";
@@ -126,7 +127,7 @@ function EvidenceHistory({ items }: { items: EvidenceRow[] }) {
           <li key={e.id} className="rounded-lg bg-white p-2 text-xs ring-1 ring-slate-200">
             <span className="font-semibold">{KIND[e.kind] ?? e.kind}</span> · <span className="text-slate-500">{fmtDate(e.created_at)}</span>
             <p className="mt-0.5 text-slate-700">{e.summary}</p>
-            {data.evidence && <p className="font-mono text-[11px] text-slate-500">on-chain: {data.evidence}</p>}
+            {data.evidence && <p className="break-all font-mono text-[11px] text-slate-500">on-chain: {data.evidence}</p>}
             {links.map((k) => (
               <a key={k} className="mr-2 underline" href={data[k]} target="_blank" rel="noreferrer">
                 {k === "photo" ? "Ver foto" : "Ver video"}
@@ -146,10 +147,16 @@ function DisputeCard({ d, arbKey, onDone }: { d: DisputeItem; arbKey: string; on
   const [error, setError] = useState<string | null>(null);
   const [probe, setProbe] = useState<{ rejected: boolean; by: string; detail: string; foreign: string; call?: string; code?: number; raw?: string } | null>(null);
   const [hash, setHash] = useState<string | null>(null);
+  const [ahora, setAhora] = useState(() => Date.now());
   const [quote, setQuote] = useState<{ pct: number; source: string; buyer_net: string; seller_net: string; platform: string; tw: string } | null>(null);
   const balance = BigInt(d.onchain?.balance ?? d.amount_units);
   const bps = d.platform_bps ?? 200;
   const h = { "x-arbitro-key": arbKey };
+
+  useEffect(() => {
+    const t = setInterval(() => setAhora(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   // Vista previa del slider: pp_arbiter.quote (simulación de solo lectura), con un respiro de 300 ms.
   useEffect(() => {
@@ -219,6 +226,9 @@ function DisputeCard({ d, arbKey, onDone }: { d: DisputeItem; arbKey: string; on
         <StatusBadge status={d.status} />
       </header>
 
+      <ReglaAplicada d={d} ahora={ahora} />
+      <PlazosReclamo d={d} ahora={ahora} />
+
       <div className="grid gap-3 md:grid-cols-2">
         <div className="rounded-xl bg-amber-50 p-4 text-sm ring-1 ring-amber-100">
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">Comprador</p>
@@ -257,6 +267,8 @@ function DisputeCard({ d, arbKey, onDone }: { d: DisputeItem; arbKey: string; on
         </div>
       </div>
 
+      <EvidenciaPartes d={d} />
+
       <div className="rounded-xl bg-slate-50 p-4 text-sm">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-600">Historial de la evidencia</p>
         <EvidenceHistory items={d.evidence} />
@@ -273,7 +285,7 @@ function DisputeCard({ d, arbKey, onDone }: { d: DisputeItem; arbKey: string; on
               En disputa: {d.onchain.flags.disputed ? "sí" : "no"} · Liberado: {d.onchain.flags.released ? "sí" : "no"} · Resuelto: {d.onchain.flags.resolved ? "sí" : "no"}
             </li>
             {d.onchain.milestone && (
-              <li>
+              <li className="break-all">
                 Hito: “{d.onchain.milestone.status}” {d.onchain.milestone.evidence && `· evidencia: ${d.onchain.milestone.evidence}`}
               </li>
             )}

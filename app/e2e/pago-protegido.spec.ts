@@ -68,20 +68,24 @@ async function nuevoVendedor(browser: Browser, tienda: string, whatsapp: string 
 
 async function crearLink(
   page: Page,
-  p: { producto: string; descripcion: string; precio: number; dias: number; categoria: string; quienPaga?: "comprador" | "vendedor"; demo?: boolean },
+  p: { producto: string; descripcion: string; precio: number; dias: number; categoria: string; quienPaga?: "comprador" | "vendedor"; demo?: boolean; flete?: RegExp },
   captura?: string,
 ) {
   if (p.demo) {
     await page.goto("/panel?demo=1");
     await page.getByLabel(/Plazo corto de demo/).check();
   }
+  // Link rápido (M9): producto, precio, días para despachar y flete en una pantalla; lo demás en "Más detalles".
   await page.getByLabel("Producto").fill(p.producto);
-  await page.getByLabel("Categoría").selectOption(p.categoria);
-  await page.getByLabel("Descripción corta").fill(p.descripcion);
   await page.getByLabel("Precio en Bs").fill(String(p.precio));
-  await page.getByLabel("Días de entrega", { exact: true }).selectOption(String(p.dias));
+  await page.getByLabel("Días para despachar", { exact: true }).selectOption(String(p.dias));
+  if (p.flete) await page.getByTestId("flete-vendedor").getByText(p.flete).click();
   if (p.quienPaga === "vendedor") await page.getByRole("radio", { name: /Yo la regalo/ }).check();
   if (captura) await capturar(page, captura);
+  const mas = page.getByTestId("mas-detalles");
+  if (!(await mas.evaluate((e) => (e as HTMLDetailsElement).open))) await mas.locator("summary").click();
+  await page.getByLabel(/^Categoría/).selectOption(p.categoria);
+  await page.getByLabel("Descripción corta").fill(p.descripcion);
   await page.getByRole("button", { name: "Crear link" }).click();
   const url = (await page.getByTestId("link-url").textContent())!.trim();
   expect(url).toMatch(/\/p\/[a-z0-9-]+$/);
@@ -146,21 +150,33 @@ async function pagar(
   return page;
 }
 
-async function llenarEnvio(card: Locator, e: { empresa: string; guia?: string; peso: string; ciudad?: string; foto?: string; imei?: string }) {
+/** Una foto PNG de verdad (captura de un rincón de la pantalla), para subirla como evidencia. */
+const fotoDe = (page: Page, y: number) => page.screenshot({ clip: { x: 0, y, width: 160, height: 120 } });
+
+async function llenarEnvio(card: Locator, e: { empresa: string; guia?: string; peso: string; ciudad?: string; fotos?: [Buffer, Buffer]; imei?: string }) {
   await card.getByLabel("Empresa de envío").selectOption(e.empresa);
   if (e.guia) await card.getByLabel("Número de guía").fill(e.guia);
   await card.getByLabel("Peso declarado (kg)").fill(e.peso);
   if (e.ciudad) await card.getByLabel("Ciudad de destino").selectOption(e.ciudad);
-  if (e.foto) await card.getByLabel(/Foto del paquete/).fill(e.foto);
+  if (e.fotos) {
+    // Envío con foto (M9): la guía y el paquete desde la galería; cada una se sube con su huella.
+    await card.getByLabel("Foto de la guía: galería").setInputFiles({ name: "guia.png", mimeType: "image/png", buffer: e.fotos[0] });
+    await card.getByLabel("Foto del paquete: galería").setInputFiles({ name: "paquete.png", mimeType: "image/png", buffer: e.fotos[1] });
+    await expect(card.getByTestId("fotos-envio").getByTestId("huella")).toHaveCount(2);
+  }
   if (e.imei) await card.getByLabel(/IMEI del celular/).fill(e.imei);
 }
 
-async function marcarEnviado(seller: Page, slug: string, e: Parameters<typeof llenarEnvio>[1]) {
+async function marcarEnviado(seller: Page, slug: string, e: Parameters<typeof llenarEnvio>[1], captura?: string) {
   await seller.reload();
   const card = seller.getByTestId(`pedido-${slug}`);
   await expect(card.getByTestId("estado")).toHaveText("Pagado (despacha)", { timeout: 60_000 });
   await expect(card.getByTestId("datos-entrega-vendedor")).toBeVisible();
   await llenarEnvio(card, e);
+  if (captura) {
+    await card.scrollIntoViewIfNeeded();
+    await capturar(seller, captura);
+  }
   await card.getByRole("button", { name: "Marcar como enviado" }).click();
   await expect(card.getByTestId("estado")).toHaveText("Enviado", CHAIN);
   return card;
@@ -194,10 +210,14 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
   await expect(seller.getByTestId("vista-previa-link")).toContainText("Bs 456,75"); // 450 + 1,5 %
   const { url, slug } = await crearLink(
     seller,
-    { producto: "Zapatillas Nike talla 40", descripcion: "Originales, nuevas en caja.", precio: 450, dias: 3, categoria: "Ropa y calzado" },
+    { producto: "Zapatillas Nike talla 40", descripcion: "Originales, nuevas en caja.", precio: 450, dias: 3, categoria: "Ropa y calzado", flete: /^Por pagar$/ },
     "04-panel-primer-link",
   );
   await expect(seller.getByTestId("link-creado").getByTestId("whatsapp")).toContainText(url);
+  // El mensaje para WhatsApp ya dice quién paga el flete, y se comparte con el menú del celular.
+  await expect(seller.getByTestId("link-creado").getByTestId("whatsapp")).toContainText("🚚 Flete por pagar al recoger.");
+  await expect(seller.getByTestId("compartir-link")).toBeVisible();
+  await expect(seller.getByTestId("pendientes")).toContainText("Nada pendiente");
   await capturar(seller, "05-panel-link-creado");
 
   // Comprador: ve la protección (la paga él), deja los datos de entrega y paga.
@@ -232,13 +252,23 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
   await capturar(otro, "08b-comprador-otro-navegador");
   await otro.close();
 
-  // Vendedor: ve a quién enviar y registra el envío con evidencia estructurada.
-  const card = await marcarEnviado(seller, slug, {
-    empresa: "Trans Copacabana (encomiendas)",
-    guia: "SRV-2026-118734",
-    peso: "1,2",
-    foto: "https://example.com/paquete-pp.jpg",
-  });
+  // Vendedor: "Pendientes de hoy" le dice qué despachar; registra el envío con las fotos de la guía y del paquete.
+  await seller.reload();
+  const pendiente = seller.getByTestId(`pendiente-${slug}`);
+  await expect(pendiente).toContainText("Despachar: Zapatillas Nike talla 40", { timeout: 60_000 });
+  await expect(pendiente).toContainText(/hasta el/);
+  await expect(seller.getByTestId("por-cobrar")).toContainText("Y 1 venta en curso por Bs 450,00, ya guardada en el contrato");
+  await capturar(seller, "78-vendedor-pendientes-de-hoy");
+  const card = await marcarEnviado(
+    seller,
+    slug,
+    { empresa: "Trans Copacabana (encomiendas)", guia: "SRV-2026-118734", peso: "1,2", fotos: [await fotoDe(seller, 0), await fotoDe(seller, 240)] },
+    "79-vendedor-envio-con-foto",
+  );
+  // La huella SHA-256 de cada foto va en la evidencia que registró mark_shipped: empresa|guía|peso|paquete|guía.
+  const registrado = (await (await seller.request.get(`/api/orders/${slug}`)).json()).order.shipped_evidence;
+  expect(registrado).toMatch(/^Trans Copacabana \(encomiendas\)\|SRV-2026-118734\|1\.2kg\|[0-9a-f]{64}\|[0-9a-f]{64}$/);
+  await expect(seller.getByTestId(`pendiente-${slug}`)).toHaveCount(0);
   await expect(card.getByTestId("datos-entrega-vendedor")).toContainText("Ana Pérez");
   await expect(card.getByTestId("datos-entrega-vendedor")).toContainText("Cochabamba");
   await capturar(seller, "09-vendedor-enviado");
@@ -328,7 +358,29 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
   await expect(tus.getByTestId("kpi-sin-reclamo")).toContainText("Todas");
   await expect(tus.getByTestId("kpi-cobro")).not.toContainText("—");
   await expect(tus.getByTestId("link-mi-perfil")).toHaveAttribute("href", /\/tienda\/tienda-sofi-[0-9a-f]{4}$/);
+  // La insignia "Vendo con Trato" está en el panel (antes en /tienda, donde la veía el comprador).
+  const insignia = seller.getByTestId("insignia");
+  await expect(insignia.getByTestId("link-perfil")).toHaveText(/^http:\/\/localhost:\d+\/tienda\/tienda-sofi-[0-9a-f]{4}$/);
+  await expect(insignia.getByRole("button", { name: "Copiar link" })).toBeVisible();
+  await expect(insignia.getByRole("button", { name: "Copiar texto para la bio" })).toBeVisible();
   await capturar(seller, "77-vendedor-tus-numeros");
+
+  // "Pasar a mi banco", simulado: explica el depósito en bolivianos y no pide ningún dato bancario.
+  await seller.getByRole("button", { name: "🏦 Pasar a mi banco" }).click();
+  const banco = seller.getByTestId("pasar-a-mi-banco");
+  await expect(banco.getByTestId("banco-simulado")).toHaveText("Simulado en testnet");
+  await expect(banco).toContainText("te deposita en bolivianos en tu cuenta");
+  await expect(banco).toContainText("no te pedimos número de cuenta ni ningún dato bancario");
+  await expect(banco.locator("input, select, textarea")).toHaveCount(0);
+  await capturar(seller, "80-vendedor-pasar-a-mi-banco");
+  await banco.getByRole("button", { name: "Entendido" }).click();
+
+  // "Duplicar": el link rápido se llena con el link anterior, flete incluido.
+  await seller.getByTestId(`pedido-${slug}`).getByTestId("duplicar").click();
+  await expect(seller.getByTestId("duplicado")).toContainText("Copia de PP-");
+  await expect(seller.getByLabel("Producto")).toHaveValue("Zapatillas Nike talla 40");
+  await expect(seller.getByLabel("Precio en Bs")).toHaveValue("450");
+  await expect(seller.getByTestId("flete-vendedor").getByRole("radio", { name: "Por pagar" })).toBeChecked();
 });
 
 test("presión para confirmar abre un reclamo; el vendedor regala la protección; el revisor reparte 70/30", async ({ browser }) => {
@@ -351,7 +403,7 @@ test("presión para confirmar abre un reclamo; el vendedor regala la protección
       await expect(p.getByRole("button", { name: "🔒 Pagar Bs 300,00 con QR" })).toBeVisible();
     },
   });
-  await marcarEnviado(seller, slug, { empresa: "Bolívar (encomiendas)", guia: "OLVA-55821", peso: "0,4" });
+  await marcarEnviado(seller, slug, { empresa: "Bolívar (encomiendas)", guia: "OLVA-55821", peso: "0,4", fotos: [await fotoDe(seller, 120), await fotoDe(seller, 360)] });
 
   // El comprador responde "El vendedor me pide que confirme": se abre un reclamo y se marca al vendedor.
   await buyer.reload();
@@ -389,6 +441,17 @@ test("presión para confirmar abre un reclamo; el vendedor regala la protección
   await expect(hist).toContainText("guía OLVA-55821");
   await expect(hist).toContainText("Reclamo");
   await expect(hist).toContainText("Respuesta del vendedor");
+  // M10: la regla que aplica según el motivo, los plazos y la evidencia de las dos partes con su huella comprobada.
+  await expect(dispute.getByTestId("regla-aplica")).toContainText("Entrega no registrada o dirección distinta a la del link, gana el comprador");
+  await expect(dispute.getByTestId("regla-aplica")).toContainText("Comprueba con la empresa el estado de la guía (Bolívar (encomiendas), guía OLVA-55821)");
+  await expect(dispute.getByTestId("plazos-revisor")).toContainText("El vendedor responde");
+  await expect(dispute.getByTestId("plazos-revisor")).toContainText("Decides");
+  const partes = dispute.getByTestId("evidencia-partes");
+  await expect(partes.getByTestId("miniatura")).toHaveCount(2);
+  await expect(partes.getByTestId("coincide")).toHaveCount(2, { timeout: 30_000 });
+  await expect(partes).toContainText("La misma huella está en la evidencia que registró mark_shipped.");
+  await partes.scrollIntoViewIfNeeded();
+  await capturar(rev, "81-revisor-regla-y-evidencia", "tecnica");
   const resolver = dispute.getByRole("button", { name: "Resolver" });
   await expect(resolver).toBeDisabled();
   await expect(dispute.getByTestId("sin-reparto")).toBeVisible();

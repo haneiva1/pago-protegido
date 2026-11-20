@@ -437,7 +437,7 @@ export const notice = {
     const by = o.ship_deadline ? ` antes del ${fmtDate(o.ship_deadline)}` : "";
     const refund = o.ship_deadline ? " Si no se marca enviado a tiempo, la plata vuelve sola a tu cliente." : "";
     return {
-      text: `💸 ${code}: tu cliente pagó ${fmtBs(o.price_bs_cents)} por *${o.product}* y el pago está GUARDADO, todavía no en tu cuenta.\n\nDespacha${by} y marca enviado: escríbeme *enviado ${code} <código de encomienda>*.${refund}\nCobras cuando tu cliente confirme o, si no dice nada, al terminar su tiempo de revisión, que cuenta desde el envío. Vale tu panel, no una captura.\nSeguimiento: ${linkUrl(appUrl, o.slug)}`,
+      text: `💸 ${code}: tu cliente pagó ${fmtBs(o.price_bs_cents)} por *${o.product}* y el pago está GUARDADO en el contrato, todavía no en tu cuenta.\n\nDespacha${by} y marca enviado: escríbeme *enviado ${code} <código de encomienda>*.${refund}\nCobras cuando tu cliente confirme o, si no dice nada, al terminar su tiempo de revisión, que cuenta desde el envío.\n\n🔒 Este aviso sale del contrato, no de una captura: una captura de pago se puede falsificar. Compruébalo en tu panel:\n👉 ${appUrl}/panel\nSeguimiento: ${linkUrl(appUrl, o.slug)}`,
     };
   },
 

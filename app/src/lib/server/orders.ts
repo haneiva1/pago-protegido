@@ -16,6 +16,8 @@ import {
   splitPreview,
 } from "@/lib/format";
 import { parseFlete } from "@/lib/comprador";
+import { huellaDeLink } from "@/lib/evidencia";
+import { esperaParaConfirmar } from "@/lib/ciudades";
 import { NETWORK_PASSPHRASE, cfg } from "./config";
 import { type OrderRow, evidence, kv, orders, pending, pilot, sellers, txs } from "./db";
 import { linkAmounts as amountsFor } from "@/lib/format";
@@ -116,12 +118,13 @@ const CHAIN_MARGIN_MS = 10_000;
 /** Modo demo (PP_DEMO=1): "Pagar al vendedor" se habilita 1 minuto después del envío. */
 export const demoTimers = () => process.env.PP_DEMO === "1";
 
-/** "Pagar al vendedor" se habilita 2 h después del envío en la misma ciudad y 24 h si es otra ciudad. */
+/**
+ * "Pagar al vendedor" se habilita 2 h después del envío en la misma ciudad y 24 h si es otra ciudad.
+ * La Paz y El Alto cuentan como la misma ciudad (`mismaCiudad`, lib/ciudades.ts).
+ */
 export function confirmDelay(o: OrderRow): { ms: number; label: string } {
   if (demoTimers()) return { ms: 60_000, label: "1 minuto (modo demo)" };
-  const sellerCity = sellers.get(o.seller_pubkey)?.city;
-  const same = Boolean(sellerCity && o.dest_city && sellerCity === o.dest_city && o.dest_city !== "Otra");
-  return same ? { ms: 2 * 3600_000, label: "2 horas (misma ciudad)" } : { ms: 24 * 3600_000, label: "24 horas (otra ciudad)" };
+  return esperaParaConfirmar(sellers.get(o.seller_pubkey)?.city, o.dest_city);
 }
 
 function ctxOf(o: OrderRow): EscrowCtx {
@@ -199,6 +202,9 @@ export function createLink(input: Record<string, unknown>) {
   if (!Number.isFinite(priceBs) || priceBs < 1 || priceBs > 100000) throw new AppError("El precio tiene que estar entre Bs 1 y Bs 100.000");
   if (!Number.isInteger(days) || days < 1 || days > 15) throw new AppError("Los días de entrega van de 1 a 15");
   if (!inList(CATEGORIAS, category)) throw new AppError("Elige la categoría de la lista");
+  // Link rápido (M9, opcional): el flete que acordó el vendedor. No cambia el monto protegido.
+  const flete = input.flete ? parseFlete(input.flete, input.fleteBs) : null;
+  if (input.flete && !flete) throw new AppError("Escribe el monto del flete en Bs");
   // `proteccion` (APP-ENDPOINTS §6 del bot) y `feePayer` (panel) son lo mismo.
   const fee_payer = (input.proteccion ?? input.feePayer) === "vendedor" ? "vendedor" : "comprador";
   const fx = cfg().fx;
@@ -224,6 +230,7 @@ export function createLink(input: Record<string, unknown>) {
     price_units: a.price.toString(),
     platform_bps: a.platformBps,
   });
+  if (flete) orders.update(slug, { flete });
   return publicOrder(orders.get(slug)!);
 }
 
@@ -391,17 +398,21 @@ function shipParams(o: OrderRow, body: Record<string, unknown>): Record<string, 
   const tracking = clean(body.tracking, 60);
   const weightNum = Number(String(body.weight ?? "").replace(",", "."));
   const photo = clean(body.photo, 500);
+  // Envío con foto desde la cámara (M9): la guía y el paquete, cada una con su huella.
+  const photoGuia = clean(body.photoGuia, 500);
   const city = clean(body.city, 40) || o.dest_city || "";
   const imei = clean(body.imei, 20).replace(/\D/g, "");
   if (!inList(EMPRESAS, company)) throw new AppError("Elige la empresa de envío de la lista");
   if (company !== "Entrega en persona" && tracking.length < 3) throw new AppError("Escribe el número de guía");
   if (!Number.isFinite(weightNum) || weightNum <= 0 || weightNum > 500) throw new AppError("Escribe el peso declarado en kg");
-  if (!isUrl(photo)) throw new AppError("La foto tiene que ser un link (https://…)");
+  if (!isUrl(photo) || !isUrl(photoGuia)) throw new AppError("La foto tiene que ser un link (https://…)");
   if (!inList(CIUDADES, city)) throw new AppError("Elige la ciudad de destino");
   if (o.category === "Celular" && !/^\d{15}$/.test(imei)) throw new AppError("Para celulares el IMEI es obligatorio (15 dígitos)");
   const weight = String(Math.round(weightNum * 100) / 100);
-  const compact = `${company}|${tracking || "-"}|${weight}kg|${photo ? sha(photo).slice(0, 12) : "-"}`;
-  return { company, tracking, weight, photo, city, imei, evidence: compact };
+  // Foto subida a /api/evidencia: va su huella SHA-256 completa (la del archivo); un link externo, el hash corto del link.
+  const huella = (u: string) => (u ? (huellaDeLink(u) ?? sha(u).slice(0, 12)) : "-");
+  const compact = [company, tracking || "-", `${weight}kg`, huella(photo), ...(photoGuia ? [huella(photoGuia)] : [])].join("|");
+  return { company, tracking, weight, photo, city, imei, evidence: compact, ...(photoGuia ? { photoGuia } : {}) };
 }
 
 export async function prepareAction(slug: string, body: Record<string, unknown>): Promise<PreparedDto> {
