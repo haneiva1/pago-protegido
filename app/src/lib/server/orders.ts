@@ -222,8 +222,10 @@ export function createLink(input: Record<string, unknown>) {
   const fee_payer = (input.proteccion ?? input.feePayer) === "vendedor" ? "vendedor" : "comprador";
   // Plazos de 2 minutos solo con el servidor en modo demo: si los eligiera quien llama a la API, un vendedor
   // registraría un envío falso y cobraría a los 2 minutos, antes de que el paquete exista.
-  const demo = input.demoWindow === true;
-  if (demo && !demoTimers()) throw new AppError("Los plazos de demostración solo funcionan con el servidor en modo demo");
+  // La única excepción es /probar (PP_PROBAR=1 y el header de sus marcos): `marcoProbar` lo pone la ruta, no el cuerpo.
+  const marcoProbar = input.marcoProbar === true;
+  const demo = input.demoWindow === true || marcoProbar;
+  if (demo && !demoTimers() && !marcoProbar) throw new AppError("Los plazos de demostración solo funcionan con el servidor en modo demo");
   const fx = cfg().fx;
   const price_bs_cents = Math.round(priceBs * 100);
   const a = linkAmounts(price_bs_cents, fx, fee_payer);

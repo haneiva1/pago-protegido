@@ -10,19 +10,41 @@ import { firma, llamar, src, tienda } from "./entorno.mjs";
 const { orders } = await import(src("lib/server/db.ts"));
 const { DEMO_WINDOW_SECS } = await import(src("lib/server/orders.ts"));
 
-const antes = process.env.PP_DEMO;
+const antes = { demo: process.env.PP_DEMO, probar: process.env.PP_PROBAR };
 afterEach(() => {
-  if (antes === undefined) delete process.env.PP_DEMO;
-  else process.env.PP_DEMO = antes;
+  for (const [k, v] of [["PP_DEMO", antes.demo], ["PP_PROBAR", antes.probar]]) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
 });
 
-async function crearLink(body) {
+async function crearLink(body, headers = {}) {
   return llamar("links", {
     path: "/api/links",
     body: { product: "Celular Samsung Galaxy A35", priceBs: 2500, deliveryDays: 3, ...body },
     firma: await firma(tienda, "POST", "/api/links"),
+    headers,
   });
 }
+
+test("/probar con PP_PROBAR=1 (sin PP_DEMO) sigue creando links con plazos de demostración desde sus marcos", async () => {
+  delete process.env.PP_DEMO;
+  process.env.PP_PROBAR = "1";
+  const r = await crearLink({}, { "x-pp-probar": "1" });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(orders.get(r.body.slug).window_secs, DEMO_WINDOW_SECS);
+});
+
+test("con PP_PROBAR=1, fuera de los marcos de /probar no se pueden pedir plazos de demostración", async () => {
+  delete process.env.PP_DEMO;
+  process.env.PP_PROBAR = "1";
+  const r = await crearLink({ demoWindow: true });
+  assert.equal(r.status, 400, JSON.stringify(r.body));
+  // Tampoco mandando `marcoProbar` en el cuerpo: lo decide la ruta.
+  const r2 = await crearLink({ marcoProbar: true });
+  assert.equal(r2.status, 200, JSON.stringify(r2.body));
+  assert.equal(orders.get(r2.body.slug).window_secs, null);
+});
 
 test("fuera del modo demo, un link con plazos de demostración se rechaza", async () => {
   delete process.env.PP_DEMO;
