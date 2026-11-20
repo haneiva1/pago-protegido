@@ -115,12 +115,12 @@ test("/probar: dos celulares reales, registro en vivo, desvío rechazado por el 
   const link = page.getByTestId("paso-registro-link");
   await expect(link).toHaveAttribute("data-hecho", "si", { timeout: 30_000 });
   await expect(link).toContainText("Se activó la cuenta de cobro del vendedor");
-  await expect(link).toContainText(/Link PP-\d{4,5} creado: todavía no se movió plata/);
+  await expect(link).toContainText(/Link PP-[2-9A-HJKMNP-Z]{8} creado: todavía no se movió plata/);
   await expect(link.locator(TX_LINK)).toHaveCount(1);
 
   // El link llega solo al celular del comprador.
   const comprador = page.frameLocator('iframe[name="comprador"]');
-  await expect(comprador.getByTestId("codigo")).toHaveText(/Compra protegida · PP-\d{4,5}/, { timeout: 30_000 });
+  await expect(comprador.getByTestId("codigo")).toHaveText(/Compra protegida · PP-[2-9A-HJKMNP-Z]{8}/, { timeout: 30_000 });
   await expect(page.getByTestId("ahora")).toContainText("El link llegó al celular del comprador");
   await capturar(page, "81-probar-link-en-el-comprador");
 
