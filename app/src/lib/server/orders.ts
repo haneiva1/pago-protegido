@@ -287,11 +287,13 @@ export async function activateWallet(pubkey: unknown) {
 
 function buildProps(o: OrderRow, buyer: string): EscrowProps {
   return {
-    engagement_id: `pp-${o.slug}`,
+    // Ni el slug ni el código del pedido van a la red: con cualquiera de los dos se llega al link y a la vista del pedido
+    // (el código lleva al link en /verificar). El escrow se ata al pedido por orders.escrow_id.
+    engagement_id: `pp-${randomBytes(8).toString("hex")}`,
     title: o.product.slice(0, 80),
     roles: escrowService().roles(buyer, o.seller_pubkey),
     // Los datos de entrega quedan ligados al escrow por su hash (no se publican en claro).
-    description: `Trato ${o.code ?? ""}: ${o.product} | entrega ${o.delivery_hash ?? "-"}`.slice(0, 200),
+    description: `Trato: ${o.product} | entrega ${o.delivery_hash ?? "-"}`.slice(0, 200),
     amount: o.amount_units,
     platform_fee: o.platform_bps ?? cfg().platformFeeBps,
     milestones: [{ description: "Entrega del producto", status: "pendiente", evidence: "", approved: false }],
@@ -668,7 +670,9 @@ export async function submitSigned(signedXdr: unknown): Promise<{ hash: string; 
         .filter(Boolean)
         .join(" · ");
       evidence.add({ order_slug: slug, actor: "vendedor", kind: "envio", summary, data: params });
-      txs.add({ order_slug: slug, actor: "vendedor", kind: "envio", label: `El vendedor registró el envío: ${summary}`, hash: sent.hash });
+      // La línea de tiempo es pública: sin la ciudad de destino ni el IMEI (quedan en la evidencia para el revisor).
+      const publico = [params.company, params.tracking && `guía ${params.tracking}`, `${params.weight} kg`].filter(Boolean).join(" · ");
+      txs.add({ order_slug: slug, actor: "vendedor", kind: "envio", label: `El vendedor registró el envío: ${publico}`, hash: sent.hash });
       break;
     }
     case "extend": {
@@ -933,9 +937,27 @@ export function verifyCode(codeParam: string | null) {
 
 // ---------- Vistas ----------
 
-/** Vista pública del pedido: sin WhatsApp ni datos de entrega del comprador. */
+/**
+ * Vista pública del pedido (la ve quien tenga el link, sin firma): sin WhatsApp ni datos de entrega del comprador, y sin
+ * la evidencia del envío ni del reclamo (fotos, ciudad, textos, video), que son para el vendedor y el revisor.
+ */
 function publicOrder(o: OrderRow) {
-  const { escrow_json: _e, verify_json, buyer_whatsapp: _w, recipient_name: _r, dest_city: _c, pref_agency: _a, pickup_phone: _p, ...rest } = o;
+  const {
+    escrow_json: _e,
+    verify_json,
+    buyer_whatsapp: _w,
+    recipient_name: _r,
+    dest_city: _c,
+    pref_agency: _a,
+    pickup_phone: _p,
+    ship_photo: _sp,
+    ship_city: _sc,
+    dispute_text: _dt,
+    dispute_photo: _dp,
+    dispute_video: _dv,
+    seller_reply: _sr,
+    ...rest
+  } = o;
   // Un intento de pago vencido no bloquea el link: se muestra libre (el próximo /pay lo libera de verdad).
   if (o.status === "esperando_pago" && o.buyer_pubkey && !pagoEnCurso(o)) Object.assign(rest, { buyer_pubkey: null, buyer_lease_until: null });
   const proteccion = o.fee_payer ?? "comprador";
@@ -945,9 +967,21 @@ function publicOrder(o: OrderRow) {
   return { ...rest, proteccion, proteccion_bs_cents, verification: verify_json ? (JSON.parse(verify_json) as Verification) : null };
 }
 
-/** Lo que ve el vendedor (y el revisor): incluye los datos de entrega. */
+/** Lo que ve el vendedor (y el revisor): incluye los datos de entrega y la evidencia del envío y del reclamo. */
 function sellerOrder(o: OrderRow) {
-  return { ...publicOrder(o), recipient_name: o.recipient_name, dest_city: o.dest_city, pref_agency: o.pref_agency, pickup_phone: o.pickup_phone ?? null };
+  return {
+    ...publicOrder(o),
+    recipient_name: o.recipient_name,
+    dest_city: o.dest_city,
+    pref_agency: o.pref_agency,
+    pickup_phone: o.pickup_phone ?? null,
+    ship_photo: o.ship_photo,
+    ship_city: o.ship_city,
+    dispute_text: o.dispute_text,
+    dispute_photo: o.dispute_photo,
+    dispute_video: o.dispute_video,
+    seller_reply: o.seller_reply,
+  };
 }
 
 /**
@@ -1103,7 +1137,7 @@ export async function disputesView() {
     }),
   );
   const stillOpen = open.filter((d) => d.status === "en_disputa");
-  const resolved = orders.recentResolved(10).map((o) => ({ ...publicOrder(o), txs: txs.forOrder(o.slug), evidence: evidence.forOrder(o.slug), ...money(o) }));
+  const resolved = orders.recentResolved(10).map((o) => ({ ...sellerOrder(o), txs: txs.forOrder(o.slug), evidence: evidence.forOrder(o.slug), ...money(o) }));
   return { open: stillOpen, resolved, platformFeeBps: cfg().platformFeeBps, mode: cfg().mode };
 }
 
