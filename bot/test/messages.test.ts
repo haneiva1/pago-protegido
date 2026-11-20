@@ -108,6 +108,10 @@ describe("mensajes", () => {
     const d2 = { appUrl: "https://pp.test", view: { ...view, order: { ...v2, status: "pagado" as const } } };
     expect(notice.paid(d2).text).toMatch(/PP-4821: tu cliente pagó Bs 1\.800,00 .*Despacha antes del sábado, 21 de noviembre, 11:00.* y marca enviado: escríbeme \*enviado PP-4821/s);
     expect(notice.paid(d2).text).toContain("Si no se marca enviado a tiempo, la plata vuelve sola a tu cliente.");
+    // El aviso de pago: la plata está en el contrato, no es una captura, y trae el link al panel.
+    expect(notice.paid(d2).text).toContain("el pago está GUARDADO en el contrato, todavía no en tu cuenta");
+    expect(notice.paid(d2).text).toContain("Este aviso sale del contrato, no de una captura");
+    expect(notice.paid(d2).text).toContain("👉 https://pp.test/panel\n");
     expect(notice.antiPressure(d2).text).toMatch(/Si no lo envían hasta el sábado, 21 de noviembre, 11:00.*, te lo devolvemos automáticamente\./);
     const dev = { appUrl: "https://pp.test", view: { ...view, split: undefined, order: { ...v2, status: "devuelto" as const } } };
     // 156,1965812 USD − 0,3% − 2% = 152,6040555 USD × 11,70 = Bs 1.785,47
