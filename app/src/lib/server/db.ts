@@ -505,6 +505,12 @@ export const txs = {
   dropAttempt(slug: string) {
     db().prepare(`DELETE FROM txs WHERE order_slug = ? AND kind IN ('rampa', 'escrow')`).run(slug);
   },
+  /** Activación de una cuenta (trustline a la moneda de prueba): no pertenece a ningún pedido. */
+  activation(pubkey: string): TxRow | undefined {
+    return db().prepare(`SELECT * FROM txs WHERE order_slug IS NULL AND kind = 'trustline' AND actor = ? ORDER BY id DESC LIMIT 1`).get(pubkey) as
+      | TxRow
+      | undefined;
+  },
 };
 
 export const evidence = {

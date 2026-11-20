@@ -1,5 +1,6 @@
 // Liviano: sin el SDK de la red, para que la página del comprador lo importe sin cargar `@/lib/wallet` al abrir.
 import { api } from "@/lib/api";
+import { PROBAR_HEADER, enProbar } from "@/lib/probar";
 import type { WalletProvider } from "@/lib/wallet/types";
 
 /** La API respondió con error en una llamada firmada (`status` 401: firma; 403: otra cuenta). */
@@ -30,7 +31,8 @@ export async function apiFirmada<T = unknown>(
   const firma = await wallet.signMessage(d.mensaje);
   const res = await fetch(path, {
     method,
-    headers: { "content-type": "application/json", "x-trato-firma": `${cuenta}.${d.nonce}.${firma}` },
+    // Desde /probar va su header, como en `api`: plazos de demo y su límite por IP.
+    headers: { "content-type": "application/json", ...(enProbar() ? { [PROBAR_HEADER]: "1" } : {}), "x-trato-firma": `${cuenta}.${d.nonce}.${firma}` },
     body: body === undefined ? undefined : JSON.stringify(body),
     cache: "no-store",
   });

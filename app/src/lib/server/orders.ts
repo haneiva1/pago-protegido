@@ -8,6 +8,7 @@ import {
   MOTIVOS_CON_VIDEO,
   MOTIVO_PRESION,
   STATUS_LABEL,
+  type OrderStatus,
   fmtBs,
   fmtBsUnits,
   linkAmounts,
@@ -117,13 +118,16 @@ export const DEMO_WINDOW_SECS = 120;
 const CHAIN_MARGIN_MS = 10_000;
 /** Modo demo (PP_DEMO=1): "Pagar al vendedor" se habilita 1 minuto después del envío. */
 export const demoTimers = () => process.env.PP_DEMO === "1";
+/** /probar (PP_PROBAR=1, apagado por defecto): la demo pública con dos celulares. */
+export const probarActivo = () => process.env.PP_PROBAR === "1";
 
 /**
  * "Pagar al vendedor" se habilita 2 h después del envío en la misma ciudad y 24 h si es otra ciudad.
  * La Paz y El Alto cuentan como la misma ciudad (`mismaCiudad`, lib/ciudades.ts).
+ * Con PP_PROBAR=1, los links de demo (plazos de 2 minutos) también usan la espera de demo, aunque falte PP_DEMO.
  */
 export function confirmDelay(o: OrderRow): { ms: number; label: string } {
-  if (demoTimers()) return { ms: 60_000, label: "1 minuto (modo demo)" };
+  if (demoTimers() || (probarActivo() && o.window_secs === DEMO_WINDOW_SECS)) return { ms: 60_000, label: "1 minuto (modo demo)" };
   return esperaParaConfirmar(sellers.get(o.seller_pubkey)?.city, o.dest_city);
 }
 
@@ -731,10 +735,15 @@ export async function quoteDispute(slug: unknown, buyerBps: unknown) {
   };
 }
 
-export async function probeForeign(slug: unknown) {
+/**
+ * Intento de desvío simulado. El revisor lo usa con el pedido en disputa; /probar, con cualquier estado en el que la
+ * plata siga en el contrato (el escrow rechaza al que no es su revisor antes de mirar si hay disputa: #12 antes que #14).
+ */
+export async function probeForeign(slug: unknown, estados: readonly OrderStatus[] = ["en_disputa"]) {
   if (typeof slug !== "string") throw new AppError("Falta el pedido");
   const o = mustOrder(slug);
-  if (o.status !== "en_disputa") throw new AppError("El pedido no está en disputa", 409);
+  if (!estados.includes(o.status))
+    throw new AppError(estados.length === 1 ? "El pedido no está en disputa" : "Todavía no hay plata guardada en el contrato de este pedido", 409);
   // "Otra cuenta" con trustline a LABUSD (la de la plataforma): así el único freno posible es el de los roles.
   const foreign = cfg().plataforma.publicKey();
   const r = await escrowService().probeForeignDestination(ctxOf(o), foreign);

@@ -290,3 +290,9 @@ PP_ARBITER_ID=C...
 - `/tienda/<slug>`: perfil verificable del vendedor, sin teléfono ni dirección, con la insignia "Vende con Trato" (imagen OG y `/tienda/<slug>/insignia`). La tarjeta del vendedor en la página de pago enlaza ahí, y el bot responde "mi perfil" con el link.
 - `npm run test:e2e:publico`: e2e de solo lectura contra testnet, sin claves (puerto 3140). `npm run test:e2e` incluye además los pasos con pagos.
 - Detalle y definiciones: DECISIONES 86–99.
+
+## `/probar`: Trato de punta a punta en un pantallazo
+
+- Solo con `PP_PROBAR=1` (apagado por defecto). El vendedor y el comprador corren las páginas reales en dos marcos de celular (en el celular, en pestañas), cada uno con su propia cuenta de prueba creada en el navegador. Ninguna clave del equipo llega al navegador.
+- Al lado: el registro en vivo (crear el link, pagar, registrar el envío y pagar al vendedor, con cada transacción en stellar.expert), "Intenta desviar la plata" (simulación real, rechazada con `Error(Contract, #12)`) y "Empezar de nuevo". Plazos de demo y un límite de pruebas por IP.
+- `npm run test:e2e:probar`: el flujo completo contra testnet (también corre dentro de `npm run test:e2e`). Detalle: DECISIONES 100–109.
