@@ -20,7 +20,8 @@ export const REGLAS: readonly { regla: Regla; cumple: string; falla: string }[] 
   { regla: "wasm", cumple: "Su contrato corre el WASM del escrow de Trustless Work.", falla: "Su contrato no es el escrow de Trustless Work" },
   {
     regla: "roles",
-    cumple: "Sus roles son el guardián y el árbitro de Trato, la plataforma de Trato y el vendedor.",
+    // Sin "árbitro": es palabra prohibida en las pantallas (e2e/pago-protegido.spec.ts, LEGALES).
+    cumple: "Sus roles son los contratos de Trato (pp_guardian y pp_arbiter), la cuenta de comisiones de Trato y el vendedor.",
     falla: "Los roles del escrow no son los de Trato",
   },
   { regla: "moneda", cumple: "Su moneda es LABUSD.", falla: "No usa LABUSD" },
