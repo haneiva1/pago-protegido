@@ -2,6 +2,7 @@ import { Keypair } from "@stellar/stellar-sdk";
 import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
+import { firmado } from "./firma";
 
 // Vista previa del link cuando el vendedor lo pega en WhatsApp (Open Graph + Twitter card).
 // No hace transacciones: crear la tienda y el link es solo base de datos.
@@ -19,9 +20,10 @@ function metas(html: string): Record<string, string> {
 const pngSize = (b: Buffer) => ({ w: b.readUInt32BE(16), h: b.readUInt32BE(20) });
 
 test("vista previa del link en WhatsApp: Open Graph por pedido, en la landing y logo", async ({ request, page }) => {
-  const pubkey = Keypair.random().publicKey();
-  expect((await request.post("/api/sellers", { data: { pubkey, storeName: "Tienda Sofi", whatsapp: "59171234567" } })).ok()).toBe(true);
-  const link = (await (await request.post("/api/links", { data: { sellerPubkey: pubkey, product: "Zapatillas Nike talla 40", priceBs: 450, deliveryDays: 3 } })).json()) as { slug: string };
+  const kp = Keypair.random();
+  const pubkey = kp.publicKey();
+  expect((await firmado(request, kp, "POST", "/api/sellers", { pubkey, storeName: "Tienda Sofi", whatsapp: "59171234567" })).ok()).toBe(true);
+  const link = (await (await firmado(request, kp, "POST", "/api/links", { sellerPubkey: pubkey, product: "Zapatillas Nike talla 40", priceBs: 450, deliveryDays: 3 })).json()) as { slug: string };
 
   // Pedido: título con producto y precio, descripción con la tienda y la promesa, imagen 1200x630.
   const m = metas(await (await request.get(`/p/${link.slug}`, { headers: WHATSAPP })).text());

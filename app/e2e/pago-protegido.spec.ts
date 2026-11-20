@@ -3,6 +3,7 @@ import { expect, test, type Browser, type Locator, type Page } from "@playwright
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { firmado } from "./firma";
 
 // E2E contra Stellar TESTNET (transacciones reales), en modo guardián y modo demo (PP_DEMO=1: "Pagar al vendedor" se
 // habilita 1 minuto después del envío). Guarda capturas en celular y escritorio en e2e/capturas/ y en cada captura revisa
@@ -513,9 +514,10 @@ test("transparencia: pruebas del equipo (con reclamos forzados) y piloto aparte,
 
 test("palabras prohibidas en todas las pantallas, /verificar, /pedir, /piloto y piloto:csv", async ({ page, request }) => {
   // Un link real (sin transacciones) para /p/[slug] y /verificar.
-  const pubkey = Keypair.random().publicKey();
-  expect((await request.post("/api/sellers", { data: { pubkey, storeName: "Tienda Verificable", whatsapp: "59170002222", city: "Tarija" } })).ok()).toBe(true);
-  const link = (await (await request.post("/api/links", { data: { sellerPubkey: pubkey, product: "Chamarra de cuero", priceBs: 800, deliveryDays: 4, category: "Ropa y calzado" } })).json()) as {
+  const kp = Keypair.random();
+  const pubkey = kp.publicKey();
+  expect((await firmado(request, kp, "POST", "/api/sellers", { pubkey, storeName: "Tienda Verificable", whatsapp: "59170002222", city: "Tarija" })).ok()).toBe(true);
+  const link = (await (await firmado(request, kp, "POST", "/api/links", { sellerPubkey: pubkey, product: "Chamarra de cuero", priceBs: 800, deliveryDays: 4, category: "Ropa y calzado" })).json()) as {
     slug: string;
     code: string;
   };

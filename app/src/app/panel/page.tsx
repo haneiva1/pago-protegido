@@ -23,6 +23,7 @@ import {
   type FeePayer,
 } from "@/lib/format";
 import type { InfoData, SellerData, SellerOrder } from "@/lib/types";
+import { apiFirmada } from "@/lib/api-firmada";
 import { api, getWallet, signAndSubmit, type PreparedTx } from "@/lib/wallet";
 import { waText } from "@/lib/whatsapp";
 
@@ -42,7 +43,7 @@ export default function Panel() {
 
   const load = useCallback(async (p: string) => {
     try {
-      setData(await api<SellerData>(`/api/sellers/${p}/panel`));
+      setData(await apiFirmada<SellerData>(getWallet("vendedor"), `/api/sellers/${p}/panel`));
     } catch (e) {
       setError((e as Error).message);
     }
@@ -210,7 +211,7 @@ function CreateLink({ sellerPubkey, fx, title, demo, onCreated }: { sellerPubkey
     setBusy(true);
     setError(null);
     try {
-      const o = await api<{ slug: string }>("/api/links", { ...f, sellerPubkey, deliveryDays: Number(f.deliveryDays), feePayer, demoWindow: demo && demoWindow });
+      const o = await apiFirmada<{ slug: string }>(getWallet("vendedor"), "/api/links", { ...f, sellerPubkey, deliveryDays: Number(f.deliveryDays), feePayer, demoWindow: demo && demoWindow });
       setF({ product: "", description: "", photoUrl: "", priceBs: "", deliveryDays: "3", category: "Otro" });
       onCreated(o.slug);
     } catch (err) {
@@ -340,7 +341,7 @@ function OrderCard({
     e.preventDefault();
     setError(null);
     try {
-      await api(`/api/orders/${o.slug}/reply`, { pubkey: sellerPubkey, text: reply });
+      await apiFirmada(getWallet("vendedor"), `/api/orders/${o.slug}/reply`, { pubkey: sellerPubkey, text: reply });
       onChange();
     } catch (err) {
       setError((err as Error).message);

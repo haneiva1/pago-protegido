@@ -22,6 +22,7 @@ import {
   unitsToNumber,
 } from "@/lib/format";
 import type { OrderView } from "@/lib/types";
+import { apiFirmada } from "@/lib/api-firmada";
 import { activateWallet, api, getWallet, signAndSubmit, type PreparedTx } from "@/lib/wallet";
 import { waLink, waText } from "@/lib/whatsapp";
 
@@ -106,7 +107,7 @@ export default function PaginaDePago() {
       progress.finish(LW);
       const L = "Banco: pago simulado y contrato del pedido creado";
       progress.push(L);
-      const prepared = await api<PreparedTx>(`/api/orders/${slug}/pay`, { buyer: pk, ...delivery });
+      const prepared = await apiFirmada<PreparedTx>(wallet, `/api/orders/${slug}/pay`, { buyer: pk, ...delivery });
       progress.finish(L);
       await signAndSubmit(wallet, prepared, progress.push);
       setQrOpen(false);

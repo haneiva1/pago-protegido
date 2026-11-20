@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
+import { sembrarTiendaAjena } from "./firma";
 
 // Solo lectura contra Stellar TESTNET: métricas en vivo, perfil verificable de la tienda y tarjeta del vendedor, con
 // los eventos reales de los contratos v2 (compras de las pruebas del equipo). No firma ni envía transacciones.
@@ -122,7 +123,8 @@ test("métricas en vivo: piloto y pruebas del equipo por separado, cada número 
 
 test("perfil verificable de la tienda (/tienda/<slug>): mismos números que la tarjeta del vendedor, insignia OG y sin datos personales", async ({ page, request }) => {
   // Una cuenta de vendedor de las pruebas del equipo con ventas reales en testnet. Se registra como tienda solo en esta
-  // base local (crear la tienda no firma nada, DECISIONES 15): sus números salen del registro público.
+  // base local, sembrada directo en la base: por la API, crear la tienda o el link pide la firma de esa cuenta y el test
+  // no tiene su clave. Sus números salen del registro público.
   const t = (await (await request.get("/api/transparencia")).json()) as { compras: { seller: string; state: string }[] };
   // Que todavía no sea tienda en esta base: con `npm run test:e2e` corre después del flujo con pagos, que ya registró
   // sus tiendas, y el slug se asigna una sola vez y no cambia al renombrar (DECISIONES 93).
@@ -130,10 +132,12 @@ test("perfil verificable de la tienda (/tienda/<slug>): mismos números que la t
   let vendedor: string | undefined;
   for (const s of pagadas) if ((await request.get(`/api/sellers/${s}`)).status() === 404) { vendedor = s; break; }
   expect(vendedor, "una compra pagada en testnet a una cuenta que todavía no es tienda en esta base").toBeTruthy();
-  expect((await request.post("/api/sellers", { data: { pubkey: vendedor, storeName: "Calzados Sofi", whatsapp: TIENDA_WA, city: "Cochabamba" } })).ok()).toBe(true);
-  const link = (await (await request.post("/api/links", { data: { sellerPubkey: vendedor, product: "Zapatillas urbanas talla 40", priceBs: 450, deliveryDays: 3 } })).json()) as {
-    slug: string;
-  };
+  // Por la API, sin la firma de esa cuenta, no se puede (DECISIONES de la API firmada).
+  expect((await request.post("/api/sellers", { data: { pubkey: vendedor, storeName: "Calzados Sofi", whatsapp: TIENDA_WA, city: "Cochabamba" } })).status()).toBe(401);
+  const link = sembrarTiendaAjena(
+    { pubkey: vendedor!, storeName: "Calzados Sofi", whatsapp: TIENDA_WA, city: "Cochabamba" },
+    { product: "Zapatillas urbanas talla 40", priceBs: 450, deliveryDays: 3 },
+  );
 
   // Página de pago del comprador: la tarjeta del vendedor muestra los números y enlaza al perfil.
   await page.goto(`/p/${link.slug}`);

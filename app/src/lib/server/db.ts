@@ -106,6 +106,14 @@ CREATE TABLE IF NOT EXISTS pilot_waitlist (
   seller_pubkey TEXT,
   created_at INTEGER NOT NULL
 );
+-- Desafíos de un solo uso para probar que una cuenta es tuya (lib/server/firma.ts): se borran al usarlos.
+CREATE TABLE IF NOT EXISTS firma_desafios (
+  nonce TEXT PRIMARY KEY,
+  cuenta TEXT NOT NULL,
+  alcance TEXT NOT NULL,
+  mensaje TEXT NOT NULL,
+  vence INTEGER NOT NULL
+);
 `;
 
 // Columnas agregadas después de la primera versión (migración en caliente de bases existentes).
@@ -519,6 +527,28 @@ export const pending = {
     const row = d.prepare(`SELECT * FROM pending WHERE hash = ?`).get(hash) as PendingRow | undefined;
     if (row) d.prepare(`DELETE FROM pending WHERE hash = ?`).run(hash);
     return row;
+  },
+};
+
+export interface DesafioRow {
+  nonce: string;
+  cuenta: string;
+  /** "MÉTODO /ruta" para la que vale la firma. */
+  alcance: string;
+  /** Texto exacto que firma la cuenta (SEP-53). */
+  mensaje: string;
+  vence: number;
+}
+
+export const desafios = {
+  add(d: DesafioRow) {
+    const t = now();
+    db().prepare(`DELETE FROM firma_desafios WHERE vence < ?`).run(t);
+    db().prepare(`INSERT INTO firma_desafios (nonce, cuenta, alcance, mensaje, vence) VALUES (@nonce, @cuenta, @alcance, @mensaje, @vence)`).run(d);
+  },
+  /** Lo saca de la tabla en la misma sentencia: un nonce sirve una sola vez, aunque lleguen dos pedidos juntos. */
+  take(nonce: string): DesafioRow | undefined {
+    return db().prepare(`DELETE FROM firma_desafios WHERE nonce = ? RETURNING *`).get(nonce) as DesafioRow | undefined;
   },
 };
 

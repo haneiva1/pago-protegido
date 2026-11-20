@@ -23,6 +23,7 @@ export function makeConfig(o: {
   }
   const APP_URL = `http://localhost:${o.port}`;
   process.env.E2E_SIM_URL = `http://localhost:${o.simPort}`;
+  process.env.E2E_DB ||= o.db;
   process.env.E2E_SELLER_WA ||= o.sellerWa;
   process.env.E2E_BUYER_WA ||= "59176543210";
 

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ErrorBox, Progress, Spinner, useProgress } from "@/components/ui";
 import { CIUDADES } from "@/lib/format";
+import { apiFirmada } from "@/lib/api-firmada";
 import { WALLET_KIND, activateWallet, api, getWallet } from "@/lib/wallet";
 
 const PASOS = ["Tu tienda", "Tu WhatsApp", "Tu cuenta de cobro"];
@@ -44,7 +45,7 @@ export default function Vender() {
       await activateWallet(wallet);
       progress.finish(L);
       progress.push("Guardando tu tienda");
-      await api("/api/sellers", { pubkey, storeName: store, whatsapp, city, pilotId });
+      await apiFirmada(wallet, "/api/sellers", { pubkey, storeName: store, whatsapp, city, pilotId });
       progress.finish("Guardando tu tienda");
       router.push("/panel?primer=1");
     } catch (e) {

@@ -25,6 +25,7 @@ function PollarBridge() {
       openLoginModal,
       logout,
       signTx: (xdr: string) => client.signTx(xdr, { skipSponsorship: true }),
+      signMessage: (mensaje: string) => client.stellar.sep53.signMessage(mensaje),
     });
   }, [isAuthenticated, address, openLoginModal, logout]);
   useEffect(() => () => setPollarState(null), []);
