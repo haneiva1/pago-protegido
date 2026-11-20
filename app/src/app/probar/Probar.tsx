@@ -201,8 +201,9 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
           <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">Prueba en vivo · modo práctica</p>
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Prueba Trato de punta a punta</h1>
           <p className="mt-1 text-sm text-slate-600">
-            Dos celulares con las pantallas reales de Trato: a la izquierda el vendedor, a la derecha el comprador. Cada uno tiene su propia cuenta de
-            prueba, creada en este navegador. No se mueve dinero real.
+            Dos celulares con las pantallas reales de Trato: <span className="hidden lg:inline">a la izquierda el vendedor, a la derecha el comprador</span>
+            <span className="lg:hidden">el del vendedor y el del comprador, en pestañas</span>. Cada uno tiene su propia cuenta de prueba, creada en este
+            navegador. No se mueve dinero real.
           </p>
         </div>
         <button className="btn-secondary shrink-0 !py-2 text-sm" onClick={empezarDeNuevo} disabled={reiniciando} data-testid="empezar-de-nuevo">
