@@ -15,7 +15,7 @@ export const PLAZOS_RECLAMO = { vendedorResponde: 48 * HORA, compradorAgrega: 48
 export const CRITERIOS = [
   "Sin prueba de envío, gana el comprador",
   "Entrega no registrada o dirección distinta a la del link, gana el comprador",
-  "Entrega registrada y sin video de desempaque, gana el vendedor",
+  "Entrega registrada y sin video de desempaque (desde Bs 300), gana el vendedor",
   "Peso que no coincide, gana el comprador",
   "Distinto o dañado: primero vuelve el producto y después el reembolso",
 ] as const;

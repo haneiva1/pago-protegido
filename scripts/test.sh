@@ -72,6 +72,10 @@ if [ "${dir}" = "bot" ]; then
   # El test de palabras prohibidas del bot también lee los textos de app/src.
   mkdir -p /work/app && tar -C /src/app -cf - src | tar -C /work/app -xf -
 fi
+if [ "${dir}" = "app" ]; then
+  # Un test de la app revisa la plantilla de despliegue (deploy/app.env.example).
+  mkdir -p /work/deploy && cp /src/deploy/*.example /work/deploy/
+fi
 tar -C /src/scripts -cf - ci | tar -C /work/scripts -xf -
 cp /src/.nvmrc /work/.nvmrc
 exec bash /work/scripts/ci/${parte}.sh

@@ -181,7 +181,10 @@ function slugify(product: string): string {
     .filter(Boolean)
     .slice(0, 4)
     .join("-")
-    .slice(0, 32);
+    .slice(0, 32)
+    // El corte a 32 puede dejar un "-" al final ("…-montanismo-"): el slug quedaría con "--" y el verificador del bot
+    // (bot/src/engine/links.ts, SLUG_RE) diría que un link genuino no es de Trato.
+    .replace(/-+$/, "");
   return `${base || "pedido"}-${randomBytes(3).toString("hex")}`;
 }
 
