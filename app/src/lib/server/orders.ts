@@ -15,6 +15,7 @@ import {
   splitFromGross,
   splitPreview,
 } from "@/lib/format";
+import { parseFlete } from "@/lib/comprador";
 import { NETWORK_PASSPHRASE, cfg } from "./config";
 import { type OrderRow, evidence, kv, orders, pending, pilot, sellers, txs } from "./db";
 import { linkAmounts as amountsFor } from "@/lib/format";
@@ -270,6 +271,11 @@ export async function startPayment(slug: string, body: Record<string, unknown>):
   const agency = clean(body.agency, 80);
   if (recipient.length < 2) throw new AppError("Escribe quién recibe el pedido");
   if (!inList(CIUDADES, destCity)) throw new AppError("Elige la ciudad de destino");
+  // Último tramo (M7, opcionales): teléfono de quien recoge y flete acordado.
+  const pickupPhone = body.pickupPhone ? normPhone(body.pickupPhone) : "";
+  if (body.pickupPhone && pickupPhone.length < 7) throw new AppError("Escribe un teléfono válido para quien recoge");
+  const flete = body.flete ? parseFlete(body.flete, body.fleteBs) : null;
+  if (body.flete && !flete) throw new AppError("Escribe el monto del flete en Bs");
   return withLock(`order:${slug}`, async () => {
     let o = mustOrder(slug);
     if (o.status !== "esperando_pago") throw new AppError("Este link ya fue pagado", 409);
@@ -284,6 +290,8 @@ export async function startPayment(slug: string, body: Record<string, unknown>):
         dest_city: destCity,
         pref_agency: agency || null,
         delivery_hash: sha(JSON.stringify({ slug, recipient, city: destCity, agency })).slice(0, 16),
+        ...(pickupPhone ? { pickup_phone: pickupPhone } : {}),
+        ...(flete ? { flete } : {}),
       });
     }
     const svc = escrowService();
@@ -719,7 +727,7 @@ export function verifyCode(codeParam: string | null) {
 
 /** Vista pública del pedido: sin WhatsApp ni datos de entrega del comprador. */
 function publicOrder(o: OrderRow) {
-  const { escrow_json: _e, verify_json, buyer_whatsapp: _w, recipient_name: _r, dest_city: _c, pref_agency: _a, ...rest } = o;
+  const { escrow_json: _e, verify_json, buyer_whatsapp: _w, recipient_name: _r, dest_city: _c, pref_agency: _a, pickup_phone: _p, ...rest } = o;
   const proteccion = o.fee_payer ?? "comprador";
   // Lo que cuesta la protección: la paga el comprador (sobre el precio) o la regala el vendedor (2,3% de la venta).
   const proteccion_bs_cents =
@@ -729,7 +737,7 @@ function publicOrder(o: OrderRow) {
 
 /** Lo que ve el vendedor (y el revisor): incluye los datos de entrega. */
 function sellerOrder(o: OrderRow) {
-  return { ...publicOrder(o), recipient_name: o.recipient_name, dest_city: o.dest_city, pref_agency: o.pref_agency };
+  return { ...publicOrder(o), recipient_name: o.recipient_name, dest_city: o.dest_city, pref_agency: o.pref_agency, pickup_phone: o.pickup_phone ?? null };
 }
 
 /**

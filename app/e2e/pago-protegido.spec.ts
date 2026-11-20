@@ -1,6 +1,7 @@
 import { Keypair } from "@stellar/stellar-sdk";
 import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -89,22 +90,39 @@ async function crearLink(
 async function pagar(
   browser: Browser,
   url: string,
-  o: { capturas?: boolean; whatsapp?: string; quien?: string; ciudad?: string; agencia?: string; antes?: (p: Page) => Promise<void> } = {},
+  o: { capturas?: boolean; whatsapp?: string; quien?: string; ciudad?: string; agencia?: string; telefono?: string; flete?: string; antes?: (p: Page) => Promise<void> } = {},
 ) {
   const page = await (await browser.newContext()).newPage();
   await page.goto(url);
   await expect(page.getByTestId("codigo")).toHaveText(/Compra protegida · PP-\d{4,5}/);
-  await expect(page.getByTestId("promesa")).toContainText("Tu plata no llega al vendedor hasta que recibas tu pedido.");
+  // Primer pantallazo: producto, total, "Dos salidas" y el botón de pagar fijo abajo.
+  await expect(page.getByTestId("promesa")).toContainText("Tu plata queda guardada. Solo tiene dos salidas:");
+  await expect(page.getByTestId("salida-comprador")).toContainText("De vuelta a ti, si no lo despacha hasta el");
+  await expect(page.getByTestId("reputacion")).toBeVisible();
   await expect(page.getByTestId("antifraude")).toContainText("Si un QR de Trato está a nombre de una persona, es estafa.");
   await expect(page.getByTestId("modo-practica")).toContainText("Modo práctica: no se mueve dinero real");
   if (o.antes) await o.antes(page);
   if (o.capturas) await capturar(page, "06-comprador-antes-de-pagar");
+  // El botón fijo abre la hoja con los datos de entrega; al continuar se muestra el QR.
+  await page.getByTestId("barra-pagar").getByRole("button", { name: /Pagar Bs .* con QR/ }).click();
+  await expect(page.getByTestId("datos-entrega")).toBeVisible();
   await page.getByLabel("Quién recibe").fill(o.quien ?? "Ana Pérez");
   await page.getByLabel("Ciudad de destino").selectOption(o.ciudad ?? "Cochabamba");
   if (o.agencia) await page.getByLabel(/Agencia preferida/).fill(o.agencia);
   if (o.whatsapp) await page.getByLabel(/Tu WhatsApp para avisarte/).fill(o.whatsapp);
-  await page.getByRole("button", { name: /Pagar Bs .* con QR/ }).click();
+  if (o.telefono) await page.getByLabel(/Teléfono de quien recoge/).fill(o.telefono);
+  if (o.flete) await page.getByLabel(/¿Y el flete\?/).selectOption(o.flete);
+  if (o.capturas) await capturar(page, "06b-comprador-datos-de-entrega");
+  await page.getByRole("button", { name: /Ver el QR para pagar Bs/ }).click();
   await expect(page.getByTestId("rampa-simulada")).toHaveText("Rampa simulada en testnet. En producción la hace una entidad certificada por ASFI.");
+  // QR como se paga en Bolivia: guardarlo o compartirlo y subirlo desde la galería del banco.
+  const qr = page.getByTestId("qr");
+  await expect(qr.getByTestId("imagen-qr")).toBeVisible();
+  await expect(qr.getByRole("button", { name: /Guardar QR/ })).toBeEnabled();
+  await expect(qr.getByRole("button", { name: /Compartir QR/ })).toBeEnabled();
+  await expect(qr.getByTestId("pasos-qr")).toContainText("Abre tu banco → Pagar con QR → Galería");
+  await expect(qr.getByTestId("esperando-pago")).toHaveText("Esperando tu pago…");
+  await expect(qr.getByTestId("qr-entidad")).toContainText("nunca de una persona");
   if (o.capturas) await capturar(page, "07-comprador-qr-rampa-simulada");
   // El pago encadena varias transacciones en testnet (rampa, deploy del escrow, fondeo). Si la red falla,
   // la pantalla muestra el error y se puede reintentar: el flujo es idempotente (no vuelve a emitir la rampa).
@@ -188,9 +206,13 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
     quien: "Ana Pérez",
     ciudad: "Cochabamba",
     agencia: "Trans Copacabana, terminal",
+    telefono: "70011223",
+    flete: "por_pagar",
     antes: async (p) => {
       await expect(p.getByTestId("vendedor")).toContainText("Vendedor: Tienda Sofi · Santa Cruz");
-      await expect(p.getByTestId("vendedor")).toContainText("0 ventas protegidas, 0 reclamos");
+      await expect(p.getByTestId("reputacion")).toContainText("Tienda Sofi · Santa Cruz");
+      await expect(p.getByTestId("reputacion")).toContainText("Tienda nueva · igual tu plata queda guardada");
+      await expect(p.getByTestId("vendedor")).toContainText("Tienda nueva");
       await expect(p.getByTestId("vendedor")).toContainText("Verificación de identidad: pendiente");
       await expect(p.getByTestId("proteccion")).toContainText("Bs 6,75");
       await expect(p.getByTestId("proteccion")).toContainText("Bs 456,75");
@@ -198,6 +220,16 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
     },
   });
   await capturar(buyer, "08-comprador-pagado");
+  await expect(buyer.getByTestId("compra-en-este-navegador")).toContainText("Tu compra quedó en este navegador");
+  await buyer.getByRole("button", { name: "Agregar a inicio" }).click();
+  await expect(buyer.getByTestId("ayuda-inicio")).toBeVisible();
+  // El mismo link desde otro navegador: explica qué pasa y qué hacer, en vez de una pantalla sin botones.
+  const otro = await (await browser.newContext()).newPage();
+  await otro.goto(url);
+  await expect(otro.getByTestId("otro-navegador")).toContainText("¿Pagaste tú este pedido?");
+  await expect(otro.getByTestId("otro-navegador")).toContainText("Si la tienda no despacha hasta el");
+  await capturar(otro, "08b-comprador-otro-navegador");
+  await otro.close();
 
   // Vendedor: ve a quién enviar y registra el envío con evidencia estructurada.
   const card = await marcarEnviado(seller, slug, {
@@ -213,6 +245,42 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
   // Comprador: "Pagar al vendedor" recién se habilita después de la espera, y pregunta antes.
   await buyer.reload();
   await expect(buyer.getByTestId("linea-de-tiempo")).toContainText("guía SRV-2026-118734");
+
+  // Reclamo guiado con evidencia desde la galería: la foto se comprime, se sube con su huella y no se envía el reclamo.
+  await buyer.getByTestId("confirmar").getByRole("button", { name: "Tengo un problema" }).click();
+  const reclamo = buyer.getByTestId("reclamo");
+  await reclamo.getByText("Llegó vacío o con otro producto").click();
+  await expect(reclamo.getByTestId("evidencia-pedida")).toContainText("Video continuo del desempaque, sin cortes (obligatorio desde Bs 300).");
+  await expect(reclamo.getByTestId("plazos-reclamo")).toContainText("el revisor decide en 72 h");
+  const foto = await buyer.screenshot({ clip: { x: 0, y: 0, width: 160, height: 160 } });
+  await reclamo.getByLabel("Foto del paquete: galería").setInputFiles({ name: "paquete.png", mimeType: "image/png", buffer: foto });
+  await expect(reclamo.getByTestId("evidencia-foto").getByTestId("huella")).toBeVisible();
+  await capturar(buyer, "09b-comprador-reclamo-guiado");
+  await reclamo.getByRole("button", { name: "Cancelar" }).click();
+  // /api/evidencia: guarda el archivo con su SHA-256 como nombre y el link lleva la huella.
+  const subida = await (await buyer.request.post(`/api/evidencia?pedido=${slug}`, { data: foto, headers: { "content-type": "image/png" } })).json();
+  expect(subida.url).toMatch(new RegExp(`/api/evidencia/${subida.sha256}\\.png$`));
+  const vuelta = await buyer.request.get(subida.url);
+  expect(vuelta.headers()["content-type"]).toBe("image/png");
+  expect(createHash("sha256").update(await vuelta.body()).digest("hex")).toBe(subida.sha256);
+  expect((await buyer.request.post("/api/evidencia?pedido=no-existe", { data: foto })).status()).toBe(404);
+  expect((await buyer.request.post(`/api/evidencia?pedido=${slug}`, { data: Buffer.from("no es una imagen ni un video") })).status()).toBe(415);
+
+  // Seguimiento tipo delivery: "Tu próximo paso" dice dónde recoger, con la guía y el flete; "Ya lo recogí" avanza.
+  const paso = buyer.getByTestId("proximo-paso");
+  await expect(paso).toContainText("Recoge en Trans Copacabana (encomiendas) con tu carnet y la guía SRV-2026-118734");
+  await expect(paso).toContainText("Flete por pagar al recoger");
+  await expect(paso.getByRole("button", { name: "Todavía no llegó" })).toBeVisible();
+  await expect(buyer.getByTestId("paso-2")).toHaveAttribute("data-hecho", "si");
+  await expect(buyer.getByTestId("paso-3")).toHaveAttribute("data-hecho", "no");
+  await capturar(buyer, "09c-comprador-proximo-paso");
+  await paso.getByRole("button", { name: "Ya lo recogí" }).click();
+  await expect(buyer.getByTestId("paso-3")).toHaveAttribute("data-hecho", "si");
+  await expect(paso).toContainText("Revísalo antes de pagar");
+  // El teléfono de quien recoge no sale en la vista pública (sí el flete).
+  const vista = await (await buyer.request.get(`/api/orders/${slug}`)).text();
+  expect(vista).not.toContain("70011223");
+  expect(vista).toContain('"flete":"por_pagar"');
   await expect(buyer.getByRole("button", { name: "Pagar al vendedor (irreversible)" })).toBeDisabled();
   await expect(buyer.getByTestId("espera-confirmar")).toBeVisible();
   await expect(buyer.getByText("Después ya no puedes reclamar.")).toBeVisible();
@@ -222,6 +290,9 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
   await buyer.getByRole("button", { name: "Sí, lo tengo y está bien" }).click();
   await expect(buyer.getByTestId("estado-pedido")).toContainText("Se pagó al vendedor", CHAIN);
   await expect(buyer.getByTestId("desglose")).toContainText("Bs 450,04"); // el vendedor recibe el precio completo
+  // Después de liberar ya no dice "Pago bloqueado": el texto depende del estado.
+  await expect(buyer.getByTestId("registro-publico")).toContainText("Pago liberado al vendedor");
+  await expect(buyer.getByTestId("registro-publico")).not.toContainText("bloqueado");
   await capturar(buyer, "12-comprador-pagado-al-vendedor");
 
   await seller.reload();
@@ -285,6 +356,10 @@ test("presión para confirmar abre un reclamo; el vendedor regala la protección
   await buyer.reload();
   await abrirPregunta(buyer);
   await buyer.getByRole("button", { name: "El vendedor me pide que confirme" }).click();
+  // Pide una confirmación antes de abrir el reclamo por presión (antes bastaba un toque).
+  await expect(buyer.getByTestId("confirmar-presion")).toContainText("¿La tienda te pide que le pagues antes de tener el producto?");
+  await capturar(buyer, "19-comprador-confirma-presion");
+  await buyer.getByRole("button", { name: "Sí, abrir un reclamo" }).click();
   await expect(buyer.getByTestId("aviso-presion")).toBeVisible();
   await expect(buyer.getByTestId("estado-pedido")).toContainText("Reclamo abierto", CHAIN);
   await expect(buyer.getByTestId("linea-de-tiempo")).toContainText("Presión para confirmar");
@@ -415,6 +490,7 @@ test("devolución automática (v2): el vendedor no despacha a tiempo y el pago v
   // y pp_arbiter.refund_unshipped devuelve el pago. La página del comprador se actualiza sola.
   await expect(buyer.getByTestId("estado-pedido")).toContainText("Te devolvimos tu pago", { timeout: 6 * 60_000 });
   await expect(buyer.getByTestId("devolucion")).toContainText("El vendedor no registró el envío antes del plazo");
+  await expect(buyer.getByTestId("registro-publico")).toContainText("Te devolvimos el pago");
   await expect(buyer.getByText("Se devolvió el pago al comprador: el vendedor no despachó a tiempo")).toBeVisible();
   await expect(buyer.locator(TX_LINK).last()).toBeVisible();
   await capturar(buyer, "47-comprador-devuelto-sin-despacho");
@@ -515,7 +591,7 @@ test("transparencia: pruebas del equipo (con reclamos forzados) y piloto aparte,
   await capturar(page, "60-transparencia", "tecnica");
 });
 
-test("palabras prohibidas en todas las pantallas, /verificar, /pedir, /piloto y piloto:csv", async ({ page, request }) => {
+test("palabras prohibidas en todas las pantallas, /verificar, /pedir, /piloto y piloto:csv", async ({ page, request, browser }) => {
   // Un link real (sin transacciones) para /p/[slug] y /verificar.
   const pubkey = Keypair.random().publicKey();
   expect((await request.post("/api/sellers", { data: { pubkey, storeName: "Tienda Verificable", whatsapp: "59170002222", city: "Tarija" } })).ok()).toBe(true);
@@ -525,12 +601,31 @@ test("palabras prohibidas en todas las pantallas, /verificar, /pedir, /piloto y 
   };
   expect(link.code).toMatch(/^PP-\d{4,5}$/);
 
+  // Abierto dentro de Instagram (navegador interno): pide abrirlo en Safari o Chrome antes de pagar, con "Copiar link".
+  const ig = await (
+    await browser.newContext({
+      userAgent:
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 337.0.3.23.54 (iPhone14,5; iOS 17_5; es_BO; es)",
+    })
+  ).newPage();
+  await ig.goto(`/p/${link.slug}`);
+  await expect(ig.getByTestId("aviso-navegador-interno")).toContainText("Estás dentro de Instagram. Abre este link en Safari antes de pagar.");
+  await expect(ig.getByTestId("copiar-link")).toBeVisible();
+  await capturar(ig, "65-comprador-navegador-interno");
+  await ig.close();
+
   await page.goto(`/verificar?codigo=${link.code}`);
   const res = page.getByTestId("resultado-verificar");
   await expect(res).toContainText("Tienda Verificable");
   await expect(res).toContainText("Chamarra de cuero");
   await expect(res).toContainText("Esperando pago");
   await capturar(page, "61-verificar");
+  // Un link que no existe: 404 con el aviso de que puede ser falso.
+  expect((await request.get("/p/no-existe-0000")).status()).toBe(404);
+  await page.goto("/p/no-existe-0000");
+  await expect(page.getByTestId("link-no-encontrado")).toContainText("Puede ser un link falso");
+  await capturar(page, "64-comprador-link-no-existe");
+
   await page.goto("/verificar?codigo=PP-0001");
   await expect(page.getByTestId("error")).toContainText("No encontramos un pedido con ese código");
 

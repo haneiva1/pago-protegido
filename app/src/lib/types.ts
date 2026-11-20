@@ -93,12 +93,12 @@ export interface PerfilTienda {
   fx: number;
 }
 
-export type PublicOrder = Omit<OrderRow, "escrow_json" | "verify_json" | "buyer_whatsapp" | "recipient_name" | "dest_city" | "pref_agency"> & {
+export type PublicOrder = Omit<OrderRow, "escrow_json" | "verify_json" | "buyer_whatsapp" | "recipient_name" | "dest_city" | "pref_agency" | "pickup_phone"> & {
   verification: Verification | null;
 };
 
 /** Lo que ve el vendedor y el revisor: con los datos de entrega. */
-export type SellerOrderFields = { recipient_name: string | null; dest_city: string | null; pref_agency: string | null };
+export type SellerOrderFields = { recipient_name: string | null; dest_city: string | null; pref_agency: string | null; pickup_phone?: string | null };
 
 export interface MoneyView {
   breakdown?: { seller: string; platform: string; tw: string };
