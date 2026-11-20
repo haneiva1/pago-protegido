@@ -74,7 +74,7 @@ export default function Piloto() {
         {field("whatsapp", "WhatsApp", "Ej.: 591 71234567", { inputMode: "tel" })}
         <label className="flex items-start gap-2 text-sm text-slate-700">
           <input type="checkbox" className="mt-1" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-          <span>Acepto que Pago Protegido guarde estos datos y me escriba por WhatsApp sobre el piloto.</span>
+          <span>Acepto que Trato guarde estos datos y me escriba por WhatsApp sobre el piloto.</span>
         </label>
         <ErrorBox error={error} />
         <button className="btn-primary w-full" disabled={busy}>

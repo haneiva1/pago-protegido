@@ -69,7 +69,7 @@ export default function Verificar() {
       <ErrorBox error={error} />
       {r && (
         <section className="card space-y-2" data-testid="resultado-verificar">
-          <p className="text-sm font-semibold text-brand-700">✔ Link auténtico de Pago Protegido · {r.code}</p>
+          <p className="text-sm font-semibold text-brand-700">✔ Link auténtico de Trato · {r.code}</p>
           <p>
             Tienda: <strong>{r.store}</strong>
             {r.city ? ` · ${r.city}` : ""}
@@ -91,7 +91,7 @@ export default function Verificar() {
           </div>
         </section>
       )}
-      <p className="text-xs text-slate-500">Si un QR de Pago Protegido está a nombre de una persona, es estafa.</p>
+      <p className="text-xs text-slate-500">Si un QR de Trato está a nombre de una persona, es estafa.</p>
     </div>
   );
 }

@@ -17,7 +17,7 @@ const TX_LINK = 'a[href*="stellar.expert/explorer/testnet/tx/"]';
 
 // Palabras prohibidas. Legales: en todas las pantallas. Técnicas: en las del comprador y del vendedor
 // (el panel del revisor, /como-funciona y /transparencia pueden ser técnicos).
-const LEGALES = [/\bseguro\b/i, /garant[ií]a/i, /garantizad/i, /100\s?%/, /custodia/i, /plataforma de pagos/i, /pasarela/i, /billetera Pago Protegido/i, /arbitraje/i, /árbitro/i];
+const LEGALES = [/\bseguro\b/i, /garant[ií]a/i, /garantizad/i, /100\s?%/, /custodia/i, /plataforma de pagos/i, /pasarela/i, /billetera Pago Protegido/i, /billetera Trato/i, /arbitraje/i, /árbitro/i];
 const TECNICAS = [/cripto/i, /\btoken/i, /stablecoin/i, /\bwallet\b/i, /\bllaves?\b/i, /billetera propia/i, /blockchain/i, /stellar/i];
 type Kind = "usuario" | "tecnica" | "chat";
 
@@ -95,7 +95,7 @@ async function pagar(
   await page.goto(url);
   await expect(page.getByTestId("codigo")).toHaveText(/Compra protegida · PP-\d{4,5}/);
   await expect(page.getByTestId("promesa")).toContainText("Tu plata no llega al vendedor hasta que recibas tu pedido.");
-  await expect(page.getByTestId("antifraude")).toContainText("Si un QR de Pago Protegido está a nombre de una persona, es estafa.");
+  await expect(page.getByTestId("antifraude")).toContainText("Si un QR de Trato está a nombre de una persona, es estafa.");
   await expect(page.getByTestId("modo-practica")).toContainText("Modo práctica: no se mueve dinero real");
   if (o.antes) await o.antes(page);
   if (o.capturas) await capturar(page, "06-comprador-antes-de-pagar");
@@ -160,7 +160,7 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
   const landing = await browser.newPage();
   await landing.goto("/");
   await expect(landing.getByRole("heading", { level: 1 })).toHaveText("Vende a otras ciudades sin que desconfíen de ti");
-  await expect(landing.getByText("El contra entrega no cruza departamentos. Pago Protegido sí.")).toBeVisible();
+  await expect(landing.getByText("El contra entrega no cruza departamentos. Trato sí.")).toBeVisible();
   await capturar(landing, "01-landing");
   await landing.close();
 
@@ -237,7 +237,7 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
   await tarjeta.getByTestId("link-perfil-tienda").click();
   await expect(buyer).toHaveURL(/\/tienda\/tienda-sofi-[0-9a-f]{4}$/);
   await expect(buyer.getByTestId("perfil-nombre")).toHaveText("Tienda Sofi");
-  await expect(buyer.getByTestId("sello")).toContainText("Vende con Pago Protegido");
+  await expect(buyer.getByTestId("sello")).toContainText("Vende con Trato");
   await expect(buyer.getByTestId("num-ventas")).toContainText(/1\s*venta protegida/);
   await expect(buyer.getByTestId("num-despacho")).not.toContainText("—");
   await expect(buyer.getByTestId("verificacion")).toHaveText("Verificación de identidad: pendiente (modo práctica)");
@@ -533,7 +533,7 @@ test("palabras prohibidas en todas las pantallas, /verificar, /pedir, /piloto y 
   await page.goto("/pedir");
   await page.getByLabel("¿Qué quieres comprar?").fill("Chamarra de cuero");
   await page.getByLabel(/Precio acordado/).fill("800");
-  await expect(page.getByTestId("mensaje-pedir")).toContainText("¿Me lo vendes con Pago Protegido?");
+  await expect(page.getByTestId("mensaje-pedir")).toContainText("¿Me lo vendes con Trato?");
   await capturar(page, "62-pedir");
 
   await page.goto("/piloto");
@@ -546,7 +546,7 @@ test("palabras prohibidas en todas las pantallas, /verificar, /pedir, /piloto y 
   await page.getByLabel("WhatsApp", { exact: true }).fill("59170003333");
   await page.getByRole("button", { name: "Quiero entrar al piloto" }).click();
   await expect(page.getByTestId("error")).toContainText("consentimiento");
-  await page.getByLabel(/Acepto que Pago Protegido guarde estos datos/).check();
+  await page.getByLabel(/Acepto que Trato guarde estos datos/).check();
   await page.getByRole("button", { name: "Quiero entrar al piloto" }).click();
   await expect(page.getByTestId("piloto-listo")).toBeVisible();
   await capturar(page, "63-piloto");

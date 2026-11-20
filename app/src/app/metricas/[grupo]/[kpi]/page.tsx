@@ -6,7 +6,7 @@ import { KPI_DETALLE, comprasDeGrupo, isGrupo, isKpi, metricasSnapshot } from "@
 import type { CompraOnchain } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Operaciones · Métricas · Pago Protegido" };
+export const metadata = { title: "Operaciones · Métricas · Trato" };
 
 const secs = (a: string, b: string) => (new Date(b).getTime() - new Date(a).getTime()) / 1000;
 

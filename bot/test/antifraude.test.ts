@@ -58,7 +58,7 @@ describe("verificador de links (bot contra la app de mentira)", () => {
     ["slug inválido", "https://pp.test/p/zapatillas", /no es válido/],
     ["no es /p/", "https://pp.test/cobrar?id=SLUG", /No es un link de pago/],
     ["http con otro puerto", "http://pp.test:8080/p/SLUG", /no es nuestro dominio/],
-  ])("%s → ⚠️ NO es de Pago Protegido", async (_name, link, why) => {
+  ])("%s → ⚠️ NO es de Trato", async (_name, link, why) => {
     const o = newLink();
     const [out] = await texts(BUYER, `verificar ${link.replace("SLUG", o.slug)}`);
     expect(out.split("\n")[0]).toBe(VERIFY_FAKE);

@@ -84,7 +84,7 @@ export const QR_WARNING = "Ojo: el QR de pago nunca está a nombre de una person
 export const ANTI_PRESSURE =
   "Tu plata está bloqueada en un contrato público. Nadie necesita que confirmes para enviar: ni el vendedor, ni la flota, ni el courier. Si te lo piden, es la señal número 1 de estafa. Puedes verificar cualquier link reenviándolo a este número.";
 /** Respuesta del verificador a todo lo que no sea un link auténtico. */
-export const VERIFY_FAKE = "⚠️ Este link NO es de Pago Protegido. No pagues.";
+export const VERIFY_FAKE = "⚠️ Este link NO es de Trato. No pagues.";
 
 /** Estado para quien no es el vendedor (comprador que verifica un link). */
 export const STATUS_PUBLIC: Record<OrderStatus, string> = {
@@ -127,14 +127,14 @@ const HOW_TO = [
 export const msg = {
   help(store?: string): OutMsg {
     return {
-      text: `¡Hola${store ? ` ${store}` : ""}! 👋 Soy el asistente de *Pago Protegido*.\nCreo tus links de pago y te aviso de cada pedido. Tu cliente paga por adelantado y su plata queda protegida hasta que recibe.\n\n${HOW_TO}`,
+      text: `¡Hola${store ? ` ${store}` : ""}! 👋 Soy el asistente de *Trato*.\nCreo tus links de pago y te aviso de cada pedido. Tu cliente paga por adelantado y su plata queda protegida hasta que recibe.\n\n${HOW_TO}`,
       buttons: [BTN.vender, BTN.ventas, BTN.saldo],
     };
   },
 
   notRegistered(appUrl: string, phone: string): OutMsg {
     return {
-      text: `¡Hola! 👋 Este número todavía no tiene tienda en *Pago Protegido*.\nCréala en 1 minuto (nombre, WhatsApp y listo):\n👉 ${registerUrl(appUrl, phone)}\n\nCuando termines, escríbeme *hola*.\n\n🔒 ${SELLER_NO_LINK}\n\n¿Te mandaron un link para pagar? Reenvíamelo y te digo si es de verdad.`,
+      text: `¡Hola! 👋 Este número todavía no tiene tienda en *Trato*.\nCréala en 1 minuto (nombre, WhatsApp y listo):\n👉 ${registerUrl(appUrl, phone)}\n\nCuando termines, escríbeme *hola*.\n\n🔒 ${SELLER_NO_LINK}\n\n¿Te mandaron un link para pagar? Reenvíamelo y te digo si es de verdad.`,
     };
   },
 
@@ -298,7 +298,7 @@ export const msg = {
     if (!s.slug) return { text: `Tu perfil público todavía no está listo. Ábrelo desde tu panel: ${appUrl}/panel` };
     const url = profileUrl(appUrl, s.slug);
     return {
-      text: `🛡️ Tu perfil público de *${s.store_name}*:\n${url}\n\nAhí tus clientes ven tus ventas protegidas, cuántas terminaron sin reclamo y cuánto tardas en despachar, calculado con el registro público de cada compra. No muestra tu teléfono ni tu dirección.\n\nPégalo en la bio de tu Instagram o TikTok:\n*Vendo con Pago Protegido ✅ ${url}*`,
+      text: `🛡️ Tu perfil público de *${s.store_name}*:\n${url}\n\nAhí tus clientes ven tus ventas protegidas, cuántas terminaron sin reclamo y cuánto tardas en despachar, calculado con el registro público de cada compra. No muestra tu teléfono ni tu dirección.\n\nPégalo en la bio de tu Instagram o TikTok:\n*Vendo con Trato ✅ ${url}*`,
     };
   },
 
@@ -351,7 +351,7 @@ export const msg = {
   },
 
   reportThanks(host: string): OutMsg {
-    return { text: `🙏 ¡Gracias por avisar! Guardé tu reporte de *${host}* para revisarlo y alertar a más gente.\nRecuerda: nadie de Pago Protegido te pide pagar fuera de nuestro link ni confirmar antes de recibir.` };
+    return { text: `🙏 ¡Gracias por avisar! Guardé tu reporte de *${host}* para revisarlo y alertar a más gente.\nRecuerda: nadie de Trato te pide pagar fuera de nuestro link ni confirmar antes de recibir.` };
   },
 
   reportAsk(): OutMsg {

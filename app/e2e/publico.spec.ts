@@ -15,7 +15,7 @@ const WHATSAPP = { "user-agent": "WhatsApp/2.24.20.80 A" };
 const TIENDA_WA = "59170004444";
 
 // Misma lista que pago-protegido.spec.ts. /metricas y /tienda son pantallas de usuarios: van las dos listas.
-const LEGALES = [/\bseguro\b/i, /garant[ií]a/i, /garantizad/i, /100\s?%/, /custodia/i, /plataforma de pagos/i, /pasarela/i, /billetera Pago Protegido/i, /arbitraje/i, /árbitro/i];
+const LEGALES = [/\bseguro\b/i, /garant[ií]a/i, /garantizad/i, /100\s?%/, /custodia/i, /plataforma de pagos/i, /pasarela/i, /billetera Pago Protegido/i, /billetera Trato/i, /arbitraje/i, /árbitro/i];
 const TECNICAS = [/cripto/i, /\btoken/i, /stablecoin/i, /\bwallet\b/i, /\bllaves?\b/i, /billetera propia/i, /blockchain/i, /stellar/i];
 
 async function revisarPalabras(page: Page) {
@@ -150,8 +150,8 @@ test("perfil verificable de la tienda (/tienda/<slug>): mismos números que la t
   await expect(page).toHaveURL(/\/tienda\/calzados-sofi-[0-9a-f]{4}$/);
   const slug = new URL(page.url()).pathname.split("/").pop()!;
   await expect(page.getByTestId("perfil-nombre")).toHaveText("Calzados Sofi");
-  await expect(page.getByTestId("sello")).toContainText("Vende con Pago Protegido");
-  await expect(page.getByTestId("perfil-tienda")).toContainText(/Vende con Pago Protegido desde \S+ de \d{4}/);
+  await expect(page.getByTestId("sello")).toContainText("Vende con Trato");
+  await expect(page.getByTestId("perfil-tienda")).toContainText(/Vende con Trato desde \S+ de \d{4}/);
   await expect(page.getByTestId("verificacion")).toHaveText("Verificación de identidad: pendiente (modo práctica)");
   // Los mismos números que la tarjeta del comprador.
   for (const [id, v] of Object.entries(enTarjeta)) await expect(page.getByTestId("perfil-tienda").getByTestId(id).locator("p").first()).toHaveText(v);
@@ -174,9 +174,9 @@ test("perfil verificable de la tienda (/tienda/<slug>): mismos números que la t
   expect(descarga.headers()["content-type"]).toContain("image/png");
   await capturar(page, "73-tienda-perfil");
 
-  // Vista previa al pegar el link en Instagram, TikTok o WhatsApp: "Vende con Pago Protegido" y sus números.
+  // Vista previa al pegar el link en Instagram, TikTok o WhatsApp: "Vende con Trato" y sus números.
   const meta = metas(await (await request.get(`/tienda/${slug}`, { headers: WHATSAPP })).text());
-  expect(meta["og:title"]).toBe("Calzados Sofi vende con Pago Protegido");
+  expect(meta["og:title"]).toBe("Calzados Sofi vende con Trato");
   expect(meta["og:description"]).toContain(`${numero(enTarjeta["num-ventas"])} venta`);
   expect(meta["og:description"]).toContain("sin reclamo");
   expect(meta["og:description"]).not.toContain(TIENDA_WA);

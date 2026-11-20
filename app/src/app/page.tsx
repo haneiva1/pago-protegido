@@ -22,7 +22,7 @@ export default function Home() {
             Ventas entre ciudades por encomienda · Bs 300 a 3.000
           </span>
           <h1 className="mt-4 text-4xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-5xl">Vende a otras ciudades sin que desconfíen de ti</h1>
-          <p className="mt-4 max-w-xl text-lg text-slate-600">El contra entrega no cruza departamentos. Pago Protegido sí.</p>
+          <p className="mt-4 max-w-xl text-lg text-slate-600">El contra entrega no cruza departamentos. Trato sí.</p>
           <p className="mt-2 max-w-xl text-slate-600">
             Tu cliente paga por adelantado y su plata queda guardada hasta que le llega el pedido. Tú despachas sabiendo que ya pagó.
           </p>

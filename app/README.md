@@ -1,4 +1,4 @@
-# Pago Protegido: app web (testnet, modo práctica)
+# Trato: app web (testnet, modo práctica)
 
 Links de pago protegidos para ventas por redes:
 
@@ -108,7 +108,7 @@ npm run demo:video:join   # solo vuelve a armar el mp4 con los clips ya grabados
 
 El video final dura **≈ 1:52** (1280x720):
 
-- placa inicial de 3 s: "Pago Protegido · Pagos protegidos para ventas por redes · sobre Stellar";
+- placa inicial de 3 s: "Pago Protegido · Pagos protegidos para ventas por redes · sobre Stellar" (el video v2 se grabó con el nombre anterior; al regrabarlo hay que cambiar la placa en `scripts/video-join.mjs`);
 - el recorrido con subtítulos;
 - placa final de 4 s: "Contratos en Stellar testnet · pp_guardian · pp_arbiter · Trustless Work · Pollar".
 
@@ -137,7 +137,7 @@ Cuando el vendedor pega `/p/<slug>` en un chat, WhatsApp muestra una tarjeta con
 
 - el producto y el precio en Bs (aprox. en USD de prueba);
 - la tienda;
-- el escudo "Pago protegido";
+- el escudo "Trato · pago protegido";
 - "Tu plata queda guardada hasta que confirmes que te llegó".
 
 Cómo está hecho:
@@ -287,6 +287,6 @@ PP_ARBITER_ID=C...
 ## Métricas en vivo y perfil de la tienda
 
 - `/metricas`: KPIs con datos públicos de testnet (eventos de los contratos v2). Piloto y pruebas del equipo, siempre por separado. Cada número abre `/metricas/<equipo|piloto>/<kpi>` con las operaciones y sus links a stellar.expert. JSON en `/api/metricas`.
-- `/tienda/<slug>`: perfil verificable del vendedor, sin teléfono ni dirección, con la insignia "Vende con Pago Protegido" (imagen OG y `/tienda/<slug>/insignia`). La tarjeta del vendedor en la página de pago enlaza ahí, y el bot responde "mi perfil" con el link.
+- `/tienda/<slug>`: perfil verificable del vendedor, sin teléfono ni dirección, con la insignia "Vende con Trato" (imagen OG y `/tienda/<slug>/insignia`). La tarjeta del vendedor en la página de pago enlaza ahí, y el bot responde "mi perfil" con el link.
 - `npm run test:e2e:publico`: e2e de solo lectura contra testnet, sin claves (puerto 3140). `npm run test:e2e` incluye además los pasos con pagos.
 - Detalle y definiciones: DECISIONES 86–99.

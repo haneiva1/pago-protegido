@@ -1,4 +1,4 @@
-// Verificador de links: decide si un link es un link de pago de Pago Protegido. Funciones puras.
+// Verificador de links: decide si un link es un link de pago de Trato. Funciones puras.
 // Solo es auténtico un link al dominio canónico EXACTO (PP_APP_URL / PP_PUBLIC_URL) con la forma /p/<slug>.
 // Todo lo demás es falso; la clasificación (acortador, dominio parecido…) solo sirve para explicar por qué.
 

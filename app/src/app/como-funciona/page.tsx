@@ -4,7 +4,7 @@ import { info } from "@/lib/server/orders";
 import type { InfoData } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Cómo funciona · Pago Protegido" };
+export const metadata = { title: "Cómo funciona · Trato" };
 
 function Node({ n, title, children, tone = "brand" }: { n: string; title: string; children: React.ReactNode; tone?: "brand" | "amber" | "violet" | "slate" }) {
   const ring = { brand: "ring-brand-200 bg-brand-50", amber: "ring-amber-200 bg-amber-50", violet: "ring-violet-200 bg-violet-50", slate: "ring-slate-200 bg-white" }[tone];

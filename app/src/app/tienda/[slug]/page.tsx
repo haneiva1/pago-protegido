@@ -22,13 +22,13 @@ const resumen = (p: PerfilTienda) => {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const p = await cargar(slug);
-  if (!p) return { title: "Tienda no encontrada · Pago Protegido" };
-  const title = `${p.store_name} vende con Pago Protegido`;
+  if (!p) return { title: "Tienda no encontrada · Trato" };
+  const title = `${p.store_name} vende con Trato`;
   const description = `${resumen(p)}. Historial verificable en el registro público de cada compra.`;
   return {
     title,
     description,
-    openGraph: { title, description, type: "profile", siteName: "Pago Protegido", locale: "es_BO" },
+    openGraph: { title, description, type: "profile", siteName: "Trato", locale: "es_BO" },
     twitter: { card: "summary_large_image", title, description },
   };
 }
@@ -43,7 +43,7 @@ export default async function Tienda({ params }: { params: Promise<{ slug: strin
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost";
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   const url = `${proto}://${host}/tienda/${p.slug}`;
-  const bio = `Vendo con Pago Protegido ✅ ${resumen(p)} ${url}`;
+  const bio = `Vendo con Trato ✅ ${resumen(p)} ${url}`;
   const initials = p.store_name
     .split(/\s+/)
     .slice(0, 2)
@@ -66,7 +66,7 @@ export default async function Tienda({ params }: { params: Promise<{ slug: strin
           </div>
         </div>
         <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-sm font-semibold text-brand-800 ring-1 ring-brand-200" data-testid="sello">
-          🛡️ Vende con Pago Protegido
+          🛡️ Vende con Trato
         </span>
         <NumerosTienda k={k} />
         <ul className="space-y-0.5 text-sm text-slate-600">
@@ -90,14 +90,14 @@ export default async function Tienda({ params }: { params: Promise<{ slug: strin
           registro público.
         </p>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={`/tienda/${p.slug}/insignia`} alt={`${p.store_name} vende con Pago Protegido`} width={1200} height={630} className="h-auto w-full rounded-xl ring-1 ring-slate-200" />
+        <img src={`/tienda/${p.slug}/insignia`} alt={`${p.store_name} vende con Trato`} width={1200} height={630} className="h-auto w-full rounded-xl ring-1 ring-slate-200" />
         <p className="break-all rounded-xl bg-slate-50 p-3 font-mono text-sm" data-testid="link-perfil">
           {url}
         </p>
         <div className="flex flex-wrap gap-2">
           <CopyButton text={url} label="Copiar link" testId="copiar-link-perfil" />
           <CopyButton text={bio} label="Copiar texto para la bio" />
-          <a className="btn-secondary" href={`/tienda/${p.slug}/insignia`} download={`pago-protegido-${p.slug}.png`}>
+          <a className="btn-secondary" href={`/tienda/${p.slug}/insignia`} download={`trato-${p.slug}.png`}>
             Descargar imagen
           </a>
         </div>
@@ -118,7 +118,7 @@ export default async function Tienda({ params }: { params: Promise<{ slug: strin
       <p className="text-center text-xs text-slate-500">
         Este perfil no muestra el teléfono ni la dirección de la tienda. ·{" "}
         <Link className="underline" href="/metricas">
-          Métricas de Pago Protegido
+          Métricas de Trato
         </Link>
       </p>
     </div>

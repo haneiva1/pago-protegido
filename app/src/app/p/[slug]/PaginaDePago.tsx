@@ -340,7 +340,7 @@ function SellerCard({ v }: { v: OrderView }) {
             {k.pagadas_al_vendedor} {k.pagadas_al_vendedor === 1 ? "venta protegida" : "ventas protegidas"}, {k.reclamos.total} {k.reclamos.total === 1 ? "reclamo" : "reclamos"}
           </p>
         </div>
-        <a className="btn-secondary flex-none !px-3 !py-2 text-sm" href={waLink("Hola, te escribo por tu link de Pago Protegido", s.whatsapp)} target="_blank" rel="noreferrer">
+        <a className="btn-secondary flex-none !px-3 !py-2 text-sm" href={waLink("Hola, te escribo por tu link de pago de Trato", s.whatsapp)} target="_blank" rel="noreferrer">
           Escribir
         </a>
       </div>
@@ -507,7 +507,7 @@ function QrPanel({ v, busy, onPay }: { v: OrderView; busy: boolean; onPay: () =>
         ) : (
           <div className="h-48 w-48 animate-pulse rounded-xl bg-slate-100" />
         )}
-        <p className="text-xs text-slate-500">QR de ejemplo a nombre de Pago Protegido · {o.code}</p>
+        <p className="text-xs text-slate-500">QR de ejemplo a nombre de Trato · {o.code}</p>
       </div>
       <p className="text-center text-2xl font-extrabold">{fmtBsUnits(o.amount_units, o.fx)}</p>
       <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900" data-testid="rampa-simulada">
@@ -530,7 +530,7 @@ function AntiFraud({ code, host }: { code: string | null; host: string }) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4 text-xs text-slate-600" data-testid="antifraude">
       <p className="font-semibold text-slate-800">🛡️ Señales de confianza</p>
-      <p className="mt-1">Si un QR de Pago Protegido está a nombre de una persona, es estafa.</p>
+      <p className="mt-1">Si un QR de Trato está a nombre de una persona, es estafa.</p>
       <p className="mt-1">
         Verifica este link en{" "}
         <a className="underline" href={`/verificar?codigo=${code ?? ""}`}>

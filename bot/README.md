@@ -1,4 +1,4 @@
-# Pago Protegido: bot de WhatsApp
+# Trato: bot de WhatsApp
 
 Con este bot, el vendedor crea links de pago desde el chat y recibe un aviso en cada paso del pedido. Habla con la app web ([`../app`](../app)) por su API y **nunca tiene llaves de billeteras**.
 
@@ -14,7 +14,7 @@ Bot:      💸 PP-4821: tu cliente pagó Bs 1.800,00 por *Celular Samsung A54* y
           Despacha antes del sábado, 21 de noviembre, 11:00 y marca enviado: escríbeme *enviado PP-4821 <código de encomienda>*.
           Si no se marca enviado a tiempo, la plata vuelve sola a tu cliente.
 Comprador: https://pago-protegido.co/p/celular-samsung-a54-a1b2c3
-Bot:      ⚠️ Este link NO es de Pago Protegido. No pagues.
+Bot:      ⚠️ Este link NO es de Trato. No pagues.
 ```
 
 ![Simulador del bot](docs/simulador.png)
@@ -30,7 +30,7 @@ Bot:      ⚠️ Este link NO es de Pago Protegido. No pagues.
 
 - **Verificador de links:** cualquiera le reenvía un link (o escribe `verificar <link>`).
   - Si el dominio es **exactamente** el de la app (`PP_APP_URL` o `PP_PUBLIC_URL`), la ruta es `/p/<slug>` y el pedido existe: `✅ Auténtico: <tienda>, <producto>, Bs <precio>, pedido <código>. Estado: <estado>`.
-  - En cualquier otro caso: `⚠️ Este link NO es de Pago Protegido. No pagues.`, más el motivo: dominio parecido (`pago-protegido.co`, `pagoprotegid0`, letras cirílicas, `pagoprotegido.bo.otro.com`…), acortador (`bit.ly`, `tinyurl`, `cutt.ly`, `acortar.link`…), `usuario@` escondido, slug inválido o pedido que no existe.
+  - En cualquier otro caso: `⚠️ Este link NO es de Trato. No pagues.`, más el motivo: dominio parecido (`pago-protegido.co`, `pagoprotegid0`, letras cirílicas, `pagoprotegido.bo.otro.com`…), acortador (`bit.ly`, `tinyurl`, `cutt.ly`, `acortar.link`…), `usuario@` escondido, slug inválido o pedido que no existe.
 - **`reportar <link>`:** guarda el reporte en `data/reportes.jsonl` (una línea JSON por reporte) y agradece.
 - **Anti-presión al comprador** (si dejó su WhatsApp), al pagar y otra vez al enviar: "Tu plata está bloqueada en un contrato público. Nadie necesita que confirmes para enviar: ni el vendedor, ni la flota, ni el courier. Si te lo piden, es la señal número 1 de estafa. Puedes verificar cualquier link reenviándolo a este número."
 - **Recordatorios del plazo** a las 48 h, 24 h y 2 h de la liberación automática, que cuenta desde que el pedido se marca enviado (hora que da la app, `release_at` del contrato v2). Ofrecen "Tengo un problema" y "Necesito más tiempo" (más "Sí, todo bien"), con el link a la página del pedido. Con `DEMO_MINUTES=1` las horas se cuentan en minutos.

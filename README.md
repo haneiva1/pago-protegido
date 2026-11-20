@@ -1,6 +1,8 @@
-# Pago Protegido
+# Trato
 
-**Pago contra confirmación de entrega para ventas por redes sociales en Bolivia, sobre Stellar.**
+**Trato · pago protegido para ventas por redes sociales en Bolivia, sobre Stellar.** Pago contra confirmación de entrega.
+
+> **Trato** antes se llamaba Pago Protegido. El repo, los paquetes, los contratos (`pp_guardian`, `pp_arbiter`), las variables `PP_*`, los códigos de pedido `PP-`, las rutas y los dominios conservan el nombre anterior.
 
 | | |
 |---|---|

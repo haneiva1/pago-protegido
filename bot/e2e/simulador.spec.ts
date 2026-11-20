@@ -12,7 +12,7 @@ const lastBot = (page: Page) => page.getByTestId("bot-msg").last();
 
 test("vender zapatillas 450 → devuelve un link de pago, y avisa cuando pagan", async ({ page, request }) => {
   await page.goto("/");
-  await expect(page.getByText("Pago Protegido", { exact: true })).toBeVisible();
+  await expect(page.getByText("Trato", { exact: true })).toBeVisible();
 
   await say(page, "vender zapatillas 450");
   await expect(lastBot(page)).toContainText("¿En cuántos días entregas?");
@@ -44,7 +44,7 @@ test("vender zapatillas 450 → devuelve un link de pago, y avisa cuando pagan",
 test("frase completa en un mensaje y el comprador recibe '¿te llegó?'", async ({ page, request }) => {
   await page.goto("/");
   await say(page, "hola");
-  await expect(lastBot(page)).toContainText("Soy el asistente de *Pago Protegido*".replace(/\*/g, ""));
+  await expect(lastBot(page)).toContainText("Soy el asistente de *Trato*".replace(/\*/g, ""));
   await expect(page.getByRole("button", { name: "🛍️ Vender" }).last()).toBeVisible();
 
   await say(page, "vendo zapatillas nike 40 a Bs 1.200 entrega 3 días");

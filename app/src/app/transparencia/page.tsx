@@ -4,7 +4,7 @@ import { sellers } from "@/lib/server/db";
 import { computeMetrics, ingestEvents, type Metrics, type PurchaseState } from "@/lib/server/metrics";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Transparencia · Pago Protegido" };
+export const metadata = { title: "Transparencia · Trato" };
 
 const nf = (n: number, d = 0) => n.toLocaleString("es-BO", { minimumFractionDigits: d, maximumFractionDigits: d });
 

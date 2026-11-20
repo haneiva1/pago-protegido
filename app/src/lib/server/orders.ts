@@ -246,7 +246,7 @@ function buildProps(o: OrderRow, buyer: string): EscrowProps {
     title: o.product.slice(0, 80),
     roles: escrowService().roles(buyer, o.seller_pubkey),
     // Los datos de entrega quedan ligados al escrow por su hash (no se publican en claro).
-    description: `Pago Protegido ${o.code ?? ""}: ${o.product} | entrega ${o.delivery_hash ?? "-"}`.slice(0, 200),
+    description: `Trato ${o.code ?? ""}: ${o.product} | entrega ${o.delivery_hash ?? "-"}`.slice(0, 200),
     amount: o.amount_units,
     platform_fee: o.platform_bps ?? cfg().platformFeeBps,
     milestones: [{ description: "Entrega del producto", status: "pendiente", evidence: "", approved: false }],
