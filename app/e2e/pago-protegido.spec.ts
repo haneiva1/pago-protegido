@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { firmado } from "./firma";
 
 // E2E contra Stellar TESTNET (transacciones reales), en modo guardián y modo demo (PP_DEMO=1: "Pagar al vendedor" se
 // habilita 1 minuto después del envío). Guarda capturas en celular y escritorio en e2e/capturas/ y en cada captura revisa
@@ -94,7 +95,7 @@ async function pagar(
 ) {
   const page = await (await browser.newContext()).newPage();
   await page.goto(url);
-  await expect(page.getByTestId("codigo")).toHaveText(/Compra protegida · PP-\d{4,5}/);
+  await expect(page.getByTestId("codigo")).toHaveText(/Compra protegida · PP-[2-9A-HJKMNP-Z]{8}/);
   // Primer pantallazo: producto, total, "Dos salidas" y el botón de pagar fijo abajo.
   await expect(page.getByTestId("promesa")).toContainText("Tu plata queda guardada. Solo tiene dos salidas:");
   await expect(page.getByTestId("salida-comprador")).toContainText("De vuelta a ti, si no lo despacha hasta el");
@@ -541,6 +542,15 @@ test("bot de WhatsApp: vender por chat → pago con datos de entrega → enviado
   expect(publico).not.toContain("76543210");
   expect(publico).not.toContain("Rosa Quispe");
   expect((await request.get(`/api/bot/changes?since=0`)).status()).toBe(401);
+  // API firmada: la tienda pública no trae compradores ni contactos; panel, tienda, links y contacto piden la firma de
+  // la cuenta (el bot creó el link de arriba con su clave de servidor).
+  const tiendaPk = ((await (await request.get(`/api/orders/${slug}`)).json()) as { order: { seller_pubkey: string } }).order.seller_pubkey;
+  const tiendaPublica = await (await request.get(`/api/sellers/${tiendaPk}`)).text();
+  for (const dato of ["76543210", "Rosa Quispe", SELLER_WA]) expect(tiendaPublica).not.toContain(dato);
+  expect((await request.get(`/api/sellers/${tiendaPk}/panel`)).status()).toBe(401);
+  expect((await request.post("/api/sellers", { data: { pubkey: tiendaPk, storeName: "Tienda Robada", whatsapp: "59170009999" } })).status()).toBe(401);
+  expect((await request.post("/api/links", { data: { sellerPubkey: tiendaPk, product: "Falso", priceBs: 10, deliveryDays: 1 } })).status()).toBe(401);
+  expect((await request.post(`/api/orders/${slug}/buyer-contact`, { data: { buyer: "x", whatsapp: "70000000" } })).status()).toBe(401);
 
   await expect(botSays(chat, "el pago está GUARDADO")).toBeVisible({ timeout: 90_000 });
   await capturar(chat, "bot-03-chat-te-pagaron", "chat");
@@ -593,13 +603,14 @@ test("transparencia: pruebas del equipo (con reclamos forzados) y piloto aparte,
 
 test("palabras prohibidas en todas las pantallas, /verificar, /pedir, /piloto y piloto:csv", async ({ page, request, browser }) => {
   // Un link real (sin transacciones) para /p/[slug] y /verificar.
-  const pubkey = Keypair.random().publicKey();
-  expect((await request.post("/api/sellers", { data: { pubkey, storeName: "Tienda Verificable", whatsapp: "59170002222", city: "Tarija" } })).ok()).toBe(true);
-  const link = (await (await request.post("/api/links", { data: { sellerPubkey: pubkey, product: "Chamarra de cuero", priceBs: 800, deliveryDays: 4, category: "Ropa y calzado" } })).json()) as {
+  const kp = Keypair.random();
+  const pubkey = kp.publicKey();
+  expect((await firmado(request, kp, "POST", "/api/sellers", { pubkey, storeName: "Tienda Verificable", whatsapp: "59170002222", city: "Tarija" })).ok()).toBe(true);
+  const link = (await (await firmado(request, kp, "POST", "/api/links", { sellerPubkey: pubkey, product: "Chamarra de cuero", priceBs: 800, deliveryDays: 4, category: "Ropa y calzado" })).json()) as {
     slug: string;
     code: string;
   };
-  expect(link.code).toMatch(/^PP-\d{4,5}$/);
+  expect(link.code).toMatch(/^PP-[2-9A-HJKMNP-Z]{8}$/);
 
   // Abierto dentro de Instagram (navegador interno): pide abrirlo en Safari o Chrome antes de pagar, con "Copiar link".
   const ig = await (
@@ -619,6 +630,7 @@ test("palabras prohibidas en todas las pantallas, /verificar, /pedir, /piloto y 
   await expect(res).toContainText("Tienda Verificable");
   await expect(res).toContainText("Chamarra de cuero");
   await expect(res).toContainText("Esperando pago");
+  await expect(res.getByRole("link", { name: "Abrir el link auténtico" })).toHaveAttribute("href", `/p/${link.slug}`);
   await capturar(page, "61-verificar");
   // Un link que no existe: 404 con el aviso de que puede ser falso.
   expect((await request.get("/p/no-existe-0000")).status()).toBe(404);

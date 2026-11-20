@@ -149,8 +149,8 @@ const HOW_TO = [
   "Escríbeme nomás:",
   "• *vendo zapatillas nike 40 a 450 bs entrega 3 días*",
   "• *mis ventas*",
-  "• *estado PP-4821*",
-  "• *enviado PP-4821 <guía>*",
+  "• *estado PP-7KM4Q9TX*",
+  "• *enviado PP-7KM4Q9TX <guía>*",
   "• *saldo*",
   "• *mi perfil*",
 ].join("\n");
@@ -261,7 +261,7 @@ export const msg = {
 
   askCode(cmd: "estado" | "enviado"): OutMsg {
     return {
-      text: cmd === "estado" ? "¿De qué pedido? Escribe *estado <código>*. Ej.: *estado PP-4821*. Los códigos están en *mis ventas*." : "¿Qué pedido enviaste? Escribe *enviado <código> <guía>*. Ej.: *enviado PP-4821 OLV-12345*",
+      text: cmd === "estado" ? "¿De qué pedido? Escribe *estado <código>*. Ej.: *estado PP-7KM4Q9TX*. Los códigos están en *mis ventas*." : "¿Qué pedido enviaste? Escribe *enviado <código> <guía>*. Ej.: *enviado PP-7KM4Q9TX OLV-12345*",
       buttons: [BTN.ventas],
     };
   },

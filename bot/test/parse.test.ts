@@ -89,6 +89,19 @@ describe("teléfonos y códigos", () => {
     expect(normCodes("enviado pp 4821 OLV-1")).toBe("enviado PP-4821 OLV-1");
   });
 
+  it("código de 8 caracteres (PP-7KM4Q9TX): con o sin PP, en minúsculas; no confunde palabras", () => {
+    const list = [
+      { slug: "celular-samsung-a54-a1b2c3", code: "PP-7KM4Q9TX" },
+      { slug: "polera-adidas-d4e5f6", code: "PP-4821" },
+    ];
+    for (const c of ["PP-7KM4Q9TX", "pp-7km4q9tx", "pp 7km4q9tx", "PP7KM4Q9TX", "7KM4Q9TX", "#7km4q9tx"]) expect(matchOrder(list, c)?.slug, c).toBe("celular-samsung-a54-a1b2c3");
+    expect(matchOrder(list, "PP-7KM4Q9TY")).toBeUndefined();
+    expect(matchOrder(list, "4821")?.slug).toBe("polera-adidas-d4e5f6");
+    expect(normCodes("enviado pp 7km4q9tx OLV-1")).toBe("enviado PP-7KM4Q9TX OLV-1");
+    expect(normCodes("pp gracias")).toBe("pp gracias");
+    expect(normCodes("pp abcdefgh")).toBe("pp abcdefgh");
+  });
+
   it("categoría: Celular si el producto lo parece (la app pide el IMEI)", () => {
     for (const p of ["Celular Samsung A54", "iPhone 13 128GB", "Xiaomi Redmi Note 12", "Motorola G84", "teléfono Huawei", "Galaxy S23"]) expect(inferCategory(p), p).toBe("Celular");
     for (const p of ["Zapatillas Nike 40", "Polera", "Chompa de alpaca", "Audífonos JBL"]) expect(inferCategory(p), p).toBe("Otro");

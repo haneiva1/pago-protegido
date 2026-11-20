@@ -80,7 +80,10 @@ export async function startMockApp(opts: MockOptions = {}) {
   const inspectMs = opts.inspectMs ?? ((d: number) => (d + 3) * 86_400_000);
   const newCode = () => {
     for (;;) {
-      const c = `PP-${randomInt(1000, 10000)}`;
+      // Como la app: PP- y 8 caracteres con letra y número.
+      const abc = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+      const c = `PP-${Array.from({ length: 8 }, (_, i) => (i === 0 ? abc[randomInt(8)] : abc[randomInt(abc.length)])).join("")}`;
+      if (!/[A-Z]/.test(c.slice(3))) continue;
       if (![...orders.values()].some((o) => o.code === c)) return c;
     }
   };
@@ -261,7 +264,7 @@ export async function startMockApp(opts: MockOptions = {}) {
       if (p === "/api/info" && req.method === "GET") {
         return json(200, { mode: "guardian", fx, capabilities: { extend: true, clockFromShipping: true, refundUnshipped: true, proteccionPatch: true } });
       }
-      if ((m = /^\/api\/sellers\/([^/]+)$/.exec(p)) && req.method === "GET") {
+      if ((m = /^\/api\/sellers\/([^/]+)\/panel$/.exec(p)) && req.method === "GET") {
         const s = sellers.get(decodeURIComponent(m[1]));
         return s ? json(200, sellerData(s)) : json(404, { error: "Tienda no encontrada" });
       }

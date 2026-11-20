@@ -12,6 +12,7 @@
     "test:unit": "node --test \"test/*.test.mjs\"",
     "test:e2e": "playwright test",
     "smoke": "node scripts/smoke-api.mjs",
+    "test:api": "node --import ./test/api/registro.mjs --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test 'test/api/*.test.mjs'",
     "demo": "node scripts/demo.mjs",
     "demo:reset": "node scripts/demo-reset.mjs",
     "demo:video": "playwright test -c playwright.video.config.ts",

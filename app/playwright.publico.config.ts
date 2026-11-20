@@ -7,6 +7,7 @@ import { rmSync } from "node:fs";
 if (!process.env.TEST_WORKER_INDEX) for (const f of ["data/publico.db", "data/publico.db-wal", "data/publico.db-shm"]) rmSync(f, { force: true });
 
 const PORT = Number(process.env.E2E_PUBLICO_PORT || 3140);
+process.env.E2E_DB ||= "data/publico.db";
 
 export default defineConfig({
   testDir: "./e2e",

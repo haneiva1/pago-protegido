@@ -3,6 +3,7 @@ import { expect, test, type Browser, type BrowserContext, type Locator, type Pag
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { headerFirma } from "../e2e/firma";
 
 // Video de la demo v2 (npm run demo:video): recorrido en TESTNET con los contratos v2, grabado por escenas
 // (clips) con subtítulos en español inyectados en la página. Guion:
@@ -138,8 +139,10 @@ async function payWithRetry(p: Page) {
 }
 
 // ---- API directa (fuera de cámara): segunda compra con reclamo para la escena del revisor ----
-async function api<T>(base: string, p: string, body?: unknown): Promise<T> {
-  const r = await fetch(base + p, { method: body ? "POST" : "GET", headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+async function api<T>(base: string, p: string, body?: unknown, firma?: Keypair): Promise<T> {
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (firma) headers["x-trato-firma"] = await headerFirma(base, firma, body ? "POST" : "GET", p);
+  const r = await fetch(base + p, { method: body ? "POST" : "GET", headers, body: body ? JSON.stringify(body) : undefined });
   const j = (await r.json()) as T & { error?: string };
   if (!r.ok) throw new Error(`${p}: ${j.error}`);
   return j;
@@ -181,7 +184,7 @@ test("video de la demo v2 (2 minutos o menos)", async ({ browser }) => {
     const link = p.locator('[data-testid="bot-msg"] a[href*="/p/celular-samsung-a54-"]').first();
     await expect(link).toBeVisible({ timeout: 60_000 });
     url = (await link.getAttribute("href"))!;
-    await expect(p.getByTestId("bot-msg").filter({ hasText: /PP-\d{4,5}/ }).first()).toBeVisible();
+    await expect(p.getByTestId("bot-msg").filter({ hasText: /PP-[2-9A-HJKMNP-Z]{8}/ }).first()).toBeVisible();
     await sub(p, "Recibe su link de pago con código PP, listo para mandárselo a su cliente", 1800);
     await shot(p, "01-bot-link-whatsapp");
     await p.waitForTimeout(800);
@@ -264,14 +267,15 @@ test("video de la demo v2 (2 minutos o menos)", async ({ browser }) => {
 
   // Fuera de cámara: otra compra con reclamo ("No llegó"), con cuentas locales de un solo uso.
   const secret = seller.storage!.origins.flatMap((o) => o.localStorage).find((x) => x.name === "pp.billetera.vendedor")!.value;
-  const sellerPubkey = Keypair.fromSecret(secret).publicKey();
-  const link2 = await api<{ slug: string }>(app, "/api/links", { sellerPubkey, product: "Celular iPhone 12 64 GB", description: "Usado.", priceBs: 2900, deliveryDays: 2, category: "Celular" });
+  const sellerKp = Keypair.fromSecret(secret);
+  const sellerPubkey = sellerKp.publicKey();
+  const link2 = await api<{ slug: string }>(app, "/api/links", { sellerPubkey, product: "Celular iPhone 12 64 GB", description: "Usado.", priceBs: 2900, deliveryDays: 2, category: "Celular" }, sellerKp);
   const buyer2 = Keypair.random();
   const act = await api<{ prepared?: { xdr: string } }>(app, "/api/wallet/activate", { pubkey: buyer2.publicKey() });
   await signRun(app, buyer2, act.prepared);
   for (let i = 1; ; i++) {
     try {
-      await signRun(app, buyer2, await api(app, `/api/orders/${link2.slug}/pay`, { buyer: buyer2.publicKey(), recipient: "Luis Rojas", city: "La Paz" }));
+      await signRun(app, buyer2, await api(app, `/api/orders/${link2.slug}/pay`, { buyer: buyer2.publicKey(), recipient: "Luis Rojas", city: "La Paz" }, buyer2));
       break;
     } catch (e) {
       if (i >= 3) throw e;
