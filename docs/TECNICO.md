@@ -9,7 +9,7 @@ Este documento tiene el detalle técnico de Trato. El resumen para el jurado, el
 | **Contratos v2 (Stellar testnet)** | `pp_guardian` [`CDKYF7OA…UOATOT`](https://stellar.expert/explorer/testnet/contract/CDKYF7OAJTACP4JNJSGGXDRA3DHE442R26CT5ZE5DJHNSHH7XJUOATOT) · `pp_arbiter` [`CDTEA424…TEVU5UA`](https://stellar.expert/explorer/testnet/contract/CDTEA424AWSIIHEQ4FIQHFQOTWS3XAVLQHX7FI3MU6JZP4OPMTEVU5UA) |
 | **Escrow de Trustless Work** | una instancia por compra; ejemplo del caso feliz: [`CCS74JS3…YVA6U6E`](https://stellar.expert/explorer/testnet/contract/CCS74JS3QVAXAI2GCTOP5BEUP47FSB36HOYURDCRR2A5PK7B5YVA6U6E) |
 | **Dólar de prueba (LABUSD)** | [`CC65P6TQ…OGBD4S`](https://stellar.expert/explorer/testnet/contract/CC65P6TQQ646YDXVS3PM6YVZASXW6WM5B67YKI46JH4EG65LJPOGBD4S) |
-| **Video** | `[link al video]` (copia local: [demo/v2/pago-protegido-demo-v2.mp4](../demo/v2/pago-protegido-demo-v2.mp4)) |
+| **Video** | `[link al video]` (copia local, sin narrar: [demo/v3/trato-demo-v3.mp4](../demo/v3/trato-demo-v3.mp4)) |
 | **Demo** | `[link a la demo]` |
 
 El vendedor comparte un link. El comprador paga y la plata queda en un contrato (un escrow de Trustless Work) hasta que confirma que recibió. Si hay un problema, un revisor decide el reparto.
@@ -297,7 +297,7 @@ Los montos en bolivianos de la app, del bot y de las métricas usan **11,70 Bs p
 | **Contratos v2** (Soroban), desplegados en testnet | IDs arriba; hashes, transacciones y comisiones en [contracts/DEPLOYED.md](../contracts/DEPLOYED.md). **No son actualizables.** |
 | **47 tests de contratos** | `cargo test` contra el **WASM real** de Trustless Work: los 9 invariantes de seguridad, el red team, los hallazgos del jurado (H-9, H-10) y 200 secuencias aleatorias. `scripts/verify-wasm.sh` reproduce los hashes desplegados. |
 | **Flujo v2 en testnet** | 6 escenarios con código 0, incluidos **9 desvíos rechazados**: nadie, ni el admin del revisor ni la plataforma, pudo mandar el pago a un tercero ([Evidencia](#evidencia)). |
-| **App web** (Next.js, mobile-first, en español) | Panel del vendedor (link rápido, pendientes de hoy, envío con fotos y huella, "Pasar a mi banco" simulado), link del comprador ("Dos salidas", QR, acceso a su compra, reclamo guiado con evidencia de la cámara y seguimiento), panel del revisor (`/revisor`, con la regla que aplica y "✓ coincide") y "Cómo funciona", sobre los contratos v2: los dos plazos al pagar, `mark_shipped`, "Necesito más tiempo" (`extend`), la devolución si no se despacha (`refund_unshipped`) y `auto_release`, que respeta la disputa. La API exige la firma de cada acción (SEP-53). e2e con Playwright contra testnet, con capturas en [app/e2e/capturas/](../app/e2e/capturas/). Video y capturas de la demo v2: [demo/v2/](../demo/v2/). |
+| **App web** (Next.js, mobile-first, en español) | Panel del vendedor (link rápido, pendientes de hoy, envío con fotos y huella, "Pasar a mi banco" simulado), link del comprador ("Dos salidas", QR, acceso a su compra, reclamo guiado con evidencia de la cámara y seguimiento), panel del revisor (`/revisor`, con la regla que aplica y "✓ coincide") y "Cómo funciona", sobre los contratos v2: los dos plazos al pagar, `mark_shipped`, "Necesito más tiempo" (`extend`), la devolución si no se despacha (`refund_unshipped`) y `auto_release`, que respeta la disputa. La API exige la firma de cada acción (SEP-53). e2e con Playwright contra testnet, con capturas en [app/e2e/capturas/](../app/e2e/capturas/). Video y capturas clave de la demo v3: [demo/v3/](../demo/v3/) (la v2, con el nombre anterior, sigue en [demo/v2/](../demo/v2/)). |
 | **Bot de WhatsApp** | Crea links desde el chat (con código PP- de 8 caracteres y quién paga la protección), verifica links, avisa en cada paso y recuerda desde el envío. 191 tests unitarios y 4 e2e del simulador. |
 | **Métricas en vivo y perfil de la tienda** | `/metricas` calcula los números con eventos on-chain (cada número enlaza a sus compras en stellar.expert). Solo cuentan las compras verificadas: el escrow corre el WASM de Trustless Work, con los roles de Trato, en LABUSD y con un pago que movió la plata (H-9); `/transparencia` muestra cuántas descartó y por qué. `/tienda/<slug>` es el perfil verificable del vendedor; la insignia "Vendo con Trato" está en el panel. |
 | **Métricas on-chain** | `contracts/scripts/metricas.sh` las calcula solo con eventos públicos (`getEvents`). Corrida del 18-nov: **47 compras de prueba** en v1 y v2 (incluidas las del equipo), por ≈ USD 2.227 de prueba (≈ Bs 26.052 al [tipo de cambio](#tipo-de-cambio) de la demo). Detalle en [METRICAS.md](METRICAS.md). |
@@ -336,7 +336,8 @@ pago-protegido/
 │   ├── wasm/             escrow de Trustless Work (commit f0b706e) que usan los tests
 │   ├── DEPLOYED.md       v2: IDs, hashes, transacciones y comisiones reales (v1: DEPLOYED-v1.md)
 │   └── DECISIONES.md     decisiones, interfaz v2 y hallazgos
-├── demo/v2/      video y capturas clave de la demo v2
+├── demo/v3/      video de la demo v3 (sin narrar), su lámina y las capturas clave
+├── demo/v2/      video y capturas de la demo v2 (con el nombre anterior)
 ├── deploy/       Dockerfiles, docker-compose + Caddy, Railway, túnel para la demo
 ├── docs/
 │   ├── TECNICO.md        este documento
