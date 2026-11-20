@@ -22,7 +22,7 @@ export class MissingEndpoint extends Error {
 export interface AppClient {
   /** §1: vendedor por número de WhatsApp, o null si no tiene tienda. */
   sellerByPhone(phone: string): Promise<Seller | null>;
-  /** Existe: GET /api/sellers/:pubkey (tienda, pedidos y saldo). null si no existe. */
+  /** GET /api/sellers/:pubkey/panel con x-bot-key (tienda, pedidos y saldo). null si no existe. */
   sellerData(pubkey: string): Promise<SellerData | null>;
   /** Existe: POST /api/links. */
   createLink(input: CreateLinkInput): Promise<Order>;
@@ -68,7 +68,7 @@ export class HttpAppClient implements AppClient {
 
   async sellerData(pubkey: string): Promise<SellerData | null> {
     try {
-      return await this.call<SellerData>(`/api/sellers/${encodeURIComponent(pubkey)}`);
+      return await this.call<SellerData>(`/api/sellers/${encodeURIComponent(pubkey)}/panel`);
     } catch (e) {
       if (e instanceof AppError && e.status === 404) return null;
       throw e;

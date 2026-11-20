@@ -42,7 +42,7 @@ export default function Panel() {
 
   const load = useCallback(async (p: string) => {
     try {
-      setData(await api<SellerData>(`/api/sellers/${p}`));
+      setData(await api<SellerData>(`/api/sellers/${p}/panel`));
     } catch (e) {
       setError((e as Error).message);
     }

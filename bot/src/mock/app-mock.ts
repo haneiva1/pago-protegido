@@ -261,7 +261,7 @@ export async function startMockApp(opts: MockOptions = {}) {
       if (p === "/api/info" && req.method === "GET") {
         return json(200, { mode: "guardian", fx, capabilities: { extend: true, clockFromShipping: true, refundUnshipped: true, proteccionPatch: true } });
       }
-      if ((m = /^\/api\/sellers\/([^/]+)$/.exec(p)) && req.method === "GET") {
+      if ((m = /^\/api\/sellers\/([^/]+)\/panel$/.exec(p)) && req.method === "GET") {
         const s = sellers.get(decodeURIComponent(m[1]));
         return s ? json(200, sellerData(s)) : json(404, { error: "Tienda no encontrada" });
       }

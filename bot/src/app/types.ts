@@ -19,7 +19,7 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   devuelto: "Devuelto (no se despachó)",
 };
 
-/** Fila `sellers` (GET /api/sellers/:pubkey → `seller`). */
+/** Fila `sellers` (GET /api/sellers/:pubkey/panel → `seller`). */
 export interface Seller {
   pubkey: string;
   store_name: string;
@@ -89,7 +89,7 @@ export interface OrderView extends Money {
   mode: "direct" | "guardian";
 }
 
-/** GET /api/sellers/:pubkey */
+/** GET /api/sellers/:pubkey/panel (x-bot-key o firma del vendedor) */
 export interface SellerData {
   seller: Seller & { completedSales: number };
   orders: (Order & Money)[];

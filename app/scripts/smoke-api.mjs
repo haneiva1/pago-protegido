@@ -73,7 +73,7 @@ async function feliz() {
   }
   const v = await api(`/api/orders/${slug}?onchain=1`);
   console.log("estado:", v.order.status, "desglose:", v.breakdown, "on-chain:", v.onchain?.flags, v.onchain?.balance);
-  const s = await api(`/api/sellers/${seller.publicKey()}`);
+  const s = await api(`/api/sellers/${seller.publicKey()}/panel`);
   console.log("saldo vendedor:", s.balance);
 }
 

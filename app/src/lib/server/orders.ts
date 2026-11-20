@@ -806,7 +806,32 @@ export async function orderView(slug: string, withOnchain: boolean) {
   };
 }
 
-export async function sellerView(pubkey: string) {
+/**
+ * GET /api/sellers/<cuenta>: solo lo público de la tienda, lo mismo que muestra /tienda/<slug>.
+ * Sin WhatsApp de la tienda ni nada de sus compradores (nombre, ciudad, contacto o pedidos).
+ */
+export function sellerPublic(pubkey: string) {
+  if (!isPubkey(pubkey)) throw new AppError("Cuenta inválida");
+  const s = sellers.get(pubkey);
+  if (!s) throw new AppError("Tienda no encontrada", 404);
+  void ingestEvents().catch(() => null);
+  return {
+    seller: {
+      pubkey: s.pubkey,
+      store_name: s.store_name,
+      city: s.city,
+      slug: sellers.ensureSlug(pubkey),
+      pilot: s.pilot === 1,
+      created_at: s.created_at,
+      completedSales: sellers.completedSales(pubkey),
+      verification: "pendiente" as const,
+    },
+    kpis: sellerKpis(pubkey),
+  };
+}
+
+/** GET /api/sellers/<cuenta>/panel: lo que ve el vendedor en su panel (y el bot), con los datos de entrega. */
+export async function sellerPanel(pubkey: string) {
   if (!isPubkey(pubkey)) throw new AppError("Cuenta inválida");
   const s = sellers.get(pubkey);
   if (!s) throw new AppError("Tienda no encontrada", 404);
