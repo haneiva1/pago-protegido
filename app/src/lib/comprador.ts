@@ -145,3 +145,18 @@ export function linkAbrirEnChrome(url: string): string | null {
   if (!m) return null;
   return `intent://${m[2]}#Intent;scheme=${m[1].toLowerCase()};package=com.android.chrome;end`;
 }
+
+export const NO_CARGO_CUENTA = "No pudimos cargar tu cuenta. Recarga la página.";
+
+/**
+ * Carga perezosa que se recuerda cuando sale bien. Si falla (el chunk no bajó), se olvida para que la próxima
+ * llamada lo vuelva a intentar, en vez de guardar para siempre la promesa rechazada.
+ */
+export function cargaUnaVez<T>(cargar: () => Promise<T>): () => Promise<T> {
+  let p: Promise<T> | null = null;
+  return () =>
+    (p ??= cargar().catch((e) => {
+      p = null;
+      throw e;
+    }));
+}

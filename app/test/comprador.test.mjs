@@ -96,3 +96,21 @@ test("plataforma y link para abrir en Chrome (Android)", () => {
   assert.equal(linkAbrirEnChrome("http://localhost:3100/p/x"), "intent://localhost:3100/p/x#Intent;scheme=http;package=com.android.chrome;end");
   assert.equal(linkAbrirEnChrome("no-es-un-link"), null);
 });
+
+test("cuenta del comprador: si la carga del módulo falla, no queda guardada y se puede reintentar", async () => {
+  const { cargaUnaVez, NO_CARGO_CUENTA } = await import("../src/lib/comprador.ts");
+  assert.equal(NO_CARGO_CUENTA, "No pudimos cargar tu cuenta. Recarga la página.");
+  let llamadas = 0;
+  const cargar = cargaUnaVez(async () => {
+    if (++llamadas === 1) throw new Error("Loading chunk 123 failed");
+    return { ok: true };
+  });
+  await assert.rejects(cargar(), /Loading chunk/);
+  assert.deepEqual(await cargar(), { ok: true });
+  assert.deepEqual(await cargar(), { ok: true });
+  assert.equal(llamadas, 2, "reintenta una vez después del error y después recuerda el módulo");
+  // Dos pedidos a la vez comparten la misma carga.
+  let n = 0;
+  const otra = cargaUnaVez(async () => ++n);
+  assert.deepEqual(await Promise.all([otra(), otra()]), [1, 1]);
+});
