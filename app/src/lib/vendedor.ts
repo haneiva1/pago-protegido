@@ -1,7 +1,9 @@
 /**
- * Lógica pura del panel del vendedor (sin imports en tiempo de ejecución): la prueban los tests unitarios
- * con `node --test` (app/test/*.test.mjs).
+ * Lógica pura del panel del vendedor: la prueban los tests unitarios con `node --test` (app/test/*.test.mjs). Solo
+ * importa lib/format.ts (también pura, por las comisiones), con la extensión para que `node --test` la resuelva.
  */
+
+import { releaseBreakdown } from "./format.ts";
 
 const TZ = "America/La_Paz";
 const HORA = 3600_000;
@@ -117,4 +119,46 @@ export function duplicarLink(o: {
     photoUrl: o.photo_url ?? "",
     feePayer: o.fee_payer === "vendedor" ? "vendedor" : "comprador",
   };
+}
+
+// ---------- Ventas en curso ----------
+
+export interface PedidoEnCurso {
+  status: string;
+  price_bs_cents: number;
+  fee_payer?: string | null;
+  platform_bps?: number | null;
+}
+
+/** Comisión de plataforma cuando el pedido no la tiene guardada: el 2% de siempre (PLATFORM_FEE_BPS por defecto). */
+const PLATFORM_BPS_POR_DEFECTO = 200;
+
+/**
+ * Lo que le llega al vendedor si el cliente confirma. Si el comprador paga la protección, el precio completo; si la
+ * regala el vendedor, el precio menos la plataforma (2%) y el 0,3% del contrato, como releaseBreakdown.
+ */
+export function netoDelVendedor(o: PedidoEnCurso): number {
+  if (o.fee_payer !== "vendedor") return o.price_bs_cents;
+  return Number(releaseBreakdown(BigInt(o.price_bs_cents), o.platform_bps ?? PLATFORM_BPS_POR_DEFECTO).seller);
+}
+
+/**
+ * "Ventas en curso" del panel: lo pagado y lo enviado, por lo que le llega al vendedor. Los pedidos en reclamo van
+ * aparte: pueden terminar en 0, así que solo se dice hasta cuánto.
+ */
+export function ventasEnCurso(pedidos: PedidoEnCurso[]): {
+  enCurso: { cantidad: number; netoBsCents: number };
+  enReclamo: { cantidad: number; hastaBsCents: number };
+} {
+  const out = { enCurso: { cantidad: 0, netoBsCents: 0 }, enReclamo: { cantidad: 0, hastaBsCents: 0 } };
+  for (const o of pedidos) {
+    if (o.status === "pagado" || o.status === "enviado") {
+      out.enCurso.cantidad++;
+      out.enCurso.netoBsCents += netoDelVendedor(o);
+    } else if (o.status === "en_disputa") {
+      out.enReclamo.cantidad++;
+      out.enReclamo.hastaBsCents += netoDelVendedor(o);
+    }
+  }
+  return out;
 }
