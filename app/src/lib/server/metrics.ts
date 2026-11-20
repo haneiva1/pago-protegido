@@ -1,5 +1,5 @@
 import { rpc, scValToNative } from "@stellar/stellar-sdk";
-import { DEPLOYED, HORIZON_URL, NETWORK_PASSPHRASE, RETIRED_V1, TESTNET_PUBLICO, cfg } from "./config";
+import { DEPLOYED, HORIZON_URL, NETWORK_PASSPHRASE, PARES_HISTORICOS, TESTNET_PUBLICO, cfg } from "./config";
 import { db, kv } from "./db";
 import { server, withLock } from "./stellar";
 import { REGLAS, evaluar, firmaReglas, hechosDe, type CompraFondeada, type Hechos, type Regla, type Reglas, type Resultado } from "./verificacion";
@@ -36,9 +36,8 @@ export async function ingestEvents(force = false): Promise<{ added: number; late
   return withLock("ingest-events", async () => {
     const lastRun = Number(kv.get("events:last_run") ?? 0);
     if (!force && Date.now() - lastRun < 15_000) return { added: 0, latestLedger: Number(kv.get("events:latest") ?? 0) };
-    const c = cfg();
-    // v2 (compras nuevas) + v1 (historial): docs/METRICAS.md lee los dos.
-    const ids = [...new Set([c.guardianId!, c.arbiterId!, RETIRED_V1.guardian, RETIRED_V1.arbiter])];
+    // El par actual (compras nuevas) y todos los anteriores (historial): docs/METRICAS.md los lee todos.
+    const ids = [...new Set(paresIndexador().flatMap((p) => [p.guardian, p.arbiter]))];
     const filters: rpc.Api.EventFilter[] = [{ type: "contract", contractIds: ids }];
     const s = server();
     const insert = db().prepare(
@@ -90,6 +89,19 @@ export function loadEvents(): PpEvent[] {
 
 // ---------- Indexador verificado (H-9) ----------
 
+/** Pares guardián/árbitro aceptados: el de la config y los de cada despliegue anterior, sin repetidos. */
+export function paresIndexador(): { guardian: string; arbiter: string }[] {
+  const c = cfg();
+  const actual = { guardian: c.guardianId ?? DEPLOYED.guardian, arbiter: c.arbiterId ?? DEPLOYED.arbiter };
+  const vistos = new Set<string>();
+  return [actual, ...PARES_HISTORICOS].filter((p) => {
+    const k = `${p.guardian}/${p.arbiter}`;
+    if (vistos.has(k)) return false;
+    vistos.add(k);
+    return true;
+  });
+}
+
 /** Lo que se espera de cada escrow: valores de la configuración o, sin .env.local, los públicos de DEPLOYED.md. */
 export function reglasIndexador(): Reglas {
   const c = cfg();
@@ -103,10 +115,7 @@ export function reglasIndexador(): Reglas {
     wasmHash: process.env.ESCROW_WASM_HASH || TESTNET_PUBLICO.twWasmHash,
     labusdSac: process.env.LABUSD_SAC || TESTNET_PUBLICO.labusdSac,
     platform,
-    pares: [
-      { guardian: c.guardianId ?? DEPLOYED.guardian, arbiter: c.arbiterId ?? DEPLOYED.arbiter },
-      { guardian: RETIRED_V1.guardian, arbiter: RETIRED_V1.arbiter },
-    ],
+    pares: paresIndexador(),
   };
 }
 

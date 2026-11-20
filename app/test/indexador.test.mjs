@@ -4,11 +4,11 @@ import { mkdtempSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { beforeEach, test } from "node:test";
-import { compra, redFalsa } from "./red-falsa.mjs";
+import { V1, V2, compra, redFalsa } from "./red-falsa.mjs";
 
 process.env.PP_DB_PATH = path.join(mkdtempSync(path.join(os.tmpdir(), "indexador-")), "t.db");
 const { db } = await import("../src/lib/server/db.ts");
-const { estadoIndexador, verificarPendientes } = await import("../src/lib/server/metrics.ts");
+const { estadoIndexador, reglasIndexador, verificarPendientes } = await import("../src/lib/server/metrics.ts");
 
 let red;
 beforeEach(() => {
@@ -39,6 +39,10 @@ function pedido(c) {
 }
 
 const motivoDe = (c) => estadoIndexador().descartadas.find((d) => d.escrow === c.escrow)?.motivo;
+
+test("con la config de hoy (v2), los pares aceptados son v2 y v1, sin repetir v2", () => {
+  assert.deepEqual(reglasIndexador().pares, [V2, V1]);
+});
 
 test("una compra genuina creada por Trato cuenta", async () => {
   const c = pedido(fondeo(red.genuina(compra(1))));

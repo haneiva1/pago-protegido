@@ -36,7 +36,7 @@ export interface Reglas {
   wasmHash: string;
   labusdSac: string;
   platform: string;
-  /** Pares guardián/árbitro aceptados: v2 y v1 (historial). */
+  /** Pares guardián/árbitro aceptados: el actual y los de cada despliegue anterior (historial). */
   pares: readonly { guardian: string; arbiter: string }[];
 }
 
