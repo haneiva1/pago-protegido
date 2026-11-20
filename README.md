@@ -14,7 +14,7 @@
 | Criterio | Qué hay | Dónde verlo |
 |---|---|---|
 | **Problema y usuario** | Bolivia hizo 892 millones de pagos con QR en 2025 (BCB), pero con un desconocido de otra ciudad alguien tiene que confiar primero. En Tarija, 74 de las 91 denuncias por estafa de 2026 empezaron en redes; un falso vendedor de iPhone cobró por adelantado a 6 compradores de 3 departamentos. Y al vendedor tampoco le sirve una captura: ASFI advierte sobre comprobantes falsificados. Usuario inicial: vendedores de celulares y electrónica que envían por encomienda a otra ciudad. Validación: [N] entrevistas | [docs/PROBLEMA.md](docs/PROBLEMA.md) (24 casos públicos con fuente) · [docs/USUARIOS.md](docs/USUARIOS.md) |
-| **Producto funcionando** | Flujo completo en Stellar testnet: link → QR → plata bloqueada → envío con foto → confirmación, liberación por plazo o devolución. @@E2E_PAGOS@@ de @@E2E_PAGOS@@ pruebas de punta a punta con pagos reales en testnet | [`/probar`]([URL]/probar) · [video]([link]) · [capturas](app/e2e/capturas/) |
+| **Producto funcionando** | Flujo completo en Stellar testnet: link → QR → plata bloqueada → envío con foto → confirmación, liberación por plazo o devolución. 12 de 12 pruebas de punta a punta con pagos reales en testnet | [`/probar`]([URL]/probar) · [video]([link]) · [capturas](app/e2e/capturas/) |
 | **Uso de Stellar** | Dos contratos Soroban propios en los roles que mueven la plata del escrow de Trustless Work. *Fee bump*, Pollar, verificación del WASM antes de firmar y reputación calculada solo con compras verificadas. 47 tests contra el WASM real, incluidas secuencias aleatorias de operaciones; 9 desvíos rechazados en testnet; los hashes de los contratos se reproducen con `contracts/scripts/verify-wasm.sh` | [Evidencia](#evidencia-on-chain) · [docs/SEGURIDAD.md](docs/SEGURIDAD.md) |
 | **Plan de 30 días** | Tres entregables que dependen solo del equipo y se verifican desde afuera, con una métrica norte y un punto de decisión en la semana 2 | [Plan](#plan-de-30-días) |
 | **Equipo y compromiso** | El avance entre entregas, cambio por cambio y con links | [Avance](#avance) |
@@ -38,7 +38,7 @@
 | API firmada: cada acción del comprador y del vendedor lleva su firma (SEP-53). Nadie puede bloquear un link: reserva de 10 minutos al pagar, códigos de 8 caracteres y límite por IP | hecho | [PR #6](https://github.com/haneiva1/pago-protegido/pull/6) |
 | Vendedor y revisor: link rápido, envío con foto y huella, "Pasar a mi banco" (simulado) y un revisor que ve la regla que aplica y "✓ coincide" en cada foto | hecho | [PR #7](https://github.com/haneiva1/pago-protegido/pull/7) |
 | `/probar`: el vendedor y el comprador lado a lado, con cada transacción en stellar.expert | hecho | [PR #9](https://github.com/haneiva1/pago-protegido/pull/9) |
-| Devolución completa (apagada) y evidencia archivada | @@ESTADO_DEVOLUCION@@ | @@PR_DEVOLUCION@@ |
+| Devolución completa (apagada) y evidencia archivada | hecho (detrás de un interruptor apagado) | [PR #8](https://github.com/haneiva1/pago-protegido/pull/8) |
 
 ## Pruébalo
 
@@ -48,7 +48,7 @@
 
 ```bash
 cd contracts && cargo test && cd ..                        # 47 tests contra el WASM real de Trustless Work
-cd bot && npm ci && npm test && cd ..                      # bot: @@BOT_UNIT@@ unitarios y @@BOT_E2E@@ e2e del simulador
+cd bot && npm ci && npm test && cd ..                      # bot: 191 unitarios y 4 e2e del simulador
 cd app && npm ci && npm run build && npm run test:e2e:publico   # app: build y e2e de solo lectura contra testnet
 ```
 
