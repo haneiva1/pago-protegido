@@ -70,7 +70,7 @@ export function GraficoDiario({ serie, testId }: { serie: DiaSerie[]; testId?: s
   const conDatos = serie.filter((d) => d.compras > 0);
   return (
     <div className="card space-y-4" data-testid={testId}>
-      <h3 className="font-bold">Por día · últimos {serie.length} días</h3>
+      <h3 className="font-bold">Por día · {serie.length === 1 ? "último día" : `últimos ${serie.length} días`}</h3>
       <div>
         <div className="flex items-baseline justify-between text-xs text-slate-500">
           <span className="font-medium text-slate-700">Compras protegidas</span>
@@ -102,7 +102,7 @@ export function GraficoDiario({ serie, testId }: { serie: DiaSerie[]; testId?: s
         <span>hoy</span>
       </div>
       <details className="text-xs text-slate-600">
-        <summary className="cursor-pointer">Ver los datos por día ({conDatos.length} días con compras)</summary>
+        <summary className="cursor-pointer">Ver los datos por día ({plural(conDatos.length, "día con compras", "días con compras")})</summary>
         <table className="mt-2 w-full text-left">
           <thead>
             <tr className="text-slate-500">

@@ -12,7 +12,7 @@ import { Insignia } from "@/components/vendedor/Insignia";
 import { LinkRapido } from "@/components/vendedor/LinkRapido";
 import { PasarAMiBanco } from "@/components/vendedor/PasarAMiBanco";
 import { Pendientes } from "@/components/vendedor/Pendientes";
-import { fmtDuracion, fmtProporcion, nf as nfKpi } from "@/lib/kpi-format";
+import { fmtDuracion, fmtProporcion, nf as nfKpi, plural } from "@/lib/kpi-format";
 import { WhatsAppBox } from "@/components/WhatsAppBox";
 import { fmtFlete } from "@/lib/comprador";
 import { DOLLAR_NOTE, explorer, fmtBs, fmtBsUnits, fmtDate } from "@/lib/format";
@@ -110,7 +110,7 @@ export default function Panel() {
             {seller.store_name}
           </h1>
           <p className="muted">
-            {seller.city ? `${seller.city} · ` : ""}WhatsApp {seller.whatsapp} · {seller.completedSales} ventas protegidas
+            {seller.city ? `${seller.city} · ` : ""}WhatsApp {seller.whatsapp} · {plural(seller.completedSales, "venta protegida", "ventas protegidas")}
           </p>
           <p className="mt-1 text-xs">
             <ExplorerLink href={explorer.account(seller.pubkey)}>Ver registro público de tu cuenta</ExplorerLink>

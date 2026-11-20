@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { explorer, fmtPct, fmtUsd, shortAddr, unitsToNumber } from "@/lib/format";
+import { plural } from "@/lib/kpi-format";
 import { sellers } from "@/lib/server/db";
 import { computeMetrics, ingestEvents, type Metrics, type PurchaseState } from "@/lib/server/metrics";
 
@@ -99,8 +100,8 @@ export default async function Transparencia() {
         <h2 className="font-bold">Piloto con vendedores reales</h2>
         {pm && pm.compras_protegidas > 0 ? (
           <p className="text-sm text-slate-700">
-            <strong>{pm.compras_protegidas}</strong> compras protegidas · Bs {nf(unitsToNumber(pm.volumen_unidades) * pm.tipo_cambio)} ·{" "}
-            {pm.liberadas_por_confirmacion + pm.liberadas_por_plazo} pagadas al vendedor · {pm.disputas.total} reclamos
+            <strong>{pm.compras_protegidas}</strong> {pm.compras_protegidas === 1 ? "compra protegida" : "compras protegidas"} · Bs {nf(unitsToNumber(pm.volumen_unidades) * pm.tipo_cambio)} ·{" "}
+            {plural(pm.liberadas_por_confirmacion + pm.liberadas_por_plazo, "pagada al vendedor", "pagadas al vendedor")} · {plural(pm.disputas.total, "reclamo", "reclamos")}
           </p>
         ) : (
           <p className="text-sm text-slate-600">
@@ -127,7 +128,7 @@ export default async function Transparencia() {
         <Tile
           label="Tiempo hasta que el vendedor cobra"
           value={fmtDuration(m.segundos_promedio_hasta_liberacion)}
-          sub={`Promedio desde el pago (${m.muestras_liberacion} compras)`}
+          sub={`Promedio desde el pago (${plural(m.muestras_liberacion, "compra", "compras")})`}
         />
       </section>
 
