@@ -9,6 +9,7 @@ import {
   SUBIDAS_POR_MINUTO,
   ipDeReenvio,
   limitePorVentana,
+  rechazoDeTipo,
   tipoEvidencia,
   type TipoEvidencia,
 } from "@/lib/evidencia";
@@ -21,7 +22,6 @@ export const runtime = "nodejs";
 const ESTADOS_CON_EVIDENCIA = new Set(["pagado", "enviado", "en_disputa"]);
 const err = (error: string, status: number) => Response.json({ error }, { status });
 const muyGrande = (t: TipoEvidencia | null) => err(`El archivo es muy grande (máximo ${t && !t.video ? 8 : 40} MB)`, 413);
-const NO_ES_EVIDENCIA = "Sube una foto (JPG, PNG o WebP) o un video (MP4, MOV o WebM)";
 const puedeSubir = limitePorVentana(SUBIDAS_POR_MINUTO, 60_000);
 
 /** null si el pedido todavía tiene cupo para `bytes` más en un archivo nuevo; si no, el 429. */
@@ -126,7 +126,7 @@ async function recibir(body: ReadableStream<Uint8Array>, tmp: string): Promise<R
         junto.set(cabeza);
         junto.set(chunk.subarray(0, junto.length - cabeza.length), cabeza.length);
         cabeza = junto;
-        if (cabeza.length === 12 && !(t = tipoEvidencia(cabeza))) return err(NO_ES_EVIDENCIA, 415);
+        if (cabeza.length === 12 && !(t = tipoEvidencia(cabeza))) return err(rechazoDeTipo(cabeza), 415);
       }
       if (bytes > (t && !t.video ? MAX_FOTO_BYTES : MAX_VIDEO_BYTES)) return muyGrande(t);
       hash.update(chunk);
@@ -137,6 +137,6 @@ async function recibir(body: ReadableStream<Uint8Array>, tmp: string): Promise<R
     if (!terminado) await reader.cancel().catch(() => {});
   }
   t ??= tipoEvidencia(cabeza);
-  if (!t) return err(NO_ES_EVIDENCIA, 415);
+  if (!t) return err(rechazoDeTipo(cabeza), 415);
   return { sha256: hash.digest("hex"), bytes, t };
 }

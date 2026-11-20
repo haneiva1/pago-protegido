@@ -10,11 +10,12 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pp-evidencia-"));
 process.env.PP_DB_PATH = path.join(dir, "pp.db");
 const carpeta = path.join(dir, "evidencia");
 
-const { orders, sellers } = await import("../src/lib/server/db.ts");
+const { db, orders, sellers } = await import("../src/lib/server/db.ts");
 const { POST } = await import("../src/app/api/evidencia/route.ts");
 const { Keypair } = await import("@stellar/stellar-sdk");
 
 const MB = 1024 * 1024;
+const huella = (b) => createHash("sha256").update(b).digest("hex");
 const vendedor = Keypair.random().publicKey();
 sellers.upsert({ pubkey: vendedor, store_name: "Tienda Test", whatsapp: "59170000000", city: "La Paz", pilot: false });
 
@@ -120,9 +121,19 @@ test("x-sha256 que no coincide: 400 y no guarda nada", async () => {
   assert.deepEqual(temporales(), []);
 });
 
+test("una foto HEIC (ftypheic) no se guarda como video: 415 «Sube la foto en JPG»", async () => {
+  for (const marca of ["heic", "mif1", "avif"]) {
+    const foto = randomBytes(4096);
+    foto.write(`\0\0\0\x18ftyp${marca}`, 0, "latin1");
+    const res = await subir(pedido(), foto);
+    assert.equal(res.status, 415, marca);
+    assert.equal((await res.json()).error, "Sube la foto en JPG");
+    assert.equal(fs.existsSync(path.join(carpeta, `${huella(foto)}.mp4`)), false);
+  }
+  assert.deepEqual(temporales(), []);
+});
+
 // Cupo por pedido, límite por IP y espacio libre: la ruta no pide firma (llega con el PR #6), así que se acota.
-const { db } = await import("../src/lib/server/db.ts");
-const huella = (b) => createHash("sha256").update(b).digest("hex");
 
 test("cupo por pedido: 8 archivos distintos; el 9.º es 429 con un mensaje claro", async () => {
   const slug = pedido();

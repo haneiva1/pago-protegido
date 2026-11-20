@@ -53,6 +53,13 @@ const MIME: Record<TipoEvidencia["ext"], string> = {
 const tipo = (ext: TipoEvidencia["ext"]): TipoEvidencia => ({ ext, mime: MIME[ext], video: ext === "mp4" || ext === "mov" || ext === "webm" });
 const ascii = (b: Uint8Array, from: number, to: number) => String.fromCharCode(...b.subarray(from, to));
 
+/**
+ * Marcas (major brand del ftyp, bytes 8 a 12) que son video. Las fotos HEIC/HEIF/AVIF también empiezan con ftyp
+ * (heic, mif1, avif…): no son video y no se aceptan.
+ */
+const MARCAS_VIDEO = new Set(["isom", "iso2", "iso4", "iso5", "iso6", "mp41", "mp42", "avc1", "M4V ", "M4A ", "3gp4", "3gp5", "3gp6", "3g2a", "qt  "]);
+const esFtyp = (b: Uint8Array) => b.length >= 12 && ascii(b, 4, 8) === "ftyp";
+
 /** Fotos JPEG, PNG o WebP y videos MP4, MOV o WebM. Cualquier otra cosa: null. */
 export function tipoEvidencia(b: Uint8Array): TipoEvidencia | null {
   if (b.length < 12) return null;
@@ -60,8 +67,17 @@ export function tipoEvidencia(b: Uint8Array): TipoEvidencia | null {
   if (b[0] === 0x89 && ascii(b, 1, 4) === "PNG") return tipo("png");
   if (ascii(b, 0, 4) === "RIFF" && ascii(b, 8, 12) === "WEBP") return tipo("webp");
   if (b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) return tipo("webm");
-  if (ascii(b, 4, 8) === "ftyp") return ascii(b, 8, 10) === "qt" ? tipo("mov") : tipo("mp4");
+  if (esFtyp(b)) {
+    const marca = ascii(b, 8, 12);
+    if (!MARCAS_VIDEO.has(marca)) return null;
+    return marca === "qt  " ? tipo("mov") : tipo("mp4");
+  }
   return null;
+}
+
+/** El texto del 415 para lo que `tipoEvidencia` no acepta: una foto con ftyp (HEIC/HEIF/AVIF del celular) se pide en JPG. */
+export function rechazoDeTipo(b: Uint8Array): string {
+  return esFtyp(b) ? "Sube la foto en JPG" : "Sube una foto (JPG, PNG o WebP) o un video (MP4, MOV o WebM)";
 }
 
 /** Nombre de archivo de una evidencia: <sha256>.<ext>. Nada más se sirve ni se guarda. */
