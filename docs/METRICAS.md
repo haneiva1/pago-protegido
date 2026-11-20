@@ -16,6 +16,27 @@ Las métricas públicas salen **solo de eventos on-chain** de `pp_guardian` y `p
 
 El momento de cada evento es el `ledgerClosedAt` del ledger que lo incluye. v2 agrega `pp_shipped` (envío registrado, con la evidencia) y `pp_extended` (revisión extendida) en `pp_guardian`.
 
+## Reglas del indexador: qué compras cuentan (H-9)
+
+Un evento `pp_funded` auténtico **no prueba** que hubo una compra. `pp_guardian.fund` acepta cualquier contrato que imite la interfaz del escrow de Trustless Work, así que con un escrow falso se pueden emitir `pp_funded`, `pp_shipped`, `pp_confirmed`, `pp_disputed` y `pp_refunded_unshipped` sin mover plata ([SEGURIDAD.md, H-9](SEGURIDAD.md#h-9-la-reputación-se-podía-fabricar-con-escrows-falsos)). Por eso la app cuenta una compra en `/metricas`, `/tienda/<slug>`, la insignia, "Tus números" y `/transparencia` **solo si su escrow cumple las cuatro reglas**:
+
+| # | Regla | Cómo se comprueba | Si falla |
+|---|---|---|---|
+| 1 | **WASM de Trustless Work.** El escrow corre el código auditado. | `getLedgerEntries` de la instancia → `executable.wasm_hash` = `1b367bc8…196660` (el mismo hash que verifica la app antes de cada pago). Solo WASM propio: ni SAC ni referencia externa. | "Su contrato no es el escrow de Trustless Work" |
+| 2 | **Roles de Trato.** `approver` = `release_signer` = `pp_guardian`, `dispute_resolver` = `pp_arbiter` (el par v2 o el par v1), `platform` = la cuenta `plataforma`, y `receiver` = `service_provider` = el vendedor del evento. | `get_escrow` simulado (lectura, sin firma). | "Los roles del escrow no son los de Trato" |
+| 3 | **Moneda LABUSD.** `trustline.address` = SAC de LABUSD `CC65P6TQ…OGBD4S`. | El mismo `get_escrow`. | "No usa LABUSD" |
+| 4 | **El pago movió la plata.** La transacción de `pp_funded` contiene un evento `transfer` **del SAC de LABUSD** del comprador al escrow por el monto exacto, y el `amount` del escrow es ese mismo monto. | `getTransaction` del RPC. Si el pago ya salió de la ventana del RPC (unos 7 días), los efectos de Horizon (`account_debited` + `contract_credited`). | "El pago no movió la plata" |
+
+- **Sin dato no hay prueba.** Si la instancia o la transacción no existen, la regla falla y la compra no cuenta. Ante un error transitorio del RPC o de Horizon, la compra queda **pendiente**: no cuenta hasta verificarse y se reintenta en la próxima lectura.
+- **Una sola verificación por escrow.** El resultado se guarda en SQLite (`escrow_verificado`) junto con la huella de los valores esperados. Si cambia un valor (otro WASM, otro SAC, otra plataforma), todo se vuelve a verificar.
+- **Lo que se ve en `/transparencia`:** las reglas, cuántas compras están verificadas, cuántas se descartaron y por qué (la primera regla que falla), con el escrow y el pago de las últimas descartadas. `/api/transparencia` trae lo mismo en `indexador`.
+- **Los eventos de compras descartadas** no entran en ningún número ni en "Últimas operaciones". Se siguen guardando en `pp_events`, porque son públicos.
+- **Valores esperados.** Salen de `.env.local` (`ESCROW_WASM_HASH`, `LABUSD_SAC`, la cuenta `plataforma`) o, si no hay, de los valores públicos de [`contracts/DEPLOYED.md`](../contracts/DEPLOYED.md) (`TESTNET_PUBLICO` en `app/src/lib/server/config.ts`).
+- **Código y tests.** Las reglas están en `app/src/lib/server/verificacion.ts`, que solo depende de `@stellar/stellar-sdk`, así que cualquiera puede reusarlas para recalcular las cifras. Los tests unitarios (`npm test` en `app/`) usan un fondeo real de testnet y escrows falsos armados como en la PoC del jurado. El ataque mismo está en `contracts/integration-tests/tests/hallazgos_jurado.rs`.
+- **Cifras (20-nov).** Con el indexador verificado, las cifras no cambiaron: las 101 compras de la base local del e2e (ledgers 5790757–5825034) y las 74 de la base del e2e público cumplen las cuatro reglas. No había compras fabricadas, y desde ahora una compra fabricada no suma.
+- **Lo que estas reglas no impiden.** Una persona que paga de verdad con LABUSD a su propia tienda (venta a sí misma) pasa las cuatro reglas. Le cuesta el 2,3% de comisiones por venta y queda a la vista en el registro público. Para la v3 de los contratos está previsto que `platform` co-firme `fund`, así solo cuentan las compras hechas desde la app ([SEGURIDAD.md, H-9](SEGURIDAD.md#h-9-la-reputación-se-podía-fabricar-con-escrows-falsos)).
+- **`scripts/metricas.sh`** sigue contando los eventos crudos, como referencia de las reglas de estado. Las cifras de la app son las del indexador verificado.
+
 ## Tipo de cambio Bs ↔ USD
 
 Los montos on-chain están en USD de prueba (LABUSD). Para mostrarlos en bolivianos, el script y la app usan **11,70 Bs por USD**, un **parámetro de la demo, no una cotización** oficial ni de mercado:

@@ -144,7 +144,7 @@ Cada afirmación, con el comando que la comprueba, el resultado y el link a la r
 
 | Afirmación | Comando | Resultado | Link |
 |---|---|---|---|
-| Los contratos cumplen los 9 invariantes y cubren el red team, contra el WASM real de Trustless Work | `cd contracts && cargo test` | 38 tests: `26 passed` + `12 passed` (corrido el 19-nov) | [invariantes.rs](contracts/integration-tests/tests/invariantes.rs) · [red_team_v2.rs](contracts/integration-tests/tests/red_team_v2.rs) |
+| Los contratos cumplen los 9 invariantes y cubren el red team, contra el WASM real de Trustless Work | `cd contracts && cargo test` | 47 tests: `4 passed` + `26 passed` + `12 passed` + `5 passed` (hallazgos del jurado, invariantes, red team y secuencias aleatorias; corrido el 20-nov) | [invariantes.rs](contracts/integration-tests/tests/invariantes.rs) · [red_team_v2.rs](contracts/integration-tests/tests/red_team_v2.rs) |
 | (a) "Pagar al vendedor" aprueba y libera en una sola transacción | `cd contracts && bash scripts/flujo-v2-testnet.sh` | Vendedor +48,85, plataforma +1,00, Trustless Work +0,15; escrow en 0. `confirm` antes del envío: rechazado, `Error(Contract, #23)` ([a4](contracts/scripts/out/flujo-v2/fallo-a-a4.txt)) | fund [`5143ee1b…`](https://stellar.expert/explorer/testnet/tx/5143ee1b7b4c076782172248a5e2e52740fcaf5fa633347207f8b38ffe68fd57) · envío [`00082803…`](https://stellar.expert/explorer/testnet/tx/00082803f6f9521016c7f12496c8276e2ac509b5c7f765e5c9cdc87416d9f0c3) · confirm [`0d3cb6aa…`](https://stellar.expert/explorer/testnet/tx/0d3cb6aa042da56b562c3490f5c45311b08af66d4fcf2eb80e742026aeefaba9) |
 | (b) En una disputa, el revisor solo elige el porcentaje (70/30) | ídem | Comprador +34,195, vendedor +14,655; las comisiones se descuentan del total | disputa [`6066d76e…`](https://stellar.expert/explorer/testnet/tx/6066d76eb51478558eae7f8d1bdd3be7aa042061ebaaf3d58dfa138e2de732b9) · resolve [`68ba9ed2…`](https://stellar.expert/explorer/testnet/tx/68ba9ed24755a4c401a28bfa122b5a48fee7929a1d9ae9256bb7f4e1b2ff889d) |
 | (c) Si el comprador no responde, el pago se libera al vencer la revisión, sin firmas | ídem | Vendedor +48,85. Antes de tiempo: rechazado, `Error(Contract, #19)` ([c5](contracts/scripts/out/flujo-v2/fallo-c-c5.txt)) | envío [`44e7ef2f…`](https://stellar.expert/explorer/testnet/tx/44e7ef2fbbe1015df195384b85ff1aea0d0c34f26cb5d56c95543526648b1a5e) · auto_release [`4a6feb28…`](https://stellar.expert/explorer/testnet/tx/4a6feb28078c8404d88947730aadea7c32c42d2a400ee1fb21e2cd937633644a) |
@@ -181,7 +181,7 @@ Hay dos caminos. El primero no necesita ninguna clave.
 - Chromium para Playwright: `npx playwright install chromium` (una vez, desde `app/` o `bot/`).
 
 ```bash
-# 1. Contratos: 38 tests contra el WASM real de Trustless Work (unos segundos)
+# 1. Contratos: 47 tests contra el WASM real de Trustless Work (menos de 1 minuto)
 cd contracts && cargo test && cd ..
 
 # 2. Bot: 174 unitarios + 4 e2e del simulador, sin red
@@ -280,7 +280,7 @@ Los montos en bolivianos de la app, del bot y de las métricas usan **11,70 Bs p
 | Pieza | Evidencia |
 |---|---|
 | **Contratos v2** (Soroban), desplegados en testnet | IDs arriba; hashes, transacciones y comisiones en [contracts/DEPLOYED.md](contracts/DEPLOYED.md). **No son actualizables.** |
-| **38 tests de contratos** | `cargo test` contra el **WASM real** de Trustless Work: los 9 invariantes de seguridad y el red team. |
+| **47 tests de contratos** | `cargo test` contra el **WASM real** de Trustless Work: los 9 invariantes de seguridad, el red team, los hallazgos del jurado (H-9, H-10) y 200 secuencias aleatorias. `scripts/verify-wasm.sh` reproduce los hashes desplegados. |
 | **Flujo v2 en testnet** | 6 escenarios con código 0, incluidos **9 desvíos rechazados**: nadie, ni el admin del revisor ni la plataforma, pudo mandar el pago a un tercero ([Evidencia](#evidencia)). |
 | **App web** (Next.js, mobile-first, en español) | Panel del vendedor, link del comprador, panel del revisor (`/revisor`) y "Cómo funciona", sobre los contratos v2: los dos plazos al pagar, `mark_shipped`, "Necesito más tiempo" (`extend`), la devolución si no se despacha (`refund_unshipped`) y `auto_release`, que respeta la disputa. e2e con Playwright contra testnet, con capturas en [app/e2e/capturas/](app/e2e/capturas/). Video y capturas de la demo v2: [demo/v2/](demo/v2/). |
 | **Bot de WhatsApp** | Crea links desde el chat (con código PP-#### y quién paga la protección), verifica links, avisa en cada paso y recuerda desde el envío. 174 tests unitarios y 4 e2e del simulador. |
@@ -306,7 +306,7 @@ Los montos en bolivianos de la app, del bot y de las métricas usan **11,70 Bs p
 1. Los roles que mueven el pago (aprobar, liberar y resolver) son contratos sin llave privada: nadie puede firmar por ellos.
 2. El revisor solo elige un porcentaje. El pago solo puede ir al vendedor o volver al comprador; aparte, la comisión fija del pedido. No existe ninguna función que acepte otra dirección.
 3. "Pagar al vendedor" es aprobar y liberar en la misma transacción. El envío se registra una sola vez y los plazos los firma el comprador.
-4. Hay 38 tests de invariantes y del red team con el WASM real, y en testnet se rechazaron 9 desvíos sin que el tercero recibiera nada.
+4. Hay 47 tests de contratos con el WASM real (invariantes, red team, hallazgos del jurado y secuencias aleatorias), y en testnet se rechazaron 9 desvíos sin que el tercero recibiera nada.
 5. Antes de mainnet faltan una revisión externa, un multisig para el admin del revisor, una billetera recuperable para el comprador y la gestión de TTL. → [docs/SEGURIDAD.md](docs/SEGURIDAD.md)
 
 ## Estructura del repositorio
@@ -315,7 +315,7 @@ Los montos en bolivianos de la app, del bot y de las métricas usan **11,70 Bs p
 pago-protegido/
 ├── app/          App web Next.js: vendedor, comprador, revisor, API, SQLite, Pollar, fee bump
 ├── bot/          Bot de WhatsApp: links desde el chat y avisos del pedido (simulador + Cloud API)
-├── contracts/    Contratos Soroban v2 (pp_guardian, pp_arbiter), 38 tests, scripts de testnet, bindings TS
+├── contracts/    Contratos Soroban v2 (pp_guardian, pp_arbiter), 47 tests, scripts de testnet, bindings TS
 │   ├── wasm/             escrow de Trustless Work (commit f0b706e) que usan los tests
 │   ├── DEPLOYED.md       v2: IDs, hashes, transacciones y comisiones reales (v1: DEPLOYED-v1.md)
 │   └── DECISIONES.md     decisiones, interfaz v2 y hallazgos
