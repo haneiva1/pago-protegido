@@ -19,7 +19,7 @@
     "demo:video:join": "node scripts/video-join.mjs",
     "piloto:csv": "node scripts/piloto-csv.mjs",
     "test:e2e:publico": "playwright test -c playwright.publico.config.ts",
-    "test": "node --test --disable-warning=MODULE_TYPELESS_PACKAGE_JSON 'test/**/*.test.mjs'"
+    "test": "npm run -s test:unit && npm run -s test:api"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",
