@@ -1,0 +1,10 @@
+# Toolchain fija para compilar los contratos.
+# Con rustc 1.99.1 y stellar-cli 30.0.1, `stellar contract build --locked` da
+# exactamente los sha256 desplegados (ver DEPLOYED.md y scripts/verify-wasm.sh).
+# El WASM guarda la versión de rustc (meta `rsver`) y la del CLI (meta `cliver`):
+# con otra versión cambia el hash.
+[toolchain]
+channel = "1.99.1"
+targets = ["wasm32v1-none"]
+components = ["rustfmt", "clippy"]
+profile = "minimal"
