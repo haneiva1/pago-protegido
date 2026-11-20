@@ -58,7 +58,19 @@ function redFalsa(now) {
   };
   /** Otra transacción de la plataforma (p. ej. el deploy de un escrow) consume la secuencia. */
   const otraTransaccion = () => st.seq++;
-  return { st, red, otraTransaccion };
+  /**
+   * Un sobre viejo entra tarde (reloj del servidor adelantado, mempool lenta): la red lo aplica aunque el servidor
+   * lo crea vencido, siempre que su secuencia sea la siguiente. Devuelve true si se aplicó.
+   */
+  const entraTarde = (hash) => {
+    const s = st.sobres.get(hash);
+    if (!s || st.aplicados.has(hash) || s.seq !== st.seq + 1) return false;
+    st.seq++;
+    st.aplicados.set(hash, "confirmada");
+    st.pagos.push({ hash, buyer: s.buyer, monto: BigInt(s.monto) });
+    return true;
+  };
+  return { st, red, otraTransaccion, entraTarde };
 }
 
 function base(pagado = 150n * U, platformBps = 200) {
@@ -184,6 +196,24 @@ test("sobre perdido y secuencia consumida por otra transacción: espera a que ve
   assert.equal(st.pagos.length, 1);
 });
 
+test("un sobre viejo que entra tarde (después de armar otro) cuenta como el reintegro: no se paga otra vez", async () => {
+  const { db, c, st, red, entraTarde } = base();
+  st.fallas.push("antes");
+  await assert.rejects(pagarReintegro(db, "pedido-1", red, { now: c.now }));
+  c.avanzar(180_000 + MARGEN_VENCE_MS + 1);
+  st.fallas.push("antes"); // el segundo sobre (misma secuencia) tampoco llega
+  await assert.rejects(pagarReintegro(db, "pedido-1", red, { now: c.now }));
+  assert.equal(reintegros.get(db, "pedido-1").tx_hash, "sobre-2");
+  assert.deepEqual(JSON.parse(reintegros.get(db, "pedido-1").historial), ["sobre-1"]);
+  assert.equal(entraTarde("sobre-1"), true); // el primero entra tarde y paga
+  c.avanzar(180_000 + MARGEN_VENCE_MS + 1);
+  const r = await pagarReintegro(db, "pedido-1", red, { now: c.now });
+  assert.equal(r.fila.estado, "confirmado");
+  assert.equal(r.fila.tx_hash, "sobre-1");
+  assert.equal(st.armados, 2);
+  assert.equal(st.pagos.length, 1);
+});
+
 test("el sobre falló al aplicarse (sin mover plata): arma otro y paga una vez", async () => {
   const { db, c, st, red } = base();
   st.fallas.push("falla_al_aplicar");
@@ -236,11 +266,12 @@ test("fallas al azar durante muchos reintentos: nunca hay dos pagos y al final h
   let semilla = 7;
   const azar = (n) => ((semilla = (semilla * 1103515245 + 12345) % 2 ** 31), semilla % n);
   for (let corrida = 0; corrida < 200; corrida++) {
-    const { db, c, st, red, otraTransaccion } = base(BigInt(1 + azar(10_000)) * U, [150, 200][azar(2)]);
+    const { db, c, st, red, otraTransaccion, entraTarde } = base(BigInt(1 + azar(10_000)) * U, [150, 200][azar(2)]);
     for (let i = 0; i < 12; i++) {
       st.fallas = [opciones[azar(opciones.length)]];
       st.caida = azar(6) === 0;
       if (azar(3) === 0) otraTransaccion();
+      if (st.armados && azar(4) === 0) entraTarde(`sobre-${1 + azar(st.armados)}`);
       await pagarReintegro(db, "pedido-1", red, { now: c.now }).catch(() => {});
       assert.ok(st.pagos.length <= 1, `corrida ${corrida}: ${st.pagos.length} pagos`);
       c.avanzar(azar(4) * 90_000);

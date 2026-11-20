@@ -20,8 +20,11 @@ import type Database from "better-sqlite3";
 const TW_FEE_BPS = 30n;
 /** Tope de cordura: el reintegro nunca pasa del 5 % de lo pagado (hoy es 2,3 %). Si pasa, hay un error de datos. */
 export const TOPE_REINTEGRO_BPS = 500n;
-/** Margen sobre el vencimiento del sobre: después de esto la red ya no puede incluirlo. */
-export const MARGEN_VENCE_MS = 60_000;
+/**
+ * Margen sobre el vencimiento del sobre: después de esto la red ya no puede incluirlo. Es amplio por si el reloj del
+ * servidor va adelantado respecto de la red; igual, los sobres anteriores se siguen consultando (`historial`).
+ */
+export const MARGEN_VENCE_MS = 5 * 60_000;
 /** Si el sobre venció hace más que esto y la red no lo encuentra, no se adivina: se revisa a mano. */
 export const VENTANA_HISTORIAL_MS = 12 * 3600_000;
 
@@ -40,6 +43,8 @@ export interface FilaReintegro {
   tx_hash: string | null;
   tx_xdr: string | null;
   tx_vence: number | null;
+  /** Hashes de los sobres de intentos anteriores (JSON). Se siguen consultando por si alguno entró tarde. */
+  historial: string;
   intentos: number;
   error: string | null;
   created_at: number;
@@ -75,6 +80,7 @@ CREATE TABLE IF NOT EXISTS reintegros (
   tx_hash TEXT,
   tx_xdr TEXT,
   tx_vence INTEGER,
+  historial TEXT NOT NULL DEFAULT '[]',
   intentos INTEGER NOT NULL DEFAULT 0,
   error TEXT,
   created_at INTEGER NOT NULL,
@@ -177,6 +183,10 @@ export async function pagarReintegro(
 
   try {
     // 1. Hay un sobre de un intento anterior: primero averiguar qué pasó con él. Nunca se arma otro sin saberlo.
+    //    También con los de intentos más viejos: si alguno entró tarde, ese es el reintegro (y el último ya no puede
+    //    entrar, porque usa la misma secuencia o una posterior).
+    const previos = JSON.parse(r.historial) as string[];
+    for (const h of previos) if ((await red.consultar(h)) === "confirmada") return listo(h);
     if (r.tx_hash) {
       const st = await red.consultar(r.tx_hash);
       if (st === "confirmada") return listo(r.tx_hash);
@@ -203,13 +213,15 @@ export async function pagarReintegro(
     // 2. Armar, GUARDAR el sobre y recién enviarlo, todo en orden con las demás transacciones de la plataforma.
     return await red.serializar(async () => {
       const sobre = await red.armar(r.buyer, BigInt(r.monto_units));
-      // Compare-and-set sobre el sobre anterior: si otro proceso ya tomó este reintegro, no se envía nada.
+      // Compare-and-set sobre el sobre anterior: si otro proceso ya tomó este reintegro, no se envía nada. El anterior
+      // pasa al historial para seguir consultándolo.
+      const historial = JSON.stringify(r.tx_hash ? [...previos, r.tx_hash] : previos);
       const res = db
         .prepare(
-          `UPDATE reintegros SET estado = 'enviado', tx_hash = ?, tx_xdr = ?, tx_vence = ?, intentos = intentos + 1, error = NULL, updated_at = ?
+          `UPDATE reintegros SET estado = 'enviado', tx_hash = ?, tx_xdr = ?, tx_vence = ?, historial = ?, intentos = intentos + 1, error = NULL, updated_at = ?
            WHERE order_slug = ? AND estado IN ('pendiente', 'enviado') AND tx_hash IS ?`,
         )
-        .run(sobre.hash, sobre.xdr, sobre.vence, now(), slug, r.tx_hash);
+        .run(sobre.hash, sobre.xdr, sobre.vence, historial, now(), slug, r.tx_hash);
       if (res.changes !== 1) throw new Error("Otro proceso está pagando este reintegro");
       await red.enviar(sobre.xdr);
       return listo(sobre.hash);
