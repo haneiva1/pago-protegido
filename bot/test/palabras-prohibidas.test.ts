@@ -1,6 +1,6 @@
 // Palabras prohibidas en todo texto que ve un cliente: los mensajes del bot (bot/src) y los textos visibles de la
 // app (app/src). Lee el código con el parser de TypeScript y revisa solo textos: strings, templates y texto JSX.
-// No revisa comentarios, imports, tipos, nombres de propiedades, clases CSS, estilos ni rutas.
+// No revisa comentarios, imports (también los dinámicos), tipos, nombres de propiedades, clases CSS, estilos ni rutas.
 // Lo que queda y es código (un identificador, una clave), va en EXCEPCIONES con su motivo.
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
@@ -61,6 +61,8 @@ function esCodigo(n: ts.Node): boolean {
   const p = n.parent;
   if (!p) return false;
   if (ts.isImportDeclaration(p) || ts.isExportDeclaration(p) || ts.isExternalModuleReference(p)) return true;
+  // import("…") dinámico: es una ruta de módulo, no un texto.
+  if (ts.isCallExpression(p) && p.expression.kind === ts.SyntaxKind.ImportKeyword) return true;
   if (ts.isLiteralTypeNode(p)) return true;
   if ((ts.isPropertyAssignment(p) || ts.isPropertySignature(p) || ts.isPropertyDeclaration(p) || ts.isMethodDeclaration(p)) && p.name === n) return true;
   if (ts.isElementAccessExpression(p) && p.argumentExpression === n) return true;
