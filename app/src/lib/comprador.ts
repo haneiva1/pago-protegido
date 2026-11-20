@@ -27,3 +27,34 @@ export function plazosDelPedido(o: { ship_secs?: number | null; inspect_secs?: n
     revision: o.inspect_secs ?? o.window_secs ?? (o.delivery_days + 3) * 86400,
   };
 }
+
+// ---------- Acceso a la compra (M6) ----------
+
+export type AppInterna = "Facebook" | "Messenger" | "Instagram" | "TikTok";
+
+/**
+ * Navegador interno de una app (abre los links con datos aparte). Ahí la cuenta del comprador queda atada a esa app:
+ * si después abre el link en Chrome o Safari, no puede confirmar ni reclamar. Messenger va antes que Facebook.
+ */
+export function navegadorInterno(ua: string): AppInterna | null {
+  if (/\bInstagram\b/i.test(ua)) return "Instagram";
+  if (/FBAN\/Messenger|FB_IAB\/(MESSENGER|Orca-Android)|\bMessengerForiOS\b|\bMessengerLite/i.test(ua)) return "Messenger";
+  if (/FBAN|FBAV|FB_IAB|FBIOS|\bFBSS\b/.test(ua)) return "Facebook";
+  if (/musical_ly|BytedanceWebview|\bTikTok\b|\btrill_\d|\bByteLocale\b/i.test(ua)) return "TikTok";
+  return null;
+}
+
+export type Plataforma = "android" | "ios" | "otro";
+
+export function plataforma(ua: string): Plataforma {
+  if (/Android/i.test(ua)) return "android";
+  if (/iPhone|iPad|iPod/i.test(ua)) return "ios";
+  return "otro";
+}
+
+/** Link que en Android abre la misma página en Chrome (sale del navegador interno de la app). */
+export function linkAbrirEnChrome(url: string): string | null {
+  const m = /^(https?):\/\/(.+)$/i.exec(url);
+  if (!m) return null;
+  return `intent://${m[2]}#Intent;scheme=${m[1].toLowerCase()};package=com.android.chrome;end`;
+}

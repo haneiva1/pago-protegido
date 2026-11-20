@@ -211,6 +211,16 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
     },
   });
   await capturar(buyer, "08-comprador-pagado");
+  await expect(buyer.getByTestId("compra-en-este-navegador")).toContainText("Tu compra quedó en este navegador");
+  await buyer.getByRole("button", { name: "Agregar a inicio" }).click();
+  await expect(buyer.getByTestId("ayuda-inicio")).toBeVisible();
+  // El mismo link desde otro navegador: explica qué pasa y qué hacer, en vez de una pantalla sin botones.
+  const otro = await (await browser.newContext()).newPage();
+  await otro.goto(url);
+  await expect(otro.getByTestId("otro-navegador")).toContainText("¿Pagaste tú este pedido?");
+  await expect(otro.getByTestId("otro-navegador")).toContainText("Si la tienda no despacha hasta el");
+  await capturar(otro, "08b-comprador-otro-navegador");
+  await otro.close();
 
   // Vendedor: ve a quién enviar y registra el envío con evidencia estructurada.
   const card = await marcarEnviado(seller, slug, {
@@ -528,7 +538,7 @@ test("transparencia: pruebas del equipo (con reclamos forzados) y piloto aparte,
   await capturar(page, "60-transparencia", "tecnica");
 });
 
-test("palabras prohibidas en todas las pantallas, /verificar, /pedir, /piloto y piloto:csv", async ({ page, request }) => {
+test("palabras prohibidas en todas las pantallas, /verificar, /pedir, /piloto y piloto:csv", async ({ page, request, browser }) => {
   // Un link real (sin transacciones) para /p/[slug] y /verificar.
   const pubkey = Keypair.random().publicKey();
   expect((await request.post("/api/sellers", { data: { pubkey, storeName: "Tienda Verificable", whatsapp: "59170002222", city: "Tarija" } })).ok()).toBe(true);
@@ -537,6 +547,19 @@ test("palabras prohibidas en todas las pantallas, /verificar, /pedir, /piloto y 
     code: string;
   };
   expect(link.code).toMatch(/^PP-\d{4,5}$/);
+
+  // Abierto dentro de Instagram (navegador interno): pide abrirlo en Safari o Chrome antes de pagar, con "Copiar link".
+  const ig = await (
+    await browser.newContext({
+      userAgent:
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 337.0.3.23.54 (iPhone14,5; iOS 17_5; es_BO; es)",
+    })
+  ).newPage();
+  await ig.goto(`/p/${link.slug}`);
+  await expect(ig.getByTestId("aviso-navegador-interno")).toContainText("Estás dentro de Instagram. Abre este link en Safari antes de pagar.");
+  await expect(ig.getByTestId("copiar-link")).toBeVisible();
+  await capturar(ig, "65-comprador-navegador-interno");
+  await ig.close();
 
   await page.goto(`/verificar?codigo=${link.code}`);
   const res = page.getByTestId("resultado-verificar");

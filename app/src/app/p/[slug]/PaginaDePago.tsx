@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { PublicRecord, useNow } from "@/components/Guardian";
 import { ErrorBox, Progress, useProgress } from "@/components/ui";
 import { WhatsAppBox } from "@/components/WhatsAppBox";
+import { AvisoNavegadorInterno, CompraEnEsteNavegador, OtroNavegador } from "@/components/comprador/AccesoCompra";
 import { BarraPagar, ComoFunciona, DosSalidas, HojaEntrega, Producto, Proteccion, type DatosEntrega } from "@/components/comprador/Checkout";
 import { ConfirmarPago, PreguntaConfirmar } from "@/components/comprador/Confirmar";
 import { Antifraude, Esqueleto, EstadoPedido, LinkNoEncontrado } from "@/components/comprador/Estado";
@@ -132,6 +133,7 @@ export default function PaginaDePago() {
   if (o.status === "esperando_pago") {
     return (
       <div className="mx-auto max-w-md space-y-4 pb-28">
+        <AvisoNavegadorInterno />
         <Producto v={v} compacto={qrOpen} />
         {takenByOther ? (
           <p className="card text-center text-sm text-slate-600" data-testid="tomado">
@@ -164,6 +166,7 @@ export default function PaginaDePago() {
         <HojaEntrega
           total={total}
           abierta={hoja}
+          aviso={<AvisoNavegadorInterno />}
           onCerrar={cerrarHoja}
           onContinuar={(x) => {
             setDelivery(x);
@@ -179,6 +182,7 @@ export default function PaginaDePago() {
   return (
     <div className="mx-auto max-w-md space-y-4">
       <EstadoPedido v={v} />
+      {me !== undefined && !isBuyer && <OtroNavegador v={v} />}
       <ErrorBox error={error} />
       <Progress steps={progress.steps} />
       {pressure && (
@@ -188,6 +192,7 @@ export default function PaginaDePago() {
         </div>
       )}
       <PublicRecord v={o.verification} escrowId={o.escrow_id} />
+      {isBuyer && (o.status === "pagado" || o.status === "enviado" || o.status === "en_disputa") && <CompraEnEsteNavegador />}
 
       {o.ship_imei && (o.status === "enviado" || o.status === "en_disputa") && (
         <div data-testid="imei" className="card space-y-1 text-sm">
