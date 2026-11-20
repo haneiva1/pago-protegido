@@ -212,7 +212,7 @@ Las instancias huérfanas de esas corridas (un escrow sin inicializar en la corr
 - El script verifica los roles después del init.
 - La app debería preferir `tw_new_single_release_escrow`, que despliega e inicializa en una sola transacción.
 
-**H-4. Un reembolso también paga comisiones** (hallazgo 3 del spike). Con 100% al comprador, recupera 146,55 de 150: pierde el 2% de la plataforma y el 0,3% de TW. No se cambió: SPEC fija las comisiones y no dice nada sobre reembolsos. *(Decisión del 19-nov: se mantiene, porque cambiarlo exige contratos nuevos, y queda explicado en la [tarifa del README](../README.md#tarifa): en devoluciones y disputas, Trustless Work descuenta las comisiones.)*
+**H-4. Un reembolso también paga comisiones** (hallazgo 3 del spike). Con 100% al comprador, recupera 146,55 de 150: pierde el 2% de la plataforma y el 0,3% de TW. No se cambió: SPEC fija las comisiones y no dice nada sobre reembolsos. *(Decisión del 19-nov: se mantiene, porque cambiarlo exige contratos nuevos, y queda explicado en la [tarifa de docs/TECNICO.md](../docs/TECNICO.md#tarifa): en devoluciones y disputas, Trustless Work descuenta las comisiones.)*
 
 **H-5. La plataforma puede agregar hitos con fondos adentro** (`update_escrow`, hallazgo 8 del spike).
 - Si lo hace, `confirm` y `auto_release` dejan de funcionar (`#5 EscrowNotCompleted`), porque el guardián solo aprueba el hito 0.

@@ -73,7 +73,7 @@ npx playwright install chromium   # solo la primera vez (la app usa la misma ver
 npm test                          # unitarios (Vitest) + e2e del simulador (Playwright)
 ```
 
-- **Unitarios (156: los 69 de la primera ronda + 87 anti-fraude):**
+- **Unitarios (@@BOT_UNIT@@):**
   - Precios y frases bolivianas: "450bs", "Bs. 450", "Bs 1.200", "450 pesos", "Bs 250.-", "5 mil", tallas que no son precios, dólares.
   - Intenciones y flujos guiados.
   - Mensajes: nunca dicen "cripto" y respetan los límites de WhatsApp.
@@ -83,7 +83,7 @@ npm test                          # unitarios (Vitest) + e2e del simulador (Play
   - Verificador (`test/links.test.ts`): dominios parecidos (guion, cero por o, l por i, tildes, cirílico, punycode, subdominios engañosos, punto final), acortadores, `usuario@`, slugs y rutas inválidos, links dentro de un mensaje reenviado.
   - Anti-fraude contra la app de mentira (`test/antifraude.test.ts`): auténtico/falso, pedido inexistente, app caída, reportes en archivo, botones del recordatorio, avisos al vendedor, anti-presión (también si el comprador deja su WhatsApp tarde), recordatorios 48/24/2 h, hitos antes del envío y modo demo en minutos.
   - Palabras prohibidas en todos los mensajes.
-- **e2e (4):**
+- **e2e (@@BOT_E2E@@):**
   - Levanta la app de mentira (3131) y el simulador (3130) como procesos aparte.
   - Escribe "vender zapatillas 450", toca "3 días", recibe el link y verifica que el pedido existe en la API.
   - Simula el pago y espera "¡Te pagaron!".

@@ -9,7 +9,7 @@
 
 > **Video y capturas de la demo v2:** `[link al video]` (copia local: [`../demo/v2/pago-protegido-demo-v2.mp4`](../demo/v2/pago-protegido-demo-v2.mp4), 1:18, grabado con el nombre anterior) y capturas clave en [`../demo/v2/`](../demo/v2/). Demo publicada: `[link a la demo]`.
 
-Las cifras de este guion son las que verifica el e2e de la app (`app/e2e/pago-protegido.spec.ts`), con el tipo de cambio de la demo (11,70 Bs por USD; ver [README, Tipo de cambio](../README.md#tipo-de-cambio)). El e2e completo (`npm run test:e2e` en `app/`) pasó 10/10 contra testnet el 20-nov-2026, ya con el nombre Trato. Las capturas están en [`../app/e2e/capturas/`](../app/e2e/capturas/), generadas por ese e2e contra testnet, y en [`../bot/docs/simulador.png`](../bot/docs/simulador.png).
+Las cifras de este guion son las que verifica el e2e de la app (`app/e2e/pago-protegido.spec.ts`), con el tipo de cambio de la demo (11,70 Bs por USD; ver [TECNICO, Tipo de cambio](TECNICO.md#tipo-de-cambio)). El e2e completo (`npm run test:e2e` en `app/`) pasó 10/10 contra testnet el 20-nov-2026, ya con el nombre Trato. Las capturas están en [`../app/e2e/capturas/`](../app/e2e/capturas/), generadas por ese e2e contra testnet, y en [`../bot/docs/simulador.png`](../bot/docs/simulador.png).
 
 ## Montaje
 
@@ -57,7 +57,7 @@ Las cifras de este guion son las que verifica el e2e de la app (`app/e2e/pago-pr
 | **1:15–1:30** | Laptop: vendedor enviado (`09-vendedor-enviado-*`) → celular (`10-comprador-espera-para-pagar-celular`) | Eliges la empresa (Trans Copacabana), escribes la guía `SRV-2026-118734`, el peso declarado (1,2 kg) y el link de la foto, y tocas "Marcar como enviado" | "El vendedor registra el envío una sola vez: empresa, guía, peso y foto, y quedan fijos. Desde ahí corre el plazo de revisión: si el comprador no responde, el pago se libera al vencer. 'Pagar al vendedor' se habilita un rato después del envío (en la demo, 1 minuto), para que el comprador revise el producto. Mientras tanto, veamos un reclamo." |
 | **1:30–2:15** | `/revisor` (`22-revisor-70-30-desvio-rechazado-escritorio`) → resuelto (`23-revisor-resuelto-*`, `24-comprador-resuelto-*`) | Mientras corre el minuto de espera del comprador, abres el reclamo preparado, eliges el motivo y mueves el slider al **70%** para el comprador (vista previa: comprador **Bs 205,17**, vendedor **Bs 87,93**). Tocas **"Probar: mandar la plata a otra cuenta"** y aparece el recuadro rojo de rechazo. Tocas **"Resolver"**. | "Si hay un problema, un revisor decide. Pero el revisor solo elige el porcentaje: la plata solo puede ir al vendedor o volver al comprador. Si intento mandarla a otra cuenta, aunque sea con la llave del revisor, el contrato lo rechaza. Resuelvo 70/30 y cada uno recibe su parte al instante, menos la comisión fija del pedido." |
 | **2:15–2:35** | Celular: pregunta (`11-comprador-pregunta-antes-de-pagar-celular`) → pagado (`12-comprador-pagado-al-vendedor-celular`) → laptop (`13-vendedor-cobrado-*`) | Ya pasó el minuto: tocas **"Pagar al vendedor (irreversible)"** y respondes la pregunta obligatoria | "Una sola transacción: nuestro contrato `pp_guardian` aprueba y libera a la vez, sin ventana para trampas. El vendedor recibe **Bs 450,04**, el precio completo; la protección cubre la comisión de la plataforma y el 0,3% de Trustless Work." |
-| **2:35–2:50** | `/metricas` (`70-metricas-*`) + stellar.expert | Muestras los números en vivo y el link de un contrato | "Todo es público y verificable: los contratos están en Stellar y cada número de las métricas enlaza a sus compras en la red. Hay 38 tests de seguridad, y en testnet se rechazaron 9 intentos de desvío." |
+| **2:35–2:50** | `/metricas` (`70-metricas-*`) + stellar.expert | Muestras los números en vivo y el link de un contrato | "Todo es público y verificable: los contratos están en Stellar y cada número de las métricas enlaza a sus compras en la red. Hay 47 tests de seguridad, y en testnet se rechazaron 9 intentos de desvío." |
 | **2:50–3:00** | Landing | — | "Trato: pago contra confirmación de entrega. El vendedor cobra apenas el comprador confirma, y la plata solo va al vendedor o vuelve al comprador; aparte, la comisión fija del pedido. Nadie más, ni siquiera nosotros, puede llevársela." |
 
 **Si sobra tiempo o preguntan por la liberación por plazo:**
@@ -67,10 +67,10 @@ Las cifras de este guion son las que verifica el e2e de la app (`app/e2e/pago-pr
 
 ### Frases de apoyo, por si preguntan
 
-- **¿Quién tiene las llaves?** "Nosotros no tenemos las llaves del comprador ni del vendedor. El vendedor entra con Pollar, con Google o su correo. El comprador firma con una llave que se crea en su navegador; antes de mainnet le daremos una billetera recuperable. El servidor tiene tres llaves de testnet: la de la plataforma, que despliega y paga la comisión de red; la del revisor, que solo elige porcentajes; y la del emisor del dólar de prueba." → [README, Llaves](../README.md#llaves).
-- **¿Cuánto cuesta?** "1,5% para el comprador, con mínimo de Bs 5 y tope de Bs 50. Si el vendedor la regala, se le descuenta 2,3%: 2% de la plataforma y 0,3% de Trustless Work. En devoluciones y reclamos, Trustless Work descuenta las comisiones igual." → [README, Tarifa](../README.md#tarifa).
-- **Trustless Work:** "Usamos la v1 de su escrow sin modificarla. Es un escrow genérico; para compras entre desconocidos le sumamos una regla extra: dos contratos nuestros en los roles que mueven la plata. Por ejemplo, la app verifica el código del contrato antes de pedir la firma." → [README, Trustless Work: hallazgos](../README.md#trustless-work-hallazgos).
-- **Seguridad:** "Hay 9 invariantes y el red team con 38 tests contra el WASM real, y 9 desvíos rechazados en testnet con sus pruebas." → [docs/SEGURIDAD.md](SEGURIDAD.md) y [README, Evidencia](../README.md#evidencia).
+- **¿Quién tiene las llaves?** "Nosotros no tenemos las llaves del comprador ni del vendedor. El vendedor entra con Pollar, con Google o su correo. El comprador firma con una llave que se crea en su navegador; antes de mainnet le daremos una billetera recuperable. El servidor tiene tres llaves de testnet: la de la plataforma, que despliega y paga la comisión de red; la del revisor, que solo elige porcentajes; y la del emisor del dólar de prueba." → [TECNICO, Llaves](TECNICO.md#llaves).
+- **¿Cuánto cuesta?** "1,5% para el comprador, con mínimo de Bs 5 y tope de Bs 50. Si el vendedor la regala, se le descuenta 2,3%: 2% de la plataforma y 0,3% de Trustless Work. En devoluciones y reclamos, Trustless Work descuenta las comisiones igual." → [TECNICO, Tarifa](TECNICO.md#tarifa).
+- **Trustless Work:** "Usamos la v1 de su escrow sin modificarla. Es un escrow genérico; para compras entre desconocidos le sumamos una regla extra: dos contratos nuestros en los roles que mueven la plata. Por ejemplo, la app verifica el código del contrato antes de pedir la firma." → [TECNICO, Trustless Work: hallazgos](TECNICO.md#trustless-work-hallazgos).
+- **Seguridad:** "Hay 9 invariantes y el red team con 47 tests contra el WASM real, y 9 desvíos rechazados en testnet con sus pruebas." → [docs/SEGURIDAD.md](SEGURIDAD.md) y [TECNICO, Evidencia](TECNICO.md#evidencia).
 
 ## Plan B, si falla la red
 
@@ -102,7 +102,7 @@ Ordenado de menos a más grave:
    cd contracts && cargo test
    ```
 
-   Corre los 38 tests contra el WASM real de Trustless Work en unos segundos. Los resultados on-chain ya ejecutados están en [`contracts/DEPLOYED.md`](../contracts/DEPLOYED.md) y en la [Evidencia del README](../README.md#evidencia): los 6 escenarios v2 y los 9 desvíos rechazados.
+   Corre los 47 tests contra el WASM real de Trustless Work en menos de un minuto. Los resultados on-chain ya ejecutados están en [`contracts/DEPLOYED.md`](../contracts/DEPLOYED.md) y en la [Evidencia de TECNICO](TECNICO.md#evidencia): los 6 escenarios v2 y los 9 desvíos rechazados.
 
 ## Después de la demo
 

@@ -16,7 +16,7 @@ contracts/
 ├── shared/escrow_iface.rs     tipos Escrow/Roles/… + cliente mínimo del escrow de TW (include! en ambos contratos)
 ├── pp_guardian/src/lib.rs
 ├── pp_arbiter/src/lib.rs
-├── integration-tests/tests/   38 tests (v2) con el WASM REAL de TW: invariantes + red team
+├── integration-tests/tests/   47 tests (v2) con el WASM REAL de TW: invariantes, red team, hallazgos del jurado y secuencias aleatorias
 ├── wasm/escrow.wasm           WASM de TW (sha256 1b367bc8…196660), versionado con git add -f
 ├── scripts/
 │   ├── lib.sh                 helpers (tx con hash/fee, expect_fail, saldos)
@@ -92,12 +92,14 @@ cargo test
 - `mock_all_auths` se usa solo para preparar el escenario;
 - las aserciones de autorización usan `set_auths(&[])` o `mock_auths` con una dirección concreta (auth real).
 
-**38 tests (v2)** en dos archivos:
+**47 tests (v2)** en cuatro archivos:
 
 | Archivo | Tests | Qué cubre |
 |---|---:|---|
 | `tests/invariantes.rs` | 26 | Los 9 invariantes de SPEC §4 sobre la interfaz v2 |
 | `tests/red_team_v2.rs` | 12 | TW-1, TW-2, TW-3 y TW-5; `mark_shipped`; `extend`; `refund_unshipped` por plazo de despacho; TTL de `Purchase`; contratos no actualizables |
+| `tests/hallazgos_jurado.rs` | 4 | H-9 (un escrow falso hace emitir eventos auténticos sin mover plata o difama a un vendedor, y el contraste con el WASM real) y H-10 (un reclamo tardío bloquea `auto_release`). Documentan el comportamiento de hoy |
+| `tests/secuencias_aleatorias.rs` | 5 | 200 semillas fijas en 4 lotes, de 40 a 80 operaciones al azar cada una: el saldo se conserva, ningún tercero cobra y cada compra tiene un solo desenlace. El quinto test comprueba que el generador es determinista |
 
 Qué test cubre cada invariante y cada hallazgo: [`../docs/SEGURIDAD.md`](../docs/SEGURIDAD.md), §2 y §4b.
 

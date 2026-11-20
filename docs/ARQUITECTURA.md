@@ -64,7 +64,7 @@ Configuración del escrow en modo guardián (SPEC §2):
 | receiver | vendedor |
 | platform | cuenta de la plataforma |
 
-Además: `platform_fee` es la comisión de la plataforma **que se define al crear el pedido** (200 bps si el vendedor regala la protección; si la paga el comprador, la app la calcula para que el vendedor reciba al menos el precio; ver [la tarifa del README](../README.md#tarifa)), hay un solo hito ("Entrega del producto", con status inicial `"pendiente"`) y el token es LABUSD.
+Además: `platform_fee` es la comisión de la plataforma **que se define al crear el pedido** (200 bps si el vendedor regala la protección; si la paga el comprador, la app la calcula para que el vendedor reciba al menos el precio; ver [la tarifa de TECNICO](TECNICO.md#tarifa)), hay un solo hito ("Entrega del producto", con status inicial `"pendiente"`) y el token es LABUSD.
 
 Dos propiedades sostienen el diseño:
 
@@ -208,7 +208,7 @@ Correspondencia con los flags on-chain del escrow:
 
 ## 6. Comisiones
 
-TW calcula sobre el monto liberado o repartido: 0,3% para Trustless Work (fijo en su código) y el `platform_fee` del pedido para la plataforma. Las descuenta también en devoluciones y disputas: en una disputa, cada parte paga comisiones en proporción a lo que recibe. Quién paga la protección y cuánto: [README, Tarifa](../README.md#tarifa).
+TW calcula sobre el monto liberado o repartido: 0,3% para Trustless Work (fijo en su código) y el `platform_fee` del pedido para la plataforma. Las descuenta también en devoluciones y disputas: en una disputa, cada parte paga comisiones en proporción a lo que recibe. Quién paga la protección y cuánto: [TECNICO, Tarifa](TECNICO.md#tarifa).
 
 Ejemplo con `platform_fee` = 2% (el caso "Yo la regalo", 2,3% en total):
 

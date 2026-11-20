@@ -14,7 +14,7 @@ Criterio: cuando el SPEC no decide algo, se elige **la opción más simple que r
    - El vendedor responde con texto ("Tu versión para el árbitro").
    - La evidencia vive en SQLite; on-chain solo queda el estado del hito y la evidencia de envío.
 6. **"Ventas completadas" = pedidos liberados** por confirmación del comprador. No cuenta las disputas resueltas.
-7. **El reembolso por disputa también paga comisiones** (la comisión de la plataforma del pedido + 0,3% de Trustless Work), porque así lo hace el contrato (hallazgo 3 del spike). El revisor lo ve en la vista previa. *(Actualizado el 19-nov: en v1 la comisión era siempre 2%, así que con 100% para el comprador recibía 97,7%. Desde §67 la comisión de la plataforma se define al crear cada pedido; ver la [tarifa del README](../README.md#tarifa).)*
+7. **El reembolso por disputa también paga comisiones** (la comisión de la plataforma del pedido + 0,3% de Trustless Work), porque así lo hace el contrato (hallazgo 3 del spike). El revisor lo ve en la vista previa. *(Actualizado el 19-nov: en v1 la comisión era siempre 2%, así que con 100% para el comprador recibía 97,7%. Desde §67 la comisión de la plataforma se define al crear cada pedido; ver la [tarifa en docs/TECNICO.md](../docs/TECNICO.md#tarifa).)*
 8. **Montos:**
    - Se calcula en unidades base (7 decimales) con la misma división entera del contrato y se muestra con 2 decimales.
    - El precio en Bs se convierte con `FX_BS_PER_USD` (11,70 por defecto), redondeado a la unidad base más cercana.

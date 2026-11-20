@@ -45,7 +45,7 @@ Los montos on-chain están en USD de prueba (LABUSD). Para mostrarlos en bolivia
 - App (`/metricas`, `/tienda/<slug>`, "Tus números" y `/transparencia`): `FX_BS_PER_USD` (11,70 si no se define). Suma los montos en USD de prueba y los pasa a Bs con el tipo de cambio configurado al mostrar; cada pantalla muestra también el monto en USD de prueba.
 - Cada pedido de la app guarda su propio tipo de cambio, el del momento en que se creó, para su precio, su protección y sus repartos.
 
-En producción, el tipo de cambio sería el que aplique la ETF al convertir bolivianos a USDC. Más detalle en el [README](../README.md#tipo-de-cambio).
+En producción, el tipo de cambio sería el que aplique la entidad autorizada (una ETF o un banco) al convertir bolivianos a USDC. Más detalle en [TECNICO, Tipo de cambio](TECNICO.md#tipo-de-cambio).
 
 ## Script
 
@@ -97,7 +97,7 @@ v2 agrega a cada compra los campos `version`, `plazo` (`ship_deadline` en v2, `d
 | `disputas.a_favor_del_comprador`, `a_favor_del_vendedor`, `repartos_parciales`, `buyer_bps_promedio` | Cómo se resolvieron: 100% comprador, 100% vendedor o reparto parcial |
 | `disputas.segundos_promedio_hasta_resolucion` | Del fondeo a la resolución |
 | `tiempo_promedio_hasta_liberacion` | Del fondeo a `confirm` o `auto_release`, en segundos y horas, con la cantidad de muestras |
-| `comisiones_estimadas` | Nominales sobre compras cerradas: 2% plataforma y 0,3% TW. Es una estimación: el script no lee el `platform_fee` de cada escrow, que se define al crear el pedido (2% si el vendedor regala la protección; menos si la paga el comprador). Ver la [tarifa del README](../README.md#tarifa). |
+| `comisiones_estimadas` | Nominales sobre compras cerradas: 2% plataforma y 0,3% TW. Es una estimación: el script no lee el `platform_fee` de cada escrow, que se define al crear el pedido (2% si el vendedor regala la protección; menos si la paga el comprador). Ver la [tarifa de TECNICO](TECNICO.md#tarifa). |
 | `compras[]` | Detalle por compra: escrow, monto, estado, fechas, disputa, resolución y links a stellar.expert |
 
 Un mismo escrow puede aparecer en `liberadas_*` o en `disputas`, pero no en ambas: en Trato una compra liberada no puede disputarse por el guardián.

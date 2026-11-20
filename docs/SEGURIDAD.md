@@ -4,7 +4,7 @@
 > 1. La plata del comprador queda en un escrow de Trustless Work. Los roles que la mueven (aprobar, liberar y resolver) son contratos nuestros sin llave privada, así que nadie puede firmar por ellos.
 > 2. El árbitro solo elige un porcentaje. El contrato reparte únicamente entre el comprador registrado y el vendedor, y no existe ninguna función que acepte otra dirección de destino.
 > 3. Confirmar es aprobar y liberar en la misma transacción. Si el vendedor despachó y el comprador no responde, el pago se libera solo al vencer el plazo, y cualquiera puede dispararlo.
-> 4. Los 9 invariantes y los hallazgos del red team sobre Trustless Work tienen tests (38 en v2, más 4 de los hallazgos del jurado y 200 secuencias aleatorias) contra el WASM real de Trustless Work. En testnet se rechazaron 9 desvíos con v2 (y 5 ataques con v1), y el saldo del tercero no cambió.
+> 4. Los 9 invariantes y los hallazgos del red team sobre Trustless Work tienen 47 tests en v2 (26 de invariantes, 12 del red team, 4 de los hallazgos del jurado y 5 con 200 secuencias aleatorias) contra el WASM real de Trustless Work. En testnet se rechazaron 9 desvíos con v2 (y 5 ataques con v1), y el saldo del tercero no cambió.
 > 5. H-1: en la v1 del escrow que usamos (commit `f0b706e`), un escrow ya liberado se puede marcar en disputa sin mover fondos; la v2 de Trustless Work ya lo impide, y `pp_guardian` también lo bloquea (#21). Antes de mainnet faltan una auditoría, un multisig para el admin, una billetera recuperable para el comprador y la gestión de TTL.
 > 6. H-9 (reputación fabricada con escrows falsos) está mitigado en el indexador: una compra cuenta solo si su escrow es el de Trustless Work, con los roles de Trato, LABUSD y un pago que movió la plata. H-10 (un reclamo sin plazo bloquea la liberación automática) es conocido y se arregla en v3.
 
@@ -20,7 +20,7 @@ Todo lo de este documento corre **solo en testnet**. Código: [`contracts/`](../
 **Supuestos:**
 - el escrow de TW es el WASM `1b367bc8…196660` (commit `f0b706e`);
 - Stellar/Soroban y el SAC de LABUSD funcionan según su especificación;
-- la plataforma no tiene las llaves del comprador ni del vendedor. En testnet, el comprador firma con una llave creada en su navegador, y el vendedor entra con la billetera embebida de Pollar (o con una llave local en el navegador). Qué llaves tiene el servidor y qué puede hacer cada una: [README, Llaves](../README.md#llaves).
+- la plataforma no tiene las llaves del comprador ni del vendedor. En testnet, el comprador firma con una llave creada en su navegador, y el vendedor entra con la billetera embebida de Pollar (o con una llave local en el navegador). Qué llaves tiene el servidor y qué puede hacer cada una: [TECNICO, Llaves](TECNICO.md#llaves).
 
 | Actor | Qué podría intentar | Qué lo impide | Evidencia |
 |---|---|---|---|
@@ -61,7 +61,7 @@ Todos los tests están en `contracts/integration-tests/tests/invariantes.rs` y c
 
 ## 3. Los 5 ataques del escenario (d) en testnet (v1)
 
-> Con los contratos v2 la prueba se repitió con **9 desvíos**, todos rechazados: ver la tabla de [Evidencia del README](../README.md#evidencia) y [`contracts/DEPLOYED.md`](../contracts/DEPLOYED.md). Esta sección es la corrida de v1.
+> Con los contratos v2 la prueba se repitió con **9 desvíos**, todos rechazados: ver la tabla de [Evidencia de TECNICO](TECNICO.md#evidencia) y [`contracts/DEPLOYED.md`](../contracts/DEPLOYED.md). Esta sección es la corrida de v1.
 
 `scripts/flujo-testnet.sh` (escenario d) preparó el ataque así:
 
@@ -187,8 +187,8 @@ El red team revisó el código de la v1 de TW (commit `f0b706e`). Son **decision
 | **Verificación del escrow (H-2, TW-4)** | La app verifica el hash del WASM y los roles antes de cada firma | Mantenerlo, o un `pp_factory` on-chain que registre las instancias legítimas. |
 | **Inicialización atómica (H-3)** | deploy + init en dos transacciones | `tw_new_single_release_escrow` o una factory propia. |
 | **H-1 (v1 de TW)** | En la v1 del escrow que usamos (commit `f0b706e`), un escrow ya liberado se puede marcar en disputa sin mover fondos; la v2 de Trustless Work ya lo impide, y `pp_guardian` también lo bloquea (#21) | La v2 de Trustless Work ya lo impide: evaluar la migración (plan de 30 días, semana 4). Exige contratos nuevos. |
-| **Comisiones en devoluciones y disputas** | Trustless Work descuenta la comisión fija del pedido también cuando la plata vuelve al comprador | Se mantiene y queda documentado en la [Tarifa del README](../README.md#tarifa). Cambiarlo exige contratos nuevos. |
-| **Llave del comprador** | Llave creada en el navegador, sin respaldo | Billetera recuperable (login o passkey) antes de mainnet ([README, Llaves](../README.md#llaves)). |
+| **Comisiones en devoluciones y disputas** | Trustless Work descuenta la comisión fija del pedido también cuando la plata vuelve al comprador | Se mantiene y queda documentado en la [Tarifa de TECNICO](TECNICO.md#tarifa). Cambiarlo exige contratos nuevos. |
+| **Llave del comprador** | Llave creada en el navegador, sin respaldo | Billetera recuperable (login o passkey) antes de mainnet ([TECNICO, Llaves](TECNICO.md#llaves)). |
 | **Moneda** | LABUSD de prueba | USDC real, verificando su SAC. |
 | **Actualizaciones** | Los contratos no son actualizables (no exponen `update_current_contract_wasm`) | Mantenerlos así (es más prudente) y versionar con despliegues nuevos. |
 | **Monitoreo** | Script de métricas sobre `getEvents` (ventana de ~7 días del RPC) | Un indexador persistente y alertas ante disputas, resoluciones atípicas y cambios de admin. |

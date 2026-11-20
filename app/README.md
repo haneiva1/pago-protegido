@@ -18,7 +18,7 @@ Especificación: [`docs/SPEC.md`](../docs/SPEC.md). Decisiones tomadas fuera del
   - El vendedor registra el envío con evidencia estructurada: empresa, guía, peso, foto, destino y, si es un celular, IMEI.
   - "Pagar al vendedor (irreversible)" se habilita 2 h (misma ciudad) o 24 h (otra ciudad) después del envío, y pregunta antes si el producto está en sus manos. Con `PP_DEMO=1`, 1 minuto.
   - "El vendedor me pide que confirme" abre un reclamo por presión.
-- **Quién paga la protección** se elige en cada link: el comprador (1,5%, mín. Bs 5, tope Bs 50; el vendedor recibe el precio completo) o el vendedor ("Yo la regalo": se le descuenta 2,3%, 2% de la plataforma y 0,3% de Trustless Work). Es la misma tarifa del [README](../README.md#tarifa).
+- **Quién paga la protección** se elige en cada link: el comprador (1,5%, mín. Bs 5, tope Bs 50; el vendedor recibe el precio completo) o el vendedor ("Yo la regalo": se le descuenta 2,3%, 2% de la plataforma y 0,3% de Trustless Work). Es la misma tarifa de [docs/TECNICO.md](../docs/TECNICO.md#tarifa).
 - **Revisor de reclamos** (`/revisor`, antes "árbitro"): motivo obligatorio, reparto sin valor por defecto e historial de evidencia. La política de reclamos está en `/como-funciona#reclamos`.
 - **Páginas nuevas:**
   - `/verificar` (con el código PP-#### del pedido);
@@ -267,7 +267,7 @@ PP_ARBITER_ID=C...
 
 ### Billetera Pollar
 
-`NEXT_PUBLIC_WALLET=local|pollar`. Con las llaves de `.env.pollar` (raíz del repo, no se versiona), `npm run setup` deja `pollar` como billetera **del vendedor**. Tiene login con Google o email y billetera embebida, sin frases secretas. **Pollar es solo para el vendedor:** el comprador nunca ve un login y firma con una llave creada en su navegador (`LocalWallet`), aunque `NEXT_PUBLIC_WALLET=pollar` (`src/lib/wallet/index.ts`). Riesgos de esa llave y plan para producción: [README, Llaves](../README.md#llaves).
+`NEXT_PUBLIC_WALLET=local|pollar`. Con las llaves de `.env.pollar` (raíz del repo, no se versiona), `npm run setup` deja `pollar` como billetera **del vendedor**. Tiene login con Google o email y billetera embebida, sin frases secretas. **Pollar es solo para el vendedor:** el comprador nunca ve un login y firma con una llave creada en su navegador (`LocalWallet`), aunque `NEXT_PUBLIC_WALLET=pollar` (`src/lib/wallet/index.ts`). Riesgos de esa llave y plan para producción: [docs/TECNICO.md, Llaves](../docs/TECNICO.md#llaves).
 
 - La firma va por `signTx(xdr, { skipSponsorship: true })` y la comisión la patrocina nuestra plataforma con fee bump, igual que con la billetera local.
 - Pollar acepta los orígenes `http://localhost:3000` y `http://localhost:3020`; en modo Pollar la app tiene que correr en uno de esos puertos.
