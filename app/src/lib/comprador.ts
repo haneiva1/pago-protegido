@@ -65,6 +65,14 @@ export function parseFlete(tipo: unknown, montoBs?: unknown): string | null {
   return null;
 }
 
+/**
+ * El flete que queda en el pedido: si el vendedor lo fijó al crear el link, se conserva (el comprador no lo pisa);
+ * si no, el que eligió el comprador en el checkout.
+ */
+export function fleteFinal(vendedor: string | null | undefined, comprador: string | null | undefined): string | null {
+  return vendedor || comprador || null;
+}
+
 export function fmtFlete(flete: string | null | undefined): string | null {
   if (!flete) return null;
   if (flete === "incluido") return "Flete incluido en el precio";

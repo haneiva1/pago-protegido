@@ -16,7 +16,7 @@ import {
   splitFromGross,
   splitPreview,
 } from "@/lib/format";
-import { VIDEO_OBLIGATORIO_DESDE_BS_CENTS, parseFlete } from "@/lib/comprador";
+import { VIDEO_OBLIGATORIO_DESDE_BS_CENTS, fleteFinal, parseFlete } from "@/lib/comprador";
 import { huellaDeLink, huellaPropia } from "@/lib/evidencia";
 import { evidenciaDeLasPartes } from "@/lib/revisor";
 import { esperaParaConfirmar } from "@/lib/ciudades";
@@ -443,13 +443,15 @@ export async function startPayment(slug: string, body: Record<string, unknown>):
     orders.update(slug, { buyer_pubkey: buyer, buyer_lease_until: Date.now() + PAGO_EN_CURSO_MS });
     if (buyerWa) orders.update(slug, { buyer_whatsapp: buyerWa });
     if (!o.escrow_id) {
+      // El flete que fijó el vendedor en el link se conserva; el del comprador solo cuenta si el link no tenía.
+      const fleteDelPedido = fleteFinal(o.flete, flete);
       orders.update(slug, {
         recipient_name: recipient,
         dest_city: destCity,
         pref_agency: agency || null,
         delivery_hash: sha(JSON.stringify({ slug, recipient, city: destCity, agency })).slice(0, 16),
         ...(pickupPhone ? { pickup_phone: pickupPhone } : {}),
-        ...(flete ? { flete } : {}),
+        ...(fleteDelPedido && fleteDelPedido !== o.flete ? { flete: fleteDelPedido } : {}),
       });
     }
     const svc = escrowService();

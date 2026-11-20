@@ -28,6 +28,18 @@ test("flete: incluido, por pagar o aparte con monto; no cambia el pago", async (
   assert.equal(fmtFlete(null), null);
 });
 
+test("flete final: el que fijó el vendedor en el link se conserva; si no fijó ninguno, queda el del comprador", async () => {
+  const { fleteFinal } = await import("../src/lib/comprador.ts");
+  assert.equal(typeof fleteFinal, "function");
+  assert.equal(fleteFinal("incluido", "aparte:30"), "incluido");
+  assert.equal(fleteFinal("aparte:25", "por_pagar"), "aparte:25");
+  assert.equal(fleteFinal("por_pagar", null), "por_pagar");
+  assert.equal(fleteFinal(null, "aparte:30"), "aparte:30");
+  assert.equal(fleteFinal(undefined, "por_pagar"), "por_pagar");
+  assert.equal(fleteFinal("", "incluido"), "incluido");
+  assert.equal(fleteFinal(null, null), null);
+});
+
 test("reclamo guiado: motivos según el estado del pedido", () => {
   assert.deepEqual(motivosReclamo("pagado"), ["No envió"]);
   assert.deepEqual(motivosReclamo("enviado"), ["No llegó", "Llegó vacío o con otro producto", "Dañado o distinto a lo descrito"]);
