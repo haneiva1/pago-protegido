@@ -16,13 +16,22 @@ import {
   splitFromGross,
   splitPreview,
 } from "@/lib/format";
-import { parseFlete } from "@/lib/comprador";
-import { huellaDeLink } from "@/lib/evidencia";
+import { VIDEO_OBLIGATORIO_DESDE_BS_CENTS, fleteFinal, parseFlete } from "@/lib/comprador";
+import { huellaDeLink, huellaPropia } from "@/lib/evidencia";
+import { evidenciaDeLasPartes } from "@/lib/revisor";
 import { esperaParaConfirmar } from "@/lib/ciudades";
 import { NETWORK_PASSPHRASE, cfg } from "./config";
 import { type OrderRow, evidence, kv, orders, pending, pilot, sellers, txs } from "./db";
 import { linkAmounts as amountsFor } from "@/lib/format";
-import { escrowService, type EscrowCtx, type EscrowProps, type OnchainState, type UserAction, type Verification } from "./escrow";
+import {
+  escrowService,
+  type EscrowCtx,
+  type EscrowProps,
+  type OnchainState,
+  type PurchaseInfo,
+  type UserAction,
+  type Verification,
+} from "./escrow";
 import { factoryId } from "./escrow/tw";
 import { sellerKpis } from "./kpis";
 import { ingestEvents } from "./metrics";
@@ -172,7 +181,10 @@ function slugify(product: string): string {
     .filter(Boolean)
     .slice(0, 4)
     .join("-")
-    .slice(0, 32);
+    .slice(0, 32)
+    // El corte a 32 puede dejar un "-" al final ("…-montanismo-"): el slug quedaría con "--" y el verificador del bot
+    // (bot/src/engine/links.ts, SLUG_RE) diría que un link genuino no es de Trato.
+    .replace(/-+$/, "");
   return `${base || "pedido"}-${randomBytes(3).toString("hex")}`;
 }
 
@@ -212,6 +224,12 @@ export function createLink(input: Record<string, unknown>) {
   if (input.flete && !flete) throw new AppError("Escribe el monto del flete en Bs");
   // `proteccion` (APP-ENDPOINTS §6 del bot) y `feePayer` (panel) son lo mismo.
   const fee_payer = (input.proteccion ?? input.feePayer) === "vendedor" ? "vendedor" : "comprador";
+  // Plazos de 2 minutos solo con el servidor en modo demo: si los eligiera quien llama a la API, un vendedor
+  // registraría un envío falso y cobraría a los 2 minutos, antes de que el paquete exista.
+  // La única excepción es /probar (PP_PROBAR=1 y el header de sus marcos): `marcoProbar` lo pone la ruta, no el cuerpo.
+  const marcoProbar = input.marcoProbar === true;
+  const demo = input.demoWindow === true || marcoProbar;
+  if (demo && !demoTimers() && !marcoProbar) throw new AppError("Los plazos de demostración solo funcionan con el servidor en modo demo");
   const fx = cfg().fx;
   const price_bs_cents = Math.round(priceBs * 100);
   const a = linkAmounts(price_bs_cents, fx, fee_payer);
@@ -226,9 +244,9 @@ export function createLink(input: Record<string, unknown>) {
     amount_units: a.amount.toString(),
     fx,
     delivery_days: days,
-    window_secs: input.demoWindow === true ? DEMO_WINDOW_SECS : null,
-    ship_secs: input.demoWindow === true ? DEMO_WINDOW_SECS : days * 86400,
-    inspect_secs: input.demoWindow === true ? DEMO_WINDOW_SECS : (days + cfg().extraWindowDays) * 86400,
+    window_secs: demo ? DEMO_WINDOW_SECS : null,
+    ship_secs: demo ? DEMO_WINDOW_SECS : days * 86400,
+    inspect_secs: demo ? DEMO_WINDOW_SECS : (days + cfg().extraWindowDays) * 86400,
     code: newCode(),
     category,
     fee_payer,
@@ -241,14 +259,20 @@ export function createLink(input: Record<string, unknown>) {
 
 /** APP-ENDPOINTS §6: cambiar quién paga la protección mientras nadie empezó a pagar el link. */
 export function patchLink(slug: string, input: Record<string, unknown>) {
-  let o = mustOrder(slug);
-  if (input.sellerPubkey !== o.seller_pubkey) throw new AppError("Solo el vendedor puede cambiar su link", 403);
-  if (o.status === "esperando_pago" && o.buyer_pubkey && !pagoEnCurso(o)) o = liberarIntento(o);
-  if (o.status !== "esperando_pago" || o.buyer_pubkey || o.escrow_id) throw new AppError("Este link ya se está pagando: no se puede cambiar", 409);
-  if (input.proteccion !== "comprador" && input.proteccion !== "vendedor") throw new AppError("proteccion tiene que ser comprador o vendedor");
-  const a = amountsFor(o.price_bs_cents, o.fx, input.proteccion);
-  orders.update(slug, { fee_payer: input.proteccion, amount_units: a.amount.toString(), price_units: a.price.toString(), platform_bps: a.platformBps });
-  return publicOrder(mustOrder(slug));
+  return withLock(`order:${slug}`, async () => {
+    let o = mustOrder(slug);
+    if (input.sellerPubkey !== o.seller_pubkey) throw new AppError("Solo el vendedor puede cambiar su link", 403);
+    if (o.status === "esperando_pago" && o.buyer_pubkey && !pagoEnCurso(o)) {
+      // Antes de soltar el intento vencido: si su fondeo entró en la red, el link ya está pagado.
+      o = await fondeoAlDia(o);
+      if (o.status === "esperando_pago") o = liberarIntento(o);
+    }
+    if (o.status !== "esperando_pago" || o.buyer_pubkey || o.escrow_id) throw new AppError("Este link ya se está pagando: no se puede cambiar", 409);
+    if (input.proteccion !== "comprador" && input.proteccion !== "vendedor") throw new AppError("proteccion tiene que ser comprador o vendedor");
+    const a = amountsFor(o.price_bs_cents, o.fx, input.proteccion);
+    orders.update(slug, { fee_payer: input.proteccion, amount_units: a.amount.toString(), price_units: a.price.toString(), platform_bps: a.platformBps });
+    return publicOrder(mustOrder(slug));
+  });
 }
 
 // ---------- Cuenta (billetera local o Pollar) ----------
@@ -266,11 +290,13 @@ export async function activateWallet(pubkey: unknown) {
 
 function buildProps(o: OrderRow, buyer: string): EscrowProps {
   return {
-    engagement_id: `pp-${o.slug}`,
+    // Ni el slug ni el código del pedido van a la red: con cualquiera de los dos se llega al link y a la vista del pedido
+    // (el código lleva al link en /verificar). El escrow se ata al pedido por orders.escrow_id.
+    engagement_id: `pp-${randomBytes(8).toString("hex")}`,
     title: o.product.slice(0, 80),
     roles: escrowService().roles(buyer, o.seller_pubkey),
     // Los datos de entrega quedan ligados al escrow por su hash (no se publican en claro).
-    description: `Trato ${o.code ?? ""}: ${o.product} | entrega ${o.delivery_hash ?? "-"}`.slice(0, 200),
+    description: `Trato: ${o.product} | entrega ${o.delivery_hash ?? "-"}`.slice(0, 200),
     amount: o.amount_units,
     platform_fee: o.platform_bps ?? cfg().platformFeeBps,
     milestones: [{ description: "Entrega del producto", status: "pendiente", evidence: "", approved: false }],
@@ -308,7 +334,89 @@ function liberarIntento(o: OrderRow): OrderRow {
     verify_json: null,
     mode: null,
   });
+  kv.set(fondeoEnviado(o.slug), "");
   return mustOrder(o.slug);
+}
+
+// ---------- La red manda sobre la base ----------
+//
+// /api/tx/submit anota el fondeo en la base solo si sendAndWait confirma a tiempo. Si la red tarda más (o el RPC falla
+// al consultarlo), el fondeo puede entrar igual y la base quedar en "esperando_pago". Antes de soltar un intento
+// vencido, armar otro fondeo o darlo por libre, se le pregunta a pp_guardian si registró la compra:
+// - registrada: el pedido está pagado (con los plazos de la red);
+// - no registrada: el intento se puede soltar;
+// - no se sabe (la red no responde): no se suelta nada.
+
+/** Hash (interno) del último fondeo que se envió a la red para este pedido, por si hay que anotarlo después. */
+const fondeoEnviado = (slug: string) => `fondeo-enviado:${slug}`;
+/** Marca de un intento vencido que ya se consultó y no tenía fondeo (valor: su `buyer_lease_until`). */
+const fondeoRevisado = (slug: string) => `fondeo-revisado:${slug}`;
+
+type Fondeo = { estado: "fondeado"; compra: PurchaseInfo | null } | { estado: "sin_fondeo" } | { estado: "desconocido" };
+
+async function fondeoEnCadena(o: OrderRow): Promise<Fondeo> {
+  if (!o.escrow_id) return { estado: "sin_fondeo" };
+  try {
+    const svc = escrowService();
+    if (svc.mode === "guardian") {
+      const compra = await svc.purchase(o.escrow_id);
+      return compra ? { estado: "fondeado", compra } : { estado: "sin_fondeo" };
+    }
+    // Modo directo (sin pp_guardian): no hay registro de la compra, así que manda el saldo del escrow.
+    return (await tokenBalance(o.escrow_id)) > 0n ? { estado: "fondeado", compra: null } : { estado: "sin_fondeo" };
+  } catch {
+    return { estado: "desconocido" };
+  }
+}
+
+/** El fondeo está en la red: el pedido pasa a pagado. Lo usan /api/tx/submit y la puesta al día con la red. */
+function anotarFondeo(o: OrderRow, compra: PurchaseInfo | null, hash: string | null): OrderRow {
+  const now = Date.now();
+  // Modo guardián v2: los plazos reales son los que registró pp_guardian (hora del ledger).
+  // La revisión (deadline) recién existe cuando se registra el envío.
+  orders.update(o.slug, {
+    status: "pagado",
+    funded_at: compra?.fundedAt ?? now,
+    ship_deadline: compra?.shipDeadline ?? now + shipSecs(o) * 1000,
+    deadline: null,
+    buyer_lease_until: null,
+  });
+  const h = hash ?? (kv.get(fondeoEnviado(o.slug)) || null);
+  if (h) txs.add({ order_slug: o.slug, actor: "comprador", kind: "fondeo", label: `Pagaste ${fmtBsUnits(o.amount_units, o.fx)}: quedó guardado en el contrato`, hash: h });
+  return mustOrder(o.slug);
+}
+
+/**
+ * Pedido esperando pago con un intento en curso o vencido: si la red ya tiene el fondeo, lo anota como pagado.
+ * Si la red no responde, 503: en la duda no se suelta ni se rearma nada.
+ */
+async function fondeoAlDia(o: OrderRow): Promise<OrderRow> {
+  if (o.status !== "esperando_pago" || !o.buyer_pubkey || !o.escrow_id) return o;
+  const f = await fondeoEnCadena(o);
+  if (f.estado === "fondeado") return anotarFondeo(o, f.compra, null);
+  if (f.estado === "desconocido") throw new AppError("No pudimos confirmar con la red si este link ya se pagó. Intenta de nuevo en un minuto.", 503);
+  return o;
+}
+
+/** Una consulta por intento vencido basta: su fondeo vencía antes que la reserva, así que la respuesta es final. */
+const VENTANA_INTENTOS_MS = 24 * 3_600_000;
+const CONSULTAS_POR_BARRIDO = 10;
+
+/** Barrido: anota como pagados los intentos vencidos cuyo fondeo entró en la red sin que la base se enterara. */
+async function intentosVencidosAlDia(): Promise<void> {
+  let consultas = 0;
+  for (const o of orders.intentosVencidos(Date.now(), VENTANA_INTENTOS_MS)) {
+    if (kv.get(fondeoRevisado(o.slug)) === String(o.buyer_lease_until)) continue;
+    if (consultas++ >= CONSULTAS_POR_BARRIDO) break;
+    await withLock(`order:${o.slug}`, async () => {
+      const a = mustOrder(o.slug);
+      if (a.status !== "esperando_pago" || !a.buyer_pubkey || !a.escrow_id || pagoEnCurso(a)) return;
+      const f = await fondeoEnCadena(a);
+      if (f.estado === "fondeado") anotarFondeo(a, f.compra, null);
+      else if (f.estado === "sin_fondeo") kv.set(fondeoRevisado(a.slug), String(a.buyer_lease_until));
+      // "desconocido": se vuelve a intentar en el próximo barrido.
+    }).catch((e) => console.error(`[fondeo] ${o.slug}: ${(e as Error).message}`));
+  }
 }
 
 /**
@@ -331,7 +439,8 @@ export async function startPayment(slug: string, body: Record<string, unknown>):
   const flete = body.flete ? parseFlete(body.flete, body.fleteBs) : null;
   if (body.flete && !flete) throw new AppError("Escribe el monto del flete en Bs");
   return withLock(`order:${slug}`, async () => {
-    let o = mustOrder(slug);
+    // Si ya hay un intento con contrato, primero la red: su fondeo pudo entrar sin que la base se enterara.
+    let o = await fondeoAlDia(mustOrder(slug));
     if (o.status !== "esperando_pago") throw new AppError("Este link ya fue pagado", 409);
     if (buyer === o.seller_pubkey) throw new AppError("No puedes pagar tu propio link");
     if (o.buyer_pubkey && o.buyer_pubkey !== buyer) {
@@ -342,13 +451,15 @@ export async function startPayment(slug: string, body: Record<string, unknown>):
     orders.update(slug, { buyer_pubkey: buyer, buyer_lease_until: Date.now() + PAGO_EN_CURSO_MS });
     if (buyerWa) orders.update(slug, { buyer_whatsapp: buyerWa });
     if (!o.escrow_id) {
+      // El flete que fijó el vendedor en el link se conserva; el del comprador solo cuenta si el link no tenía.
+      const fleteDelPedido = fleteFinal(o.flete, flete);
       orders.update(slug, {
         recipient_name: recipient,
         dest_city: destCity,
         pref_agency: agency || null,
         delivery_hash: sha(JSON.stringify({ slug, recipient, city: destCity, agency })).slice(0, 16),
         ...(pickupPhone ? { pickup_phone: pickupPhone } : {}),
-        ...(flete ? { flete } : {}),
+        ...(fleteDelPedido && fleteDelPedido !== o.flete ? { flete: fleteDelPedido } : {}),
       });
     }
     const svc = escrowService();
@@ -393,8 +504,11 @@ export async function startPayment(slug: string, body: Record<string, unknown>):
 
 // ---------- Acciones del comprador y del vendedor ----------
 
-/** Evidencia de envío estructurada. On-chain va compacta: "empresa|guía|peso|hash-foto". */
-function shipParams(o: OrderRow, body: Record<string, unknown>): Record<string, string> {
+/**
+ * Evidencia de envío estructurada. On-chain va compacta: "empresa|guía|peso|hash-foto". `host` es el de la app según
+ * el pedido: solo un link de evidencia de esta app lleva su huella completa.
+ */
+function shipParams(o: OrderRow, body: Record<string, unknown>, host: string | null): Record<string, string> {
   // Compatibilidad con scripts viejos: { evidence: "OLVA-123" }.
   if (!body.company && typeof body.evidence === "string") {
     body = { company: "Otra flota", tracking: body.evidence, weight: "1", city: o.dest_city ?? "Otra" };
@@ -410,17 +524,19 @@ function shipParams(o: OrderRow, body: Record<string, unknown>): Record<string, 
   if (!inList(EMPRESAS, company)) throw new AppError("Elige la empresa de envío de la lista");
   if (company !== "Entrega en persona" && tracking.length < 3) throw new AppError("Escribe el número de guía");
   if (!Number.isFinite(weightNum) || weightNum <= 0 || weightNum > 500) throw new AppError("Escribe el peso declarado en kg");
-  if (!isUrl(photo) || !isUrl(photoGuia)) throw new AppError("La foto tiene que ser un link (https://…)");
+  const linkOk = (u: string) => isUrl(u) || huellaPropia(u, null) !== null; // también /api/evidencia/<sha256>.<ext>
+  if (!linkOk(photo) || !linkOk(photoGuia)) throw new AppError("La foto tiene que ser un link (https://…)");
   if (!inList(CIUDADES, city)) throw new AppError("Elige la ciudad de destino");
   if (o.category === "Celular" && !/^\d{15}$/.test(imei)) throw new AppError("Para celulares el IMEI es obligatorio (15 dígitos)");
   const weight = String(Math.round(weightNum * 100) / 100);
-  // Foto subida a /api/evidencia: va su huella SHA-256 completa (la del archivo); un link externo, el hash corto del link.
-  const huella = (u: string) => (u ? (huellaDeLink(u) ?? sha(u).slice(0, 12)) : "-");
+  // Foto subida a /api/evidencia de esta app: va su huella SHA-256 completa (la del archivo). Un link externo, o uno de
+  // otro host con la misma ruta, va con el hash corto del link, como antes.
+  const huella = (u: string) => (u ? (huellaPropia(u, host) ?? sha(u).slice(0, 12)) : "-");
   const compact = [company, tracking || "-", `${weight}kg`, huella(photo), ...(photoGuia ? [huella(photoGuia)] : [])].join("|");
   return { company, tracking, weight, photo, city, imei, evidence: compact, ...(photoGuia ? { photoGuia } : {}) };
 }
 
-export async function prepareAction(slug: string, body: Record<string, unknown>): Promise<PreparedDto> {
+export async function prepareAction(slug: string, body: Record<string, unknown>, host: string | null = null): Promise<PreparedDto> {
   const action = body.action as UserAction;
   const signer = body.signer;
   if (!isPubkey(signer)) throw new AppError("Cuenta inválida");
@@ -431,8 +547,13 @@ export async function prepareAction(slug: string, body: Record<string, unknown>)
 
   if (action === "ship") {
     if (signer !== o.seller_pubkey) throw new AppError("Solo el vendedor puede registrar el envío", 403);
-    if (o.status !== "pagado") throw new AppError("Solo puedes marcar como enviado un pedido pagado", 409);
-    params = shipParams(o, body);
+    // Con un reclamo abierto también se puede (pp_guardian, D-18: evidencia nueva para el revisor, dentro del plazo).
+    // Si no, un comprador reclama "No envió" apenas paga, el vendedor ya no puede registrar el envío y al vencer el
+    // plazo la devolución automática le da todo al comprador sin que decida el revisor.
+    const conReclamo = o.status === "en_disputa" && !o.shipped_at;
+    if (o.status !== "pagado" && !conReclamo) throw new AppError("Solo puedes marcar como enviado un pedido pagado", 409);
+    if (o.ship_deadline && Date.now() >= o.ship_deadline) throw new AppError("Ya venció el plazo para registrar el envío", 409);
+    params = shipParams(o, body, host);
   } else if (action === "confirm") {
     if (signer !== o.buyer_pubkey) throw new AppError("Solo el comprador puede pagar al vendedor", 403);
     if (o.status !== "enviado") throw new AppError("Primero el vendedor tiene que marcar el pedido como enviado", 409);
@@ -446,6 +567,11 @@ export async function prepareAction(slug: string, body: Record<string, unknown>)
     const isBuyer = signer === o.buyer_pubkey;
     if (!isBuyer && signer !== o.seller_pubkey) throw new AppError("Solo el comprador o el vendedor pueden reclamar", 403);
     if (o.status !== "pagado" && o.status !== "enviado") throw new AppError("Este pedido ya no admite reclamos", 409);
+    // Pasada la revisión, el pago le corresponde al vendedor (lo libera el barrido). pp_guardian.dispute todavía no
+    // mira la hora (H-10): la app no lo ofrece, y el barrido cierra la ventana en la práctica.
+    if (isBuyer && o.status === "enviado" && o.deadline && Date.now() >= o.deadline) {
+      throw new AppError("Ya terminó tu tiempo de revisión: el pago es del vendedor", 409);
+    }
     params.reason = clean(body.reason, 80);
     params.text = clean(body.text, 600);
     params.photo = clean(body.photo, 500);
@@ -453,7 +579,7 @@ export async function prepareAction(slug: string, body: Record<string, unknown>)
     if (!inList(MOTIVOS, params.reason)) throw new AppError("Elige un motivo de la lista");
     if (params.reason === MOTIVO_PRESION && !isBuyer) throw new AppError("Ese motivo solo lo puede usar el comprador");
     if (!isUrl(params.photo) || !isUrl(params.video)) throw new AppError("La foto y el video tienen que ser links (https://…)");
-    if (isBuyer && MOTIVOS_CON_VIDEO.includes(params.reason) && o.price_bs_cents >= 30000 && !params.video) {
+    if (isBuyer && MOTIVOS_CON_VIDEO.includes(params.reason) && o.price_bs_cents >= VIDEO_OBLIGATORIO_DESDE_BS_CENTS && !params.video) {
       throw new AppError("Para este motivo, desde Bs 300, el video continuo del desempaque es obligatorio");
     }
   } else {
@@ -503,6 +629,8 @@ export async function submitSigned(signedXdr: unknown): Promise<{ hash: string; 
   if (p.step === "fund" && orders.get(p.order_slug!)?.buyer_pubkey !== p.signer) {
     throw new AppError("Tu intento de pago venció y otra persona tomó el link", 409);
   }
+  // Si la red tarda más que sendAndWait, el fondeo puede entrar igual: con este hash se anota después.
+  if (p.step === "fund") kv.set(fondeoEnviado(p.order_slug!), hashHex);
 
   const sent = await feeBumpAndSend(inner);
   const params = JSON.parse(p.params) as Record<string, string>;
@@ -518,23 +646,18 @@ export async function submitSigned(signedXdr: unknown): Promise<{ hash: string; 
   const role = p.signer === o.seller_pubkey ? "vendedor" : "comprador";
   switch (p.step) {
     case "fund": {
-      // Modo guardián v2: los plazos reales son los que registró pp_guardian (hora del ledger).
-      // La revisión (deadline) recién existe cuando se registra el envío.
       const onchain = await escrowService().purchase(o.escrow_id!).catch(() => null);
-      orders.update(slug, {
-        status: "pagado",
-        funded_at: onchain?.fundedAt ?? now,
-        ship_deadline: onchain?.shipDeadline ?? now + shipSecs(o) * 1000,
-        deadline: null,
-      });
-      txs.add({ order_slug: slug, actor: "comprador", kind: "fondeo", label: `Pagaste ${fmtBsUnits(o.amount_units, o.fx)}: quedó guardado en el contrato`, hash: sent.hash });
+      // Si mientras esperábamos a la red la puesta al día ya lo anotó (página, barrido), no se anota dos veces.
+      const actual = mustOrder(slug);
+      if (actual.status === "esperando_pago") anotarFondeo(actual, onchain, sent.hash);
       break;
     }
     case "ship": {
       // v2: release_at = shipped_at + inspect_secs, ambos con la hora del ledger (pp_guardian.mark_shipped).
       const onchain = await escrowService().purchase(o.escrow_id!).catch(() => null);
       orders.update(slug, {
-        status: "enviado",
+        // Con un reclamo abierto, el pedido sigue en disputa: el envío queda como evidencia y decide el revisor.
+        status: o.status === "en_disputa" ? "en_disputa" : "enviado",
         shipped_evidence: params.evidence,
         shipped_at: onchain?.shippedAt ?? now,
         deadline: onchain?.releaseAt ?? (onchain?.shippedAt ?? now) + inspectSecs(o) * 1000,
@@ -550,7 +673,9 @@ export async function submitSigned(signedXdr: unknown): Promise<{ hash: string; 
         .filter(Boolean)
         .join(" · ");
       evidence.add({ order_slug: slug, actor: "vendedor", kind: "envio", summary, data: params });
-      txs.add({ order_slug: slug, actor: "vendedor", kind: "envio", label: `El vendedor registró el envío: ${summary}`, hash: sent.hash });
+      // La línea de tiempo es pública: sin la ciudad de destino ni el IMEI (quedan en la evidencia para el revisor).
+      const publico = [params.company, params.tracking && `guía ${params.tracking}`, `${params.weight} kg`].filter(Boolean).join(" · ");
+      txs.add({ order_slug: slug, actor: "vendedor", kind: "envio", label: `El vendedor registró el envío: ${publico}`, hash: sent.hash });
       break;
     }
     case "extend": {
@@ -679,25 +804,36 @@ export async function refundUnshipped(slug: string) {
 }
 
 let lastSweep = 0;
-let sweeping = false;
+let barrido: Promise<void> | null = null;
 /**
- * Barre los pedidos con el despacho vencido y los devuelve. Corre cuando alguien consulta (páginas, panel,
- * feed del bot), como mucho cada 15 s y sin bloquear la respuesta (DECISIONES 79).
+ * Pone al día con la red los intentos de pago vencidos y devuelve los pedidos con el despacho vencido. Corre cuando
+ * alguien consulta (páginas, panel, feed del bot), como mucho cada 15 s y sin bloquear la respuesta (DECISIONES 79).
+ * Si ya hay un barrido corriendo, se devuelve ese mismo.
  */
 export function sweepOverdue(force = false): Promise<void> {
-  if (cfg().mode !== "guardian" || sweeping || (!force && Date.now() - lastSweep < 15_000)) return Promise.resolve();
-  sweeping = true;
+  if (cfg().mode !== "guardian") return Promise.resolve();
+  if (barrido) return barrido;
+  if (!force && Date.now() - lastSweep < 15_000) return Promise.resolve();
   lastSweep = Date.now();
-  return (async () => {
+  return (barrido = (async () => {
     try {
+      await intentosVencidosAlDia();
       for (const o of orders.overdueUnshipped(Date.now() - CHAIN_MARGIN_MS)) {
         await refundUnshipped(o.slug).catch((e) => console.error(`[devolución] ${o.slug}: ${(e as Error).message}`));
       }
+      // "Se libera sola": si el comprador no confirmó ni reclamó, al vencer la revisión se le paga al vendedor.
+      // Con un reclamo abierto en la red, autoRelease no lo intenta (decide el revisor).
+      for (const o of orders.overdueShipped(Date.now() - CHAIN_MARGIN_MS)) {
+        await autoRelease(o.slug).catch((e) => console.error(`[liberación] ${o.slug}: ${(e as Error).message}`));
+      }
       await reintentarReintegros(); // H-4: solo con PP_DEVOLUCION_COMPLETA=1
+    } catch (e) {
+      // Lo llaman las páginas con `void sweepOverdue()`: un error acá (base ocupada, disco lleno) no puede tirar el proceso.
+      console.error(`[barrido] ${(e as Error).message}`);
     } finally {
-      sweeping = false;
+      barrido = null;
     }
-  })();
+  })());
 }
 
 // ---------- Revisor ----------
@@ -804,9 +940,27 @@ export function verifyCode(codeParam: string | null) {
 
 // ---------- Vistas ----------
 
-/** Vista pública del pedido: sin WhatsApp ni datos de entrega del comprador. */
+/**
+ * Vista pública del pedido (la ve quien tenga el link, sin firma): sin WhatsApp ni datos de entrega del comprador, y sin
+ * la evidencia del envío ni del reclamo (fotos, ciudad, textos, video), que son para el vendedor y el revisor.
+ */
 function publicOrder(o: OrderRow) {
-  const { escrow_json: _e, verify_json, buyer_whatsapp: _w, recipient_name: _r, dest_city: _c, pref_agency: _a, pickup_phone: _p, ...rest } = o;
+  const {
+    escrow_json: _e,
+    verify_json,
+    buyer_whatsapp: _w,
+    recipient_name: _r,
+    dest_city: _c,
+    pref_agency: _a,
+    pickup_phone: _p,
+    ship_photo: _sp,
+    ship_city: _sc,
+    dispute_text: _dt,
+    dispute_photo: _dp,
+    dispute_video: _dv,
+    seller_reply: _sr,
+    ...rest
+  } = o;
   // Un intento de pago vencido no bloquea el link: se muestra libre (el próximo /pay lo libera de verdad).
   if (o.status === "esperando_pago" && o.buyer_pubkey && !pagoEnCurso(o)) Object.assign(rest, { buyer_pubkey: null, buyer_lease_until: null });
   const proteccion = o.fee_payer ?? "comprador";
@@ -816,9 +970,21 @@ function publicOrder(o: OrderRow) {
   return { ...rest, proteccion, proteccion_bs_cents, verification: verify_json ? (JSON.parse(verify_json) as Verification) : null };
 }
 
-/** Lo que ve el vendedor (y el revisor): incluye los datos de entrega. */
+/** Lo que ve el vendedor (y el revisor): incluye los datos de entrega y la evidencia del envío y del reclamo. */
 function sellerOrder(o: OrderRow) {
-  return { ...publicOrder(o), recipient_name: o.recipient_name, dest_city: o.dest_city, pref_agency: o.pref_agency, pickup_phone: o.pickup_phone ?? null };
+  return {
+    ...publicOrder(o),
+    recipient_name: o.recipient_name,
+    dest_city: o.dest_city,
+    pref_agency: o.pref_agency,
+    pickup_phone: o.pickup_phone ?? null,
+    ship_photo: o.ship_photo,
+    ship_city: o.ship_city,
+    dispute_text: o.dispute_text,
+    dispute_photo: o.dispute_photo,
+    dispute_video: o.dispute_video,
+    seller_reply: o.seller_reply,
+  };
 }
 
 /**
@@ -881,6 +1047,17 @@ export async function orderView(slug: string, withOnchain: boolean) {
   let onchain: OnchainState | null = null;
   if (withOnchain && o.escrow_id) onchain = await escrowService().readState(o.escrow_id).catch(() => null);
   o = reconcile(o, onchain);
+  // El escrow ya tiene saldo y la base sigue esperando el pago: puede ser un fondeo que entró tarde (o polvo, por eso
+  // manda la compra registrada en pp_guardian y no el saldo). Solo en este caso se consulta: el camino normal no suma
+  // llamadas a la red.
+  if (o.status === "esperando_pago" && o.buyer_pubkey && onchain && BigInt(onchain.balance) > 0n) {
+    o = await withLock(`order:${slug}`, async () => {
+      const a = mustOrder(slug);
+      if (a.status !== "esperando_pago" || !a.buyer_pubkey) return a;
+      const f = await fondeoEnCadena(a);
+      return f.estado === "fondeado" ? anotarFondeo(a, f.compra, null) : a;
+    });
+  }
   return {
     ...vistaReintegro(slug), // H-4: vacío salvo PP_DEVOLUCION_COMPLETA=1
     order: publicOrder(o),
@@ -943,17 +1120,27 @@ export async function disputesView() {
   const open = await Promise.all(
     orders.byStatus("en_disputa").map(async (o) => {
       const onchain = o.escrow_id ? await escrowService().readState(o.escrow_id).catch(() => null) : null;
+      const ev = evidence.forOrder(o.slug);
+      // La misma foto en otro pedido: el revisor ve el aviso junto a la miniatura.
+      const huellas_en_otros: Record<string, string[]> = {};
+      const archivos = evidenciaDeLasPartes(ev);
+      for (const a of [...archivos.comprador, ...archivos.vendedor]) {
+        const h = huellaDeLink(a.url);
+        const otros = h ? evidence.otherOrdersMentioning(h, o.slug) : [];
+        if (h && otros.length) huellas_en_otros[h] = otros;
+      }
       return {
         ...sellerOrder(reconcile(o, onchain)),
         seller: sellers.get(o.seller_pubkey),
         txs: txs.forOrder(o.slug),
-        evidence: evidence.forOrder(o.slug),
+        evidence: ev,
         onchain,
+        huellas_en_otros,
       };
     }),
   );
   const stillOpen = open.filter((d) => d.status === "en_disputa");
-  const resolved = orders.recentResolved(10).map((o) => ({ ...publicOrder(o), txs: txs.forOrder(o.slug), evidence: evidence.forOrder(o.slug), ...money(o) }));
+  const resolved = orders.recentResolved(10).map((o) => ({ ...sellerOrder(o), txs: txs.forOrder(o.slug), evidence: evidence.forOrder(o.slug), ...money(o) }));
   return { open: stillOpen, resolved, platformFeeBps: cfg().platformFeeBps, mode: cfg().mode };
 }
 

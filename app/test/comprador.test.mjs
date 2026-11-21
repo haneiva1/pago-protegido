@@ -28,6 +28,18 @@ test("flete: incluido, por pagar o aparte con monto; no cambia el pago", async (
   assert.equal(fmtFlete(null), null);
 });
 
+test("flete final: el que fijó el vendedor en el link se conserva; si no fijó ninguno, queda el del comprador", async () => {
+  const { fleteFinal } = await import("../src/lib/comprador.ts");
+  assert.equal(typeof fleteFinal, "function");
+  assert.equal(fleteFinal("incluido", "aparte:30"), "incluido");
+  assert.equal(fleteFinal("aparte:25", "por_pagar"), "aparte:25");
+  assert.equal(fleteFinal("por_pagar", null), "por_pagar");
+  assert.equal(fleteFinal(null, "aparte:30"), "aparte:30");
+  assert.equal(fleteFinal(undefined, "por_pagar"), "por_pagar");
+  assert.equal(fleteFinal("", "incluido"), "incluido");
+  assert.equal(fleteFinal(null, null), null);
+});
+
 test("reclamo guiado: motivos según el estado del pedido", () => {
   assert.deepEqual(motivosReclamo("pagado"), ["No envió"]);
   assert.deepEqual(motivosReclamo("enviado"), ["No llegó", "Llegó vacío o con otro producto", "Dañado o distinto a lo descrito"]);
@@ -95,4 +107,22 @@ test("plataforma y link para abrir en Chrome (Android)", () => {
   assert.equal(linkAbrirEnChrome("https://trato.example/p/zapatillas-ab12"), "intent://trato.example/p/zapatillas-ab12#Intent;scheme=https;package=com.android.chrome;end");
   assert.equal(linkAbrirEnChrome("http://localhost:3100/p/x"), "intent://localhost:3100/p/x#Intent;scheme=http;package=com.android.chrome;end");
   assert.equal(linkAbrirEnChrome("no-es-un-link"), null);
+});
+
+test("cuenta del comprador: si la carga del módulo falla, no queda guardada y se puede reintentar", async () => {
+  const { cargaUnaVez, NO_CARGO_CUENTA } = await import("../src/lib/comprador.ts");
+  assert.equal(NO_CARGO_CUENTA, "No pudimos cargar tu cuenta. Recarga la página.");
+  let llamadas = 0;
+  const cargar = cargaUnaVez(async () => {
+    if (++llamadas === 1) throw new Error("Loading chunk 123 failed");
+    return { ok: true };
+  });
+  await assert.rejects(cargar(), /Loading chunk/);
+  assert.deepEqual(await cargar(), { ok: true });
+  assert.deepEqual(await cargar(), { ok: true });
+  assert.equal(llamadas, 2, "reintenta una vez después del error y después recuerda el módulo");
+  // Dos pedidos a la vez comparten la misma carga.
+  let n = 0;
+  const otra = cargaUnaVez(async () => ++n);
+  assert.deepEqual(await Promise.all([otra(), otra()]), [1, 1]);
 });

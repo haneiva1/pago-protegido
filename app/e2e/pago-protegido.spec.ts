@@ -291,14 +291,18 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
   await expect(reclamo.getByTestId("evidencia-foto").getByTestId("huella")).toBeVisible();
   await capturar(buyer, "09b-comprador-reclamo-guiado");
   await reclamo.getByRole("button", { name: "Cancelar" }).click();
-  // /api/evidencia: guarda el archivo con su SHA-256 como nombre y el link lleva la huella.
-  const subida = await (await buyer.request.post(`/api/evidencia?pedido=${slug}`, { data: foto, headers: { "content-type": "image/png" } })).json();
+  // /api/evidencia: sube solo el comprador o el vendedor, con la firma de su cuenta; guarda el archivo con su SHA-256
+  // como nombre y el link lleva la huella.
+  const kpComprador = Keypair.fromSecret((await buyer.evaluate(() => localStorage.getItem("pp.billetera.comprador")))!);
+  const subida = await (await firmado(buyer.request, kpComprador, "POST", `/api/evidencia?pedido=${slug}`, foto)).json();
   expect(subida.url).toMatch(new RegExp(`/api/evidencia/${subida.sha256}\\.png$`));
   const vuelta = await buyer.request.get(subida.url);
   expect(vuelta.headers()["content-type"]).toBe("image/png");
   expect(createHash("sha256").update(await vuelta.body()).digest("hex")).toBe(subida.sha256);
+  expect((await buyer.request.post(`/api/evidencia?pedido=${slug}`, { data: foto, headers: { "content-type": "image/png" } })).status()).toBe(401);
+  expect((await firmado(buyer.request, Keypair.random(), "POST", `/api/evidencia?pedido=${slug}`, foto)).status()).toBe(403);
   expect((await buyer.request.post("/api/evidencia?pedido=no-existe", { data: foto })).status()).toBe(404);
-  expect((await buyer.request.post(`/api/evidencia?pedido=${slug}`, { data: Buffer.from("no es una imagen ni un video") })).status()).toBe(415);
+  expect((await firmado(buyer.request, kpComprador, "POST", `/api/evidencia?pedido=${slug}`, Buffer.from("no es una imagen ni un video"))).status()).toBe(415);
 
   // Seguimiento tipo delivery: "Tu próximo paso" dice dónde recoger, con la guía y el flete; "Ya lo recogí" avanza.
   const paso = buyer.getByTestId("proximo-paso");
@@ -451,8 +455,13 @@ test("presión para confirmar abre un reclamo; el vendedor regala la protección
   await expect(dispute.getByTestId("plazos-revisor")).toContainText("Decides");
   const partes = dispute.getByTestId("evidencia-partes");
   await expect(partes.getByTestId("miniatura")).toHaveCount(2);
-  await expect(partes.getByTestId("coincide")).toHaveCount(2, { timeout: 30_000 });
-  await expect(partes).toContainText("La misma huella está en la evidencia que registró mark_shipped.");
+  // La huella solo prueba que el archivo no cambió desde que se subió; la del vendedor se busca en la evidencia del contrato.
+  await expect(partes.getByTestId("sin-cambios")).toHaveCount(2, { timeout: 30_000 });
+  await expect(partes.getByTestId("sin-cambios").first()).toHaveText("✓ El archivo no cambió desde que se subió. No prueba que sea este paquete.");
+  await expect(partes.getByTestId("huella-en-envio")).toHaveCount(2);
+  await expect(partes.getByTestId("huella-en-envio").first()).toHaveText(
+    "Su huella está en la evidencia que guardó el contrato al registrar el envío (mark_shipped).",
+  );
   await partes.scrollIntoViewIfNeeded();
   await capturar(rev, "81-revisor-regla-y-evidencia", "tecnica");
   const resolver = dispute.getByRole("button", { name: "Resolver" });
@@ -530,8 +539,10 @@ test("celular (v2): IMEI obligatorio, revisión desde el envío, «Necesito más
   await capturar(seller, "42-vendedor-cuenta-regresiva");
 
   const btn = buyer.getByRole("button", { name: /Liberar ahora \(plazo vencido\)/ });
-  await expect(btn).toBeVisible({ timeout: 6 * 60_000 });
-  await capturar(buyer, "43-comprador-plazo-vencido");
+  // Al vencer la revisión, el barrido del servidor libera solo (auto_release): el botón puede no llegar a verse.
+  const liberado = buyer.getByText("Venció el plazo: se pagó al vendedor");
+  await expect(btn.or(liberado)).toBeVisible({ timeout: 6 * 60_000 });
+  if (await btn.isVisible()) await capturar(buyer, "43-comprador-plazo-vencido");
   await expect(async () => {
     if (await btn.isVisible()) await btn.click({ timeout: 5_000 }).catch(() => {});
     await expect(buyer.getByTestId("estado-pedido")).toContainText("Se pagó al vendedor", { timeout: 45_000 });

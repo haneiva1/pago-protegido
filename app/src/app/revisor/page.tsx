@@ -52,7 +52,7 @@ export default function Revisor() {
           <p className="font-semibold">⚖️ El revisor solo puede repartir entre comprador y vendedor. El contrato no permite otro destino.</p>
           <p className="mt-1 text-xs text-violet-800">
             Criterios, en orden: sin prueba de envío gana el comprador → entrega no registrada o dirección distinta a la del link, gana el comprador →
-            entrega registrada y sin video de desempaque, gana el vendedor → peso que no coincide, gana el comprador → distinto o dañado: primero vuelve el
+            entrega registrada y sin video de desempaque (desde Bs 300), gana el vendedor → peso que no coincide, gana el comprador → distinto o dañado: primero vuelve el
             producto y después el reembolso → reparto parcial solo con acuerdo de las partes o daño parcial probado.
           </p>
           {data?.mode === "direct" && (

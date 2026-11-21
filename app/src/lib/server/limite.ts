@@ -15,6 +15,8 @@ export const LIMITES = {
   piloto: 10,
   enviar: 60,
   plazo: 30,
+  /** Claves del revisor equivocadas (solo cuentan las fallidas). */
+  arbitro: 10,
 } as const;
 export type Cubo = keyof typeof LIMITES;
 const VENTANA_MS = 60_000;

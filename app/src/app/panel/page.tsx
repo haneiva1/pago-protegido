@@ -18,7 +18,7 @@ import { fmtFlete } from "@/lib/comprador";
 import { DOLLAR_NOTE, explorer, fmtBs, fmtBsUnits, fmtDate } from "@/lib/format";
 import type { InfoData, SellerData, SellerOrder } from "@/lib/types";
 import { apiFirmada } from "@/lib/api-firmada";
-import { duplicarLink, type LinkRapido as DatosLink } from "@/lib/vendedor";
+import { duplicarLink, ventasEnCurso, type LinkRapido as DatosLink } from "@/lib/vendedor";
 import { api, getWallet } from "@/lib/wallet";
 import { waText } from "@/lib/whatsapp";
 
@@ -27,8 +27,6 @@ const linkUrl = (slug: string) => `${origin()}/p/${slug}`;
 /** Mensaje para el cliente, listo para WhatsApp (con el flete, si el vendedor lo puso). */
 const textoLink = (o: SellerOrder, store: string) =>
   waText("link", { product: o.product, price: fmtBs(o.price_bs_cents), url: linkUrl(o.slug), store, flete: fmtFlete(o.flete) });
-/** Ventas en curso: la plata ya está guardada en el contrato y se cobra cuando el cliente confirma. */
-const EN_CURSO = new Set(["pagado", "enviado", "en_disputa"]);
 
 export default function Panel() {
   const [pk, setPk] = useState<string | null | undefined>(undefined);
@@ -83,7 +81,9 @@ export default function Panel() {
   const { seller, orders } = data;
   const fx = data.fx;
   const firstLink = primer && orders.length === 0;
-  const enCurso = orders.filter((o) => EN_CURSO.has(o.status));
+  // Ventas en curso: la plata ya está guardada en el contrato y se cobra cuando el cliente confirma (lo que le llega al
+  // vendedor, sin los pedidos en reclamo, que van aparte).
+  const { enCurso, enReclamo } = ventasEnCurso(orders);
   const saldo = fmtBsUnits(data.balance, fx);
 
   function irAlPedido(slug: string) {
@@ -121,10 +121,16 @@ export default function Panel() {
           <p className="text-3xl font-bold" data-testid="saldo">
             {saldo}
           </p>
-          {enCurso.length > 0 && (
+          {enCurso.cantidad > 0 && (
             <p className="mt-1 text-xs text-brand-100" data-testid="por-cobrar">
-              {enCurso.length === 1 ? "Y 1 venta en curso" : `Y ${enCurso.length} ventas en curso`} por {fmtBs(enCurso.reduce((t, o) => t + o.price_bs_cents, 0))}, ya
-              guardada{enCurso.length === 1 ? "" : "s"} en el contrato: cobras cuando tu cliente confirma.
+              {enCurso.cantidad === 1 ? "Y 1 venta en curso" : `Y ${enCurso.cantidad} ventas en curso`} por {fmtBs(enCurso.netoBsCents)}, ya guardada
+              {enCurso.cantidad === 1 ? "" : "s"} en el contrato: cobras cuando tu cliente confirma.
+            </p>
+          )}
+          {enReclamo.cantidad > 0 && (
+            <p className="mt-1 text-xs text-brand-100" data-testid="en-reclamo">
+              {enReclamo.cantidad === 1 ? "1 venta en reclamo" : `${enReclamo.cantidad} ventas en reclamo`}: hasta {fmtBs(enReclamo.hastaBsCents)}, según lo que
+              decida el revisor.
             </p>
           )}
           <button
@@ -379,6 +385,15 @@ function OrderCard({
             <textarea id={`rp-${o.slug}`} className="input min-h-20" value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Comprobante de la empresa, foto del producto en el paquete con el código del pedido…" />
             <button className="btn-secondary w-full">{o.seller_reply ? "Actualizar mi versión" : "Enviar mi versión"}</button>
           </form>
+          {!o.shipped_at && o.ship_deadline && o.ship_deadline > Date.now() && (
+            <div data-testid="envio-con-reclamo" className="space-y-2">
+              <p className="text-sm text-slate-700">
+                ¿Ya despachaste? Registra el envío igual: queda como prueba para el revisor y frena la devolución automática por falta de
+                despacho.
+              </p>
+              <EnvioForm o={o} sellerPubkey={sellerPubkey} prefill={null} onDone={onChange} />
+            </div>
+          )}
         </>
       )}
 

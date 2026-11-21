@@ -82,11 +82,11 @@ export function EnvioForm({ o, sellerPubkey, prefill, onDone }: { o: SellerOrder
       </div>
       <div className="space-y-3 rounded-xl bg-slate-50 p-3" data-testid="fotos-envio">
         <p className="text-xs text-slate-600">
-          📷 Saca las fotos desde aquí. Cada una se guarda con su huella y la huella queda en el registro del envío: si hay un reclamo, el revisor
-          comprueba que son las mismas.
+          📷 Saca las fotos desde aquí, nuevas y de este paquete. Cada una se guarda con su huella y la huella queda en el registro del envío: si
+          hay un reclamo, el revisor ve que el archivo no cambió desde que lo subiste y si la misma foto aparece en otro pedido.
         </p>
-        <EvidenciaInput id={id("guia")} pedido={o.slug} tipo="foto" label="Foto de la guía" nota="(el comprobante de la empresa)" onChange={setFotoGuia} />
-        <EvidenciaInput id={id("paquete")} pedido={o.slug} tipo="foto" label="Foto del paquete" nota={`(con el código ${o.code} escrito a mano)`} onChange={setFotoPaquete} />
+        <EvidenciaInput id={id("guia")} pedido={o.slug} rol="vendedor" tipo="foto" label="Foto de la guía" nota="(el comprobante de la empresa)" onChange={setFotoGuia} />
+        <EvidenciaInput id={id("paquete")} pedido={o.slug} rol="vendedor" tipo="foto" label="Foto del paquete" nota={`(con el código ${o.code} escrito a mano)`} onChange={setFotoPaquete} />
       </div>
       {o.category === "Celular" && (
         <div>

@@ -15,6 +15,7 @@ import { Cierre, LineaDeTiempo, RegistroPedido } from "@/components/comprador/Re
 import { Seguimiento, useRecogido } from "@/components/comprador/Seguimiento";
 import { TarjetaVendedor } from "@/components/comprador/Vendedor";
 import { ApiError, api } from "@/lib/api";
+import { NO_CARGO_CUENTA, cargaUnaVez } from "@/lib/comprador";
 import { DOLLAR_NOTE, MOTIVO_PRESION, fmtBs, fmtBsUnits } from "@/lib/format";
 import type { OrderView } from "@/lib/types";
 import { apiFirmada } from "@/lib/api-firmada";
@@ -23,9 +24,12 @@ import { hayCuentaGuardada } from "@/lib/wallet/storage";
 import { waText } from "@/lib/whatsapp";
 
 // El módulo de la cuenta (SDK de la red) se carga recién al tocar "Pagar", o al abrir si este navegador ya pagó.
-type WalletMod = typeof import("@/lib/wallet");
-let walletMod: Promise<WalletMod> | null = null;
-const cargarWallet = () => (walletMod ??= import("@/lib/wallet"));
+// Si el chunk no baja, el error lleva un texto para el comprador y la próxima llamada lo vuelve a intentar.
+const cargarWallet = cargaUnaVez(() =>
+  import("@/lib/wallet").catch(() => {
+    throw new Error(NO_CARGO_CUENTA);
+  }),
+);
 
 export default function PaginaDePago() {
   const { slug } = useParams<{ slug: string }>();
@@ -55,7 +59,10 @@ export default function PaginaDePago() {
   }, [slug]);
 
   useEffect(() => {
-    if (hayCuentaGuardada("comprador")) cargarWallet().then((w) => setMe(w.getWallet("comprador").publicKey()));
+    if (hayCuentaGuardada("comprador"))
+      cargarWallet()
+        .then((w) => setMe(w.getWallet("comprador").publicKey()))
+        .catch(() => setError(NO_CARGO_CUENTA));
     else setMe(null);
     load();
   }, [load]);
@@ -161,7 +168,7 @@ export default function PaginaDePago() {
           <BarraPagar
             total={total}
             onPagar={() => {
-              cargarWallet(); // se adelanta la descarga mientras llena los datos de entrega
+              cargarWallet().catch(() => {}); // se adelanta la descarga mientras llena los datos; si falla, "Pagar" reintenta
               setHoja(true);
             }}
           />

@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { cfg } from "./config";
+import { limitar } from "./limite";
 import { AppError } from "./orders";
 import { ChainError } from "./stellar";
 
@@ -24,9 +25,21 @@ export async function body(req: Request): Promise<Record<string, unknown>> {
   }
 }
 
+/** El host de la app según el pedido (detrás del proxy, x-forwarded-host), como lo usa /api/evidencia en sus links. */
+export function hostDe(req: Request): string | null {
+  return req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+}
+
+/**
+ * Rutas /api/arbitro/*: la clave del panel del revisor (header x-arbitro-key), comparada en tiempo constante. Esa clave
+ * reparte la plata en disputa: los intentos fallidos tienen límite por IP (10 por minuto, después 429).
+ */
 export function checkArbitro(req: Request) {
-  const key = req.headers.get("x-arbitro-key") ?? "";
-  if (!cfg().arbitroPanelKey || key !== cfg().arbitroPanelKey) throw new AppError("Clave del revisor incorrecta", 401);
+  const want = Buffer.from(cfg().arbitroPanelKey);
+  const got = Buffer.from(req.headers.get("x-arbitro-key") ?? "");
+  if (want.length && want.length === got.length && timingSafeEqual(want, got)) return;
+  limitar(req, "arbitro");
+  throw new AppError("Clave del revisor incorrecta", 401);
 }
 
 /** Rutas /api/bot/*: clave compartida con el bot (header x-bot-key), comparada en tiempo constante. */
