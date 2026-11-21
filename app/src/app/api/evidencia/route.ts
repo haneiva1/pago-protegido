@@ -13,7 +13,9 @@ import {
   tipoEvidencia,
   type TipoEvidencia,
 } from "@/lib/evidencia";
-import { evidencias, orders } from "@/lib/server/db";
+import { evidencias, orders, type OrderRow } from "@/lib/server/db";
+import { cuentaFirmante } from "@/lib/server/firma";
+import { AppError } from "@/lib/server/orders";
 import { carpetaEvidencia, hayEspacio } from "./carpeta";
 
 export const dynamic = "force-dynamic";
@@ -34,14 +36,30 @@ function sinCupo(slug: string, bytes: number): Response | null {
   return null;
 }
 
+/** null si la llamada trae la firma del comprador o del vendedor de este pedido; si no, el 401 o el 403. Quema el nonce. */
+function sinFirmaDeUnaParte(req: Request, o: OrderRow): Response | null {
+  let cuenta: string;
+  try {
+    cuenta = cuentaFirmante(req);
+  } catch (e) {
+    if (e instanceof AppError) return err(e.message, e.status);
+    throw e;
+  }
+  if (cuenta !== o.seller_pubkey && cuenta !== o.buyer_pubkey)
+    return err("Solo el comprador o el vendedor de este pedido pueden subir evidencia", 403);
+  return null;
+}
+
 /**
  * POST /api/evidencia?pedido=<slug>: guarda una foto o un video (cuerpo crudo) con su SHA-256 como nombre y devuelve
  * un link que lleva la huella. Si el navegador manda x-sha256, tiene que coincidir con lo que llegó.
  * Ruta aislada (M5): solo acepta archivos de pedidos en curso, por sus primeros bytes, y con tope de tamaño.
  * El cuerpo se lee por partes a un .tmp, calculando la huella en el camino: nunca se junta entero en memoria y se
  * corta apenas pasa el tope, aunque el Content-Length diga otra cosa.
- * Como cualquiera con el slug puede subir, se acota: límite por IP, cupo por pedido (tabla evidencias; re-subir el
- * mismo archivo no suma) y un mínimo de espacio libre en el disco de pp.db.
+ * Sube solo el comprador o el vendedor del pedido, con la firma de su cuenta (x-trato-firma, lib/server/firma.ts),
+ * antes de leer el cuerpo: sin ella, cualquiera con el link del pedido podía llenarle el cupo. Además se acota con
+ * límite por IP, cupo por pedido (tabla evidencias; re-subir el mismo archivo no suma) y un mínimo de espacio libre en
+ * el disco de pp.db.
  */
 export async function POST(req: Request) {
   if (!puedeSubir(ipDeReenvio(req.headers.get("x-forwarded-for"))))
@@ -51,7 +69,8 @@ export async function POST(req: Request) {
   const o = pedido ? orders.get(pedido) : undefined;
   if (!o) return err("No encontramos ese pedido", 404);
   if (!ESTADOS_CON_EVIDENCIA.has(o.status)) return err("Este pedido ya no recibe evidencia", 409);
-  // TODO firma: con el PR #6 exigir la firma del comprador o del vendedor
+  const sinFirma = sinFirmaDeUnaParte(req, o);
+  if (sinFirma) return sinFirma;
 
   const cabecera = req.headers.get("content-length");
   if (cabecera == null || !req.body) return err("Falta el tamaño del archivo (Content-Length). Vuelve a subirlo.", 411);

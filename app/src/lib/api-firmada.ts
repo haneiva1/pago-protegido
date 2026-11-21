@@ -14,9 +14,19 @@ export class ApiFirmadaError extends Error {
 }
 
 /**
- * Llamada a la API que prueba que la cuenta es tuya (lib/server/firma.ts):
- * pide un desafío de un solo uso para esta ruta, lo firma con la cuenta de ese rol (SEP-53: billetera local o
- * Pollar) y lo manda en el header `x-trato-firma`. Cada llamada usa un desafío nuevo.
+ * Valor del header `x-trato-firma` para una llamada (lib/server/firma.ts): pide un desafío de un solo uso para esta
+ * ruta y lo firma con la cuenta de ese rol (SEP-53: billetera local o Pollar). Sirve una sola vez.
+ */
+export async function headerFirma(wallet: WalletProvider, method: "GET" | "POST" | "PATCH", path: string): Promise<string> {
+  const cuenta = wallet.publicKey();
+  if (!cuenta) throw new ApiFirmadaError("Primero entra con tu cuenta en este dispositivo", 401);
+  const d = await api<{ nonce: string; mensaje: string }>("/api/firma/desafio", { cuenta, metodo: method, ruta: path.split("?")[0] });
+  return `${cuenta}.${d.nonce}.${await wallet.signMessage(d.mensaje)}`;
+}
+
+/**
+ * Llamada a la API que prueba que la cuenta es tuya: lleva el header de `headerFirma`, con un desafío nuevo en cada
+ * llamada.
  */
 export async function apiFirmada<T = unknown>(
   wallet: WalletProvider,
@@ -24,15 +34,11 @@ export async function apiFirmada<T = unknown>(
   body?: unknown,
   method: "GET" | "POST" | "PATCH" = body === undefined ? "GET" : "POST",
 ): Promise<T> {
-  const cuenta = wallet.publicKey();
-  if (!cuenta) throw new ApiFirmadaError("Primero entra con tu cuenta en este dispositivo", 401);
-  const ruta = path.split("?")[0];
-  const d = await api<{ nonce: string; mensaje: string }>("/api/firma/desafio", { cuenta, metodo: method, ruta });
-  const firma = await wallet.signMessage(d.mensaje);
+  const firma = await headerFirma(wallet, method, path);
   const res = await fetch(path, {
     method,
     // Desde /probar va su header, como en `api`: plazos de demo y su límite por IP.
-    headers: { "content-type": "application/json", ...(enProbar() ? { [PROBAR_HEADER]: "1" } : {}), "x-trato-firma": `${cuenta}.${d.nonce}.${firma}` },
+    headers: { "content-type": "application/json", ...(enProbar() ? { [PROBAR_HEADER]: "1" } : {}), "x-trato-firma": firma },
     body: body === undefined ? undefined : JSON.stringify(body),
     cache: "no-store",
   });

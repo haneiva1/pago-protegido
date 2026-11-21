@@ -291,14 +291,18 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
   await expect(reclamo.getByTestId("evidencia-foto").getByTestId("huella")).toBeVisible();
   await capturar(buyer, "09b-comprador-reclamo-guiado");
   await reclamo.getByRole("button", { name: "Cancelar" }).click();
-  // /api/evidencia: guarda el archivo con su SHA-256 como nombre y el link lleva la huella.
-  const subida = await (await buyer.request.post(`/api/evidencia?pedido=${slug}`, { data: foto, headers: { "content-type": "image/png" } })).json();
+  // /api/evidencia: sube solo el comprador o el vendedor, con la firma de su cuenta; guarda el archivo con su SHA-256
+  // como nombre y el link lleva la huella.
+  const kpComprador = Keypair.fromSecret((await buyer.evaluate(() => localStorage.getItem("pp.billetera.comprador")))!);
+  const subida = await (await firmado(buyer.request, kpComprador, "POST", `/api/evidencia?pedido=${slug}`, foto)).json();
   expect(subida.url).toMatch(new RegExp(`/api/evidencia/${subida.sha256}\\.png$`));
   const vuelta = await buyer.request.get(subida.url);
   expect(vuelta.headers()["content-type"]).toBe("image/png");
   expect(createHash("sha256").update(await vuelta.body()).digest("hex")).toBe(subida.sha256);
+  expect((await buyer.request.post(`/api/evidencia?pedido=${slug}`, { data: foto, headers: { "content-type": "image/png" } })).status()).toBe(401);
+  expect((await firmado(buyer.request, Keypair.random(), "POST", `/api/evidencia?pedido=${slug}`, foto)).status()).toBe(403);
   expect((await buyer.request.post("/api/evidencia?pedido=no-existe", { data: foto })).status()).toBe(404);
-  expect((await buyer.request.post(`/api/evidencia?pedido=${slug}`, { data: Buffer.from("no es una imagen ni un video") })).status()).toBe(415);
+  expect((await firmado(buyer.request, kpComprador, "POST", `/api/evidencia?pedido=${slug}`, Buffer.from("no es una imagen ni un video"))).status()).toBe(415);
 
   // Seguimiento tipo delivery: "Tu próximo paso" dice dónde recoger, con la guía y el flete; "Ya lo recogí" avanza.
   const paso = buyer.getByTestId("proximo-paso");

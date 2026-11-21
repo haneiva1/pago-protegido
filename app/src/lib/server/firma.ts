@@ -6,7 +6,8 @@ import { AppError, isPubkey } from "./orders";
 
 /**
  * "Esta cuenta es tuya", estilo SEP-10 con la firma de SEP-53:
- * 1. POST /api/firma/desafio { cuenta, metodo, ruta } → el servidor guarda un nonce de un solo uso que vence en 2 minutos.
+ * 1. POST /api/firma/desafio { cuenta, metodo, ruta } → el servidor guarda un nonce de un solo uso que vence en 2 minutos
+ *    (15 para subir evidencia).
  * 2. El navegador firma el `mensaje` con la cuenta de ese rol (billetera local o Pollar), con lib/api-firmada.ts.
  * 3. La llamada lleva el header `x-trato-firma: <cuenta>.<nonce>.<firma base64>`; el servidor saca el nonce de la
  *    tabla (queda quemado aunque la firma falle), revisa cuenta, método, ruta y vencimiento, y verifica la firma.
@@ -15,6 +16,12 @@ import { AppError, isPubkey } from "./orders";
  */
 export const HEADER_FIRMA = "x-trato-firma";
 export const DESAFIO_TTL_MS = 2 * 60_000;
+/**
+ * Subir evidencia (POST /api/evidencia): un video de 40 MB por datos móviles tarda minutos, y si un proxy junta el
+ * cuerpo antes de pasarlo (el túnel de Cloudflare de la demo), la ruta revisa la firma recién al final de la subida.
+ */
+export const DESAFIO_SUBIDA_TTL_MS = 15 * 60_000;
+const ttlDe = (alcance: string) => (alcance === "POST /api/evidencia" ? DESAFIO_SUBIDA_TTL_MS : DESAFIO_TTL_MS);
 const METODOS = ["GET", "POST", "PATCH"];
 const RUTA = /^\/api\/[A-Za-z0-9/_-]{1,200}$/;
 
@@ -38,8 +45,8 @@ export function emitirDesafio(input: Record<string, unknown>) {
   const ruta = typeof input.ruta === "string" ? input.ruta : "";
   if (!METODOS.includes(metodo) || !RUTA.test(ruta)) throw new AppError("Acción inválida");
   const nonce = randomBytes(24).toString("hex");
-  const vence = Date.now() + DESAFIO_TTL_MS;
   const alcance = `${metodo} ${ruta}`;
+  const vence = Date.now() + ttlDe(alcance);
   const mensaje = mensajeDesafio({ cuenta, alcance, nonce, vence });
   desafios.add({ nonce, cuenta, alcance, mensaje, vence });
   return { nonce, mensaje, vence };
