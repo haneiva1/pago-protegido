@@ -1,4 +1,5 @@
-// Tests de la ruta POST /api/evidencia contra una base SQLite temporal: tope de tamaño leyendo por partes.
+// Tests de la ruta POST /api/evidencia contra una base SQLite temporal: la firma de una parte del pedido y el tope de
+// tamaño leyendo por partes.
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
 import fs from "node:fs";
@@ -10,15 +11,26 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pp-evidencia-"));
 process.env.PP_DB_PATH = path.join(dir, "pp.db");
 const carpeta = path.join(dir, "evidencia");
 
-const { db, orders, sellers } = await import("../src/lib/server/db.ts");
+const { db, evidencias, orders, sellers } = await import("../src/lib/server/db.ts");
 const { POST } = await import("../src/app/api/evidencia/route.ts");
+const { emitirDesafio, DESAFIO_SUBIDA_TTL_MS } = await import("../src/lib/server/firma.ts");
+const { firmarSep53 } = await import("../src/lib/sep53.ts");
 const { Keypair } = await import("@stellar/stellar-sdk");
 
 const MB = 1024 * 1024;
 const huella = (b) => createHash("sha256").update(b).digest("hex");
-const vendedor = Keypair.random().publicKey();
+const kpVendedor = Keypair.random();
+const vendedor = kpVendedor.publicKey();
 sellers.upsert({ pubkey: vendedor, store_name: "Tienda Test", whatsapp: "59170000000", city: "La Paz", pilot: false });
 
+/** Header x-trato-firma de `kp` para POST /api/evidencia (lo mismo que lib/api-firmada.ts en el navegador). */
+function firma(kp) {
+  const d = emitirDesafio({ cuenta: kp.publicKey(), metodo: "POST", ruta: "/api/evidencia" });
+  return `${kp.publicKey()}.${d.nonce}.${firmarSep53(kp, d.mensaje)}`;
+}
+
+/** La cuenta del comprador de cada pedido: por defecto, sube él. */
+const compradores = new Map();
 let n = 0;
 /** Un pedido nuevo, ya pagado (recibe evidencia). */
 function pedido() {
@@ -26,7 +38,9 @@ function pedido() {
   orders.insert({ slug, seller_pubkey: vendedor, product: "Zapatos", description: "", photo_url: "", price_bs_cents: 45000,
     amount_units: "650000000", fx: 6.96, delivery_days: 3, window_secs: null, code: `PP-${slug}`, category: null,
     fee_payer: "comprador", price_units: "646551724", platform_bps: 100, ship_secs: null, inspect_secs: null });
-  orders.update(slug, { status: "pagado", buyer_pubkey: Keypair.random().publicKey() });
+  const comprador = Keypair.random();
+  compradores.set(slug, comprador);
+  orders.update(slug, { status: "pagado", buyer_pubkey: comprador.publicKey() });
   return slug;
 }
 
@@ -37,8 +51,9 @@ const otraIp = () => `10.0.${Math.floor(++ipN / 250)}.${ipN % 250}`;
 const jpeg = (bytes) => { const b = randomBytes(bytes); b[0] = 0xff; b[1] = 0xd8; b[2] = 0xff; return b; };
 const mp4 = (bytes) => { const b = randomBytes(bytes); b.write("\0\0\0\x18ftypisom", 0, "latin1"); return b; };
 
-function subir(slug, body, { largo = body.length, ip = otraIp(), headers = {} } = {}) {
-  const h = { "x-forwarded-for": `203.0.113.9, ${ip}`, ...headers };
+/** Sube `body` firmado por `como` (el comprador del pedido si no se dice; null: sin firma). */
+function subir(slug, body, { largo = body.length, ip = otraIp(), headers = {}, como = compradores.get(slug) } = {}) {
+  const h = { "x-forwarded-for": `203.0.113.9, ${ip}`, ...(como ? { "x-trato-firma": firma(como) } : {}), ...headers };
   if (largo != null) h["content-length"] = String(largo);
   return POST(new Request(`http://localhost:3000/api/evidencia?pedido=${slug}`, { method: "POST", body, headers: h, duplex: "half" }));
 }
@@ -133,7 +148,68 @@ test("una foto HEIC (ftypheic) no se guarda como video: 415 «Sube la foto en JP
   assert.deepEqual(temporales(), []);
 });
 
-// Cupo por pedido, límite por IP y espacio libre: la ruta no pide firma (llega con el PR #6), así que se acota.
+// Firma: sube solo el comprador o el vendedor del pedido, y se revisa antes de leer el cuerpo.
+
+test("sin firma: 401, no lee el cuerpo y no consume cupo", async () => {
+  const slug = pedido();
+  const f = flujo(30 * MB, mp4(16));
+  const res = await subir(slug, f.stream, { largo: 30 * MB, como: null });
+  assert.equal(res.status, 401);
+  assert.match((await res.json()).error, /Falta la firma/);
+  assert.ok(f.leidos <= 2 * MB, `leyó ${f.leidos / MB} MB`);
+  assert.equal(evidencias.uso(slug).archivos, 0);
+});
+
+test("firma de una cuenta que no es parte del pedido: 403 y no guarda nada", async () => {
+  const slug = pedido();
+  const foto = jpeg(2048);
+  const res = await subir(slug, foto, { como: Keypair.random() });
+  assert.equal(res.status, 403);
+  assert.match((await res.json()).error, /Solo el comprador o el vendedor/);
+  assert.equal(evidencias.uso(slug).archivos, 0);
+  assert.equal(fs.existsSync(path.join(carpeta, `${huella(foto)}.jpg`)), false);
+  // El comprador de otro pedido tampoco.
+  assert.equal((await subir(slug, foto, { como: compradores.get(pedido()) })).status, 403);
+});
+
+test("el vendedor del pedido también sube", async () => {
+  const slug = pedido();
+  const res = await subir(slug, jpeg(4096), { como: kpVendedor });
+  assert.equal(res.status, 200);
+  assert.equal(evidencias.uso(slug).archivos, 1);
+});
+
+test("una firma sirve una sola vez, y una firma inventada o vencida es 401", async () => {
+  const slug = pedido();
+  const yo = compradores.get(slug);
+  const h = firma(yo);
+  assert.equal((await subir(slug, jpeg(1024), { como: null, headers: { "x-trato-firma": h } })).status, 200);
+  assert.equal((await subir(slug, jpeg(1024), { como: null, headers: { "x-trato-firma": h } })).status, 401);
+  const [cuenta, nonce] = firma(yo).split(".");
+  assert.equal((await subir(slug, jpeg(1024), { como: null, headers: { "x-trato-firma": `${cuenta}.${nonce}.${"A".repeat(88)}` } })).status, 401);
+  // Firmada para otra ruta: no sirve para subir.
+  const otra = emitirDesafio({ cuenta: yo.publicKey(), metodo: "POST", ruta: `/api/orders/${slug}/reply` });
+  const ajena = `${yo.publicKey()}.${otra.nonce}.${firmarSep53(yo, otra.mensaje)}`;
+  assert.equal((await subir(slug, jpeg(1024), { como: null, headers: { "x-trato-firma": ajena } })).status, 401);
+  // Vencida: el desafío de subir dura 15 minutos.
+  const h2 = firma(yo);
+  db().prepare("UPDATE firma_desafios SET vence = ? WHERE nonce = ?").run(Date.now() - 1, h2.split(".")[1]);
+  assert.equal((await subir(slug, jpeg(1024), { como: null, headers: { "x-trato-firma": h2 } })).status, 401);
+});
+
+test("el desafío para subir dura 15 minutos (un video lento no pierde la firma); los demás, 2", () => {
+  const cuenta = Keypair.random().publicKey();
+  const antes = Date.now();
+  const subida = emitirDesafio({ cuenta, metodo: "POST", ruta: "/api/evidencia" });
+  assert.ok(subida.vence >= antes + DESAFIO_SUBIDA_TTL_MS && DESAFIO_SUBIDA_TTL_MS === 15 * 60_000);
+  const otra = emitirDesafio({ cuenta, metodo: "POST", ruta: "/api/orders/x/reply" });
+  assert.ok(otra.vence < antes + 3 * 60_000);
+  // Emitir otro desafío borra solo los vencidos: el de subir sigue en la tabla.
+  emitirDesafio({ cuenta, metodo: "POST", ruta: "/api/sellers" });
+  assert.ok(db().prepare("SELECT 1 FROM firma_desafios WHERE nonce = ?").get(subida.nonce));
+});
+
+// Cupo por pedido, límite por IP y espacio libre: además de la firma, se acota por si una parte sube de más.
 
 test("cupo por pedido: 8 archivos distintos; el 9.º es 429 con un mensaje claro", async () => {
   const slug = pedido();
@@ -215,8 +291,8 @@ test("límite por IP: 20 por minuto, por la última entrada de x-forwarded-for",
   assert.equal(res.status, 429);
   assert.match((await res.json()).error, /Espera un minuto/);
   // Cambiar la primera entrada (la que puede inventar el cliente) no sirve; otra conexión sí sube.
-  const req = (xff) => POST(new Request(`http://x/api/evidencia?pedido=${pedido()}`, {
-    method: "POST", body: jpeg(512), headers: { "content-length": "512", "x-forwarded-for": xff } }));
+  const req = (xff) => { const slug = pedido(); return POST(new Request(`http://x/api/evidencia?pedido=${slug}`, {
+    method: "POST", body: jpeg(512), headers: { "content-length": "512", "x-forwarded-for": xff, "x-trato-firma": firma(compradores.get(slug)) } })); };
   assert.equal((await req(`198.51.100.7, ${ip}`)).status, 429);
   assert.equal((await req(`${ip}, ${otraIp()}`)).status, 200);
 });
