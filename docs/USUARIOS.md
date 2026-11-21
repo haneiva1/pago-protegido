@@ -21,11 +21,19 @@ Reglas para quien registra:
 - **Piloto:** quien participa usa **USD de prueba en testnet** y lo sabe. No hay dinero real hasta que haya mainnet con opinión legal.
 - **Borrado:** si alguien pide que borremos sus datos, se elimina su fila y se anota la fecha del borrado en la sección "Bajas".
 
+## Regla de lectura (escrita antes de la primera entrevista)
+
+- Con menos de 10 vendedores no concluimos nada: reportamos los conteos tal cual («2 de 4»).
+- **Señal a favor del problema:** 3 o más de cada 10 vendedores cuentan al menos una venta a otra ciudad que se cayó en el último mes porque nadie quiso arriesgarse primero.
+- **Señal en contra:** menos de 3 de cada 10. En ese caso probamos el lado del comprador u otro segmento antes de construir más.
+- Preguntamos por hechos pasados antes de mostrar Trato.
+- Anotamos cómo llegamos a cada persona y todas las negativas.
+
 ## Registro
 
-| Fecha | Tienda o persona | Ciudad | Qué vende | ¿Vende a otras ciudades? | Ventas perdidas al mes | ¿Quién debería pagar? | Cita | ¿Piloto? |
-|---|---|---|---|---|---|---|---|---|
-| AAAA-MM-DD | *(alias si no autorizó nombre)* | | | sí / no | *(número aproximado y por qué)* | comprador / vendedor / mitad / nadie | "…" | sí / no / después |
+| Fecha | Tienda o persona | Ciudad | Cómo lo contactamos | Qué vende | ¿Vende a otras ciudades? | Ventas perdidas al mes | ¿Quién debería pagar? | Cita | ¿Piloto? |
+|---|---|---|---|---|---|---|---|---|---|
+| AAAA-MM-DD | *(alias si no autorizó nombre)* | | conocido / grupo de compraventa / Marketplace / tienda | | sí / no | *(número aproximado y por qué)* | comprador / vendedor / mitad / nadie | "…" | sí / no / después |
 
 ### Guía rápida de preguntas
 
