@@ -1,15 +1,28 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { headerFirma } from "@/lib/api-firmada";
+import { NO_CARGO_CUENTA } from "@/lib/comprador";
+import type { WalletProvider, WalletRole } from "@/lib/wallet/types";
 import { Spinner } from "./ui";
 
 /**
  * Evidencia con cámara o galería (M5). En el navegador: comprime la foto (JPEG, lado mayor 1600 px), calcula su SHA-256
- * y la sube a /api/evidencia?pedido=<slug>, que la guarda con la huella como nombre y devuelve el link. Ese link es lo que
- * va al reclamo (o al envío): el contrato guarda el hash del link, y el link lleva la huella de la imagen.
+ * y la sube a /api/evidencia?pedido=<slug>, con la firma de la cuenta de `rol` (solo suben el comprador y el vendedor
+ * del pedido). La ruta la guarda con la huella como nombre y devuelve el link. Ese link es lo que va al reclamo (o al
+ * envío): el contrato guarda el hash del link, y el link lleva la huella de la imagen.
  *
- * Listo para usar en el envío del vendedor y en el revisor: <EvidenciaInput id="foto" pedido={slug} tipo="foto" onChange={setUrl} />
+ * En el envío del vendedor y en el reclamo del comprador: <EvidenciaInput id="foto" pedido={slug} rol="vendedor" tipo="foto" onChange={setUrl} />
  */
+
+/** El módulo de la cuenta (SDK de la red) se carga recién al subir: la página del comprador no lo trae al abrir. */
+async function cuentaDe(rol: WalletRole): Promise<WalletProvider> {
+  try {
+    return (await import("@/lib/wallet")).getWallet(rol);
+  } catch {
+    throw new Error(NO_CARGO_CUENTA);
+  }
+}
 
 export async function sha256Hex(data: Blob | ArrayBuffer): Promise<string> {
   const buf = data instanceof Blob ? await data.arrayBuffer() : data;
@@ -41,11 +54,13 @@ export interface EvidenciaSubida {
   tipo: string;
 }
 
-export async function subirEvidencia(pedido: string, archivo: Blob): Promise<EvidenciaSubida> {
+export async function subirEvidencia(pedido: string, archivo: Blob, wallet: WalletProvider): Promise<EvidenciaSubida> {
   const sha256 = await sha256Hex(archivo);
-  const res = await fetch(`/api/evidencia?pedido=${encodeURIComponent(pedido)}`, {
+  const path = `/api/evidencia?pedido=${encodeURIComponent(pedido)}`;
+  const firma = await headerFirma(wallet, "POST", path);
+  const res = await fetch(path, {
     method: "POST",
-    headers: { "content-type": archivo.type || "application/octet-stream", "x-sha256": sha256 },
+    headers: { "content-type": archivo.type || "application/octet-stream", "x-sha256": sha256, "x-trato-firma": firma },
     body: archivo,
   });
   const json = await res.json().catch(() => ({ error: `Error ${res.status}` }));
@@ -59,6 +74,7 @@ const corta = (h: string) => `${h.slice(0, 8)}…${h.slice(-6)}`;
 export function EvidenciaInput({
   id,
   pedido,
+  rol,
   tipo,
   label,
   nota,
@@ -67,6 +83,8 @@ export function EvidenciaInput({
   id: string;
   /** Slug del pedido: la ruta solo acepta evidencia de pedidos en curso. */
   pedido: string;
+  /** Con la cuenta de qué rol se firma la subida: la del comprador o la del vendedor de este pedido. */
+  rol: WalletRole;
   tipo: "foto" | "video";
   label: string;
   nota?: string;
@@ -88,7 +106,7 @@ export function EvidenciaInput({
     setError(null);
     try {
       const archivo = tipo === "foto" ? await comprimirFoto(f) : f;
-      const r = await subirEvidencia(pedido, archivo);
+      const r = await subirEvidencia(pedido, archivo, await cuentaDe(rol));
       if (vista) URL.revokeObjectURL(vista);
       setVista(URL.createObjectURL(archivo));
       setSub(r);

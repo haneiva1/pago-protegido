@@ -9,7 +9,7 @@ import type { PublicOrder } from "@/lib/types";
 
 /** Foto o video desde la cámara o la galería, con su huella (EvidenciaInput); o un link pegado a mano. */
 function CampoEvidencia(p: { id: string; label: string; nota: string; value: string; onChange: (url: string) => void; pedido: string; tipo: "foto" | "video" }) {
-  return <EvidenciaInput id={p.id} pedido={p.pedido} tipo={p.tipo} label={p.label} nota={p.nota} onChange={p.onChange} />;
+  return <EvidenciaInput id={p.id} pedido={p.pedido} rol="comprador" tipo={p.tipo} label={p.label} nota={p.nota} onChange={p.onChange} />;
 }
 
 /**
