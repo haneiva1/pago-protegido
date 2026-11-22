@@ -2,20 +2,35 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { IconoBillete, IconoBloqueado, IconoBolsa, IconoCerrar, IconoCheck, IconoChevronAbajo, IconoInfo, IconoReiniciar, IconoReloj, IconoTienda, IconoUsuario } from "@/components/iconos";
-import { Construido } from "@/components/probar/Construido";
+import { Casos } from "@/components/probar/Casos";
+import { CheckTrazo } from "@/components/probar/CheckTrazo";
+import { ComoFunciona3 } from "@/components/probar/ComoFunciona3";
+import { ConstruidoLinea } from "@/components/probar/Construido";
+import { Intro } from "@/components/probar/Intro";
 import { Desvio } from "@/components/probar/Desvio";
 import { IPHONE_ALTO, IPHONE_ANCHO, IPHONE_ETIQUETA, IPhone } from "@/components/probar/IPhone";
 import { RegistroEnVivo } from "@/components/probar/RegistroEnVivo";
 import type { Desvio as DesvioT, Plazos, Registro } from "@/components/probar/tipos";
 import { Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
-import { canal } from "@/components/chat/pedido";
+import { canal, conReintentos } from "@/components/chat/pedido";
 import { PASOS_DEMO, pasoDemo } from "@/lib/chat";
 import { PROBAR_SESION, filasRegistro, hayPlataGuardada, probarStorageKey, resumenRed, type RolProbar } from "@/lib/probar";
 
 const POLL_MS = 3000;
 const minutos = (s: number) => `${Math.round(s / 60)} ${Math.round(s / 60) === 1 ? "minuto" : "minutos"}`;
 const ICONOS = [IconoUsuario, IconoTienda, IconoBillete, IconoCheck];
+/** Lo que acaba de pasar, por estado del pedido (≤ 6 palabras). */
+const HECHO: Record<string, string> = {
+  tienda: "La Zapatería ya tiene cuenta",
+  esperando_pago: "El link ya está en el chat",
+  pagado: "La plata quedó guardada",
+  enviado: "El envío quedó registrado",
+  liberado: "La Zapatería cobró",
+  devuelto: "La plata volvió al comprador",
+  en_disputa: "Hay un reclamo abierto",
+  resuelto: "El revisor repartió la plata",
+};
 
 function leerSesion(): boolean {
   try {
@@ -35,7 +50,8 @@ function guardarSesion() {
 function escalaPara(escenario: HTMLElement): number {
   const lg = window.matchMedia("(min-width: 1024px)").matches;
   const top = escenario.getBoundingClientRect().top + window.scrollY;
-  const porAlto = (window.innerHeight - top - 16 - IPHONE_ETIQUETA) / IPHONE_ALTO;
+  // En escritorio la etiqueta sobre el teléfono no se muestra (la nombra la franja del paso): todo el alto es para el iPhone.
+  const porAlto = (window.innerHeight - top - 8 - (lg ? 0 : IPHONE_ETIQUETA)) / IPHONE_ALTO;
   // En escritorio manda el alto, sin piso: los dos iPhone tienen que entrar completos sin desplazar la página.
   const e = lg ? Math.min(1, Math.max(0.45, porAlto)) : Math.min((escenario.clientWidth - 8) / IPHONE_ANCHO, porAlto >= 0.72 ? porAlto : 1);
   return Math.round(Math.min(1, e) * 1000) / 1000;
@@ -46,6 +62,29 @@ function escalaPara(escenario: HTMLElement): number {
  * y un solo botón que resalta por paso. Todo lo demás (registro en la red, plazos, por qué simulado, lo construido) va en
  * el cajón "Ver detalles".
  */
+type Punto = { x: number; y: number };
+/** La plata en viaje: de (x, y) a (x1, y1), relativos al escenario. */
+type Viaje = { fase: "al-centro" | "a-tienda"; x: number; y: number; x1: number; y1: number; n: number };
+
+/** Los puntos del viaje de la plata, relativos al escenario: el celular del comprador, el centro (donde espera) y la tienda. En celular, las pestañas. */
+function puntosPlata(esc: HTMLElement): { comprador: Punto; centro: Punto; tienda: Punto } | null {
+  const lg = window.matchMedia("(min-width: 1024px)").matches;
+  const q = (id: string) => esc.querySelector<HTMLElement>(`[data-testid="${id}"]`);
+  const v = q(lg ? "marco-vendedor" : "tab-vendedor");
+  const c = q(lg ? "marco-comprador" : "tab-comprador");
+  if (!v || !c) return null;
+  const base = esc.getBoundingClientRect();
+  const rv = v.getBoundingClientRect();
+  const rc = c.getBoundingClientRect();
+  if (!rv.width || !rc.width) return null;
+  const y = rv.top - base.top + rv.height * (lg ? 0.3 : 0.5);
+  return {
+    tienda: { x: rv.left - base.left + rv.width / 2, y },
+    comprador: { x: rc.left - base.left + rc.width / 2, y },
+    centro: { x: (rv.right + rc.left) / 2 - base.left, y },
+  };
+}
+
 export default function Probar({ plazos }: { plazos: Plazos }) {
   const [listo, setListo] = useState(false);
   const [bloqueo, setBloqueo] = useState<string | null>(null);
@@ -64,10 +103,18 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
   const [sub, setSub] = useState<string | null>(null);
   // El bloqueo se ve 2 s en el celular del comprador antes de pasar la escena a la tienda.
   const [bloqueoVisto, setBloqueoVisto] = useState(false);
+  // Precalentar: las dos cuentas de prueba (tienda y comprador) se crean y activan en segundo plano apenas carga la demo.
+  const [precalentando, setPrecalentando] = useState<null | number>(null);
   const escenario = useRef<HTMLDivElement>(null);
   const wallet = useRef<typeof import("@/lib/wallet") | null>(null);
   const status = registro?.pedido?.status ?? null;
   const prevStatus = useRef<string | null>(null);
+  // El slug vigente, para que el pedido del chat ("estafa" por el canal) no lea un cierre viejo de `registro`.
+  const slugRef = useRef<string | null>(null);
+  slugRef.current = registro?.pedido?.slug ?? null;
+  // La plata viajando: del comprador al centro al pagar, del centro a la tienda al cobrar; y dónde espera mientras tanto.
+  const [viaje, setViaje] = useState<Viaje | null>(null);
+  const [centro, setCentro] = useState<Punto | null>(null);
   // Sube con "Empezar de nuevo": una consulta que salió antes no puede traer de vuelta el pedido anterior.
   const generacion = useRef(0);
 
@@ -110,6 +157,59 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
     return () => clearInterval(t);
   }, [listo, cargar, marco]);
 
+  // Precalentar: las dos cuentas de prueba (tienda y comprador) se crean y activan en segundo plano apenas carga la demo,
+  // así "Crear mi cuenta" solo guarda la tienda y el pago no espera la activación del comprador.
+  useEffect(() => {
+    if (!listo) return;
+    let vivo = true;
+    const t0 = Date.now();
+    setPrecalentando(0);
+    const tic = setInterval(() => {
+      if (vivo) setPrecalentando(Math.round((Date.now() - t0) / 1000));
+    }, 1000);
+    (async () => {
+      try {
+        wallet.current ??= await import("@/lib/wallet");
+        const w = wallet.current;
+        // Cada rol reintenta solo (hasta 3 veces) si la red de prueba rechaza o tarda.
+        await Promise.all([conReintentos(() => w.activateWallet(w.getWallet("vendedor"))), conReintentos(() => w.activateWallet(w.getWallet("comprador")))]);
+      } catch {
+        // Si falla, cada chat activa su cuenta al momento de usarla, como antes.
+      } finally {
+        clearInterval(tic);
+        if (vivo) setPrecalentando(null);
+      }
+    })();
+    return () => {
+      vivo = false;
+      clearInterval(tic);
+    };
+  }, [listo, marco]);
+
+  useEffect(() => {
+    if (!listo) return;
+    let vivo = true;
+    const t0 = Date.now();
+    setPrecalentando(0);
+    const tic = setInterval(() => vivo && setPrecalentando(Math.round((Date.now() - t0) / 1000)), 1000);
+    (async () => {
+      try {
+        wallet.current ??= await import("@/lib/wallet");
+        const w = wallet.current;
+        await Promise.all([w.activateWallet(w.getWallet("vendedor")), w.activateWallet(w.getWallet("comprador"))]);
+      } catch {
+        // Si falla, cada chat activa la suya al momento de usarla (como antes).
+      } finally {
+        clearInterval(tic);
+        if (vivo) setPrecalentando(null);
+      }
+    })();
+    return () => {
+      vivo = false;
+      clearInterval(tic);
+    };
+  }, [listo, marco]);
+
   // Marca la página para el CSS del sitio (en /probar se esconde el "Crear mi link" del encabezado).
   useEffect(() => {
     document.documentElement.setAttribute("data-probar", "1");
@@ -127,8 +227,14 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
         setTab("comprador");
         setAviso("comprador");
       }
-      if (d.tipo === "sub") setSub(typeof d.valor === "string" ? d.valor : null);
+      if (d.tipo === "sub") {
+        setSub(typeof d.valor === "string" ? d.valor : null);
+        // Al abrir una hoja dentro del chat el foco puede mover la página: se vuelve a anclar a las pestañas.
+        if (!window.matchMedia("(min-width: 1024px)").matches)
+          for (const ms of [150, 450]) setTimeout(() => document.querySelector<HTMLElement>('[role="tablist"]')?.scrollIntoView({ block: "start" }), ms);
+      }
       if (d.tipo === "actualiza") void cargar();
+      if (d.tipo === "estafa") void desviar(d.slug);
     };
     return () => c.close();
   }, [cargar]);
@@ -166,12 +272,24 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
     const antes = prevStatus.current;
     prevStatus.current = status;
     if (antes === null && status === null) return;
-    const turno: RolProbar | null = status === "enviado" || status === "liberado" ? "comprador" : status === "pagado" ? "vendedor" : null;
+    if (antes !== null && escenario.current) {
+      const p = puntosPlata(escenario.current);
+      if (p && status === "pagado") setViaje({ fase: "al-centro", ...p.comprador, x1: p.centro.x, y1: p.centro.y, n: Date.now() });
+      if (p && status === "liberado" && hayPlataGuardada(antes)) setViaje({ fase: "a-tienda", ...p.centro, x1: p.tienda.x, y1: p.tienda.y, n: Date.now() });
+    }
+    const turno: RolProbar | null = status === "enviado" ? "comprador" : status === "pagado" || status === "liberado" ? "vendedor" : null;
     if (turno) {
       setTab(turno);
       setAviso(turno);
     }
   }, [status]);
+  // Dónde espera la plata (entre los dos): se recalcula con la escala, la pestaña y el tamaño de la ventana.
+  useEffect(() => {
+    const calc = () => setCentro(escenario.current ? (puntosPlata(escenario.current)?.centro ?? null) : null);
+    calc();
+    window.addEventListener("resize", calc);
+    return () => window.removeEventListener("resize", calc);
+  }, [listo, escala, altoMovil, tab, status]);
   useEffect(() => {
     if (window.matchMedia("(min-width: 1024px)").matches) return;
     document.querySelector<HTMLElement>('[role="tablist"]')?.scrollIntoView({ block: "start", behavior: "smooth" });
@@ -194,6 +312,7 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
     guardarSesion();
     generacion.current += 1;
     prevStatus.current = null;
+    setViaje(null);
     setRegistro(null);
     setDesvios([]);
     setBloqueoVisto(false);
@@ -210,8 +329,9 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
   }
 
   /** "Alguien intenta robar la plata": la simulación real contra el contrato; el chat del comprador la cuenta como un mensaje del estafador. */
-  async function desviar() {
-    const slug = registro?.pedido?.slug;
+  async function desviar(slugDelChat?: unknown) {
+    // El chat de la tienda manda el slug en el mensaje; el registro de esta página es el respaldo.
+    const slug = (typeof slugDelChat === "string" && slugDelChat) || slugRef.current;
     if (!slug) return;
     const at = Date.now();
     setDesviando(true);
@@ -228,9 +348,10 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
         } catch {}
         canal()?.postMessage({ tipo: "estafa-vista", slug });
         setBloqueoVisto(true);
-        setTab("vendedor");
         setAviso("vendedor");
       }, 2000);
+      // En celular la escena del estafador se queda en el comprador hasta que el jurado toque la pestaña o pasen 6 s.
+      setTimeout(() => setTab("vendedor"), 6000);
     } catch (e) {
       setDesvioError((e as Error).message);
       canal()?.postMessage({ tipo: "estafa-resultado", slug, at, rejected: false, detail: (e as Error).message });
@@ -246,15 +367,29 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
   const paso = pasoDemo({ tienda: hayTienda, status: hayPedido ? status : null, estafa: desviando || (desvios.length > 0 && !bloqueoVisto) ? "en-curso" : desvios.length ? "bloqueada" : "no", mandado, sub });
   const turno = paso.quien;
   const resumen = status === "liberado" && registro?.pedido ? resumenRed(filas, registro.pedido.created_at) : null;
-  const mostrarEstafa = hayPlataGuardada(status) && status === "pagado" && desvios.length === 0;
 
   return (
-    <div data-probar-ancho className="space-y-3" data-testid="probar">
+    <div data-probar-ancho className="space-y-3 lg:grid lg:grid-cols-[380px_minmax(0,1fr)] lg:gap-x-10 lg:gap-y-5 lg:space-y-0" data-testid="probar">
       <h1 className="sr-only">Prueba Trato de punta a punta</h1>
+      {/* Columna izquierda en escritorio: qué es Trato, cómo funciona y los dos controles. */}
+      <aside className="space-y-4 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:space-y-6">
+        <Intro />
+        <ComoFunciona3 vertical />
+        <div className="flex flex-wrap items-center gap-2" data-testid="controles">
+          <button className="btn-secondary btn-sm" onClick={() => setCajon(true)} data-testid="ver-detalles" aria-expanded={cajon}>
+            <IconoInfo className="h-4 w-4" />
+            Ver detalles
+          </button>
+          <button className="btn-secondary btn-sm" onClick={empezarDeNuevo} disabled={reiniciando} data-testid="empezar-de-nuevo">
+            {reiniciando ? <Spinner className="h-4 w-4" /> : <IconoReiniciar className="h-4 w-4" />}
+            Empezar de nuevo
+          </button>
+        </div>
+      </aside>
 
       {/* Arriba: los 4 pasos con ícono, el actual resaltado; a la derecha, "Ver detalles" y "Empezar de nuevo". */}
       {/* Una sola franja: los 4 pasos, el título del paso (≤ 6 palabras) con su línea (≤ 10) y los dos controles. */}
-      <header className="grid grid-cols-1 items-center gap-x-6 gap-y-2 lg:grid-cols-[auto_minmax(0,1fr)_auto]">
+      <header className="grid grid-cols-1 items-center gap-x-6 gap-y-2 lg:col-start-2 lg:row-start-1 lg:grid-cols-[auto_minmax(0,1fr)]">
         <ol aria-label={`Paso ${paso.n} de 4`} className="flex items-center gap-1 sm:gap-2" data-testid="pasos">
           {PASOS_DEMO.map((p, i) => {
             const Icono = ICONOS[i];
@@ -262,11 +397,11 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
             return (
               <li key={p.n} data-paso={p.n} data-estado={estado} className="flex items-center gap-1 sm:gap-2">
                 <span
-                  className={`inline-flex h-9 items-center gap-1.5 rounded-full px-2.5 text-sm font-semibold transition-colors duration-300 sm:px-3 ${
+                  className={`inline-flex h-8 items-center gap-1.5 rounded-full px-2.5 text-sm font-semibold transition-colors duration-300 sm:px-3 ${
                     estado === "ahora" ? "bg-monte text-sal" : estado === "hecho" ? "bg-exito-100 text-musgo" : "bg-tinta-100 text-tinta-500"
                   }`}
                 >
-                  {estado === "hecho" ? <IconoCheck className="h-4 w-4" /> : <Icono className="h-4 w-4" />}
+                  {estado === "hecho" ? <CheckTrazo className="h-4 w-4" /> : <Icono className="h-4 w-4" />}
                   <span className="num">{p.n}</span>
                   <span className={estado === "ahora" ? "inline" : "hidden sm:inline"}>{p.nombre}</span>
                 </span>
@@ -277,35 +412,24 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
         </ol>
         {listo && (
           <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 lg:px-2">
-            <h2 data-testid="titulo-etapa" className="text-2xl leading-tight lg:text-3xl" data-paso={paso.n}>
+            <h2 key={paso.titulo} data-testid="titulo-etapa" className="text-2xl leading-tight animate-[fundido_240ms_var(--ease-suave)_both]" data-paso={paso.n}>
               {paso.titulo}
             </h2>
-            <p data-testid="ahora" className="text-sm text-tinta-600 lg:text-base">
+            <p key={paso.linea} data-testid="ahora" className="text-sm text-tinta-600 animate-[fundido_240ms_var(--ease-suave)_both] lg:text-base">
               {paso.linea}
             </p>
-            {mostrarEstafa && (
-              <button className="btn-danger btn-sm hidden lg:inline-flex" onClick={desviar} disabled={desviando} data-testid="desviar">
-                {desviando ? <Spinner className="h-4 w-4" /> : <IconoBloqueado className="h-4 w-4" />}
-                Alguien intenta robar la plata
-              </button>
+            {precalentando !== null && (sub === "hoja-cuenta" || sub === "creando") && (
+              <span className="inline-flex items-center gap-1.5 text-sm text-tinta-500" data-testid="precalentando">
+                <Spinner className="h-3.5 w-3.5" />
+                Preparando tu cuenta… unos segundos
+              </span>
             )}
           </div>
         )}
-        <div className="flex shrink-0 items-center gap-2 lg:col-start-3">
-          <button className="btn-secondary btn-sm" onClick={() => setCajon(true)} data-testid="ver-detalles" aria-expanded={cajon}>
-            <IconoInfo className="h-4 w-4" />
-            Ver detalles
-          </button>
-          <button className="btn-secondary btn-sm" onClick={empezarDeNuevo} disabled={reiniciando} data-testid="empezar-de-nuevo">
-            {reiniciando ? <Spinner className="h-4 w-4" /> : <IconoReiniciar className="h-4 w-4" />}
-            <span className="hidden sm:inline">Empezar de nuevo</span>
-            <span className="sm:hidden">De nuevo</span>
-          </button>
-        </div>
       </header>
 
       {bloqueo && (
-        <p data-testid="probar-bloqueo" className="caja-aviso">
+        <p data-testid="probar-bloqueo" className="caja-aviso lg:col-start-2">
           {bloqueo}
         </p>
       )}
@@ -313,7 +437,31 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
       {listo && (
         <>
           {/* El escenario: los dos iPhone; el que no toca, atenuado. En celular, uno a la vez, en pestañas. */}
-          <div ref={escenario} className="flex flex-col gap-3 lg:grid lg:grid-cols-[auto_auto] lg:items-start lg:justify-center lg:gap-16" style={{ "--alto-movil": `${altoMovil}px` } as React.CSSProperties}>
+          <div ref={escenario} className="relative flex flex-col gap-3 lg:col-start-2 lg:row-start-2 lg:grid lg:grid-cols-[auto_auto] lg:items-start lg:justify-center lg:gap-16" style={{ "--alto-movil": `${altoMovil}px` } as React.CSSProperties}>
+            {/* La plata: viaja del comprador al centro al pagar, espera ahí, y va del centro a la tienda al cobrar. */}
+            {registro?.pedido && (viaje || (hayPlataGuardada(status) && centro)) && (
+              <div
+                key={viaje?.n ?? "espera"}
+                aria-hidden
+                data-plata={viaje ? viaje.fase : "espera"}
+                className={`pointer-events-none absolute left-0 top-0 z-20 ${
+                  viaje ? (viaje.fase === "al-centro" ? "animate-[viaje-plata_1100ms_var(--ease-suave)_both]" : "animate-[viaje-plata-fin_1100ms_var(--ease-suave)_both]") : ""
+                }`}
+                style={
+                  viaje
+                    ? ({ "--x0": `${viaje.x}px`, "--y0": `${viaje.y}px`, "--x1": `${viaje.x1}px`, "--y1": `${viaje.y1}px` } as React.CSSProperties)
+                    : centro
+                      ? { transform: `translate(${centro.x}px, ${centro.y}px)` }
+                      : undefined
+                }
+                onAnimationEnd={() => setViaje(null)}
+              >
+                <span className="flex -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 rounded-full bg-monte p-2 text-xs font-semibold text-sal shadow-alzada lg:px-2.5 lg:py-1">
+                  <IconoBillete className="h-4 w-4" />
+                  <span className="num hidden lg:inline">{registro.pedido.total}</span>
+                </span>
+              </div>
+            )}
             <div role="tablist" aria-label="Celulares" className="order-2 grid scroll-mt-16 grid-cols-2 gap-1 rounded-control bg-tinta-200/60 p-1 lg:hidden">
               {(["vendedor", "comprador"] as const).map((r) => (
                 <button
@@ -335,17 +483,11 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
                 </button>
               ))}
             {/* En celular, el paso actual bajo las pestañas: una sola línea compacta. */}
-            <div className="order-2 flex items-center justify-between gap-3 lg:hidden" data-testid="paso-compacto">
-              <p className="min-w-0 text-sm leading-tight">
-                <strong className="block truncate text-monte">{paso.titulo}</strong>
-                <span className="block truncate text-tinta-600">{paso.linea}</span>
+            <div className="order-2 space-y-2 lg:hidden" data-testid="paso-compacto">
+              <p key={`${paso.titulo}|${paso.corta}`} className="text-sm leading-tight animate-[fundido_240ms_var(--ease-suave)_both]">
+                <strong className="block text-monte">{paso.titulo}</strong>
+                <span className="block text-tinta-600">{paso.corta}</span>
               </p>
-              {mostrarEstafa && (
-                <button className="btn-danger btn-sm shrink-0" onClick={desviar} disabled={desviando} data-testid="desviar-movil">
-                  {desviando ? <Spinner className="h-4 w-4" /> : <IconoBloqueado className="h-4 w-4" />}
-                  Estafador
-                </button>
-              )}
             </div>
             </div>
 
@@ -356,6 +498,29 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
             <IPhone rol="comprador" titulo="Chat del comprador" turno={turno !== "vendedor"} escala={escala} testId="marco-comprador" className={`order-3 lg:order-none ${tab === "comprador" ? "flex" : "hidden lg:flex"}`}>
               <iframe key={`c${marco}`} name="comprador" title="Chat del comprador (simulación)" src="/probar/chat/comprador" className="h-full w-full border-0 bg-sal" />
             </IPhone>
+          </div>
+
+          {/* Lo que acaba de pasar, en 6 palabras o menos, y por qué la demo es simulada. */}
+          <p
+            key={HECHO[status ?? (hayTienda ? "tienda" : "")] ?? ""}
+            data-testid="recien"
+            className="flex items-center justify-center gap-2 text-center text-2xl animate-[fundido_240ms_var(--ease-suave)_both] lg:col-span-2 lg:text-3xl"
+          >
+            {status === "liberado" && <CheckTrazo circulo className="h-7 w-7 shrink-0 text-musgo lg:h-8 lg:w-8" />}
+            {HECHO[status ?? (hayTienda ? "tienda" : "")] ?? ""}
+          </p>
+          <p className="mx-auto flex max-w-3xl items-start justify-center gap-2 text-sm leading-snug text-tinta-600 lg:col-span-2" data-testid="por-que-simulado">
+            <IconoInfo className="mt-0.5 h-4 w-4 shrink-0 text-tinta-500" />
+            <span>
+              ¿Por qué simulado? Meta solo deja que un número de prueba le responda a 5 teléfonos hasta verificar la empresa. El bot real ya está hecho
+              (carpeta bot/, 191 tests, API oficial de WhatsApp) y lo mostramos en vivo en la final.
+            </span>
+          </p>
+          <div className="lg:col-span-2">
+            <Casos />
+          </div>
+          <div className="lg:col-span-2">
+            <ConstruidoLinea resumen={resumen} />
           </div>
         </>
       )}
@@ -404,14 +569,6 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
               <li>Si el comprador no hace nada, {minutos(plazos.despachoSegundos)} después del envío cualquiera puede liberar el pago al vendedor.</li>
             </ul>
           </details>
-          <p className="flex items-start gap-2 text-sm leading-snug text-tinta-600" data-testid="por-que-simulado">
-            <IconoInfo className="mt-0.5 h-4 w-4 shrink-0 text-tinta-500" />
-            <span>
-              ¿Por qué simulado? Meta solo deja que un número de prueba le responda a 5 teléfonos hasta verificar la empresa. El bot real ya está hecho
-              (carpeta bot/, 191 tests, API oficial de WhatsApp) y lo mostramos en vivo en la final.
-            </span>
-          </p>
-          <Construido resumen={resumen} />
         </div>
       </aside>
     </div>

@@ -12,6 +12,8 @@ export interface Boton {
   texto: string;
   /** La única acción posible en este momento: grande y en Yungas. */
   principal?: boolean;
+  /** Acción de riesgo (el estafador): botón rojo, también con "Toca aquí". */
+  peligro?: boolean;
   deshabilitado?: boolean;
 }
 
@@ -36,12 +38,16 @@ export interface Mensaje {
   sistema?: boolean;
   /** Mensaje de un número desconocido (el estafador). */
   desconocidoDe?: string;
+  /** Sello que entra con escala sobre el texto ("Bloqueado"): el texto ya empieza con "🚫 " + sello. */
+  sello?: string;
+  /** Rebote breve de la burbuja (el estafador, cuando el contrato lo bloquea). */
+  sacudir?: boolean;
 }
 
 /** Lo que vende la demo: igual que en el e2e de /probar. La tienda se llama "Zapatería". */
 export const DEMO = {
   tienda: "Zapatería",
-  ciudad: "Santa Cruz",
+  ciudad: "La Paz",
   /** Número de prueba: la demo lo completa sola, no se muestra. */
   whatsapp: "59171234567",
   producto: "Zapatillas Nike talla 40",
@@ -87,6 +93,8 @@ export interface PedidoChat {
   envio?: string | null;
   /** Lo que recibió la tienda al liberar ("Bs 450,04"). */
   recibido?: string | null;
+  /** Lo que dice la API sobre la espera para pagar a la tienda ("1 minuto (modo demo)"). */
+  confirmDelay?: string | null;
   url: string;
   imagen: string;
 }
@@ -119,8 +127,16 @@ export interface EstadoVendedor {
   enviando: boolean;
   /** El estafador ya fue bloqueado: recién ahí la tienda puede marcar el envío (un solo botón por momento). */
   estafaHecha?: boolean;
+  /** El intento del estafador está en curso (se ve en el chat del comprador). */
+  estafaEnCurso?: boolean;
+  /** La red de prueba está lenta: se está reintentando (nunca se muestra el error crudo). */
+  lento?: boolean;
+  /** Falló tres veces: se ofrece "Reintentar". */
+  fallo?: "cuenta" | "link" | "envio" | null;
   host: string;
 }
+
+const LENTO = "La red de prueba está lenta, un momento…";
 
 /** "Bs 6,75": lo que paga el comprador de más (protección) a partir de los dos montos en texto. */
 export function proteccionBs(total: string, precio: string): string {
@@ -152,7 +168,8 @@ export function mensajesVendedor(e: EstadoVendedor): Mensaje[] {
         botones: e.alta.creando ? undefined : [{ id: "crear-cuenta", texto: "Crear mi cuenta", principal: true }],
       });
     }
-    if (e.alta.creando) m.push({ id: "creando", de: "bot", at: seg(t0, 6), enCurso: true, texto: "Creando tu cuenta. Unos 10 segundos." });
+    if (e.fallo === "cuenta") m.push({ id: "fallo-cuenta", de: "bot", at: seg(t0, 6), texto: "No pude crear tu cuenta ahora. Toca Reintentar.", botones: [{ id: "reintentar-cuenta", texto: "Reintentar", principal: true }] });
+    else if (e.alta.creando) m.push({ id: "creando", de: "bot", at: seg(t0, 6), enCurso: true, texto: e.lento ? LENTO : "Creando tu cuenta. Unos 10 segundos." });
     return m;
   }
   const tA = e.pedido ? e.pedido.created_at - 20_000 : seg(t0, 20);
@@ -161,11 +178,15 @@ export function mensajesVendedor(e: EstadoVendedor): Mensaje[] {
     de: "bot",
     at: tA,
     texto: `Listo, ${e.tienda}. ¿Qué vendes hoy?`,
-    botones: e.pedido || e.creandoLink ? undefined : [{ id: "vender", texto: `Vender ${DEMO.producto} a Bs ${DEMO.precioBs}`, principal: true }],
+    botones: e.pedido || e.creandoLink ? undefined : [{ id: "vender", texto: "Vender Zapatillas Nike Bs 450", principal: true }],
   });
+  if (e.fallo === "link" && !e.pedido) {
+    m.push({ id: "fallo-link", de: "bot", at: e.ahora, texto: "No pude crear tu link ahora. Toca Reintentar.", botones: [{ id: "reintentar-link", texto: "Reintentar", principal: true }] });
+    return m;
+  }
   if (e.creandoLink && !e.pedido) {
     m.push({ id: "yo-vendo", de: "yo", at: e.ahora, texto: DEMO.vendo });
-    m.push({ id: "creando-link", de: "bot", at: e.ahora, enCurso: true, texto: "Creando tu link de pago…" });
+    m.push({ id: "creando-link", de: "bot", at: e.ahora, enCurso: true, texto: e.lento ? LENTO : "Creando tu link de pago…" });
     return m;
   }
   const p = e.pedido;
@@ -192,10 +213,13 @@ export function mensajesVendedor(e: EstadoVendedor): Mensaje[] {
     at: tPago,
     texto: `💸 Tu cliente pagó ${p.total} (${p.precio.replace(",00", "")} + ${proteccionBs(p.total, p.precio)} de protección).`,
   });
+  if (p.status === "pagado" && !e.estafaHecha && !e.estafaEnCurso)
+    m.push({ id: "estafa-aviso", de: "bot", at: tPago + 1000, texto: "Mientras tanto, mira qué pasa si alguien intenta robar la plata.", botones: [{ id: "estafa", texto: "Alguien intenta robar la plata", peligro: true }] });
   if (p.status === "pagado" && e.estafaHecha)
     m.push({ id: "despacha", de: "bot", at: tPago + 1000, texto: "Despacha y toca Ya lo envié.", botones: e.enviando ? undefined : [{ id: "enviado", texto: "Ya lo envié", principal: true }] });
   if (p.status === "pagado") {
-    if (e.enviando) m.push({ id: "enviando", de: "bot", at: e.ahora, enCurso: true, texto: "Registrando el envío. Unos 10 segundos." });
+    if (e.fallo === "envio") m.push({ id: "fallo-envio", de: "bot", at: e.ahora, texto: "No pude registrar el envío ahora. Toca Reintentar.", botones: [{ id: "reintentar-envio", texto: "Reintentar", principal: true }] });
+    else if (e.enviando) m.push({ id: "enviando", de: "bot", at: e.ahora, enCurso: true, texto: e.lento ? LENTO : "Registrando el envío (Trans Copacabana · SRV-2026-118734). Unos 10 segundos." });
     return m;
   }
   if (p.status === "devuelto") {
@@ -230,6 +254,8 @@ export interface EstadoComprador {
   reenviado: boolean;
   estafa: Estafa | null;
   confirmando: boolean;
+  lento?: boolean;
+  fallo?: "cobro" | null;
   host: string;
 }
 
@@ -251,12 +277,13 @@ export function mensajesComprador(e: EstadoComprador): Mensaje[] {
   m.push({ id: "pagado", de: "bot", at: tPago, texto: `🔒 Pagaste ${p.total} (${p.precio.replace(",00", "")} + ${proteccionBs(p.total, p.precio)} de protección).\nSolo sale cuando confirmes.` });
   if (e.estafa) {
     const x = e.estafa;
-    m.push({ id: "estafa", de: "desconocido", at: x.at, desconocidoDe: ESTAFADOR.numero, texto: `Soy del banco. Autoriza el pago a esta cuenta: ${ESTAFADOR.cuenta}.` });
+    m.push({ id: "estafa", de: "desconocido", at: x.at, desconocidoDe: ESTAFADOR.numero, texto: `Soy del banco. Autoriza el pago a esta cuenta: ${ESTAFADOR.cuenta}.`, sacudir: !x.enCurso && Boolean(x.rechazado) });
     m.push({
       id: "bloqueo",
       de: "bot",
       at: x.at + 1500,
       enCurso: x.enCurso,
+      sello: !x.enCurso && x.rechazado ? "Bloqueado" : undefined,
       texto: x.enCurso
         ? "Revisando en el contrato…"
         : x.rechazado
@@ -275,24 +302,25 @@ export function mensajesComprador(e: EstadoComprador): Mensaje[] {
     id: "enviado",
     de: "bot",
     at: tEnvio,
-    texto: `📦 ${e.tienda} envió tu pedido. ¿Te llegó?`,
+    texto: `📦 ${e.tienda} envió tu pedido. ¿Te llegó?${p.status === "enviado" && !puede && p.confirmDelay ? `\nTrato espera ${p.confirmDelay.replace(/ \(modo demo\)/, "")} en la demo; en la vida real, 2 horas o 24.` : ""}`,
     botones:
       p.status === "enviado" && !e.confirmando
         ? [
-            { id: "me-llego", texto: puede || p.confirm_after == null ? "Sí, me llegó" : `Sí, me llegó · ${cuentaAtras(p.confirm_after, e.ahora)}`, principal: true, deshabilitado: !puede },
+            { id: "me-llego", texto: puede || p.confirm_after == null ? "Sí, me llegó y está bien" : `Sí, me llegó y está bien · ${cuentaAtras(p.confirm_after, e.ahora)}`, principal: true, deshabilitado: !puede },
             { id: "problema", texto: "Tengo un problema" },
           ]
         : undefined,
   });
   if (p.status === "enviado") {
-    if (e.confirmando) {
-      m.push({ id: "yo-me-llego", de: "yo", at: e.ahora, texto: "Sí, me llegó" });
-      m.push({ id: "pagando", de: "bot", at: e.ahora, enCurso: true, texto: `Pagando a ${e.tienda}. Unos 10 segundos.` });
+    if (e.fallo === "cobro") m.push({ id: "fallo-cobro", de: "bot", at: e.ahora, texto: `No pude pagar a ${e.tienda} ahora. Toca Reintentar.`, botones: [{ id: "reintentar-cobro", texto: "Reintentar", principal: true }] });
+    else if (e.confirmando) {
+      m.push({ id: "yo-me-llego", de: "yo", at: e.ahora, texto: "Sí, me llegó y está bien" });
+      m.push({ id: "pagando", de: "bot", at: e.ahora, enCurso: true, texto: e.lento ? LENTO : `Pagando a ${e.tienda}. Unos 10 segundos.` });
     }
     return m;
   }
   if (p.status === "liberado") {
-    m.push({ id: "yo-me-llego", de: "yo", at: (p.released_at ?? e.ahora) - 8000, texto: "Sí, me llegó" });
+    m.push({ id: "yo-me-llego", de: "yo", at: (p.released_at ?? e.ahora) - 8000, texto: "Sí, me llegó y está bien" });
     m.push({ id: "liberado", de: "bot", at: p.released_at ?? e.ahora, texto: `✅ Pagaste a ${e.tienda}. Gracias por comprar con Trato.` });
   } else if (p.status === "en_disputa") m.push({ id: "disputa", de: "bot", at: e.ahora, texto: "⚠️ Abriste un reclamo. Decide un revisor." });
   else if (p.status === "resuelto") m.push({ id: "resuelto", de: "bot", at: p.released_at ?? e.ahora, texto: "⚖️ El revisor repartió la plata entre los dos." });
@@ -311,6 +339,39 @@ export const PASOS_DEMO: { n: PasoDemo; nombre: string }[] = [
 
 /** Paso actual (1 a 4), título (≤ 6 palabras) y línea (≤ 10 palabras) de cada momento. */
 export function pasoDemo(p: { tienda: boolean; status: string | null; estafa: "no" | "en-curso" | "bloqueada"; mandado?: boolean; sub?: string | null }): {
+  n: PasoDemo;
+  titulo: string;
+  linea: string;
+  /** La misma ayuda en 5 palabras o menos, para la franja del celular. */
+  corta: string;
+  quien: "vendedor" | "comprador" | null;
+  terminado: boolean;
+} {
+  const r = pasoDemoLargo(p);
+  return { ...r, corta: CORTA[r.linea] ?? r.linea };
+}
+
+/** Ayuda corta (≤ 5 palabras) por cada línea larga. */
+const CORTA: Record<string, string> = {
+  "Escribe Hola y toca Crear mi cuenta": "Toca Hola",
+  "Toca Crear mi cuenta": "Toca Crear mi cuenta",
+  "Revisa el nombre y toca Listo": "Toca Listo",
+  "Creando la cuenta de cobro…": "Creando la cuenta…",
+  "Toca Vender": "Toca Vender",
+  "Creando el link de pago…": "Creando el link…",
+  "Toca Mandar al cliente": "Toca Mandar",
+  "Abre el link y paga con un toque": "Abre el link y paga",
+  "Toca Alguien intenta robar la plata": "Toca el botón rojo",
+  "Mira el chat del comprador": "Mira el chat",
+  "Toca Ya lo envié": "Toca Ya lo envié",
+  "Espera la cuenta atrás": "Espera la cuenta atrás",
+  "Toca Sí, me llegó": "Toca Sí, me llegó",
+  "La plata llegó a su cuenta": "La plata llegó",
+  "No se despachó a tiempo": "No se despachó a tiempo",
+  "Un revisor decide": "Un revisor decide",
+};
+
+function pasoDemoLargo(p: { tienda: boolean; status: string | null; estafa: "no" | "en-curso" | "bloqueada"; mandado?: boolean; sub?: string | null }): {
   n: PasoDemo;
   titulo: string;
   linea: string;

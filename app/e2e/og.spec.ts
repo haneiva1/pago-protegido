@@ -41,10 +41,13 @@ test("vista previa del link en WhatsApp: Open Graph por pedido, en la landing y 
   expect(pngSize(buf)).toEqual({ w: 1200, h: 630 });
   fs.writeFileSync(path.join(DIR, "og-pedido.png"), buf);
 
-  // Landing: imagen genérica de la marca.
-  const home = metas(await (await request.get("/", { headers: WHATSAPP })).text());
+  // La portada: con PP_PROBAR activo, / lleva directo a /probar (307), que hereda la imagen genérica de la marca.
+  const raiz = await request.get("/", { headers: WHATSAPP, maxRedirects: 0 });
+  expect(raiz.status()).toBe(307);
+  expect(raiz.headers()["location"]).toMatch(/\/probar$/);
+  const home = metas(await (await request.get("/probar", { headers: WHATSAPP })).text());
   expect(home["og:title"]).toContain("Trato");
-  expect(home["og:description"]).toContain("plata espera entre los dos");
+  expect(home["og:description"]).toMatch(/plata/);
   expect(home["twitter:card"]).toBe("summary_large_image");
   expect(home["og:image"]).toMatch(/^http:\/\/localhost:\d+\/opengraph-image/);
   const himg = await request.get(home["og:image"]);

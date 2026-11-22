@@ -46,15 +46,20 @@ export function IPhone({
   const e = Math.max(0.3, Math.min(1, escala));
   const vars = { "--escala": String(e) } as CSSProperties;
   return (
-    <figure data-testid={testId} data-turno={turno ? "si" : "no"} className={`w-full scroll-mt-16 flex-col items-center sm:w-auto ${className}`} style={vars}>
-      <figcaption className="mb-3 hidden h-6 items-center gap-1.5 whitespace-nowrap rounded-full bg-tinta-100 px-3 text-xs font-medium text-tinta-700 sm:inline-flex">
+    <figure
+      data-testid={testId}
+      data-turno={turno ? "si" : "no"}
+      className={`w-full scroll-mt-16 flex-col items-center sm:w-auto lg:transition-transform lg:duration-300 lg:ease-[var(--ease-suave)] ${turno ? "" : "lg:scale-[0.98]"} ${className}`}
+      style={vars}
+    >
+      <figcaption className="mb-3 hidden h-6 items-center gap-1.5 whitespace-nowrap rounded-full bg-tinta-100 px-3 text-xs font-medium text-tinta-700 sm:inline-flex lg:hidden">
         <Icono className="h-3.5 w-3.5" />
         {titulo}
       </figcaption>
       {/* El contenedor reserva el tamaño escalado; adentro, el teléfono a tamaño real, escalado desde arriba a la izquierda. */}
       <div className="relative h-[var(--alto-movil,min(78svh,720px))] w-full shrink-0 sm:h-[calc(872px*var(--escala))] sm:w-[calc(413px*var(--escala))]">
         <div
-          className={`absolute left-0 top-0 h-full w-full origin-top-left transition-opacity duration-300 sm:h-[872px] sm:w-[413px] sm:[transform:scale(var(--escala))] ${
+          className={`absolute left-0 top-0 h-full w-full origin-top-left transition-[opacity,filter] duration-300 ease-[var(--ease-suave)] sm:h-[872px] sm:w-[413px] sm:[transform:scale(var(--escala))] ${
             turno ? "" : "lg:opacity-50 lg:saturate-0"
           }`}
         >
@@ -91,7 +96,7 @@ export function IPhone({
                 </svg>
               </span>
             </div>
-            <span aria-hidden className="absolute left-1/2 top-[11px] hidden h-9 w-[120px] -translate-x-1/2 rounded-full sm:block" style={{ background: CUERPO }} />
+            <span aria-hidden className="absolute left-1/2 top-[11px] z-10 hidden h-9 w-[126px] -translate-x-1/2 rounded-full sm:block" style={{ background: CUERPO }} />
 
             {/* La app, a 390 px reales, entre la barra de estado y la zona del indicador de inicio (en angosto, toda la pantalla). */}
             <div className="absolute inset-x-0 bottom-0 top-0 sm:bottom-[34px] sm:top-[44px]">

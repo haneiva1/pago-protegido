@@ -403,13 +403,102 @@ html[data-marco] h3 {
   letter-spacing: -0.01em;
 }
 
-/* En /probar: sin el "Crear mi link" del encabezado del sitio (la demo tiene una sola acción por paso). */
-html[data-probar] header[data-chrome] a[href="/vender"],
-html[data-probar] header[data-chrome] a.btn-oscuro {
+/* En /probar el encabezado es mínimo: logo y la franja "Modo práctica"; sin navegación ni "Crear mi link" (la demo tiene una sola acción por paso). El pie queda en una línea. */
+html[data-probar] header[data-chrome] nav > div,
+html[data-probar] footer[data-chrome] nav {
   display: none;
+}
+html[data-probar] footer[data-chrome] > div {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
 }
 
 /* Hojas del chat: el formulario real de envío sin la sección de fotos (opcional), para que el botón quede a la vista. */
 .hoja-compacta [data-testid="fotos-envio"] {
   display: none;
+}
+
+/* ---------- Movimiento de la demo (/probar): solo transform y opacity (y el trazo del check); con prefers-reduced-motion queda instantáneo ---------- */
+/* La plata viaja de un punto a otro del escenario (del comprador al centro; del centro a la tienda). */
+@keyframes viaje-plata {
+  from {
+    transform: translate(var(--x0), var(--y0)) scale(0.85);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  to {
+    transform: translate(var(--x1), var(--y1)) scale(1);
+    opacity: 1;
+  }
+}
+@keyframes viaje-plata-fin {
+  from {
+    transform: translate(var(--x0), var(--y0)) scale(1);
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  to {
+    transform: translate(var(--x1), var(--y1)) scale(0.85);
+    opacity: 0;
+  }
+}
+/* Un mensaje que entra al chat: fundido y 6 px hacia arriba. */
+@keyframes entra {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* El rebote breve de la burbuja del estafador cuando el contrato lo bloquea. */
+@keyframes sacudir {
+  0%,
+  100% {
+    transform: none;
+  }
+  20% {
+    transform: translateX(-5px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
+}
+/* El sello "Bloqueado": entra de 0,9 a 1. */
+@keyframes sello {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+/* El check que se dibuja (stroke-dashoffset de 1 a 0 sobre pathLength 1). */
+@keyframes trazo {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+/* Un texto que cambia: fundido corto. */
+@keyframes fundido {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }

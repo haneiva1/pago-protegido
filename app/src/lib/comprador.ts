@@ -174,3 +174,20 @@ export function cargaUnaVez<T>(cargar: () => Promise<T>): () => Promise<T> {
       throw e;
     }));
 }
+
+// ---------- Precalentar la cuenta (lo llama /probar al cargar, para que el pago de un toque no espere) ----------
+
+const cuentasPreparadas: Partial<Record<"vendedor" | "comprador", Promise<void>>> = {};
+
+/** Carga el módulo de la billetera, crea la cuenta del rol si no existe y la activa. Idempotente: una sola vez por rol. */
+export function prepararCuenta(rol: "vendedor" | "comprador"): Promise<void> {
+  return (cuentasPreparadas[rol] ??= (async () => {
+    const w = await import("@/lib/wallet");
+    const wallet = w.getWallet(rol);
+    await wallet.connect();
+    await w.activateWallet(wallet);
+  })().catch((e) => {
+    delete cuentasPreparadas[rol];
+    throw e;
+  }));
+}

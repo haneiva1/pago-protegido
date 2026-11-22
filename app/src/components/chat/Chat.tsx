@@ -37,16 +37,28 @@ export function Chat({
   overlay?: { titulo: string; contenido: React.ReactNode; onCerrar: () => void } | null;
   testId?: string;
 }) {
-  const { lista, escribiendo } = useEscribiendo(mensajes);
+  const { lista, escribiendo, retraso } = useEscribiendo(mensajes);
   const ref = useRef<HTMLDivElement>(null);
   const [cargas, setCargas] = useState(0);
   // Siempre al último mensaje: en cada mensaje nuevo, al cambiar sus botones y cuando termina de cargar una imagen.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const ultimo = el.lastElementChild as HTMLElement | null;
-    ultimo?.scrollIntoView({ block: "end" });
-    el.scrollTop = el.scrollHeight;
+    const abajo = () => {
+      const ultimo = el.lastElementChild as HTMLElement | null;
+      ultimo?.scrollIntoView({ block: "end" });
+      el.scrollTop = el.scrollHeight;
+    };
+    abajo();
+    const raf = requestAnimationFrame(abajo);
+    const t = setTimeout(abajo, 120);
+    // Si cambia el alto del celular (rotar, redimensionar), el último mensaje vuelve a quedar sobre el compositor.
+    window.addEventListener("resize", abajo);
+    return () => {
+      window.removeEventListener("resize", abajo);
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
   }, [lista.length, escribiendo, cargas, JSON.stringify(lista[lista.length - 1] ?? null)]);
 
   return (
@@ -74,10 +86,10 @@ export function Chat({
         </span>
       </header>
 
-      <div ref={ref} className="flex-1 space-y-1.5 overflow-y-auto px-3 py-3" data-testid="chat-mensajes" style={{ backgroundImage: PATRON, backgroundSize: "84px 84px" }}>
+      <div ref={ref} className="flex-1 space-y-1.5 overflow-y-auto px-3 pb-5 pt-3" data-testid="chat-mensajes" style={{ backgroundImage: PATRON, backgroundSize: "84px 84px" }}>
         <p className="mx-auto w-fit rounded-lg bg-tinta-100 px-3 py-1 text-xs font-medium text-tinta-600">Hoy</p>
         {lista.map((m) => (
-          <Burbuja key={m.id} m={m} pasos={m.enCurso ? pasos : undefined} ocupado={ocupado} onBoton={onBoton} onCarga={() => setCargas((n) => n + 1)} />
+          <Burbuja key={m.id} m={m} retraso={retraso(m.id)} pasos={m.enCurso ? pasos : undefined} ocupado={ocupado || Boolean(hoja)} onBoton={onBoton} onCarga={() => setCargas((n) => n + 1)} />
         ))}
         {escribiendo && (
           <div className="flex w-fit items-center gap-1 rounded-2xl rounded-tl-md bg-white px-3 py-2.5 shadow-[0_1px_1px_rgb(10_42_27/0.06)]" aria-hidden>
@@ -137,6 +149,9 @@ export function Chat({
 /** Los mensajes nuevos del bot aparecen después de "escribiendo…" (700 ms), como en un chat real. */
 function useEscribiendo(mensajes: Mensaje[]) {
   const [vistos, setVistos] = useState<Set<string>>(() => new Set(mensajes.map((m) => m.id)));
+  // Orden de llegada dentro de cada tanda, para escalonar la entrada (los que ya estaban al abrir, hasta 8).
+  const orden = useRef<Map<string, number> | null>(null);
+  if (!orden.current) orden.current = new Map(mensajes.map((m, i) => [m.id, Math.min(i, 8)]));
   const [escribiendo, setEscribiendo] = useState(false);
   const pendientes = mensajes.filter((m) => !vistos.has(m.id));
   useEffect(() => {
@@ -146,6 +161,7 @@ function useEscribiendo(mensajes: Mensaje[]) {
     setEscribiendo(bot && !reduce);
     const t = setTimeout(
       () => {
+        pendientes.forEach((m, i) => orden.current?.set(m.id, i));
         setVistos((v) => new Set([...v, ...pendientes.map((m) => m.id)]));
         setEscribiendo(false);
       },
@@ -155,7 +171,25 @@ function useEscribiendo(mensajes: Mensaje[]) {
   }, [pendientes.map((m) => m.id).join("|")]);
   // Lo que "yo" acabo de tocar se muestra al instante.
   const lista = mensajes.filter((m) => vistos.has(m.id) || m.de === "yo");
-  return { lista, escribiendo };
+  return { lista, escribiendo, retraso: (id: string) => (orden.current?.get(id) ?? 0) * 60 };
+}
+
+/** El texto de la burbuja; si empieza con su sello ("🚫 Bloqueado"), el sello entra con escala 0,9→1 (el texto no cambia). */
+function conSello(m: Mensaje) {
+  const texto = m.texto ?? "";
+  const cabeza = m.sello ? `🚫 ${m.sello}` : "";
+  if (!cabeza || !texto.startsWith(cabeza)) return conNegritas(texto);
+  return (
+    <>
+      <span
+        className="mr-0.5 inline-flex items-center rounded-md border-2 border-error-500 px-1.5 py-0.5 align-[-2px] text-xs font-bold tracking-wide text-error-700 animate-[sello_300ms_var(--ease-suave)_both]"
+        data-testid="chat-sello"
+      >
+        {cabeza}
+      </span>
+      {conNegritas(texto.slice(cabeza.length))}
+    </>
+  );
 }
 
 /** *negrita* del bot → <strong>. */
@@ -163,7 +197,7 @@ function conNegritas(texto: string) {
   return texto.split(/(\*[^*]+\*)/g).map((t, i) => (t.startsWith("*") && t.endsWith("*") ? <strong key={i}>{t.slice(1, -1)}</strong> : <span key={i}>{t}</span>));
 }
 
-function Burbuja({ m, pasos, ocupado, onBoton, onCarga }: { m: Mensaje; pasos?: ProgressStep[]; ocupado?: boolean; onBoton: (id: string) => void; onCarga?: () => void }) {
+function Burbuja({ m, pasos, ocupado, retraso = 0, onBoton, onCarga }: { m: Mensaje; pasos?: ProgressStep[]; ocupado?: boolean; retraso?: number; onBoton: (id: string) => void; onCarga?: () => void }) {
   if (m.sistema)
     return (
       <p className="mx-auto max-w-[92%] rounded-lg bg-aviso-50 px-3 py-1.5 text-center text-xs text-aviso-700" data-testid="chat-sistema">
@@ -173,7 +207,12 @@ function Burbuja({ m, pasos, ocupado, onBoton, onCarga }: { m: Mensaje; pasos?: 
   const propio = m.de === "yo";
   const desconocido = m.de === "desconocido";
   return (
-    <div className={`flex flex-col ${propio ? "items-end" : "items-start"} animate-aparecer`} data-testid={`chat-${m.id}`} data-de={m.de}>
+    <div
+      className={`flex flex-col ${propio ? "items-end" : "items-start"} animate-[entra_200ms_var(--ease-suave)_both]`}
+      style={retraso ? { animationDelay: `${retraso}ms` } : undefined}
+      data-testid={`chat-${m.id}`}
+      data-de={m.de}
+    >
       {desconocido && (
         <p className="mx-auto mb-1 w-fit rounded-lg bg-tinta-100 px-3 py-1 text-xs text-tinta-600">
           <span className="num">{m.desconocidoDe}</span> · no está en tus contactos
@@ -182,7 +221,7 @@ function Burbuja({ m, pasos, ocupado, onBoton, onCarga }: { m: Mensaje; pasos?: 
       <div
         className={`relative max-w-[86%] rounded-2xl px-3 pb-1.5 pt-2 shadow-[0_1px_1px_rgb(10_42_27/0.06)] ${
           propio ? "rounded-tr-md bg-exito-100" : "rounded-tl-md bg-white"
-        } ${desconocido ? "ring-1 ring-error-200" : ""}`}
+        } ${desconocido ? (m.sacudir ? "ring-1 ring-error-300 animate-[sacudir_300ms_ease-in-out_both]" : "ring-1 ring-error-200") : ""} transition-shadow duration-300`}
       >
         <span
           aria-hidden
@@ -192,7 +231,7 @@ function Burbuja({ m, pasos, ocupado, onBoton, onCarga }: { m: Mensaje; pasos?: 
         {m.texto && (
           <p className="whitespace-pre-line text-[15px] leading-snug">
             {m.enCurso && <Spinner className="mr-1.5 inline-block h-4 w-4 align-[-3px] text-musgo" />}
-            {conNegritas(m.texto)}
+            {conSello(m)}
           </p>
         )}
         {m.enCurso && pasos && pasos.length > 0 && (
@@ -226,21 +265,36 @@ function Burbuja({ m, pasos, ocupado, onBoton, onCarga }: { m: Mensaje; pasos?: 
   );
 }
 
+/** El indicador que late junto al único botón que toca. */
+export function TocaAqui() {
+  return (
+    <span className="flex items-center gap-1.5 pl-1 text-xs font-semibold text-musgo" data-testid="toca-aqui" aria-hidden>
+      <span className="h-2 w-2 rounded-full bg-yungas animate-latido" />
+      Toca aquí
+    </span>
+  );
+}
+
 function BotonRapido({ b, ocupado, onClick }: { b: Boton; ocupado?: boolean; onClick: () => void }) {
   const off = Boolean(ocupado || b.deshabilitado);
   return (
+    <>
+    {(b.principal || b.peligro) && !off && <TocaAqui />}
     <button
       type="button"
       onClick={onClick}
       disabled={off}
       data-testid={`chat-boton-${b.id}`}
       className={
-        b.principal
-          ? "btn-primary w-full py-3 text-base disabled:bg-tinta-200 disabled:text-tinta-600 disabled:opacity-100"
-          : "flex w-full items-center justify-center rounded-control bg-white py-3 text-base font-semibold text-musgo ring-1 ring-tinta-200 transition-colors duration-150 hover:bg-tinta-50 disabled:opacity-50"
+        b.peligro
+          ? "btn-danger w-full py-3 text-base"
+          : b.principal
+            ? "btn-primary w-full py-3 text-base disabled:bg-tinta-200 disabled:text-tinta-600 disabled:opacity-100"
+            : "flex w-full items-center justify-center rounded-control bg-white py-3 text-base font-semibold text-musgo ring-1 ring-tinta-200 transition-colors duration-150 hover:bg-tinta-50 disabled:opacity-50"
       }
     >
       {b.texto}
     </button>
+    </>
   );
 }

@@ -91,8 +91,6 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Prueba Trato de punta a punta");
   await expect(page.getByTestId("titulo-etapa")).toHaveText("1. La Zapatería se registra");
   await expect(page.getByTestId("ahora")).toHaveText("Escribe Hola y toca Crear mi cuenta");
-  // El botón del estafador aparece recién con la plata en el contrato.
-  await expect(page.getByTestId("desviar")).toHaveCount(0);
   await expect(page.getByTestId("dos-salidas")).toHaveText("Dos salidas, nunca una tercera.");
   // El registro y los plazos viven en el cajón "Ver en la red".
   await page.getByTestId("ver-detalles").click();
@@ -106,6 +104,8 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   // Los dos iPhone: el chat de la tienda y el del comprador, sin el encabezado ni el pie del sitio (modo embebido).
   const vendedor = page.frameLocator('iframe[name="vendedor"]');
   const comprador = page.frameLocator('iframe[name="comprador"]');
+  // El botón del estafador vive en el chat de la Zapatería y aparece recién con la plata en el contrato.
+  await expect(toca(vendedor, "estafa")).toHaveCount(0);
   await expect(vendedor.getByTestId("chat-vendedor")).toBeVisible();
   await expect(vendedor.locator("header[data-chrome]")).toBeHidden();
   await expect(vendedor.locator("footer[data-chrome]")).toBeHidden();
@@ -148,20 +148,25 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   // (con reintentos si la red falla, como el e2e con pagos).
   await clic(toca(comprador, "pagar"));
   const pago = comprador.frameLocator('iframe[name="pago"]');
-  await clic(pago.getByTestId("barra-pagar").getByRole("button", { name: /Pagar Bs .* con QR/ }));
-  await pago.getByLabel("Quién recibe").fill("Ana Pérez");
-  await pago.getByLabel("Ciudad de destino").selectOption("Cochabamba");
-  await clic(pago.getByRole("button", { name: /Ver el QR para pagar Bs/ }));
+  // La página de pago: con un toque si los datos de entrega vienen precargados; si no, el camino de siempre (datos, QR).
+  await clic(pago.getByTestId("barra-pagar").getByRole("button", { name: /^Pagar Bs/ }));
+  if (await pago.getByLabel("Quién recibe").isVisible().catch(() => false)) {
+    await pago.getByLabel("Quién recibe").fill("Ana Pérez");
+    await pago.getByLabel("Ciudad de destino").selectOption("Cochabamba");
+    await clic(pago.getByRole("button", { name: /Ver el QR para pagar Bs/ }));
+  }
+  // Dentro de /probar el pago sale con ese único toque; si la página todavía pide "Simular pago del banco", se toca también.
   const simular = pago.getByRole("button", { name: "Simular pago del banco (modo práctica)" });
   const ok = pago.getByTestId("estado-pedido");
   const err = pago.getByTestId("error");
   for (let intento = 1; ; intento++) {
-    await clic(simular);
+    if (await simular.waitFor({ timeout: 4000 }).then(() => true, () => false)) await clic(simular);
     await expect(ok.or(err).first()).toBeVisible(CHAIN);
     if (await ok.isVisible()) break;
     const msg = await err.first().innerText();
     console.log(`[e2e probar] pago, intento ${intento} falló en la red: ${msg}`);
     if (intento >= 3) throw new Error(`El pago falló 3 veces: ${msg}`);
+    await clic(pago.getByTestId("barra-pagar").getByRole("button", { name: /^Pagar Bs/ }));
   }
   await expect(ok).toContainText("Tu pago está guardado", CHAIN);
   // El chat vuelve solo y cuenta que la plata quedó guardada; la tienda recibe el aviso con "Ya lo envié".
@@ -181,8 +186,8 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
 
   // 3. Un estafador lo intenta: simulación real contra el contrato, rechazada con el error del contrato, en rojo de marca,
   // y contada en el chat del comprador como un mensaje de un número desconocido que Trato bloquea.
-  await expect(page.getByTestId("desviar")).toBeEnabled({ timeout: 30_000 });
-  await page.getByTestId("desviar").click();
+  await expect(toca(vendedor, "estafa")).toBeVisible({ timeout: 30_000 });
+  await clic(toca(vendedor, "estafa"));
   const error = page.getByTestId("desvio-error");
   await expect(error).toHaveText("Error(Contract, #12)", CHAIN);
   await expect(error).toHaveClass(/text-error-700/);
@@ -199,12 +204,8 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   await expect(page.getByTestId("desviar")).toHaveCount(0);
   await capturar(page, "82-probar-desvio-rechazado");
 
-  // 4. La tienda despacha: "Ya lo envié" abre el formulario real de envío en una hoja (tiene 2 minutos desde el pago).
+  // 4. La tienda despacha: "Ya lo envié" registra el envío real con los datos de la demo, sin formulario (tiene 2 minutos desde el pago).
   await clic(toca(vendedor, "enviado"));
-  const hoja = vendedor.getByTestId("chat-hoja");
-  await hoja.getByLabel("Empresa de envío").selectOption("Trans Copacabana (encomiendas)");
-  await hoja.getByLabel("Número de guía").fill("SRV-2026-118734");
-  await clic(hoja.getByRole("button", { name: "Marcar como enviado" }));
   await expect(vendedor.getByTestId("chat-enviado")).toContainText("Envío registrado", CHAIN);
   const envio = page.getByTestId("paso-registro-envio");
   await expect(envio).toHaveAttribute("data-hecho", "si", { timeout: 30_000 });
@@ -216,8 +217,9 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   const meLlego = toca(comprador, "me-llego");
   await expect(meLlego).toBeVisible({ timeout: 60_000 });
   await expect(meLlego).toBeEnabled({ timeout: 150_000 });
+  // Un solo toque: el botón ya es la confirmación ("Sí, me llegó y está bien").
+  await expect(meLlego).toHaveText("Sí, me llegó y está bien");
   await clic(meLlego);
-  await clic(comprador.getByTestId("chat-hoja").getByRole("button", { name: "Sí, lo tengo y está bien" }));
   await expect(comprador.getByTestId("chat-liberado")).toContainText("Pagaste a Zapatería", CHAIN);
   const cobro = page.getByTestId("paso-registro-cobro");
   await expect(cobro).toHaveAttribute("data-hecho", "si", { timeout: 30_000 });
@@ -249,12 +251,26 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   const cuentas = await page.evaluate(() => ["pp.probar.vendedor", "pp.probar.comprador", "pp.billetera.vendedor", "pp.billetera.comprador"].map((k) => localStorage.getItem(k) !== null));
   expect(cuentas).toEqual([true, true, false, false]);
 
-  // Empezar de nuevo: cuentas nuevas, chats y registro limpios.
+  // Empezar de nuevo: borra las dos cuentas de prueba, limpia chats y registro, y el precalentado crea cuentas NUEVAS
+  // (distintas de las anteriores) en segundo plano; mientras se crean pueden estar en null, nunca ser las viejas.
+  const claves = () => page.evaluate(() => [localStorage.getItem("pp.probar.vendedor"), localStorage.getItem("pp.probar.comprador")]);
+  const antes = await claves();
+  expect(antes[0]).toBeTruthy();
+  expect(antes[1]).toBeTruthy();
   await page.getByTestId("empezar-de-nuevo").click();
   await expect(comprador.getByTestId("esperando-link")).toBeVisible({ timeout: 30_000 });
   await expect(toca(vendedor, "hola")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("registro")).toContainText("Todavía no hay movimientos");
-  expect(await page.evaluate(() => [localStorage.getItem("pp.probar.vendedor"), localStorage.getItem("pp.probar.comprador")])).toEqual([null, null]);
+  let despues: (string | null)[] = [null, null];
+  for (let i = 0; i < 90; i++) {
+    despues = await claves();
+    expect(despues[0], "Empezar de nuevo no debe reutilizar la cuenta anterior de la tienda").not.toBe(antes[0]);
+    expect(despues[1], "Empezar de nuevo no debe reutilizar la cuenta anterior del comprador").not.toBe(antes[1]);
+    if (despues[0] && despues[1]) break;
+    await page.waitForTimeout(1000);
+  }
+  expect(despues[0], "el precalentado crea una cuenta nueva para la tienda").toBeTruthy();
+  expect(despues[1], "el precalentado crea una cuenta nueva para el comprador").toBeTruthy();
 
   // Ninguna clave del equipo (ni ninguna otra) llegó al navegador en las respuestas del servidor.
   await Promise.all(lecturas);

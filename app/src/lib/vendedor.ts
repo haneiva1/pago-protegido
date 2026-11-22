@@ -162,3 +162,41 @@ export function ventasEnCurso(pedidos: PedidoEnCurso[]): {
   }
   return out;
 }
+
+// ---------- Registrar el envío (lo usa el formulario del panel y el chat de /probar con datos precargados) ----------
+
+import type { PreparedTx } from "./wallet/types.ts";
+
+export interface DatosEnvio {
+  slug: string;
+  /** Cuenta del vendedor (firma la transacción). */
+  signer: string;
+  empresa: string;
+  guia?: string;
+  /** Peso declarado en kg, como texto ("1,2"). */
+  pesoKg: string;
+  ciudad: string;
+  imei?: string;
+  /** Huellas de las fotos (EvidenciaInput); vacías si no hay. */
+  fotoPaquete?: string;
+  fotoGuia?: string;
+  onProgress?: (label: string, hash?: string) => void;
+}
+
+/** Arma y firma `mark_shipped` igual que el formulario: una sola implementación para el panel y para la demo. */
+export async function registrarEnvio(d: DatosEnvio): Promise<void> {
+  const { api, getWallet, signAndSubmit } = await import("@/lib/wallet");
+  const body = {
+    action: "ship",
+    signer: d.signer,
+    company: d.empresa,
+    tracking: d.guia ?? "",
+    weight: d.pesoKg,
+    city: d.ciudad,
+    imei: d.imei ?? "",
+    photo: d.fotoPaquete ?? "",
+    ...(d.fotoGuia ? { photoGuia: d.fotoGuia } : {}),
+  };
+  const prepared = await api<PreparedTx>(`/api/orders/${d.slug}/action`, body);
+  await signAndSubmit(getWallet("vendedor"), prepared, d.onProgress);
+}
