@@ -19,7 +19,7 @@
 | Ledger del despliegue | 5793072 |
 | v1 (retirado) | pp_guardian [`CAOX6JZV3CJZFDD22J2XI3NKY5G4NRFOYRV7IA724MSVREYVRALW4OZU`](https://stellar.expert/explorer/testnet/contract/CAOX6JZV3CJZFDD22J2XI3NKY5G4NRFOYRV7IA724MSVREYVRALW4OZU) · pp_arbiter [`CBCDVLEPJ6PN7RDC3HFGML3IUT7SOQEYSGH3LE3SWXWZJO7Z2QG2PWGU`](https://stellar.expert/explorer/testnet/contract/CBCDVLEPJ6PN7RDC3HFGML3IUT7SOQEYSGH3LE3SWXWZJO7Z2QG2PWGU) |
 
-Los hashes coinciden con un `stellar contract build` del código commiteado. **Ninguno de los dos contratos es actualizable**: un cambio de lógica implica IDs nuevos, como de v1 a v2.
+Los hashes coinciden con un `stellar contract build` del código del commit `f0a2701`, que `scripts/verify-wasm.sh` compila por defecto. El código de `main` ya trae el arreglo de H-13 (plazo del reclamo) y entra con el próximo despliegue, con IDs nuevos; hasta entonces sus hashes no son los de esta tabla. **Ninguno de los dos contratos es actualizable**: un cambio de lógica implica IDs nuevos, como de v1 a v2.
 
 ## Configuración on-chain
 

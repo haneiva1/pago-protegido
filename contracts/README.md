@@ -3,7 +3,7 @@
 Contratos del "modo guardián" de Pago Protegido ([SPEC.md](../docs/SPEC.md) §2–§4) sobre el escrow single-release de Trustless Work (commit `f0b706e`, soroban-sdk 28). **Solo testnet.**
 
 - **`pp_guardian`**: approver y release_signer de cada escrow. El comprador fondea a través de él (`fund`), confirma con aprobación y liberación atómicas (`confirm`), abre disputas junto con el vendedor (`dispute`) y, si vence el plazo con el hito en `"enviado"`, cualquiera puede liberar (`auto_release`).
-- **`pp_arbiter`**: dispute_resolver de cada escrow. El admin solo elige `buyer_bps` y el contrato reparte el saldo entre el comprador registrado y el vendedor (`roles.receiver`). Ninguna función acepta direcciones de destino.
+- **`pp_arbiter`**: dispute_resolver de cada escrow. El admin solo elige `buyer_bps` y el contrato reparte el saldo entre el comprador registrado y el vendedor (`roles.receiver`). Ninguna función acepta direcciones de destino. Desde H-13 (en código; entra con el próximo despliegue), el revisor tiene 7 días para decidir un reclamo (`CLAIM_SECS`): `pp_guardian.dispute` hace correr el plazo (`start_claim`) y, vencido, cualquiera llama `resolve_expired`: todo al comprador sin envío registrado, todo al vendedor con envío.
 
 IDs, hashes y transacciones reales: [DEPLOYED.md](DEPLOYED.md). Decisiones y hallazgos: [DECISIONES.md](DECISIONES.md).
 
@@ -16,7 +16,7 @@ contracts/
 ├── shared/escrow_iface.rs     tipos Escrow/Roles/… + cliente mínimo del escrow de TW (include! en ambos contratos)
 ├── pp_guardian/src/lib.rs
 ├── pp_arbiter/src/lib.rs
-├── integration-tests/tests/   47 tests (v2) con el WASM REAL de TW: invariantes, red team, hallazgos del jurado y secuencias aleatorias
+├── integration-tests/tests/   53 tests (v2) con el WASM REAL de TW: invariantes, red team, hallazgos del jurado y secuencias aleatorias
 ├── wasm/escrow.wasm           WASM de TW (sha256 1b367bc8…196660), versionado con git add -f
 ├── scripts/
 │   ├── lib.sh                 helpers (tx con hash/fee, expect_fail, saldos)
@@ -92,14 +92,14 @@ cargo test
 - `mock_all_auths` se usa solo para preparar el escenario;
 - las aserciones de autorización usan `set_auths(&[])` o `mock_auths` con una dirección concreta (auth real).
 
-**47 tests (v2)** en cuatro archivos:
+**53 tests (v2)** en cuatro archivos:
 
 | Archivo | Tests | Qué cubre |
 |---|---:|---|
 | `tests/invariantes.rs` | 26 | Los 9 invariantes de SPEC §4 sobre la interfaz v2 |
 | `tests/red_team_v2.rs` | 12 | TW-1, TW-2, TW-3 y TW-5; `mark_shipped`; `extend`; `refund_unshipped` por plazo de despacho; TTL de `Purchase`; contratos no actualizables |
-| `tests/hallazgos_jurado.rs` | 4 | H-9 (un escrow falso hace emitir eventos auténticos sin mover plata o difama a un vendedor, y el contraste con el WASM real) y H-10 (un reclamo tardío bloquea `auto_release`). Documentan el comportamiento de hoy |
-| `tests/secuencias_aleatorias.rs` | 5 | 200 semillas fijas en 4 lotes, de 40 a 80 operaciones al azar cada una: el saldo se conserva, ningún tercero cobra y cada compra tiene un solo desenlace. El quinto test comprueba que el generador es determinista |
+| `tests/hallazgos_jurado.rs` | 10 | H-9 (un escrow falso hace emitir eventos auténticos sin mover plata o difama a un vendedor, y el contraste con el WASM real) y H-10 (un reclamo tardío bloquea `auto_release`), que documentan el comportamiento de hoy; y 6 de H-13 (plazo del reclamo: `resolve_expired` falla antes del plazo y después va todo al comprador sin envío o todo al vendedor con envío) |
+| `tests/secuencias_aleatorias.rs` | 5 | 200 semillas fijas en 4 lotes, de 40 a 80 operaciones al azar cada una: el saldo se conserva, ningún tercero cobra, cada compra tiene un solo desenlace y, pasado el plazo del reclamo, todo reclamo termina en una de las dos salidas (H-13). El quinto test comprueba que el generador es determinista |
 
 Qué test cubre cada invariante y cada hallazgo: [`../docs/SEGURIDAD.md`](../docs/SEGURIDAD.md), §2 y §4b.
 
@@ -196,6 +196,7 @@ bash scripts/bindings.sh --build        # regenera bindings/ y compila cada paqu
    - **Liberación automática:** desde `release_at`, cualquiera llama `pp_guardian.auto_release({escrow})`, sin firmas.
 5. **Árbitro:** previsualiza con `pp_arbiter.quote({escrow, buyer_bps})` (solo lectura) y resuelve con `pp_arbiter.resolve({escrow, buyer_bps})`, firmado por `arbitro`.
 6. **Reembolso sin envío:** si hay disputa, venció `funded_at + ship_secs` y no hubo `mark_shipped`, cualquiera puede llamar `pp_arbiter.refund_unshipped({escrow})`.
+7. **Reclamo sin decisión (H-13, próximo despliegue):** a los 7 días de abierto el reclamo (`pp_arbiter.claim_deadline({escrow})`), cualquiera puede llamar `pp_arbiter.resolve_expired({escrow})`. Si la disputa se abrió directo en TW, antes hay que llamar `pp_arbiter.start_claim({escrow})`.
 7. **Consultas:**
    - `pp_guardian.purchase({escrow})` devuelve `{buyer, seller, amount, funded_at, ship_secs, inspect_secs, ship_deadline, shipped_at, release_at, extended, evidence}` o `null`;
    - `pp_guardian.config()` y `pp_arbiter.config()` devuelven la configuración.

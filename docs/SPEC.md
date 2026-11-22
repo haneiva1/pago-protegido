@@ -116,6 +116,8 @@ Los nombres son orientativos; ajusta los tipos al código real de Trustless Work
   5. Arma las distribuciones solo hacia esas dos direcciones, omitiendo los montos 0.
   6. Llama `escrow.resolve_dispute(árbitro, tw_fee, distribuciones)`.
 - **`refund_unshipped(escrow)`** (opcional): no requiere auth. Si el escrow está en disputa, el status no es `"enviado"` y `now ≥ deadline`, devuelve el 100% al comprador.
+- **`start_claim(escrow)`** (H-13): no requiere auth. Con el escrow en disputa, empieza a correr el plazo del reclamo (`CLAIM_SECS` = 7 días) y devuelve cuándo vence; si ya corría, no lo mueve. `pp_guardian.dispute` lo llama en la misma transacción.
+- **`resolve_expired(escrow)`** (H-13): no requiere auth. Con el escrow en disputa y el plazo del reclamo vencido, reparte todo el saldo: al comprador si no hay envío registrado en el guardián, al vendedor si lo hay. Antes del plazo falla con `ClaimDeadlineNotReached`.
 - **`set_admin(new_admin)`**: exige auth del admin.
 
 **No debe existir ninguna función pública que permita elegir direcciones de destino.**

@@ -14,6 +14,13 @@
 //! (`funded_at + ship_secs`) y el envío registrado en pp_guardian. Este
 //! contrato NO es actualizable (no hay `update_current_contract_wasm`) y no
 //! tiene ninguna ruta a `withdraw_remaining_funds` de TW (TW-5).
+//!
+//! H-13: un reclamo tiene un plazo máximo para que el revisor decida
+//! (`CLAIM_SECS`, 7 días desde que se abre). El plazo empieza con
+//! `start_claim`, que pp_guardian llama en `dispute`. Pasado el plazo,
+//! cualquiera ejecuta `resolve_expired`: todo al comprador si no hay envío
+//! registrado en pp_guardian, todo al vendedor si lo hay. Si el revisor decide
+//! antes, nada cambia.
 #![no_std]
 
 use soroban_sdk::{
@@ -29,9 +36,17 @@ pub use escrow_iface::{Escrow, EscrowClient, Flags, Milestone, Purchase, Roles, 
 /// 100% en puntos básicos.
 pub const BPS_DENOMINATOR: u32 = 10_000;
 
+/// H-13: plazo máximo para que el revisor decida un reclamo, en segundos,
+/// contado desde `start_claim` (7 días). Pasado este plazo procede
+/// `resolve_expired`.
+pub const CLAIM_SECS: u64 = 7 * 24 * 3600;
+
 const DAY_IN_LEDGERS: u32 = 17_280;
 const INSTANCE_BUMP: u32 = 30 * DAY_IN_LEDGERS;
 const INSTANCE_THRESHOLD: u32 = INSTANCE_BUMP - DAY_IN_LEDGERS;
+/// TTL de la marca de inicio de cada reclamo (se extiende en cada lectura).
+const CLAIM_BUMP: u32 = 60 * DAY_IN_LEDGERS;
+const CLAIM_THRESHOLD: u32 = CLAIM_BUMP - DAY_IN_LEDGERS;
 
 /// Lo único que el árbitro necesita del guardián.
 #[allow(dead_code)]
@@ -62,6 +77,10 @@ pub enum Error {
     AlreadyShipped = 8,
     /// Comprador y vendedor son la misma dirección.
     BuyerIsSeller = 9,
+    /// `resolve_expired` sin plazo de reclamo iniciado (falta `start_claim`).
+    ClaimNotStarted = 10,
+    /// `resolve_expired` antes de que venza el plazo del reclamo.
+    ClaimDeadlineNotReached = 11,
 }
 
 #[contracttype]
@@ -90,6 +109,8 @@ enum DataKey {
     Admin,
     Guardian,
     TwFee,
+    /// Momento en que empezó a correr el plazo del reclamo de un escrow.
+    ClaimOpenedAt(Address),
 }
 
 #[contractevent(topics = ["pp_resolved"])]
@@ -106,6 +127,21 @@ pub struct RefundedUnshipped {
     #[topic]
     pub escrow: Address,
     pub buyer_amount: i128,
+}
+
+#[contractevent(topics = ["pp_claim_started"])]
+pub struct ClaimStarted {
+    #[topic]
+    pub escrow: Address,
+    pub deadline: u64,
+}
+
+#[contractevent(topics = ["pp_resolved_expired"])]
+pub struct ResolvedExpired {
+    #[topic]
+    pub escrow: Address,
+    pub buyer_amount: i128,
+    pub seller_amount: i128,
 }
 
 #[contractevent(topics = ["pp_admin_changed"])]
@@ -169,6 +205,67 @@ impl PpArbiter {
         Ok(ctx.split)
     }
 
+    /// H-13: empieza a correr el plazo del reclamo (`CLAIM_SECS`) y devuelve
+    /// el momento en que vence. Sin auth: pp_guardian lo llama al abrir la
+    /// disputa y cualquiera puede llamarlo si la disputa se abrió directo en
+    /// Trustless Work (TW-1). Exige que el escrow esté en disputa con este
+    /// contrato como `dispute_resolver`. Si el plazo ya corre, no lo mueve.
+    /// No consulta a pp_guardian (lo llama pp_guardian: no hay reentrada).
+    pub fn start_claim(env: Env, escrow: Address) -> Result<u64, Error> {
+        bump_instance(&env);
+        let data = EscrowClient::new(&env, &escrow).get_escrow();
+        if data.roles.dispute_resolver != env.current_contract_address() {
+            return Err(Error::NotDisputeResolver);
+        }
+        if !data.flags.disputed {
+            return Err(Error::NotInDispute);
+        }
+        if let Some(opened_at) = read_claim(&env, &escrow) {
+            return Ok(opened_at + CLAIM_SECS);
+        }
+        let opened_at = env.ledger().timestamp();
+        let key = DataKey::ClaimOpenedAt(escrow.clone());
+        env.storage().persistent().set(&key, &opened_at);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, CLAIM_THRESHOLD, CLAIM_BUMP);
+        let deadline = opened_at + CLAIM_SECS;
+        ClaimStarted { escrow, deadline }.publish(&env);
+        Ok(deadline)
+    }
+
+    /// H-13: desenlace por defecto de un reclamo que el revisor no decidió.
+    /// Sin auth (lo puede disparar cualquiera, o un cron) y solo desde
+    /// `start_claim + CLAIM_SECS`. Con el escrow en disputa reparte TODO el
+    /// saldo: al comprador si el vendedor nunca registró el envío en
+    /// pp_guardian (`shipped_at` vacío), al vendedor si lo registró. Las
+    /// direcciones salen de `load`, como en `resolve`: nunca un tercero.
+    pub fn resolve_expired(env: Env, escrow: Address) -> Result<Split, Error> {
+        let mut ctx = load(&env, &escrow, BPS_DENOMINATOR)?;
+        let opened_at = read_claim(&env, &escrow).ok_or(Error::ClaimNotStarted)?;
+        if env.ledger().timestamp() < opened_at + CLAIM_SECS {
+            return Err(Error::ClaimDeadlineNotReached);
+        }
+        if ctx.purchase.shipped_at.is_some() {
+            ctx.split.buyer_amount = 0;
+            ctx.split.seller_amount = ctx.split.balance;
+        }
+        execute(&env, &escrow, &ctx.split);
+        ResolvedExpired {
+            escrow,
+            buyer_amount: ctx.split.buyer_amount,
+            seller_amount: ctx.split.seller_amount,
+        }
+        .publish(&env);
+        Ok(ctx.split)
+    }
+
+    /// Momento en que vence el plazo del reclamo de `escrow`, si ya empezó
+    /// (solo lectura).
+    pub fn claim_deadline(env: Env, escrow: Address) -> Option<u64> {
+        read_claim(&env, &escrow).map(|opened_at| opened_at + CLAIM_SECS)
+    }
+
     /// Vista previa del reparto (solo lectura, mismas validaciones que
     /// `resolve` salvo la auth). Útil para el slider del panel del árbitro.
     pub fn quote(env: Env, escrow: Address, buyer_bps: u32) -> Result<Split, Error> {
@@ -208,6 +305,18 @@ fn bump_instance(env: &Env) {
     env.storage()
         .instance()
         .extend_ttl(INSTANCE_THRESHOLD, INSTANCE_BUMP);
+}
+
+/// Inicio del plazo del reclamo de `escrow`, si existe (le extiende el TTL).
+fn read_claim(env: &Env, escrow: &Address) -> Option<u64> {
+    let key = DataKey::ClaimOpenedAt(escrow.clone());
+    let opened_at: Option<u64> = env.storage().persistent().get(&key);
+    if opened_at.is_some() {
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, CLAIM_THRESHOLD, CLAIM_BUMP);
+    }
+    opened_at
 }
 
 /// Lee escrow + compra, valida y calcula el reparto. Las dos únicas

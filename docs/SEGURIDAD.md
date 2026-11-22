@@ -4,9 +4,9 @@
 > 1. La plata del comprador queda en un escrow de Trustless Work. Los roles que la mueven (aprobar, liberar y resolver) son contratos nuestros sin llave privada, así que nadie puede firmar por ellos.
 > 2. El árbitro solo elige un porcentaje. El contrato reparte únicamente entre el comprador registrado y el vendedor, y no existe ninguna función que acepte otra dirección de destino.
 > 3. Confirmar es aprobar y liberar en la misma transacción. Si el vendedor despachó y el comprador no responde, el pago se libera solo al vencer el plazo, y cualquiera puede dispararlo.
-> 4. Los 9 invariantes y los hallazgos del red team sobre Trustless Work tienen 47 tests en v2 (26 de invariantes, 12 del red team, 4 de los hallazgos del jurado y 5 con 200 secuencias aleatorias) contra el WASM real de Trustless Work. En testnet se rechazaron 9 desvíos con v2 (y 5 ataques con v1), y el saldo del tercero no cambió.
+> 4. Los 9 invariantes y los hallazgos del red team sobre Trustless Work tienen 53 tests en v2 (26 de invariantes, 12 del red team, 10 de los hallazgos del jurado y 5 con 200 secuencias aleatorias) contra el WASM real de Trustless Work. En testnet se rechazaron 9 desvíos con v2 (y 5 ataques con v1), y el saldo del tercero no cambió.
 > 5. H-1: en la v1 del escrow que usamos (commit `f0b706e`), un escrow ya liberado se puede marcar en disputa sin mover fondos; la v2 de Trustless Work ya lo impide, y `pp_guardian` también lo bloquea (#21). Antes de mainnet faltan una auditoría, un multisig para el admin, una billetera recuperable para el comprador y la gestión de TTL.
-> 6. H-9 (reputación fabricada con escrows falsos) está mitigado en el indexador: una compra cuenta solo si su escrow es el de Trustless Work, con los roles de Trato, LABUSD y un pago que movió la plata. H-10 (un reclamo sin plazo bloquea la liberación automática) es conocido y se arregla en v3.
+> 6. H-9 (reputación fabricada con escrows falsos) está mitigado en el indexador: una compra cuenta solo si su escrow es el de Trustless Work, con los roles de Trato, LABUSD y un pago que movió la plata. H-10 (un reclamo sin plazo bloquea la liberación automática) es conocido y se arregla en v3. H-13 (un reclamo sin desenlace por defecto) está cerrado en código ([PR #39](https://github.com/haneiva1/pago-protegido/pull/39)): a los 7 días sin decisión del revisor, cualquiera cierra el reclamo; entra a testnet con el próximo despliegue de contratos.
 
 Todo lo de este documento corre **solo en testnet**. Código: [`contracts/`](../contracts/). Despliegue y transacciones: [`contracts/DEPLOYED.md`](../contracts/DEPLOYED.md). Decisiones: [`contracts/DECISIONES.md`](../contracts/DECISIONES.md).
 
@@ -37,7 +37,7 @@ Todo lo de este documento corre **solo en testnet**. Código: [`contracts/`](../
 | | No responder nunca | `auto_release` libera al vendedor cuando vence el plazo. | testnet (escenario c) |
 | **Escrow falso** que imita la interfaz de TW | Que el comprador fondee un contrato del atacante | **Riesgo residual (H-2, TW-4)**: el guardián no puede leer el WASM de otro contrato. La app verifica por RPC el hash del WASM y los roles antes de pedir la firma; si no coinciden, bloquea el pago. | `verifyEscrowInstance` en `app/src/lib/server/escrow/tw.ts`; [app/DECISIONES.md](../app/DECISIONES.md) §35 |
 | **Front-running** del `initialize_escrow` | Inicializar la instancia con otros roles | `fund` lo rechaza. Solo es un DoS de esa instancia. Mitigación: `tw_new_single_release_escrow`. | DECISIONES H-3 |
-| **Bloqueo de fondos** | Dejar fondos atrapados por falta de árbitro o un vendedor que nunca despacha | `refund_unshipped` (sin auth) devuelve el 100% al comprador. `auto_release` (sin auth) paga al vendedor. | test `refund_unshipped_por_plazo_de_despacho`; compra de ejemplo p6 |
+| **Bloqueo de fondos** | Dejar fondos atrapados por falta de árbitro o un vendedor que nunca despacha | `refund_unshipped` (sin auth) devuelve el 100% al comprador. `auto_release` (sin auth) paga al vendedor. Con el arreglo de H-13 (próximo despliegue), `resolve_expired` (sin auth) cierra un reclamo que el revisor no decidió en 7 días: todo al comprador sin envío registrado, todo al vendedor con envío. | test `refund_unshipped_por_plazo_de_despacho`; tests `h13_*`; compra de ejemplo p6 |
 
 ## 2. Invariantes (SPEC §4) y sus tests
 
@@ -55,7 +55,7 @@ Todos los tests están en `contracts/integration-tests/tests/invariantes.rs` y c
 | 8 | El reparto suma el saldo del escrow y el redondeo nunca favorece a un tercero | `redondeo_nunca_favorece_a_terceros`, `resolve_nunca_paga_a_terceros`, `resolve_70_30_montos_exactos` |
 | 9 | Comisiones documentadas con números reales (2% y 0,3%) | `caso_feliz_fund_ship_confirm_comisiones_exactas`, `resolve_70_30_montos_exactos`, `auto_release_tras_release_at_sin_auth`; montos on-chain en DEPLOYED.md |
 
-**Secuencias aleatorias** (`contracts/integration-tests/tests/secuencias_aleatorias.rs`). 200 semillas fijas, de 40 a 80 pasos cada una, mezclan todas las operaciones (fondeo, envío, confirmación, más tiempo, reclamos, `resolve` con bps válidos e inválidos, `auto_release`, `refund_unshipped`, saltos de tiempo y llamadas directas de terceros al escrow de TW) sobre 2 o 3 escrows reales. Después de cada paso comprueban que el saldo total se conserva, que ningún tercero cobra, que cada compra tiene un solo desenlace con comisiones exactas, y que cada llamada acierta o falla según las reglas. Corren en unos 25 s dentro de `cargo test`. Con `SECUENCIAS_SEMILLAS=1000` (unos 62.500 pasos) también pasan. Sin querer, llegan solas a H-10: son 10 reclamos tardíos en las 200 semillas.
+**Secuencias aleatorias** (`contracts/integration-tests/tests/secuencias_aleatorias.rs`). 200 semillas fijas, de 40 a 80 pasos cada una, mezclan todas las operaciones (fondeo, envío, confirmación, más tiempo, reclamos, `resolve` con bps válidos e inválidos, `auto_release`, `refund_unshipped`, `start_claim` y `resolve_expired` de H-13, saltos de tiempo y llamadas directas de terceros al escrow de TW) sobre 2 o 3 escrows reales. Después de cada paso comprueban que el saldo total se conserva, que ningún tercero cobra, que cada compra tiene un solo desenlace con comisiones exactas, y que cada llamada acierta o falla según las reglas. Desde H-13 comprueban también [I6]: el plazo del reclamo on-chain es el del modelo, `resolve_expired` falla antes del plazo y, pasado el plazo, todo reclamo termina en una de las dos salidas (todo al comprador sin envío registrado, todo al vendedor con envío), sin que un tercero cobre. Corren en unos 25 s dentro de `cargo test`. Con `SECUENCIAS_SEMILLAS=1000` (unos 62.500 pasos) también pasan. Sin querer, llegan solas a H-10: son 12 reclamos tardíos en las 200 semillas.
 
 **Build reproducible.** `contracts/rust-toolchain.toml` fija rustc 1.99.1. Con stellar-cli 30.0.1, `bash contracts/scripts/verify-wasm.sh` compila los dos contratos y confirma que sus sha256 son los desplegados de DEPLOYED.md (ver [contracts/README.md](../contracts/README.md)).
 
@@ -117,7 +117,7 @@ H-9 y H-10 los encontró el jurado técnico del consejo (20-nov) con una prueba 
 
 **Estado: mitigado en el indexador de la app.** Los contratos no cambian.
 
-`pp_guardian.fund` no puede leer el WASM del escrow (H-2), y no pide la firma del vendedor. `pp_arbiter.refund_unshipped` no pide ninguna firma. Con un contrato que imita la interfaz de Trustless Work, los contratos reales emiten eventos auténticos sin que se mueva plata:
+`pp_guardian.fund` no puede leer el WASM del escrow (H-2), y no pide la firma del vendedor. `pp_arbiter.refund_unshipped` no pide ninguna firma (tampoco `start_claim` ni `resolve_expired`, de H-13). Con un contrato que imita la interfaz de Trustless Work, los contratos reales emiten eventos auténticos sin que se mueva plata:
 
 - **(a) Reputación inflada.** Un estafador registra una venta "confirmada" de USD 5.000 pagada desde una cuenta con saldo 0. Test: `h9_mitigado_en_app_escrow_falso_infla_reputacion_sin_mover_plata`.
 - **(b) Difamación.** Un tercero le planta a un vendedor honesto un reclamo y una "devolución por no despachar", sin ninguna firma del vendedor. Test: `h9_mitigado_en_app_escrow_falso_difama_vendedor_sin_su_firma`.
@@ -160,20 +160,22 @@ Con `PLATAFORMA_SECRET` se puede abrir un reclamo en cualquier escrow con fondos
 - **Lo que sí puede:** ganar plata si él mismo es comprador o vendedor de un pedido, y dañar a las dos partes de cualquier otro.
 - **Arreglo:** el multifirma de la sección «Riesgo: perder la llave `arbitro`», y que las resoluciones se firmen fuera del servidor que atiende la web.
 
-### H-13: un reclamo no tiene desenlace por defecto
+### H-13: un reclamo no tenía desenlace por defecto
 
-**Estado: conocido. Arreglo previsto en la v3 de los contratos.**
+**Estado: cerrado en código ([PR #39](https://github.com/haneiva1/pago-protegido/pull/39)). Entra a testnet con el próximo despliegue de contratos: los contratos desplegados hoy (DEPLOYED.md) todavía no lo tienen.**
 
-Con el envío registrado y un reclamo abierto, la única salida es `pp_arbiter.resolve`, que pide la firma del revisor. Si el revisor no decide, la plata queda en el escrow: no la puede cobrar nadie, tampoco un tercero.
+Con el envío registrado y un reclamo abierto, la única salida era `pp_arbiter.resolve`, que pide la firma del revisor. Si el revisor no decidía, la plata quedaba en el escrow: no la podía cobrar nadie, tampoco un tercero.
 
-- **Mitigación sin cambiar contratos:** el multifirma 2 de 3, para que la falta de una persona no bloquee, y un plazo interno de respuesta medido en el panel del revisor.
-- **Arreglo en v3:** un plazo máximo para el revisor, firmado por el comprador al pagar. Pasado ese plazo, cualquiera ejecuta el desenlace por defecto, que se define antes de escribir la v3.
+- **Arreglo:** el revisor tiene un plazo máximo de **7 días** para decidir un reclamo (`CLAIM_SECS` en `pp_arbiter`), contados desde que se abre. `pp_guardian.dispute` hace correr el plazo en la misma transacción (`pp_arbiter.start_claim`). Si la disputa se abrió directo en Trustless Work (TW-1), cualquiera llama `start_claim`, sin firma, y el plazo corre desde ese momento; si ya corría, no se mueve.
+- **Desenlace por defecto:** pasado el plazo, cualquiera, sin firma, llama `pp_arbiter.resolve_expired(escrow)`. Si el vendedor no registró el envío en `pp_guardian`, **todo vuelve al comprador**; si lo registró, **todo va al vendedor**. Las dos direcciones salen de la compra registrada y del escrow, igual que en `resolve`: nunca un tercero. Antes del plazo falla con `#11 ClaimDeadlineNotReached`, y sin plazo iniciado con `#10 ClaimNotStarted`. Si el revisor decide antes, nada cambia; después de resuelto, nada se puede volver a resolver.
+- **Tests:** 6 en `hallazgos_jurado.rs` (`h13_*`: antes del plazo falla, después va a la salida correcta con y sin envío, no se resuelve dos veces, el revisor que decide antes y la disputa abierta directo en TW) y el invariante [I6] en `secuencias_aleatorias.rs`.
+- **Mientras no se despliegue:** el multifirma 2 de 3, para que la falta de una persona no bloquee, y un plazo interno de respuesta medido en el panel del revisor.
 
 ### Riesgo: perder la llave `arbitro`
 
 `arbitro` (`GBCSZ6TJ…UDRJT`) es el admin de `pp_guardian` y de `pp_arbiter`, y hoy es **una sola llave**.
 
-- **Si se pierde:** nadie puede llamar `resolve`. Todo reclamo de una compra con envío registrado queda bloqueado para siempre: `auto_release` falla por la disputa y `refund_unshipped` no aplica porque hubo envío. Tampoco se puede cambiar de admin, porque `set_admin` exige la firma del admin actual y se hace en un solo paso (`pp_arbiter/src/lib.rs`, cerca de la línea 179).
+- **Si se pierde:** nadie puede llamar `resolve`. Con los contratos desplegados hoy, todo reclamo de una compra con envío registrado queda bloqueado para siempre: `auto_release` falla por la disputa y `refund_unshipped` no aplica porque hubo envío. Con el arreglo de H-13 (próximo despliegue), esos reclamos se cierran solos a los 7 días con `resolve_expired`. Tampoco se puede cambiar de admin, porque `set_admin` exige la firma del admin actual y se hace en un solo paso (`pp_arbiter/src/lib.rs`, cerca de la línea 179).
 - **Si la roban:** quien la tenga puede resolver los reclamos abiertos con cualquier reparto entre comprador y vendedor (nunca hacia un tercero: ver los invariantes) y quedarse con el admin.
 
 **Plan: multisig 2 de 3 nativo de Stellar.** No requiere cambiar los contratos. Cuando un contrato llama `require_auth` sobre una cuenta G, Soroban exige las firmas que alcancen el **umbral medio** de esa cuenta.
@@ -211,6 +213,7 @@ El red team revisó el código de la v1 de TW (commit `f0b706e`). Son **decision
 | **Admin del árbitro** | Una sola llave (`arbitro`) | Multisig 2 de 3 nativo de Stellar en la cuenta admin, sin cambiar contratos (plan en [§4, la llave `arbitro`](#riesgo-perder-la-llave-arbitro)). `set_admin` en dos pasos en v3. Conviene además un registro público de resoluciones con su evidencia. |
 | **Reputación (H-9)** | Mitigado: el indexador cuenta solo escrows verificados | v3: `fund` co-firmado por `platform` y eventos con la moneda y la plataforma. |
 | **Reclamo sin plazo (H-10)** | Conocido: un reclamo después de `release_at` bloquea `auto_release` | v3: reclamo solo hasta `release_at` más una gracia. Mientras tanto, el worker de plazos. |
+| **Reclamo sin desenlace (H-13)** | Cerrado en código ([PR #39](https://github.com/haneiva1/pago-protegido/pull/39)); los contratos desplegados todavía no lo tienen | Desplegar los contratos nuevos (IDs nuevos) y que la app muestre el plazo y llame `resolve_expired`, y `start_claim` si la disputa se abrió directo en TW. |
 | **Admin del guardián** | Solo puede `set_arbiter`, una vez | Fijar el árbitro en el mismo flujo de despliegue para que no quede ventana. |
 | **TTL y renta** | Instancias extendidas 30 días por llamada, `Purchase` 120 días, escrow de TW 1 año (su código) | Un bot que extienda el TTL de la instancia y del código WASM de los contratos (`extend_ttl`) y monitoree los vencimientos. Definir quién paga la renta. |
 | **Verificación del escrow (H-2, TW-4)** | La app verifica el hash del WASM y los roles antes de cada firma | Mantenerlo, o un `pp_factory` on-chain que registre las instancias legítimas. |

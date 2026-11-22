@@ -14,6 +14,8 @@
 //! - `auto_release`: sin auth, solo si `now >= release_at` y el escrow de TW no
 //!   está en disputa (aunque la haya abierto `platform` directo, TW-1).
 //! - `extend`: el comprador alarga una vez la ventana de revisión.
+//! - `dispute`: abre la disputa en TW y, en la misma invocación, hace correr
+//!   el plazo máximo del reclamo en pp_arbiter (`start_claim`, H-13).
 //!
 //! El guardián nunca recibe fondos, no acepta direcciones de destino, no llama
 //! `withdraw_remaining_funds` ni `update_escrow`, y NO es actualizable: no hay
@@ -21,8 +23,8 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contracterror, contractevent, contractimpl, contracttype, token, Address, Env,
-    String,
+    contract, contractclient, contracterror, contractevent, contractimpl, contracttype, token,
+    Address, Env, String,
 };
 
 mod escrow_iface {
@@ -31,6 +33,13 @@ mod escrow_iface {
 pub use escrow_iface::{
     Escrow, EscrowClient, Flags, Milestone, Purchase, Roles, Trustline, SHIPPED_STATUS,
 };
+
+/// Lo único que el guardián necesita del árbitro (H-13).
+#[allow(dead_code)]
+#[contractclient(name = "ArbiterClient")]
+pub trait ArbiterInterface {
+    fn start_claim(env: Env, escrow: Address) -> u64;
+}
 
 pub const DAY_IN_LEDGERS: u32 = 17_280;
 const INSTANCE_BUMP: u32 = 30 * DAY_IN_LEDGERS;
@@ -448,7 +457,8 @@ impl PpGuardian {
     }
 
     /// Abre una disputa en el escrow. Solo el comprador o el vendedor
-    /// registrados, con su firma.
+    /// registrados, con su firma. En la misma invocación empieza a correr el
+    /// plazo máximo del reclamo en pp_arbiter (H-13).
     pub fn dispute(env: Env, escrow: Address, caller: Address) -> Result<(), Error> {
         let p = read_purchase(&env, &escrow)?;
         if caller != p.buyer && caller != p.seller {
@@ -458,6 +468,10 @@ impl PpGuardian {
         let client = EscrowClient::new(&env, &escrow);
         check_open(&client.get_escrow())?;
         client.dispute_escrow(&env.current_contract_address());
+        // Hay compra, así que `fund` ya verificó que el árbitro está fijado y
+        // es el `dispute_resolver` del escrow.
+        let arbiter: Address = env.storage().instance().get(&DataKey::Arbiter).unwrap();
+        ArbiterClient::new(&env, &arbiter).start_claim(&escrow);
         Disputed { escrow, caller }.publish(&env);
         Ok(())
     }
