@@ -40,7 +40,7 @@ test("tienda: el registro mínimo es Hola → Crear mi cuenta → creando; despu
   const conLink = mensajesVendedor({ ...con, pedido: pedido("esperando_pago") });
   assert.deepEqual(botones(conLink).map((b) => b.id), ["mandar"]);
   assert.ok(conLink.some((m) => m.tarjeta?.titulo === "Zapatillas Nike talla 40 · Bs 450,00" && m.tarjeta.dominio === "trato.example"));
-  assert.equal(botones(mensajesVendedor({ ...con, pedido: pedido("pagado"), reenviado: true })).length, 0, "sin el estafador bloqueado no hay botón");
+  assert.deepEqual(botones(mensajesVendedor({ ...con, pedido: pedido("pagado"), reenviado: true })).map((b) => b.id), ["estafa"], "con la plata guardada, lo único tocable es el estafador");
   const pagado = mensajesVendedor({ ...con, pedido: pedido("pagado"), reenviado: true, estafaHecha: true });
   assert.deepEqual(botones(pagado).map((b) => b.id), ["enviado"]);
   assert.match(textos(pagado), /Bs 450 \+ Bs 6,75 de protección/);
@@ -64,9 +64,9 @@ test("comprador: nada hasta que la tienda manda el link; pagar, el estafador blo
   assert.equal(estafa.find((m) => m.id === "estafa").de, "desconocido");
   const antes = botones(mensajesComprador({ ...base, pedido: pedido("enviado"), reenviado: true }));
   assert.deepEqual(antes.map((x) => [x.id, Boolean(x.deshabilitado)]), [["me-llego", true], ["problema", false]]);
-  assert.equal(antes[0].texto, "Sí, me llegó · 0:40");
+  assert.equal(antes[0].texto, "Sí, me llegó y está bien · 0:40");
   const despues = botones(mensajesComprador({ ...base, ahora: T0 + 300_000, pedido: pedido("enviado"), reenviado: true }));
-  assert.deepEqual([despues[0].texto, despues[0].deshabilitado], ["Sí, me llegó", false]);
+  assert.deepEqual([despues[0].texto, despues[0].deshabilitado], ["Sí, me llegó y está bien", false]);
   const fin = mensajesComprador({ ...base, ahora: T0 + 400_000, pedido: pedido("liberado"), reenviado: true });
   assert.match(textos(fin), /Pagaste a Zapatería/);
   assert.equal(botones(fin).length, 0);

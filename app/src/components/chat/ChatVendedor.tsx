@@ -10,7 +10,7 @@ import type { PreparedTx } from "@/lib/wallet/types";
 
 /** Datos del envío de la demo (los mismos del e2e): la tienda no escribe nada. */
 const ENVIO = { company: "Trans Copacabana (encomiendas)", tracking: "SRV-2026-118734", weight: "1,2", city: "La Paz" };
-import { Chat } from "./Chat";
+import { Chat, TocaAqui } from "./Chat";
 import { canal, sesion, useAhora, useMarco, usePedidoChat } from "./pedido";
 
 interface Registro {
@@ -39,6 +39,7 @@ export function ChatVendedor() {
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [estafaHecha, setEstafaHecha] = useState(false);
+  const [estafaEnCurso, setEstafaEnCurso] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const progreso = useProgress();
   const wallet = useRef<typeof import("@/lib/wallet") | null>(null);
@@ -52,7 +53,11 @@ export function ChatVendedor() {
     const c = canal();
     if (!c) return;
     c.onmessage = (ev: MessageEvent) => {
-      if (ev.data?.tipo === "estafa-vista") setEstafaHecha(true);
+      if (ev.data?.tipo === "estafa-en-curso") setEstafaEnCurso(true);
+      if (ev.data?.tipo === "estafa-vista") {
+        setEstafaHecha(true);
+        setEstafaEnCurso(false);
+      }
     };
     return () => c.close();
   }, [slug]);
@@ -183,6 +188,11 @@ export function ChatVendedor() {
     else if (id === "vender") void crearLink();
     else if (id === "mandar") mandar();
     else if (id === "enviado") void registrarEnvio();
+    else if (id === "estafa") {
+      // /probar hace la simulación real contra el contrato y la cuenta en el chat del comprador.
+      setEstafaEnCurso(true);
+      canal()?.postMessage({ tipo: "estafa", slug });
+    }
   }
 
   const mensajes = mensajesVendedor({
@@ -195,6 +205,7 @@ export function ChatVendedor() {
     reenviado,
     enviando,
     estafaHecha,
+    estafaEnCurso,
     host: typeof window !== "undefined" ? window.location.host : "",
   });
 
@@ -223,6 +234,7 @@ export function ChatVendedor() {
           </select>
         </div>
         <ErrorBox error={error} />
+        <TocaAqui />
         <button className="btn-primary w-full py-3.5 text-base" disabled={ocupado} data-testid="listo">
           {ocupado ? <Spinner className="h-4 w-4" /> : null} Listo
         </button>

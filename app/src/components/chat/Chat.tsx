@@ -86,7 +86,7 @@ export function Chat({
       <div ref={ref} className="flex-1 space-y-1.5 overflow-y-auto px-3 pb-5 pt-3" data-testid="chat-mensajes" style={{ backgroundImage: PATRON, backgroundSize: "84px 84px" }}>
         <p className="mx-auto w-fit rounded-lg bg-tinta-100 px-3 py-1 text-xs font-medium text-tinta-600">Hoy</p>
         {lista.map((m) => (
-          <Burbuja key={m.id} m={m} pasos={m.enCurso ? pasos : undefined} ocupado={ocupado} onBoton={onBoton} onCarga={() => setCargas((n) => n + 1)} />
+          <Burbuja key={m.id} m={m} pasos={m.enCurso ? pasos : undefined} ocupado={ocupado || Boolean(hoja)} onBoton={onBoton} onCarga={() => setCargas((n) => n + 1)} />
         ))}
         {escribiendo && (
           <div className="flex w-fit items-center gap-1 rounded-2xl rounded-tl-md bg-white px-3 py-2.5 shadow-[0_1px_1px_rgb(10_42_27/0.06)]" aria-hidden>
@@ -235,25 +235,32 @@ function Burbuja({ m, pasos, ocupado, onBoton, onCarga }: { m: Mensaje; pasos?: 
   );
 }
 
+/** El indicador que late junto al único botón que toca. */
+export function TocaAqui() {
+  return (
+    <span className="flex items-center gap-1.5 pl-1 text-xs font-semibold text-musgo" data-testid="toca-aqui" aria-hidden>
+      <span className="h-2 w-2 rounded-full bg-yungas animate-latido" />
+      Toca aquí
+    </span>
+  );
+}
+
 function BotonRapido({ b, ocupado, onClick }: { b: Boton; ocupado?: boolean; onClick: () => void }) {
   const off = Boolean(ocupado || b.deshabilitado);
   return (
     <>
-    {b.principal && !off && (
-      <span className="flex items-center gap-1.5 pl-1 text-xs font-semibold text-musgo" data-testid="toca-aqui" aria-hidden>
-        <span className="h-2 w-2 rounded-full bg-yungas animate-latido" />
-        Toca aquí
-      </span>
-    )}
+    {(b.principal || b.peligro) && !off && <TocaAqui />}
     <button
       type="button"
       onClick={onClick}
       disabled={off}
       data-testid={`chat-boton-${b.id}`}
       className={
-        b.principal
-          ? "btn-primary w-full py-3 text-base disabled:bg-tinta-200 disabled:text-tinta-600 disabled:opacity-100"
-          : "flex w-full items-center justify-center rounded-control bg-white py-3 text-base font-semibold text-musgo ring-1 ring-tinta-200 transition-colors duration-150 hover:bg-tinta-50 disabled:opacity-50"
+        b.peligro
+          ? "btn-danger w-full py-3 text-base"
+          : b.principal
+            ? "btn-primary w-full py-3 text-base disabled:bg-tinta-200 disabled:text-tinta-600 disabled:opacity-100"
+            : "flex w-full items-center justify-center rounded-control bg-white py-3 text-base font-semibold text-musgo ring-1 ring-tinta-200 transition-colors duration-150 hover:bg-tinta-50 disabled:opacity-50"
       }
     >
       {b.texto}

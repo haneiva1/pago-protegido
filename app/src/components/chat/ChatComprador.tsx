@@ -98,7 +98,8 @@ export function ChatComprador({ slugInicial = null }: { slugInicial?: string | n
         setSlug(d.slug);
         setReenviado(true);
       }
-      if (d.tipo === "estafa") void estafar();
+      // Dentro de /probar la simulación la hace la página madre; suelto, la hace el propio chat.
+      if (d.tipo === "estafa" && window.self === window.top) void estafar();
       // /probar hace la simulación y manda el resultado: el chat solo lo cuenta.
       if (d.tipo === "estafa-en-curso") setEstafa({ at: d.at ?? Date.now(), rechazado: false, error: null, detalle: "", enCurso: true });
       if (d.tipo === "estafa-resultado") setEstafa({ at: d.at ?? Date.now(), rechazado: Boolean(d.rejected), error: errorDelContrato(d.raw, d.code), detalle: String(d.detail ?? "") });
@@ -141,7 +142,7 @@ export function ChatComprador({ slugInicial = null }: { slugInicial?: string | n
   function onBoton(id: string) {
     setError(null);
     if (id === "pagar" || id === "problema") setOverlay(true);
-    else if (id === "me-llego") setHoja("pregunta");
+    else if (id === "me-llego") void confirmar();
   }
 
   const mensajes = mensajesComprador({

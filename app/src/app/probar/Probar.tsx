@@ -203,6 +203,7 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
           for (const ms of [150, 450]) setTimeout(() => document.querySelector<HTMLElement>('[role="tablist"]')?.scrollIntoView({ block: "start" }), ms);
       }
       if (d.tipo === "actualiza") void cargar();
+      if (d.tipo === "estafa") void desviar();
     };
     return () => c.close();
   }, [cargar]);
@@ -321,7 +322,6 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
   const paso = pasoDemo({ tienda: hayTienda, status: hayPedido ? status : null, estafa: desviando || (desvios.length > 0 && !bloqueoVisto) ? "en-curso" : desvios.length ? "bloqueada" : "no", mandado, sub });
   const turno = paso.quien;
   const resumen = status === "liberado" && registro?.pedido ? resumenRed(filas, registro.pedido.created_at) : null;
-  const mostrarEstafa = hayPlataGuardada(status) && status === "pagado" && desvios.length === 0;
 
   return (
     <div data-probar-ancho className="space-y-3 lg:grid lg:grid-cols-[380px_minmax(0,1fr)] lg:gap-x-10 lg:gap-y-5 lg:space-y-0" data-testid="probar">
@@ -373,17 +373,11 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
             <p data-testid="ahora" className="text-sm text-tinta-600 lg:text-base">
               {paso.linea}
             </p>
-            {precalentando !== null && (
+            {precalentando !== null && (sub === "hoja-cuenta" || sub === "creando") && (
               <span className="inline-flex items-center gap-1.5 text-sm text-tinta-500" data-testid="precalentando">
                 <Spinner className="h-3.5 w-3.5" />
-                Preparando la demo… <span className="num">{precalentando} s</span>
+                Preparando tu cuenta… unos segundos
               </span>
-            )}
-            {mostrarEstafa && (
-              <button className="btn-danger btn-sm hidden lg:inline-flex" onClick={desviar} disabled={desviando} data-testid="desviar">
-                {desviando ? <Spinner className="h-4 w-4" /> : <IconoBloqueado className="h-4 w-4" />}
-                Alguien intenta robar la plata
-              </button>
             )}
           </div>
         )}
@@ -425,12 +419,6 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
                 <strong className="block text-monte">{paso.titulo}</strong>
                 <span className="block text-tinta-600">{paso.corta}</span>
               </p>
-              {mostrarEstafa && (
-                <button className="btn-danger w-full py-3" onClick={desviar} disabled={desviando} data-testid="desviar-movil">
-                  {desviando ? <Spinner className="h-4 w-4" /> : <IconoBloqueado className="h-5 w-5" />}
-                  Alguien intenta robar la plata
-                </button>
-              )}
             </div>
             </div>
 
