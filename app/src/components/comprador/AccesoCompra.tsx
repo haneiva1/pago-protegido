@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { IconoAlerta, IconoMarcador, IconoUsuario } from "@/components/iconos";
 import { CopyButton } from "@/components/ui";
 import { fmtDate } from "@/lib/format";
 import { type AppInterna, type Plataforma, linkAbrirEnChrome, navegadorInterno, plataforma } from "@/lib/comprador";
@@ -30,20 +31,23 @@ export function AvisoNavegadorInterno() {
   const chrome = n.plat === "android" ? linkAbrirEnChrome(n.url) : null;
   const nav = n.plat === "ios" ? "Safari" : "Chrome";
   return (
-    <section className="space-y-2 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" data-testid="aviso-navegador-interno">
-      <p className="font-semibold">Estás dentro de {n.app}. Abre este link en {nav} antes de pagar.</p>
-      <p>
-        Tu compra queda en el navegador donde pagas. Si pagas aquí y después lo abres en otro lado, no vas a poder confirmar ni reclamar.
+    <section className="space-y-2 rounded-card border border-aviso-200 bg-aviso-50 p-4 text-sm text-aviso-700" data-testid="aviso-navegador-interno">
+      <p className="flex items-start gap-2 font-semibold">
+        <IconoAlerta className="mt-0.5 h-5 w-5 flex-none" />
+        <span>
+          Estás dentro de {n.app}. Abre este link en {nav} antes de pagar.
+        </span>
       </p>
+      <p>Tu compra queda en el navegador donde pagas. Si pagas aquí y después lo abres en otro lado, no vas a poder confirmar ni reclamar.</p>
       <p className="text-xs">
         {n.plat === "ios"
           ? "Toca ⋯ o el ícono de compartir y elige «Abrir en Safari». O copia el link y pégalo en Safari."
           : "Toca ⋮ arriba a la derecha y elige «Abrir en el navegador». O copia el link y pégalo en Chrome."}
       </p>
       <div className="flex flex-wrap gap-2">
-        <CopyButton text={n.url} label="Copiar link" className="btn-secondary !py-2 text-sm" testId="copiar-link" />
+        <CopyButton text={n.url} label="Copiar link" className="btn-secondary btn-sm" testId="copiar-link" />
         {chrome && (
-          <a className="btn-primary !py-2 text-sm" href={chrome}>
+          <a className="btn-primary btn-sm" href={chrome}>
             Abrir en Chrome
           </a>
         )}
@@ -59,19 +63,22 @@ export function CompraEnEsteNavegador() {
   if (!n) return null;
   return (
     <section className="card space-y-2 text-sm" data-testid="compra-en-este-navegador">
-      <h2 className="font-bold">📌 Tu compra quedó en este navegador</h2>
-      <p className="text-slate-600">
+      <h2 className="flex items-center gap-2 font-sans text-base font-semibold">
+        <IconoMarcador className="h-5 w-5 flex-none text-musgo" />
+        Tu compra quedó en este navegador
+      </h2>
+      <p className="text-tinta-600">
         Para confirmar o reclamar, vuelve a este link desde aquí mismo{n.app ? ` (dentro de ${n.app})` : ""}. Si borras los datos del navegador o lo abres en otro
         celular, no vas a poder hacerlo.
       </p>
       <div className="flex flex-wrap gap-2">
-        <button type="button" className="btn-primary !py-2 text-sm" onClick={() => setAyuda((x) => !x)} aria-expanded={ayuda}>
+        <button type="button" className="btn-secondary btn-sm" onClick={() => setAyuda((x) => !x)} aria-expanded={ayuda}>
           Agregar a inicio
         </button>
-        <CopyButton text={n.url} label="Copiar link" className="btn-secondary !py-2 text-sm" />
+        <CopyButton text={n.url} label="Copiar link" className="btn-secondary btn-sm" />
       </div>
       {ayuda && (
-        <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-700" data-testid="ayuda-inicio">
+        <p className="rounded-control bg-tinta-50 p-3 text-xs text-tinta-700" data-testid="ayuda-inicio">
           {n.app
             ? `Dentro de ${n.app} no se puede agregar a inicio: guarda el link (Copiar link) en un chat contigo mismo y ábrelo siempre desde ${n.app}.`
             : n.plat === "ios"
@@ -102,20 +109,23 @@ export function OtroNavegador({ v }: { v: OrderView }) {
         : "Hay un reclamo abierto: la plata está congelada hasta que decida el revisor.";
   return (
     <section className="card space-y-2 text-sm" data-testid="otro-navegador">
-      <h2 className="font-bold">¿Pagaste tú este pedido?</h2>
-      <p className="text-slate-700">
+      <h2 className="flex items-center gap-2 text-lg">
+        <IconoUsuario className="h-5 w-5 flex-none text-musgo" />
+        ¿Pagaste tú este pedido?
+      </h2>
+      <p className="text-tinta-700">
         Este pedido se pagó desde otro navegador. Tu compra quedó guardada ahí (por ejemplo, dentro de Facebook, Instagram o TikTok, o en otro celular), y
         desde aquí no puedes confirmar ni reclamar.
       </p>
-      <p className="font-medium text-slate-800">
+      <p className="font-medium text-tinta-800">
         Qué hacer: abre este mismo link desde la app o el navegador donde pagaste{n?.app ? ` (si fue en ${n.app}, ábrelo desde el chat de ${n.app})` : ""}.
       </p>
-      <p className="text-slate-600">{siNada}</p>
+      <p className="text-tinta-600">{siNada}</p>
       <div className="flex flex-wrap gap-2 pt-1">
-        {n && <CopyButton text={n.url} label="Copiar link" className="btn-secondary !py-2 text-sm" />}
+        {n && <CopyButton text={n.url} label="Copiar link" className="btn-secondary btn-sm" />}
         {SOPORTE_WA && (
           <a
-            className="btn-secondary !py-2 text-sm"
+            className="btn-secondary btn-sm"
             href={waLink(`Hola, pagué el pedido ${o.code ?? ""} y perdí el acceso desde mi navegador.`, SOPORTE_WA)}
             target="_blank"
             rel="noreferrer"
@@ -124,9 +134,9 @@ export function OtroNavegador({ v }: { v: OrderView }) {
           </a>
         )}
       </div>
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-tinta-500">
         ¿Eres la tienda?{" "}
-        <a className="underline" href="/panel">
+        <a className="enlace" href="/panel">
           Gestiona este pedido desde tu panel
         </a>
         .

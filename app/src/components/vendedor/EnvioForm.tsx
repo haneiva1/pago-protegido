@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { EvidenciaInput } from "@/components/EvidenciaInput";
-import { ErrorBox, Progress, Spinner, useProgress } from "@/components/ui";
+import { EsperaEnCurso } from "@/components/comprador/Espera";
+import { ErrorBox, Spinner, useProgress } from "@/components/ui";
 import { CIUDADES, EMPRESAS } from "@/lib/format";
 import type { SellerOrder } from "@/lib/types";
 import { api, getWallet, signAndSubmit, type PreparedTx } from "@/lib/wallet";
@@ -44,6 +45,7 @@ export function EnvioForm({ o, sellerPubkey, prefill, onDone }: { o: SellerOrder
 
   return (
     <form onSubmit={ship} className="space-y-3" data-testid="form-envio">
+      <p className="text-sm font-semibold text-monte">Registrar el envío</p>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor={id("company")}>
@@ -66,7 +68,7 @@ export function EnvioForm({ o, sellerPubkey, prefill, onDone }: { o: SellerOrder
           <label className="label" htmlFor={id("weight")}>
             Peso declarado (kg)
           </label>
-          <input id={id("weight")} className="input" value={f.weight} onChange={set("weight")} inputMode="decimal" placeholder="1,2" required />
+          <input id={id("weight")} className="input num" value={f.weight} onChange={set("weight")} inputMode="decimal" placeholder="1,2" required />
         </div>
         <div>
           <label className="label" htmlFor={id("city")}>
@@ -80,10 +82,10 @@ export function EnvioForm({ o, sellerPubkey, prefill, onDone }: { o: SellerOrder
           </select>
         </div>
       </div>
-      <div className="space-y-3 rounded-xl bg-slate-50 p-3" data-testid="fotos-envio">
-        <p className="text-xs text-slate-600">
-          📷 Saca las fotos desde aquí, nuevas y de este paquete. Cada una se guarda con su huella y la huella queda en el registro del envío: si
-          hay un reclamo, el revisor ve que el archivo no cambió desde que lo subiste y si la misma foto aparece en otro pedido.
+      <div className="space-y-3 rounded-control bg-tinta-50 p-3 ring-1 ring-tinta-200" data-testid="fotos-envio">
+        <p className="text-xs text-tinta-600">
+          Saca las fotos desde aquí, nuevas y de este paquete. Cada una se guarda con su huella y la huella queda en el registro del envío: si hay un
+          reclamo, el revisor ve que el archivo no cambió desde que lo subiste y si la misma foto aparece en otro pedido.
         </p>
         <EvidenciaInput id={id("guia")} pedido={o.slug} rol="vendedor" tipo="foto" label="Foto de la guía" nota="(el comprobante de la empresa)" onChange={setFotoGuia} />
         <EvidenciaInput id={id("paquete")} pedido={o.slug} rol="vendedor" tipo="foto" label="Foto del paquete" nota={`(con el código ${o.code} escrito a mano)`} onChange={setFotoPaquete} />
@@ -91,16 +93,16 @@ export function EnvioForm({ o, sellerPubkey, prefill, onDone }: { o: SellerOrder
       {o.category === "Celular" && (
         <div>
           <label className="label" htmlFor={id("imei")}>
-            IMEI del celular <span className="font-normal text-slate-400">(obligatorio; marca *#06# en el equipo)</span>
+            IMEI del celular <span className="font-normal text-tinta-500">(obligatorio; marca *#06# en el equipo)</span>
           </label>
-          <input id={id("imei")} className="input" value={f.imei} onChange={set("imei")} inputMode="numeric" placeholder="15 dígitos" />
+          <input id={id("imei")} className="input num" value={f.imei} onChange={set("imei")} inputMode="numeric" placeholder="15 dígitos" />
         </div>
       )}
       <ErrorBox error={error} />
+      {busy && <EsperaEnCurso titulo="Registrando el envío" nota="Unos 10 segundos: el envío queda en el contrato y tu cliente lo ve en su seguimiento." steps={progress.steps} testId="espera-envio" />}
       <button className="btn-primary w-full" disabled={busy}>
         {busy ? <Spinner /> : null} Marcar como enviado
       </button>
-      <Progress steps={progress.steps} />
     </form>
   );
 }

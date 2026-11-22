@@ -87,6 +87,15 @@ export function fmtDate(ms: number | null | undefined): string {
   }).format(new Date(ms));
 }
 
+/**
+ * Pesos con coma en pantalla: "1.2 kg" → "1,2 kg" (también dentro de un texto más largo o de la evidencia compacta
+ * "empresa|guía|1.2kg|…"). Un número o null se devuelven como texto.
+ */
+export function fmtKg(v: string | number | null | undefined): string {
+  if (v == null) return "";
+  return String(v).replace(/(\d)\.(\d+)(\s?kg\b)/gi, "$1,$2$3");
+}
+
 export function shortAddr(a: string): string {
   return a.length > 12 ? `${a.slice(0, 4)}…${a.slice(-4)}` : a;
 }

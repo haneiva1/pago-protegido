@@ -9,12 +9,13 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Trato",
     short_name: "Trato",
-    description: "Pago protegido para compras por redes: tu plata queda guardada hasta que confirmes que te llegó.",
+    description: "Pago protegido para compras por redes: tu plata espera entre los dos hasta que confirmes que te llegó.",
     display: "browser",
     background_color: "#F5F7F1",
-    theme_color: "#50DE50",
+    theme_color: "#0A2A1B",
     lang: "es-BO",
     icons: [
+      { src: "/icon.svg", sizes: "any", type: "image/svg+xml" },
       { src: "/icon.png", sizes: "512x512", type: "image/png" },
       { src: "/apple-icon.png", sizes: "180x180", type: "image/png" },
     ],

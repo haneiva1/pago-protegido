@@ -30,53 +30,61 @@ const funnelSans = Funnel_Sans({ subsets: ["latin"], weight: ["400", "500", "600
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#0A2A1B" };
 
+const PIE = [
+  { href: "/verificar", texto: "Verificar un link" },
+  { href: "/piloto", texto: "Únete al piloto" },
+  { href: "/pedir", texto: "Pide compra protegida" },
+  { href: "/revisor", texto: "Panel del revisor" },
+];
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     // data-marco lo pone SCRIPT_MARCO en el navegador (dentro de /probar): por eso el aviso de hidratación se ignora.
     <html lang="es" suppressHydrationWarning className={`${funnelDisplay.variable} ${funnelSans.variable}`}>
-      <body className="min-h-screen">
+      <body className="flex min-h-screen flex-col">
         {/* Modo embebido de /probar: corre antes de pintar, así el encabezado nunca aparece dentro del marco. */}
         <script dangerouslySetInnerHTML={{ __html: SCRIPT_MARCO }} />
-        <div data-chrome className="bg-amber-50 px-4 py-1.5 text-center text-xs text-amber-800">
+        <div data-chrome className="bg-monte px-4 py-1.5 text-center text-xs font-medium text-sal/85">
+          <span aria-hidden className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-yungas align-middle" />
           Modo práctica: no se mueve dinero real.
         </div>
-        <header data-chrome className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/90 backdrop-blur">
-          <nav className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-            <Link href="/" aria-label="Trato" className="flex items-center">
+        <header data-chrome className="sticky top-0 z-20 border-b border-tinta-200/70 bg-sal/90 backdrop-blur">
+          <nav aria-label="Principal" className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-4 px-4">
+            <Link href="/" aria-label="Trato" className="flex shrink-0 items-center">
               <TratoLogo sobre="claro" className="h-6 w-auto" />
             </Link>
-            <div className="flex items-center gap-4 text-sm font-medium text-slate-600">
-              <Link href="/como-funciona" className="hover:text-slate-900">
+            <div className="flex items-center gap-4 text-sm font-medium text-tinta-600 sm:gap-5">
+              <Link href="/como-funciona" className="transition-colors hover:text-monte">
                 Cómo funciona
               </Link>
-              <Link href="/transparencia" className="hover:text-slate-900">
+              <Link href="/transparencia" className="transition-colors hover:text-monte">
                 Transparencia
               </Link>
-              <Link href="/panel" className="hidden hover:text-slate-900 sm:inline">
+              <Link href="/panel" className="hidden transition-colors hover:text-monte sm:inline">
                 Mi panel
+              </Link>
+              <Link href="/vender" className="btn-oscuro btn-sm hidden md:inline-flex">
+                Crear mi link
               </Link>
             </div>
           </nav>
         </header>
-        <main className="mx-auto max-w-5xl px-4 pb-16 pt-6">{children}</main>
+        <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-16 pt-6">{children}</main>
         <WalletRuntime />
-        <footer data-chrome className="border-t border-slate-200 py-6 text-center text-xs text-slate-500">
-          Trato · pago protegido · modo práctica ·{" "}
-          <Link href="/verificar" className="underline">
-            Verificar un link
-          </Link>{" "}
-          ·{" "}
-          <Link href="/piloto" className="underline">
-            Únete al piloto
-          </Link>{" "}
-          ·{" "}
-          <Link href="/pedir" className="underline">
-            Pide compra protegida
-          </Link>{" "}
-          ·{" "}
-          <Link href="/revisor" className="underline">
-            Panel del revisor
-          </Link>
+        <footer data-chrome className="border-t border-tinta-200 bg-sal">
+          <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-8 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <TratoLogo sobre="claro" className="h-5 w-auto" />
+              <span className="text-xs text-tinta-500">Pago protegido para ventas por redes · modo práctica</span>
+            </div>
+            <nav aria-label="Más de Trato" className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-medium text-tinta-600 sm:flex sm:flex-wrap">
+              {PIE.map((l) => (
+                <Link key={l.href} href={l.href} className="transition-colors hover:text-monte">
+                  {l.texto}
+                </Link>
+              ))}
+            </nav>
+          </div>
         </footer>
       </body>
     </html>

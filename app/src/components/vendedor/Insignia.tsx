@@ -14,14 +14,14 @@ export function Insignia({ slug, storeName, kpis }: { slug: string; storeName: s
   const bio = `Vendo con Trato ✅ ${resumen} ${url}`;
 
   return (
-    <section className="card space-y-3" data-testid="insignia">
-      <h2 className="font-bold">Insignia «Vendo con Trato» para tu bio</h2>
-      <p className="text-sm text-slate-600">
+    <section className="card space-y-3 sm:p-6" data-testid="insignia">
+      <h2 className="text-xl">Insignia «Vendo con Trato» para tu bio</h2>
+      <p className="text-sm text-tinta-600">
         Pega este link en la bio de tu Instagram o TikTok. Quien lo abra ve tus números y puede revisar cada compra en el registro público.
       </p>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={`/tienda/${slug}/insignia`} alt={`${storeName} vende con Trato`} width={1200} height={630} className="h-auto w-full rounded-xl ring-1 ring-slate-200" />
-      <p className="break-all rounded-xl bg-slate-50 p-3 font-mono text-sm" data-testid="link-perfil">
+      <img src={`/tienda/${slug}/insignia`} alt={`${storeName} vende con Trato`} width={1200} height={630} className="h-auto w-full rounded-card ring-1 ring-tinta-200" />
+      <p className="break-all rounded-control bg-tinta-50 p-3 font-mono text-sm ring-1 ring-tinta-200" data-testid="link-perfil">
         {url}
       </p>
       <div className="flex flex-wrap gap-2">

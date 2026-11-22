@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { IconoChevronAbajo, IconoCopiar } from "@/components/iconos";
 import { ErrorBox, Spinner } from "@/components/ui";
 import { CATEGORIAS, PROTECCION, linkAmounts, unitsToNumber } from "@/lib/format";
 import { LINK_VACIO, type LinkRapido as Datos, type TipoFlete } from "@/lib/vendedor";
@@ -14,6 +15,9 @@ const FLETES: { v: Exclude<TipoFlete, "">; label: string }[] = [
   { v: "por_pagar", label: "Por pagar" },
   { v: "aparte", label: "Más Bs…" },
 ];
+
+const OPCION_ACTIVA = "border-musgo bg-exito-50 text-monte";
+const OPCION = "border-tinta-200 bg-white text-tinta-700 hover:bg-tinta-50";
 
 /**
  * Link rápido (M9): en una sola pantalla, producto, precio, días de despacho y flete. Lo demás (categoría,
@@ -73,14 +77,15 @@ export function LinkRapido({
   }
 
   return (
-    <form onSubmit={submit} className="card space-y-4 scroll-mt-20" data-testid="crear-link" id="crear-link">
+    <form onSubmit={submit} className="card space-y-4 scroll-mt-20 sm:p-6" data-testid="crear-link" id="crear-link">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-bold">{title}</h2>
-        <span className="text-xs text-slate-500">Listo en 30 segundos</span>
+        <h2 className="text-xl">{title}</h2>
+        <span className="text-xs text-tinta-500">Listo en 30 segundos</span>
       </div>
       {plantilla && (
-        <p className="rounded-xl bg-brand-50 p-3 text-sm text-brand-900 ring-1 ring-brand-100" data-testid="duplicado">
-          📄 Copia de {plantilla.code ?? "un link anterior"}: revisa los datos y crea el link nuevo para tu próximo cliente.
+        <p className="caja-exito flex items-start gap-2" data-testid="duplicado">
+          <IconoCopiar className="mt-0.5 h-4 w-4 flex-none text-musgo" />
+          <span>Copia de {plantilla.code ?? "un link anterior"}: revisa los datos y crea el link nuevo para tu próximo cliente.</span>
         </p>
       )}
       <div>
@@ -94,7 +99,7 @@ export function LinkRapido({
           <label className="label" htmlFor="price">
             Precio en Bs
           </label>
-          <input id="price" className="input" value={f.priceBs} onChange={set("priceBs")} inputMode="decimal" placeholder="450" required />
+          <input id="price" className="input num" value={f.priceBs} onChange={set("priceBs")} inputMode="decimal" placeholder="450" required />
         </div>
         <div>
           <label className="label" htmlFor="days">
@@ -111,13 +116,13 @@ export function LinkRapido({
       </div>
       <fieldset className="space-y-2" data-testid="flete-vendedor">
         <legend className="label">
-          Flete <span className="font-normal text-slate-400">(quién paga el envío)</span>
+          Flete <span className="font-normal text-tinta-500">(quién paga el envío)</span>
         </legend>
         <div className="grid grid-cols-3 gap-2">
           {FLETES.map((x) => (
             <label
               key={x.v}
-              className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 text-sm font-semibold ${f.flete === x.v ? "border-brand-500 bg-brand-50 text-brand-900" : "border-slate-200 text-slate-700"}`}
+              className={`flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-control border px-2 py-2.5 text-sm font-semibold transition-colors duration-150 ${f.flete === x.v ? OPCION_ACTIVA : OPCION}`}
             >
               <input type="radio" name="flete" className="sr-only" checked={f.flete === x.v} onChange={() => setF({ ...f, flete: x.v })} />
               {x.label}
@@ -127,7 +132,7 @@ export function LinkRapido({
         {f.flete === "aparte" && (
           <input aria-label="Flete en Bs" className="input" inputMode="decimal" value={f.fleteBs} onChange={set("fleteBs")} placeholder="Ej.: 25" />
         )}
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-tinta-500">
           {f.flete === "incluido"
             ? "El envío ya está en el precio."
             : f.flete === "por_pagar"
@@ -139,31 +144,34 @@ export function LinkRapido({
       </fieldset>
       <fieldset className="space-y-2" data-testid="quien-paga">
         <legend className="label">¿Quién paga la protección?</legend>
-        <label className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 text-sm ${f.feePayer === "comprador" ? "border-brand-500 bg-brand-50" : "border-slate-200"}`}>
-          <input type="radio" name="fee" className="mt-1" checked={f.feePayer === "comprador"} onChange={() => setF({ ...f, feePayer: "comprador" })} />
+        <label className={`flex cursor-pointer items-start gap-2.5 rounded-control border p-3 text-sm transition-colors duration-150 ${f.feePayer === "comprador" ? OPCION_ACTIVA : OPCION}`}>
+          <input type="radio" name="fee" className="mt-1 accent-monte" checked={f.feePayer === "comprador"} onChange={() => setF({ ...f, feePayer: "comprador" })} />
           <span>
             <strong>El comprador</strong> ({PROTECCION.pct.toLocaleString("es-BO")}%, mín. Bs {PROTECCION.minBs}, máx. Bs {PROTECCION.maxBs}). Tú recibes el precio completo.
           </span>
         </label>
-        <label className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 text-sm ${f.feePayer === "vendedor" ? "border-brand-500 bg-brand-50" : "border-slate-200"}`}>
-          <input type="radio" name="fee" className="mt-1" checked={f.feePayer === "vendedor"} onChange={() => setF({ ...f, feePayer: "vendedor" })} />
+        <label className={`flex cursor-pointer items-start gap-2.5 rounded-control border p-3 text-sm transition-colors duration-150 ${f.feePayer === "vendedor" ? OPCION_ACTIVA : OPCION}`}>
+          <input type="radio" name="fee" className="mt-1 accent-monte" checked={f.feePayer === "vendedor"} onChange={() => setF({ ...f, feePayer: "vendedor" })} />
           <span>
             <strong>Yo la regalo</strong> (2,3% de mi venta). Tu cliente paga solo el precio.
           </span>
         </label>
         {preview && (
-          <p className="text-xs text-slate-600" data-testid="vista-previa-link">
-            Tu cliente paga <strong>Bs {nf(buyerPays)}</strong> y tú recibes <strong>Bs {nf(sellerGets)}</strong>
+          <p className="rounded-control bg-tinta-50 p-3 text-sm text-tinta-700" data-testid="vista-previa-link">
+            Tu cliente paga <strong className="num">Bs {nf(buyerPays)}</strong> y tú recibes <strong className="num">Bs {nf(sellerGets)}</strong>
             {f.feePayer === "vendedor" ? " (descontados 2% de plataforma y 0,3% de Trustless Work)" : ""}.
           </p>
         )}
       </fieldset>
-      <details className="group rounded-xl border border-slate-200 p-3" open={masDetalles} data-testid="mas-detalles">
-        <summary className="cursor-pointer text-sm font-semibold text-slate-700">Más detalles (opcional): categoría, descripción y foto</summary>
+      <details className="group rounded-control border border-tinta-200 p-3" open={masDetalles} data-testid="mas-detalles">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-tinta-700 [&::-webkit-details-marker]:hidden">
+          Más detalles (opcional): categoría, descripción y foto
+          <IconoChevronAbajo className="h-5 w-5 flex-none text-tinta-500 transition-transform duration-200 group-open:rotate-180" />
+        </summary>
         <div className="mt-3 space-y-3">
           <div>
             <label className="label" htmlFor="category">
-              Categoría <span className="font-normal text-slate-400">(si es celular, al despachar se pide el IMEI)</span>
+              Categoría <span className="font-normal text-tinta-500">(si es celular, al despachar se pide el IMEI)</span>
             </label>
             <select id="category" className="input" value={f.category} onChange={set("category")}>
               {CATEGORIAS.map((c) => (
@@ -179,15 +187,15 @@ export function LinkRapido({
           </div>
           <div>
             <label className="label" htmlFor="photo">
-              Foto <span className="font-normal text-slate-400">(link https://…)</span>
+              Foto <span className="font-normal text-tinta-500">(link https://…)</span>
             </label>
             <input id="photo" className="input" value={f.photoUrl} onChange={set("photoUrl")} inputMode="url" placeholder="https://…" />
           </div>
         </div>
       </details>
       {demo && (
-        <label className="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
-          <input type="checkbox" className="mt-1" checked={demoWindow} onChange={(e) => setDemoWindow(e.target.checked)} />
+        <label className="caja-aviso flex items-start gap-2.5">
+          <input type="checkbox" className="mt-1 accent-monte" checked={demoWindow} onChange={(e) => setDemoWindow(e.target.checked)} />
           <span>
             <strong>Plazo corto de demo:</strong> liberación automática a los 2 minutos del pago.
           </span>

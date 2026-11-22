@@ -101,7 +101,7 @@ async function pagar(
   await page.goto(url);
   await expect(page.getByTestId("codigo")).toHaveText(/Compra protegida · PP-[2-9A-HJKMNP-Z]{8}/);
   // Primer pantallazo: producto, total, "Dos salidas" y el botón de pagar fijo abajo.
-  await expect(page.getByTestId("promesa")).toContainText("Tu plata queda guardada. Solo tiene dos salidas:");
+  await expect(page.getByTestId("promesa")).toContainText("Tu plata espera entre los dos. Solo tiene dos salidas:");
   await expect(page.getByTestId("salida-comprador")).toContainText("De vuelta a ti, si no lo despacha hasta el");
   await expect(page.getByTestId("reputacion")).toBeVisible();
   await expect(page.getByTestId("antifraude")).toContainText("Si un QR de Trato está a nombre de una persona, es estafa.");
@@ -119,7 +119,7 @@ async function pagar(
   if (o.flete) await page.getByLabel(/¿Y el flete\?/).selectOption(o.flete);
   if (o.capturas) await capturar(page, "06b-comprador-datos-de-entrega");
   await page.getByRole("button", { name: /Ver el QR para pagar Bs/ }).click();
-  await expect(page.getByTestId("rampa-simulada")).toHaveText("Rampa simulada en testnet. En producción la hace una entidad certificada por ASFI.");
+  await expect(page.getByTestId("rampa-simulada")).toHaveText("Pago simulado en la red de prueba. En producción lo hace una entidad certificada por ASFI.");
   // QR como se paga en Bolivia: guardarlo o compartirlo y subirlo desde la galería del banco.
   const qr = page.getByTestId("qr");
   await expect(qr.getByTestId("imagen-qr")).toBeVisible();
@@ -237,7 +237,7 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
       await expect(p.getByTestId("vendedor")).toContainText("Verificación de identidad: pendiente");
       await expect(p.getByTestId("proteccion")).toContainText("Bs 6,75");
       await expect(p.getByTestId("proteccion")).toContainText("Bs 456,75");
-      await expect(p.getByRole("button", { name: "🔒 Pagar Bs 456,75 con QR" })).toBeVisible();
+      await expect(p.getByRole("button", { name: "Pagar Bs 456,75 con QR" })).toBeVisible();
     },
   });
   await capturar(buyer, "08-comprador-pagado");
@@ -373,9 +373,9 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
   await capturar(seller, "77-vendedor-tus-numeros");
 
   // "Pasar a mi banco", simulado: explica el depósito en bolivianos y no pide ningún dato bancario.
-  await seller.getByRole("button", { name: "🏦 Pasar a mi banco" }).click();
+  await seller.getByRole("button", { name: "Pasar a mi banco" }).click();
   const banco = seller.getByTestId("pasar-a-mi-banco");
-  await expect(banco.getByTestId("banco-simulado")).toHaveText("Simulado en testnet");
+  await expect(banco.getByTestId("banco-simulado")).toHaveText("Simulado");
   await expect(banco).toContainText("te deposita en bolivianos en tu cuenta");
   await expect(banco).toContainText("no te pedimos número de cuenta ni ningún dato bancario");
   await expect(banco.locator("input, select, textarea")).toHaveCount(0);
@@ -407,7 +407,7 @@ test("presión para confirmar abre un reclamo; el vendedor regala la protección
     ciudad: "Oruro",
     antes: async (p) => {
       await expect(p.getByTestId("proteccion")).toContainText("la paga el vendedor");
-      await expect(p.getByRole("button", { name: "🔒 Pagar Bs 300,00 con QR" })).toBeVisible();
+      await expect(p.getByRole("button", { name: "Pagar Bs 300,00 con QR" })).toBeVisible();
     },
   });
   await marcarEnviado(seller, slug, { empresa: "Bolívar (encomiendas)", guia: "OLVA-55821", peso: "0,4", fotos: [await fotoDe(seller, 120), await fotoDe(seller, 360)] });

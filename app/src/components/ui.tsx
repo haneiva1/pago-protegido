@@ -1,21 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { STATUS_LABEL, explorer, type OrderStatus } from "@/lib/format";
+import { IconoAlerta, IconoCheck, IconoCheckCirculo, IconoCopiar, IconoExterno } from "./iconos";
 
+/** Un chip por estado del pedido, con la paleta de estados de la marca (SISTEMA.md). */
 const STATUS_STYLE: Record<OrderStatus, string> = {
-  esperando_pago: "bg-slate-100 text-slate-700 ring-slate-200",
-  pagado: "bg-sky-50 text-sky-800 ring-sky-200",
-  enviado: "bg-indigo-50 text-indigo-800 ring-indigo-200",
-  liberado: "bg-brand-50 text-brand-800 ring-brand-200",
-  en_disputa: "bg-amber-50 text-amber-800 ring-amber-200",
-  resuelto: "bg-violet-50 text-violet-800 ring-violet-200",
-  devuelto: "bg-rose-50 text-rose-800 ring-rose-200",
+  esperando_pago: "chip-neutro",
+  pagado: "chip-info",
+  enviado: "chip-oscuro",
+  liberado: "chip-exito",
+  en_disputa: "chip-aviso",
+  resuelto: "chip-neutro",
+  devuelto: "chip-aviso",
 };
 
 export function StatusBadge({ status }: { status: OrderStatus }) {
   return (
-    <span data-testid="estado" className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${STATUS_STYLE[status]}`}>
+    <span data-testid="estado" className={STATUS_STYLE[status]}>
       {STATUS_LABEL[status]}
     </span>
   );
@@ -23,23 +25,16 @@ export function StatusBadge({ status }: { status: OrderStatus }) {
 
 export function TxLink({ hash, label = "Ver registro público" }: { hash: string; label?: string }) {
   return (
-    <a
-      href={explorer.tx(hash)}
-      target="_blank"
-      rel="noreferrer"
-      className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 underline decoration-brand-200 underline-offset-2 hover:decoration-brand-600"
-    >
+    <a href={explorer.tx(hash)} target="_blank" rel="noreferrer" className="enlace inline-flex items-center gap-1 text-sm">
       {label}
-      <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" aria-hidden>
-        <path d="M7 3h10v10M17 3 8 12M13 17H3V7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
+      <IconoExterno className="h-3.5 w-3.5 shrink-0" />
     </a>
   );
 }
 
-export function ExplorerLink({ href, children }: { href: string; children: React.ReactNode }) {
+export function ExplorerLink({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <a href={href} target="_blank" rel="noreferrer" className="font-mono text-xs text-brand-700 underline decoration-brand-200 underline-offset-2 break-all">
+    <a href={href} target="_blank" rel="noreferrer" className="enlace break-all font-mono text-xs">
       {children}
     </a>
   );
@@ -57,8 +52,9 @@ export function Spinner({ className = "h-4 w-4" }: { className?: string }) {
 export function ErrorBox({ error }: { error: string | null }) {
   if (!error) return null;
   return (
-    <div role="alert" data-testid="error" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-      {error}
+    <div role="alert" data-testid="error" className="caja-error flex items-start gap-2.5">
+      <IconoAlerta className="mt-0.5 h-4 w-4 shrink-0" />
+      <span className="min-w-0 flex-1">{error}</span>
     </div>
   );
 }
@@ -80,6 +76,7 @@ export function CopyButton({ text, label = "Copiar", className = "btn-secondary"
         setTimeout(() => setOk(false), 1800);
       }}
     >
+      {ok ? <IconoCheck className="h-4 w-4 shrink-0 text-musgo" /> : <IconoCopiar className="h-4 w-4 shrink-0" />}
       {ok ? "¡Copiado!" : label}
     </button>
   );
@@ -91,24 +88,18 @@ export interface ProgressStep {
   done: boolean;
 }
 
-/** Lista de pasos en curso, cada uno con su "Ver en Stellar" cuando termina. */
+/** Lista de pasos en curso, cada uno con su link al registro público cuando termina. */
 export function Progress({ steps }: { steps: ProgressStep[] }) {
   if (!steps.length) return null;
   return (
     <ol className="space-y-2" aria-live="polite">
       {steps.map((s, i) => (
-        <li key={i} className="flex items-start gap-3 text-sm">
-          <span className={`mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full ${s.done ? "bg-brand-600 text-monte" : "bg-slate-200 text-slate-600"}`}>
-            {s.done ? (
-              <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" aria-hidden>
-                <path d="m5 10 3 3 7-7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            ) : (
-              <Spinner className="h-3.5 w-3.5" />
-            )}
+        <li key={i} className="flex items-start gap-3 text-sm animate-aparecer">
+          <span className={`mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full ${s.done ? "bg-yungas text-monte" : "bg-tinta-100 text-musgo"}`}>
+            {s.done ? <IconoCheck className="h-3.5 w-3.5" strokeWidth={2.5} /> : <Spinner className="h-3 w-3" />}
           </span>
-          <span className="flex-1">
-            <span className={s.done ? "text-slate-800" : "text-slate-600"}>{s.label}</span>
+          <span className="min-w-0 flex-1">
+            <span className={s.done ? "text-monte" : "font-medium text-tinta-700"}>{s.label}</span>
             {s.hash && (
               <span className="ml-2">
                 <TxLink hash={s.hash} />
@@ -136,4 +127,59 @@ export function useProgress() {
     });
   const finish = (label: string) => setSteps((prev) => prev.map((s) => (s.label === label ? { ...s, done: true } : s)));
   return { steps, push, finish, reset: () => setSteps([]) };
+}
+
+/**
+ * Barra de avance. Sin `valor`, es indeterminada (la espera no tiene un plazo conocido);
+ * con `valor` entre 0 y 1, muestra cuánto falta.
+ */
+export function Barra({ valor, className = "", oscura = false }: { valor?: number; className?: string; oscura?: boolean }) {
+  const pista = oscura ? "bg-sal/15" : "bg-tinta-200";
+  return (
+    <div className={`h-1.5 w-full overflow-hidden rounded-full ${pista} ${className}`} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={valor == null ? undefined : Math.round(Math.min(1, Math.max(0, valor)) * 100)}>
+      {valor == null ? (
+        <div className="h-full w-1/3 rounded-full bg-yungas animate-barra" />
+      ) : (
+        <div className="h-full rounded-full bg-yungas transition-[width] duration-500 ease-out" style={{ width: `${Math.min(100, Math.max(0, valor * 100))}%` }} />
+      )}
+    </div>
+  );
+}
+
+/** Estado de carga que cuenta qué está pasando (y cuánto suele tardar). Nadie debe pensar que se colgó. */
+export function Cargando({ texto, tarda, className = "", testId }: { texto: string; tarda?: string; className?: string; testId?: string }) {
+  return (
+    <div role="status" aria-live="polite" data-testid={testId} className={`flex items-start gap-3 rounded-control bg-tinta-100 px-4 py-3 text-sm ${className}`}>
+      <Spinner className="mt-0.5 h-4 w-4 shrink-0 text-musgo" />
+      <span className="min-w-0">
+        <span className="block font-medium text-monte">{texto}</span>
+        {tarda && <span className="block text-tinta-500">{tarda}</span>}
+      </span>
+    </div>
+  );
+}
+
+/** Estado vacío: un ícono apagado, una línea y, si hay, una acción. */
+export function Vacio({ icono, titulo, texto, accion, testId, className = "" }: { icono?: ReactNode; titulo: string; texto?: string; accion?: ReactNode; testId?: string; className?: string }) {
+  return (
+    <div data-testid={testId} className={`flex flex-col items-center justify-center gap-2 px-6 py-10 text-center ${className}`}>
+      {icono && <span className="mb-1 text-tinta-300 [&>svg]:h-10 [&>svg]:w-10">{icono}</span>}
+      <p className="font-semibold text-monte">{titulo}</p>
+      {texto && <p className="max-w-xs text-sm text-tinta-500">{texto}</p>}
+      {accion && <div className="mt-2">{accion}</div>}
+    </div>
+  );
+}
+
+/** Estado de éxito: panel suave con la marca. */
+export function Exito({ titulo, children, testId, className = "" }: { titulo: ReactNode; children?: ReactNode; testId?: string; className?: string }) {
+  return (
+    <div data-testid={testId} className={`panel-suave flex items-start gap-3 animate-aparecer ${className}`}>
+      <IconoCheckCirculo className="mt-0.5 h-5 w-5 shrink-0 text-musgo" />
+      <div className="min-w-0 flex-1 text-sm">
+        <p className="font-semibold text-monte">{titulo}</p>
+        {children && <div className="mt-0.5 text-tinta-600">{children}</div>}
+      </div>
+    </div>
+  );
 }

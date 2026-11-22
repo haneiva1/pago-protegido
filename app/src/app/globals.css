@@ -129,7 +129,15 @@ h3 {
   font-family: var(--font-display);
   font-weight: 800;
   letter-spacing: -0.02em;
+}
+
+h1,
+h2 {
   text-wrap: balance;
+}
+
+h3 {
+  text-wrap: pretty;
 }
 
 /* Funnel Sans llega hasta 600: la negrita del texto es semibold, nunca una negrita sintética. */
@@ -146,15 +154,21 @@ input[type="range"] {
   accent-color: var(--color-yungas);
 }
 
-/* Foco visible en todo: Musgo sobre claro, Yungas sobre Monte. */
+/* Foco visible en todo: Musgo sobre claro, Yungas sobre Monte. El contorno sigue el radio de cada elemento. */
 :focus-visible {
   outline: 2px solid var(--color-musgo);
   outline-offset: 2px;
-  border-radius: 4px;
 }
 .bg-monte :focus-visible,
 [data-oscuro] :focus-visible {
   outline-color: var(--color-yungas);
+}
+
+/* Los campos ya muestran el foco con su borde y su anillo (.input): sin contorno doble. */
+.input:focus-visible,
+select.input:focus-visible,
+textarea.input:focus-visible {
+  outline: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

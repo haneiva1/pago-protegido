@@ -1,5 +1,6 @@
 "use client";
 
+import { IconoChevronDerecha, IconoWhatsApp } from "@/components/iconos";
 import { NumerosTienda } from "@/components/Kpis";
 import { desdeTexto, fmtProporcion, plural } from "@/lib/kpi-format";
 import type { Kpis, OrderView } from "@/lib/types";
@@ -29,14 +30,14 @@ export function reputacionTexto(k: Kpis): string {
 export function Reputacion({ v }: { v: OrderView }) {
   const s = v.seller;
   return (
-    <div className="flex items-center gap-2.5 pt-2" data-testid="reputacion">
-      <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-monte">{iniciales(s.store_name)}</span>
+    <div className="flex items-center gap-2.5 pt-3" data-testid="reputacion">
+      <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-yungas text-xs font-semibold text-monte">{iniciales(s.store_name)}</span>
       <div className="min-w-0 flex-1 text-sm leading-tight">
-        <p className="truncate font-semibold text-slate-900">
+        <p className="truncate font-semibold text-monte">
           {s.store_name}
-          {s.city ? <span className="font-normal text-slate-500"> · {s.city}</span> : null}
+          {s.city ? <span className="font-normal text-tinta-500"> · {s.city}</span> : null}
         </p>
-        <p className="truncate text-slate-600">{reputacionTexto(s.kpis)}</p>
+        <p className="truncate text-tinta-600">{reputacionTexto(s.kpis)}</p>
       </div>
     </div>
   );
@@ -49,27 +50,29 @@ export function TarjetaVendedor({ v }: { v: OrderView }) {
   return (
     <section className="card space-y-3" data-testid="vendedor">
       <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-brand-600 font-bold text-monte">{iniciales(s.store_name)}</div>
+        <div className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-yungas font-semibold text-monte">{iniciales(s.store_name)}</div>
         <div className="min-w-0 flex-1">
           <p className="font-semibold">
             Vendedor: {s.store_name}
             {s.city ? ` · ${s.city}` : ""}
           </p>
-          <p className="text-xs text-slate-600">{reputacionTexto(k)}</p>
+          <p className="text-xs text-tinta-600">{reputacionTexto(k)}</p>
         </div>
-        <a className="btn-secondary flex-none !px-3 !py-2 text-sm" href={waLink("Hola, te escribo por tu link de pago de Trato", s.whatsapp)} target="_blank" rel="noreferrer">
+        <a className="btn-secondary btn-sm flex-none" href={waLink("Hola, te escribo por tu link de pago de Trato", s.whatsapp)} target="_blank" rel="noreferrer">
+          <IconoWhatsApp className="h-4 w-4 text-musgo" />
           Escribir
         </a>
       </div>
       <NumerosTienda k={k} compacto />
-      <ul className="space-y-0.5 text-xs text-slate-600">
+      <ul className="space-y-0.5 text-xs text-tinta-600">
         <li>{desdeTexto(k, s.since)}</li>
         <li>Verificación de identidad: pendiente (modo práctica)</li>
         <li>WhatsApp {s.whatsapp}</li>
       </ul>
       {s.slug && (
-        <a className="inline-block text-sm font-semibold text-brand-700 underline" href={`/tienda/${s.slug}`} data-testid="link-perfil-tienda">
-          Ver el perfil de la tienda y su historial →
+        <a className="inline-flex items-center gap-1 text-sm font-semibold text-musgo" href={`/tienda/${s.slug}`} data-testid="link-perfil-tienda">
+          Ver el perfil de la tienda y su historial
+          <IconoChevronDerecha className="h-4 w-4" />
         </a>
       )}
     </section>

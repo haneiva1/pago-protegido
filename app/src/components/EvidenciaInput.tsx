@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { headerFirma } from "@/lib/api-firmada";
 import { NO_CARGO_CUENTA } from "@/lib/comprador";
 import type { WalletProvider, WalletRole } from "@/lib/wallet/types";
+import { IconoCelular, IconoCheck, IconoDocumento } from "./iconos";
 import { Spinner } from "./ui";
 
 /**
@@ -131,52 +132,57 @@ export function EvidenciaInput({
   return (
     <div className="space-y-2" data-testid={`evidencia-${id}`}>
       <p className="label !mb-0">
-        {label} {nota && <span className="font-normal text-slate-400">{nota}</span>}
+        {label} {nota && <span className="font-normal text-tinta-500">{nota}</span>}
       </p>
       <input ref={camara} type="file" accept={accept} capture="environment" className="hidden" onChange={(e) => elegir(e.target.files?.[0])} aria-label={`${label}: cámara`} />
       <input ref={galeria} id={id} type="file" accept={accept} className="hidden" onChange={(e) => elegir(e.target.files?.[0])} aria-label={`${label}: galería`} />
 
       {estado === "listo" && sub ? (
-        <div className="flex items-center gap-3 rounded-xl bg-brand-50 p-2.5 ring-1 ring-brand-100">
+        <div className="flex items-center gap-3 rounded-control bg-exito-50 p-2.5 ring-1 ring-exito-200">
           {vista &&
             (tipo === "foto" ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={vista} alt="" className="h-14 w-14 flex-none rounded-lg object-cover" />
+              <img src={vista} alt="" className="h-14 w-14 flex-none rounded-chip object-cover" />
             ) : (
-              <video src={vista} className="h-14 w-14 flex-none rounded-lg object-cover" muted />
+              <video src={vista} className="h-14 w-14 flex-none rounded-chip object-cover" muted />
             ))}
           <div className="min-w-0 flex-1 text-xs">
-            <p className="font-semibold text-brand-900">✓ {tipo === "foto" ? "Foto" : "Video"} subido con su huella</p>
-            <p className="truncate font-mono text-brand-800" data-testid="huella" title={sub.sha256}>
+            <p className="flex items-center gap-1 font-semibold text-monte">
+              <IconoCheck className="h-3.5 w-3.5 text-musgo" />
+              {tipo === "foto" ? "Foto" : "Video"} subido con su huella
+            </p>
+            <p className="truncate font-mono text-tinta-600" data-testid="huella" title={sub.sha256}>
               {corta(sub.sha256)}
             </p>
           </div>
-          <button type="button" className="text-xs font-semibold text-slate-600 underline" onClick={quitar}>
+          <button type="button" className="text-xs font-semibold text-tinta-600 underline underline-offset-2" onClick={quitar}>
             Cambiar
           </button>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" className="btn-secondary !py-2.5 text-sm" disabled={estado === "subiendo"} onClick={() => camara.current?.click()}>
-            📷 {tipo === "foto" ? "Sacar foto" : "Grabar video"}
+          <button type="button" className="btn-secondary btn-sm" disabled={estado === "subiendo"} onClick={() => camara.current?.click()}>
+            <IconoCelular className="h-4 w-4" />
+            {tipo === "foto" ? "Sacar foto" : "Grabar video"}
           </button>
-          <button type="button" className="btn-secondary !py-2.5 text-sm" disabled={estado === "subiendo"} onClick={() => galeria.current?.click()}>
-            🖼️ Desde la galería
+          <button type="button" className="btn-secondary btn-sm" disabled={estado === "subiendo"} onClick={() => galeria.current?.click()}>
+            <IconoDocumento className="h-4 w-4" />
+            Desde la galería
           </button>
         </div>
       )}
       {estado === "subiendo" && (
-        <p className="flex items-center gap-2 text-xs text-slate-600">
+        <p className="flex items-center gap-2 text-xs text-tinta-600" aria-live="polite">
           <Spinner className="h-3.5 w-3.5" /> {tipo === "foto" ? "Comprimiendo y subiendo…" : "Subiendo el video…"}
         </p>
       )}
       {error && (
-        <p role="alert" className="text-xs text-rose-700">
+        <p role="alert" className="text-xs text-error-700">
           {error}
         </p>
       )}
       {estado !== "listo" && (
-        <details className="text-xs text-slate-600">
+        <details className="text-xs text-tinta-600">
           <summary className="cursor-pointer">¿Ya lo tienes en un link?</summary>
           <input
             className="input mt-1.5"

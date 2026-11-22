@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { IconoCandado, IconoChevronAbajo, IconoFlechaDerecha, IconoVolver } from "@/components/iconos";
 import { ErrorBox } from "@/components/ui";
 import { CIUDADES, PROTECCION, fmtBs, fmtBsUnits, unitsToNumber } from "@/lib/format";
 import { fmtDia, fmtPlazo, plazosDelPedido } from "@/lib/comprador";
 import type { OrderView } from "@/lib/types";
-import { Candado } from "./Estado";
 import { Reputacion } from "./Vendedor";
 
 const nf = (n: number) => n.toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -17,19 +17,19 @@ export function Producto({ v, compacto }: { v: OrderView; compacto?: boolean }) 
     <section className="card overflow-hidden !p-0">
       {o.photo_url && !compacto ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={o.photo_url} alt={o.product} className="h-40 w-full object-cover" />
+        <img src={o.photo_url} alt={o.product} className="h-44 w-full object-cover" />
       ) : null}
       <div className="p-5">
-        <p className="text-xs font-semibold uppercase tracking-wide text-brand-700" data-testid="codigo">
+        <p className="eyebrow" data-testid="codigo">
           Compra protegida · {o.code}
         </p>
-        <h1 className={compacto ? "mt-1 font-semibold" : "mt-1 text-xl font-bold leading-snug"} data-testid="producto">
+        <h1 className={compacto ? "mt-1 font-sans text-base font-semibold" : "mt-1.5 text-2xl leading-tight"} data-testid="producto">
           {o.product}
         </h1>
-        {o.description && !compacto && <p className="mt-0.5 text-sm text-slate-600">{o.description}</p>}
-        <p className={compacto ? "muted" : "mt-2 text-3xl font-extrabold tracking-tight"} data-testid="total">
+        {o.description && !compacto && <p className="mt-1 text-sm text-tinta-600">{o.description}</p>}
+        <p className={compacto ? "muted num" : "mt-3 font-display text-4xl tracking-tight text-monte num"} data-testid="total">
           {fmtBsUnits(o.amount_units, o.fx)}
-          {!compacto && <span className="ml-2 align-middle text-sm font-medium text-slate-500">total</span>}
+          {!compacto && <span className="ml-2 align-middle font-sans text-sm font-medium tracking-normal text-tinta-500">total</span>}
         </p>
         {!compacto && <Reputacion v={v} />}
       </div>
@@ -37,32 +37,34 @@ export function Producto({ v, compacto }: { v: OrderView; compacto?: boolean }) 
   );
 }
 
-/** "Dos salidas": a dónde puede ir la plata, entendido en 3 segundos. */
+/** La promesa, en Monte: la plata espera entre los dos y solo tiene dos salidas. Se entiende en 3 segundos. */
 export function DosSalidas({ v }: { v: OrderView }) {
   const o = v.order;
   const { despacho, revision } = plazosDelPedido(o);
   const limite = Date.now() + despacho * 1000;
   return (
-    <section className="card space-y-3" data-testid="promesa">
-      <div className="flex items-center gap-2 text-brand-700">
-        <Candado cerrado className="h-6 w-6 flex-none" />
-        <h2 className="text-lg font-bold leading-snug text-slate-900">Tu plata queda guardada. Solo tiene dos salidas:</h2>
+    <section className="panel-oscuro space-y-4 !p-5" data-testid="promesa" data-oscuro="">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-yungas/15 text-yungas">
+          <IconoCandado className="h-5 w-5" />
+        </span>
+        <h2 className="text-xl leading-snug text-sal">Tu plata espera entre los dos. Solo tiene dos salidas:</h2>
       </div>
       <ul className="space-y-2 text-sm">
-        <li className="flex items-start gap-3 rounded-xl bg-brand-50 p-3 ring-1 ring-brand-100" data-testid="salida-tienda">
-          <span aria-hidden className="text-lg leading-none text-brand-700">→</span>
-          <p>
-            <strong>A {v.seller.store_name}</strong>, cuando confirmes que lo recibiste bien.
+        <li className="flex items-start gap-3 rounded-control bg-white/5 p-3 ring-1 ring-white/10" data-testid="salida-tienda">
+          <IconoFlechaDerecha className="mt-0.5 h-5 w-5 flex-none text-yungas" />
+          <p className="text-sal/90">
+            <strong className="text-sal">A {v.seller.store_name}</strong>, cuando confirmes que lo recibiste bien.
           </p>
         </li>
-        <li className="flex items-start gap-3 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200" data-testid="salida-comprador">
-          <span aria-hidden className="text-lg leading-none text-slate-600">↩</span>
-          <p>
-            <strong>De vuelta a ti</strong>, si no lo despacha hasta el <strong>{fmtDia(limite)}</strong>.
+        <li className="flex items-start gap-3 rounded-control bg-white/5 p-3 ring-1 ring-white/10" data-testid="salida-comprador">
+          <IconoVolver className="mt-0.5 h-5 w-5 flex-none text-yungas" />
+          <p className="text-sal/90">
+            <strong className="text-sal">De vuelta a ti</strong>, si no lo despacha hasta el <strong className="text-sal">{fmtDia(limite)}</strong>.
           </p>
         </li>
       </ul>
-      <p className="text-xs text-slate-500">
+      <p className="text-xs leading-relaxed text-sal/70">
         ¿Llega mal? Abres un reclamo y un revisor decide. Si no confirmas ni reclamas, se le paga a la tienda {fmtPlazo(revision)} después del envío.
       </p>
     </section>
@@ -74,29 +76,29 @@ export function Proteccion({ v }: { v: OrderView }) {
   const totalNum = unitsToNumber(o.amount_units) * o.fx;
   const prot = totalNum - o.price_bs_cents / 100;
   return (
-    <section className="card space-y-1 text-sm" data-testid="proteccion">
-      <div className="flex justify-between">
-        <span>Precio</span>
-        <span>{fmtBs(o.price_bs_cents)}</span>
+    <section className="card space-y-2 text-sm" data-testid="proteccion">
+      <div className="flex justify-between gap-3">
+        <span className="text-tinta-600">Precio</span>
+        <span className="num">{fmtBs(o.price_bs_cents)}</span>
       </div>
       {o.fee_payer === "comprador" ? (
         <div className="flex justify-between gap-3">
-          <span>
+          <span className="text-tinta-600">
             Protección ({PROTECCION.pct.toLocaleString("es-BO")}%, mín. Bs {PROTECCION.minBs}, máx. Bs {PROTECCION.maxBs})
           </span>
-          <span className="flex-none">Bs {nf(prot)}</span>
+          <span className="flex-none num">Bs {nf(prot)}</span>
         </div>
       ) : (
-        <div className="flex justify-between text-slate-600">
-          <span>Protección</span>
-          <span>la paga el vendedor</span>
+        <div className="flex justify-between gap-3">
+          <span className="text-tinta-600">Protección</span>
+          <span className="text-tinta-600">la paga el vendedor</span>
         </div>
       )}
-      <div className="flex justify-between border-t border-slate-100 pt-1 text-base font-bold">
+      <div className="flex justify-between gap-3 border-t border-tinta-100 pt-2 text-base font-semibold">
         <span>Total</span>
-        <span>Bs {nf(totalNum)}</span>
+        <span className="num">Bs {nf(totalNum)}</span>
       </div>
-      {o.fee_payer === "comprador" && <p className="text-xs text-slate-500">El vendedor recibe el precio completo.</p>}
+      {o.fee_payer === "comprador" && <p className="text-xs text-tinta-500">El vendedor recibe el precio completo.</p>}
     </section>
   );
 }
@@ -109,17 +111,20 @@ export function ComoFunciona() {
     "Cuando te llegue, lo revisas y confirmas. Recién ahí se le paga.",
   ];
   return (
-    <details className="card text-sm" data-testid="como-funciona">
-      <summary className="cursor-pointer font-semibold">¿Cómo funciona?</summary>
-      <ol className="mt-3 space-y-2">
+    <details className="card group text-sm" data-testid="como-funciona">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-semibold [&::-webkit-details-marker]:hidden">
+        ¿Cómo funciona?
+        <IconoChevronAbajo className="h-5 w-5 flex-none text-tinta-500 transition-transform duration-200 group-open:rotate-180" />
+      </summary>
+      <ol className="mt-4 space-y-3">
         {pasos.map((s, i) => (
           <li key={s} className="flex gap-3">
-            <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-monte">{i + 1}</span>
-            <span>{s}</span>
+            <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-yungas text-xs font-semibold text-monte num">{i + 1}</span>
+            <span className="text-tinta-700">{s}</span>
           </li>
         ))}
       </ol>
-      <p className="mt-3 text-xs text-slate-500">Si necesitas más tiempo para revisar, puedes pedirlo una vez. Te avisamos un día antes de que se le pague a la tienda.</p>
+      <p className="mt-4 text-xs text-tinta-500">Si necesitas más tiempo para revisar, puedes pedirlo una vez. Te avisamos un día antes de que se le pague a la tienda.</p>
     </details>
   );
 }
@@ -127,12 +132,17 @@ export function ComoFunciona() {
 /** Botón de pagar fijo abajo: siempre a la vista, con el total. */
 export function BarraPagar({ total, onPagar, disabled }: { total: string; onPagar: () => void; disabled?: boolean }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 pt-3 shadow-[0_-4px_16px_rgba(15,23,42,0.06)] backdrop-blur" style={{ paddingBottom: "max(env(safe-area-inset-bottom), 12px)" }} data-testid="barra-pagar">
+    <div
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-tinta-200 bg-white px-4 pt-3 shadow-[0_-8px_24px_-16px_rgb(10_42_27/0.25)]"
+      style={{ paddingBottom: "max(env(safe-area-inset-bottom), 12px)" }}
+      data-testid="barra-pagar"
+    >
       <div className="mx-auto max-w-md">
         <button type="button" className="btn-primary w-full py-4 text-lg" onClick={onPagar} disabled={disabled}>
-          🔒 Pagar {total} con QR
+          <IconoCandado className="h-5 w-5" />
+          Pagar {total} con QR
         </button>
-        <p className="mt-1 text-center text-[11px] text-slate-500">La tienda cobra recién cuando confirmes que te llegó.</p>
+        <p className="mt-1.5 text-center text-xs text-tinta-500">La tienda cobra recién cuando confirmes que te llegó.</p>
       </div>
     </div>
   );
@@ -172,19 +182,21 @@ export function HojaEntrega({
   }, [abierta, onCerrar]);
   if (!abierta) return null;
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-900/40" role="dialog" aria-modal="true" aria-labelledby="hoja-entrega-titulo" onClick={onCerrar}>
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-monte/50" role="dialog" aria-modal="true" aria-labelledby="hoja-entrega-titulo" onClick={onCerrar}>
       <div
-        className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-5 shadow-xl"
+        className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-panel bg-white p-5 shadow-alzada animate-aparecer"
         style={{ paddingBottom: "max(env(safe-area-inset-bottom), 20px)" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-slate-200" aria-hidden />
+        <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-tinta-200" aria-hidden />
         {aviso}
         <FormEntrega total={total} onCerrar={onCerrar} onContinuar={onContinuar} />
       </div>
     </div>
   );
 }
+
+const Opcional = () => <span className="font-normal text-tinta-500">(opcional)</span>;
 
 function FormEntrega({ total, onCerrar, onContinuar }: { total: string; onCerrar: () => void; onContinuar: (x: DatosEntrega) => void }) {
   const [f, setF] = useState({ recipient: "", city: "", agency: "", whatsapp: "", pickupPhone: "", flete: "", fleteBs: "" });
@@ -210,7 +222,7 @@ function FormEntrega({ total, onCerrar, onContinuar }: { total: string; onCerrar
         });
       }}
     >
-      <h2 id="hoja-entrega-titulo" className="text-lg font-bold">
+      <h2 id="hoja-entrega-titulo" className="text-xl">
         ¿A dónde lo envían?
       </h2>
       <div>
@@ -232,20 +244,20 @@ function FormEntrega({ total, onCerrar, onContinuar }: { total: string; onCerrar
       </div>
       <div>
         <label className="label" htmlFor="agency">
-          Agencia preferida <span className="font-normal text-slate-400">(opcional)</span>
+          Agencia preferida <Opcional />
         </label>
         <input id="agency" className="input" value={f.agency} onChange={set("agency")} placeholder="Ej.: Trans Copacabana, terminal" />
       </div>
       <div>
         <label className="label" htmlFor="pickup-phone">
-          Teléfono de quien recoge <span className="font-normal text-slate-400">(opcional)</span>
+          Teléfono de quien recoge <Opcional />
         </label>
         <input id="pickup-phone" className="input" inputMode="tel" value={f.pickupPhone} onChange={set("pickupPhone")} placeholder="Ej.: 591 70011223" />
-        <p className="mt-1 text-xs text-slate-500">Las empresas de encomiendas lo piden para entregar. Solo lo ve la tienda.</p>
+        <p className="mt-1 text-xs text-tinta-500">Las empresas de encomiendas lo piden para entregar. Solo lo ve la tienda.</p>
       </div>
       <div>
         <label className="label" htmlFor="flete">
-          ¿Y el flete? <span className="font-normal text-slate-400">(opcional)</span>
+          ¿Y el flete? <Opcional />
         </label>
         <select id="flete" className="input" value={f.flete} onChange={set("flete")}>
           <option value="">Lo veo con la tienda</option>
@@ -256,14 +268,14 @@ function FormEntrega({ total, onCerrar, onContinuar }: { total: string; onCerrar
         {f.flete === "aparte" && (
           <input id="flete-bs" aria-label="Flete en Bs" className="input mt-2" inputMode="decimal" value={f.fleteBs} onChange={set("fleteBs")} placeholder="Ej.: 25" />
         )}
-        <p className="mt-1 text-xs text-slate-500">Es lo que acordaron; no cambia el monto que queda guardado.</p>
+        <p className="mt-1 text-xs text-tinta-500">Es lo que acordaron; no cambia el monto que queda guardado.</p>
       </div>
       <div>
         <label className="label" htmlFor="buyer-wa">
-          Tu WhatsApp para avisarte <span className="font-normal text-slate-400">(opcional)</span>
+          Tu WhatsApp para avisarte <Opcional />
         </label>
         <input id="buyer-wa" className="input" inputMode="tel" value={f.whatsapp} onChange={set("whatsapp")} placeholder="Ej.: 591 76543210" autoComplete="tel" />
-        <p className="mt-1 text-xs text-slate-500">Te avisamos cuando despachen y un día antes de que se le pague a la tienda. No se muestra a nadie.</p>
+        <p className="mt-1 text-xs text-tinta-500">Te avisamos cuando despachen y un día antes de que se le pague a la tienda. No se muestra a nadie.</p>
       </div>
       <ErrorBox error={error} />
       <button className="btn-primary w-full py-4 text-lg">Ver el QR para pagar {total}</button>

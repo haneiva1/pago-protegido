@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { IconoAlerta, IconoBalanza, IconoCheckCirculo, IconoInfo, IconoVolver } from "@/components/iconos";
 import { fmtBsUnits } from "@/lib/format";
 import type { OrderView } from "@/lib/types";
 import { waLink } from "@/lib/whatsapp";
@@ -11,7 +12,7 @@ export const SOPORTE_WA = (process.env.NEXT_PUBLIC_SOPORTE_WHATSAPP ?? "").repla
 /** Candado: abierto mientras esperas el pago; se cierra (animado) cuando la plata queda guardada. */
 export function Candado({ cerrado, className = "h-6 w-6" }: { cerrado: boolean; className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg viewBox="0 0 24 24" className={className} aria-hidden fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path
         d="M8 11V7a4 4 0 0 1 8 0v4"
         style={{ transform: cerrado ? "translateY(0)" : "translateY(-3.5px)", transition: "transform 700ms cubic-bezier(.2,.8,.2,1.2)" }}
@@ -32,61 +33,85 @@ export function CandadoQueSeCierra({ className }: { className?: string }) {
   return <Candado cerrado={cerrado} className={className} />;
 }
 
+type Tono = "acento" | "oscuro" | "aviso" | "suave";
+
+const TONO: Record<Tono, { caja: string; eyebrow: string; detalle: string }> = {
+  acento: { caja: "panel-acento", eyebrow: "text-monte/70", detalle: "text-monte/80" },
+  oscuro: { caja: "panel-oscuro", eyebrow: "text-yungas", detalle: "text-sal/80" },
+  aviso: { caja: "rounded-panel border border-aviso-200 bg-aviso-50 text-aviso-700", eyebrow: "text-aviso-600", detalle: "text-aviso-700" },
+  suave: { caja: "rounded-panel border border-exito-200 bg-exito-50 text-monte", eyebrow: "text-musgo", detalle: "text-tinta-700" },
+};
+
+/** Cabecera del pedido después del pago: el estado, en una sola frase, con el monto. Un solo acento por pantalla. */
 export function EstadoPedido({ v }: { v: OrderView }) {
   const o = v.order;
-  const map = {
-    pagado: { t: "Tu pago está guardado", d: "El vendedor ve que pagaste, pero no puede cobrar hasta que confirmes.", c: "bg-brand-600 text-monte" },
-    enviado: { t: "Tu pedido está en camino", d: "Tu pago sigue guardado. Cuando te llegue, revísalo y recién ahí paga al vendedor.", c: "bg-brand-600 text-monte" },
-    liberado: { t: "Se pagó al vendedor", d: "Confirmaste que lo recibiste bien. ¡Gracias por comprar con Trato!", c: "bg-brand-700 text-white" },
-    en_disputa: { t: "Reclamo abierto", d: "La plata quedó congelada en el contrato. Un revisor va a ver el caso.", c: "bg-amber-500 text-white" },
-    resuelto: { t: "Reclamo resuelto", d: "El revisor repartió la plata entre comprador y vendedor.", c: "bg-violet-600 text-white" },
-    devuelto: { t: "Te devolvimos tu pago", d: "El vendedor no despachó a tiempo, así que el contrato te devolvió la plata.", c: "bg-rose-600 text-white" },
-    esperando_pago: { t: "", d: "", c: "" },
-  }[o.status];
+  const map: Record<string, { t: string; d: string; tono: Tono }> = {
+    pagado: { t: "Tu pago está guardado", d: "El vendedor ve que pagaste, pero no puede cobrar hasta que confirmes.", tono: "acento" },
+    enviado: { t: "Tu pedido está en camino", d: "Tu pago sigue guardado. Cuando te llegue, revísalo y recién ahí paga al vendedor.", tono: "acento" },
+    liberado: { t: "Se pagó al vendedor", d: "Confirmaste que lo recibiste bien. ¡Gracias por comprar con Trato!", tono: "oscuro" },
+    en_disputa: { t: "Reclamo abierto", d: "La plata quedó congelada en el contrato. Un revisor va a ver el caso.", tono: "aviso" },
+    resuelto: { t: "Reclamo resuelto", d: "El revisor repartió la plata entre comprador y vendedor.", tono: "oscuro" },
+    devuelto: { t: "Te devolvimos tu pago", d: "El vendedor no despachó a tiempo, así que el contrato te devolvió la plata.", tono: "suave" },
+  };
+  const m = map[o.status] ?? { t: "", d: "", tono: "suave" as Tono };
+  const s = TONO[m.tono];
   const guardado = o.status === "pagado" || o.status === "enviado" || o.status === "en_disputa";
+  const icono =
+    o.status === "liberado" ? (
+      <IconoCheckCirculo className="h-8 w-8 flex-none text-yungas" />
+    ) : o.status === "resuelto" ? (
+      <IconoBalanza className="h-8 w-8 flex-none text-yungas" />
+    ) : o.status === "devuelto" ? (
+      <IconoVolver className="h-8 w-8 flex-none text-musgo" />
+    ) : guardado ? (
+      <CandadoQueSeCierra className="h-8 w-8 flex-none" />
+    ) : null;
   return (
-    <section className={`rounded-2xl p-5 ${map.c}`} data-testid="estado-pedido">
-      <p className="text-xs uppercase tracking-wide opacity-80">
+    <section className={`${s.caja} animate-aparecer !p-5 sm:!p-6`} data-testid="estado-pedido" data-oscuro={m.tono === "oscuro" ? "" : undefined}>
+      <p className={`text-xs font-semibold uppercase tracking-[0.08em] ${s.eyebrow}`}>
         {o.code} · {o.product}
       </p>
-      <div className="mt-1 flex items-center gap-2">
-        {guardado && <CandadoQueSeCierra className="h-7 w-7 flex-none" />}
-        <h1 className="text-2xl font-bold">{map.t}</h1>
+      <div className="mt-2 flex items-center gap-3">
+        {icono}
+        <h1 className="text-2xl leading-tight">{m.t}</h1>
       </div>
-      <p className="mt-1 text-sm opacity-90">{map.d}</p>
-      <p className="mt-3 text-3xl font-extrabold">{fmtBsUnits(o.amount_units, o.fx)}</p>
+      <p className={`mt-2 text-sm ${s.detalle}`}>{m.d}</p>
+      <p className="mt-4 font-display text-4xl tracking-tight num">{fmtBsUnits(o.amount_units, o.fx)}</p>
     </section>
   );
 }
 
 export function Antifraude({ code, host }: { code: string | null; host: string }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 text-xs text-slate-600" data-testid="antifraude">
-      <p className="font-semibold text-slate-800">🛡️ Señales de confianza</p>
-      <p className="mt-1">Si un QR de Trato está a nombre de una persona, es estafa.</p>
-      <p className="mt-1">
-        Verifica este link en{" "}
-        <a className="underline" href={`/verificar?codigo=${code ?? ""}`}>
-          {host}/verificar
-        </a>{" "}
-        con el código <strong>{code}</strong>.
-      </p>
-      {SOPORTE_WA && (
-        <p className="mt-1">
-          ¿Dudas?{" "}
-          <a className="underline" href={waLink("Hola, ¿este link de pago de Trato es auténtico?", SOPORTE_WA)} target="_blank" rel="noreferrer">
-            Reenvía este link a nuestro WhatsApp
+    <section className="flex gap-3 rounded-card border border-tinta-200/80 bg-white p-4 text-xs text-tinta-600" data-testid="antifraude">
+      <IconoInfo className="mt-0.5 h-4 w-4 flex-none text-tinta-500" />
+      <div className="space-y-1">
+        <p className="font-semibold text-tinta-800">Señales de confianza</p>
+        <p>Si un QR de Trato está a nombre de una persona, es estafa.</p>
+        <p>
+          Verifica este link en{" "}
+          <a className="enlace" href={`/verificar?codigo=${code ?? ""}`}>
+            {host}/verificar
           </a>{" "}
-          y te decimos si es auténtico.
+          con el código <strong>{code}</strong>.
         </p>
-      )}
+        {SOPORTE_WA && (
+          <p>
+            ¿Dudas?{" "}
+            <a className="enlace" href={waLink("Hola, ¿este link de pago de Trato es auténtico?", SOPORTE_WA)} target="_blank" rel="noreferrer">
+              Reenvía este link a nuestro WhatsApp
+            </a>{" "}
+            y te decimos si es auténtico.
+          </p>
+        )}
+      </div>
     </section>
   );
 }
 
 /** Esqueleto de carga con la forma del primer pantallazo (producto, total, dos salidas y botón). */
 export function Esqueleto() {
-  const b = "animate-pulse rounded-lg bg-slate-200/80";
+  const b = "animate-pulse rounded-chip bg-tinta-200/70";
   return (
     <div className="mx-auto max-w-md space-y-4" data-testid="cargando" aria-busy="true" aria-label="Cargando el link de pago">
       <section className="card space-y-3">
@@ -101,12 +126,13 @@ export function Esqueleto() {
           </div>
         </div>
       </section>
-      <section className="card space-y-3">
-        <div className={`h-5 w-2/3 ${b}`} />
-        <div className={`h-12 w-full ${b}`} />
-        <div className={`h-12 w-full ${b}`} />
+      <section className="rounded-panel bg-monte/90 p-5 space-y-3">
+        <div className="h-5 w-2/3 animate-pulse rounded-chip bg-white/15" />
+        <div className="h-12 w-full animate-pulse rounded-control bg-white/10" />
+        <div className="h-12 w-full animate-pulse rounded-control bg-white/10" />
       </section>
-      <div className={`h-14 w-full rounded-xl ${b}`} />
+      <div className={`h-14 w-full rounded-control ${b}`} />
+      <p className="text-center text-xs text-tinta-500">Cargando tu link de pago…</p>
     </div>
   );
 }
@@ -115,12 +141,12 @@ export function Esqueleto() {
 export function LinkNoEncontrado() {
   return (
     <section className="card mx-auto max-w-md space-y-3 text-center" data-testid="link-no-encontrado">
-      <p className="text-4xl" aria-hidden>
-        ⚠️
-      </p>
-      <h1 className="text-xl font-bold">Este link de pago no existe</h1>
-      <p className="text-sm font-medium text-slate-800">Puede ser un link falso. No pagues nada ni mandes tus datos hasta verificarlo.</p>
-      <p className="text-sm text-slate-600">Pídele a la tienda el código del pedido (empieza con PP-) y revísalo en «Verificar un link».</p>
+      <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-aviso-50 text-aviso-600">
+        <IconoAlerta className="h-6 w-6" />
+      </span>
+      <h1 className="text-xl">Este link de pago no existe</h1>
+      <p className="text-sm font-medium text-tinta-800">Puede ser un link falso. No pagues nada ni mandes tus datos hasta verificarlo.</p>
+      <p className="text-sm text-tinta-600">Pídele a la tienda el código del pedido (empieza con PP-) y revísalo en «Verificar un link».</p>
       <a className="btn-primary w-full" href="/verificar">
         Verificar un link
       </a>

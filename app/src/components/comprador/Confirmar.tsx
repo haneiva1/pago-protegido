@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { fmtLeft } from "@/components/Guardian";
+import { IconoReloj } from "@/components/iconos";
 import { Spinner } from "@/components/ui";
 import type { OrderView } from "@/lib/types";
+import { BarraAvance } from "./Espera";
 
 /** "Pagar al vendedor (irreversible)": se habilita después de la espera y siempre pregunta antes. */
 export function ConfirmarPago({
@@ -21,18 +23,28 @@ export function ConfirmarPago({
 }) {
   const o = v.order;
   const canConfirm = o.status === "enviado" && o.confirm_after != null && now >= o.confirm_after;
+  // La espera corre desde el envío: con eso la barra muestra cuánto falta de verdad.
+  const total = o.confirm_after && o.shipped_at ? o.confirm_after - o.shipped_at : null;
+  const restante = o.confirm_after ? Math.max(0, o.confirm_after - now) : 0;
+  const pct = total && total > 0 ? ((total - restante) / total) * 100 : 0;
   return (
-    <section className="card space-y-2" data-testid="confirmar">
+    <section className="card space-y-3" data-testid="confirmar">
+      {!canConfirm && o.confirm_after && (
+        <div data-testid="espera-confirmar" className="rounded-control bg-tinta-50 p-3 ring-1 ring-tinta-200">
+          <p className="flex items-center gap-2 text-sm text-tinta-700">
+            <IconoReloj className="h-5 w-5 flex-none text-musgo" />
+            <span>
+              Se habilita en <strong className="num">{fmtLeft(o.confirm_after - now)}</strong>
+            </span>
+          </p>
+          {total ? <BarraAvance pct={pct} className="mt-2" /> : null}
+          <p className="mt-2 text-xs text-tinta-500">{v.confirmDelay} después del envío, para que alcances a recibir y revisar el producto.</p>
+        </div>
+      )}
       <button className="btn-primary w-full py-4 text-lg" disabled={!canConfirm || busy} onClick={onPagar}>
         {busy ? <Spinner /> : null} Pagar al vendedor (irreversible)
       </button>
-      <p className="text-center text-xs font-medium text-slate-600">Después ya no puedes reclamar.</p>
-      {!canConfirm && o.confirm_after && (
-        <p data-testid="espera-confirmar" className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
-          Se habilita en <strong className="tabular-nums">{fmtLeft(o.confirm_after - now)}</strong>: {v.confirmDelay} después del envío, para que alcances a
-          recibir y revisar el producto.
-        </p>
-      )}
+      <p className="text-center text-xs font-medium text-tinta-600">Después ya no puedes reclamar.</p>
       <button className="btn-danger w-full" disabled={busy} onClick={onProblema}>
         Tengo un problema
       </button>
@@ -55,12 +67,12 @@ export function PreguntaConfirmar({
   const [presion, setPresion] = useState(false);
   if (presion)
     return (
-      <section className="card space-y-3 ring-2 ring-amber-300" data-testid="confirmar-presion">
-        <h2 className="text-lg font-bold">¿La tienda te pide que le pagues antes de tener el producto?</h2>
-        <p className="text-sm text-slate-700">
+      <section className="card space-y-3 ring-2 ring-aviso-200 animate-aparecer" data-testid="confirmar-presion">
+        <h2 className="text-lg leading-snug">¿La tienda te pide que le pagues antes de tener el producto?</h2>
+        <p className="text-sm text-tinta-700">
           Vamos a abrir un reclamo por presión para confirmar: la plata queda congelada y un revisor ve el caso. La tienda no cobra mientras tanto.
         </p>
-        <button className="btn w-full bg-amber-500 text-white hover:bg-amber-600" disabled={busy} onClick={onPresion}>
+        <button className="btn-oscuro w-full" disabled={busy} onClick={onPresion}>
           {busy ? <Spinner /> : null} Sí, abrir un reclamo
         </button>
         <button className="btn-secondary w-full" disabled={busy} onClick={() => setPresion(false)}>
@@ -69,8 +81,8 @@ export function PreguntaConfirmar({
       </section>
     );
   return (
-    <section className="card space-y-3 ring-2 ring-brand-200" data-testid="pregunta-confirmar">
-      <h2 className="text-lg font-bold">¿Tienes el producto en tus manos y lo revisaste?</h2>
+    <section className="card space-y-3 ring-2 ring-exito-200 animate-aparecer" data-testid="pregunta-confirmar">
+      <h2 className="text-lg leading-snug">¿Tienes el producto en tus manos y lo revisaste?</h2>
       <button className="btn-primary w-full" disabled={busy} onClick={onSi}>
         {busy ? <Spinner /> : null} Sí, lo tengo y está bien
       </button>
