@@ -63,6 +63,14 @@ cd app && npm ci && npm run build && npm run test:e2e:publico   # app: build y e
 
 El camino con pagos en testnet y la demo local están en [docs/TECNICO.md](docs/TECNICO.md#para-el-jurado).
 
+## El bot de WhatsApp
+
+![El bot real de Trato atendiendo una venta: vincular la tienda, vender por chat, verificar un link auténtico y uno falso, avisos del pago a los dos chats y aviso de envío](demo/bot/bot-trato.gif)
+
+El bot real (el mismo código que atiende WhatsApp) vendiendo contra la demo desplegada. El teléfono es el simulador de chat del repo: Meta solo deja que un número de prueba le responda a 5 teléfonos hasta verificar la empresa; en la final lo mostramos en un celular.
+
+Video completo (58 s): [`demo/bot/bot-trato.mp4`](demo/bot/bot-trato.mp4). Código y simulador: [`bot/`](bot/README.md).
+
 ## Evidencia on-chain
 
 **Contratos v2 en testnet:**
