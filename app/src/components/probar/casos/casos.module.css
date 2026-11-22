@@ -1,0 +1,178 @@
+/* "¿Y si algo sale mal?": solo se animan transform y opacity (y el trazo de las flechas). Con prefers-reduced-motion, todo queda quieto en su estado final. */
+
+.escena {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 160 / 100;
+}
+
+/* Capa del tamaño de la escena: trasladarla en % mueve lo que lleva adentro en % de la escena. */
+.capa {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transition:
+    transform 900ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 300ms ease-out;
+}
+
+.aparece {
+  transition:
+    opacity 280ms ease-out,
+    transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* La flecha que se dibuja: stroke-dasharray 1 sobre pathLength 1. */
+.trazo {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 600ms ease-out;
+}
+.trazoVisible {
+  stroke-dashoffset: 0;
+}
+
+/* El intento del intruso: sube contra el contrato, choca y rebota hacia abajo. */
+@keyframes intento {
+  0% {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  45% {
+    transform: translateY(0);
+  }
+  58% {
+    transform: translateY(3px);
+  }
+  66% {
+    transform: translateY(-1px);
+  }
+  100% {
+    transform: translateY(9px);
+    opacity: 1;
+  }
+}
+.intento {
+  transform-box: fill-box;
+  animation: intento 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* Mientras viaja la orden: la flecha late. */
+@keyframes latido {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.enviando {
+  animation: latido 1s ease-in-out infinite;
+}
+
+/* El sello "Rechazado por la red": entra grande y se asienta, apenas girado. */
+@keyframes sello {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(-8deg) scale(1.35);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(-8deg) scale(1);
+  }
+}
+.sello {
+  transform: translate(-50%, -50%) rotate(-8deg);
+  animation: sello 320ms cubic-bezier(0.2, 0.8, 0.2, 1) 450ms both;
+}
+
+/* El contrato acusa el golpe. */
+@keyframes golpe {
+  0%,
+  100% {
+    transform: none;
+  }
+  30% {
+    transform: translateY(-3px);
+  }
+  60% {
+    transform: translateY(1px);
+  }
+}
+.golpe {
+  animation: golpe 360ms ease-out 380ms both;
+}
+
+/* El reloj del plazo: el arco se vacía (stroke-dashoffset 0 → 1). */
+.plazo {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 2600ms linear;
+}
+.plazoVencido {
+  stroke-dashoffset: 1;
+}
+
+.panel {
+  animation: panel 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes panel {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.texto {
+  animation: texto 240ms ease-out both;
+}
+@keyframes texto {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.tocable {
+  transition:
+    transform 150ms ease-out,
+    background-color 200ms ease-out,
+    color 200ms ease-out,
+    box-shadow 200ms ease-out;
+}
+.tocable:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .capa,
+  .aparece,
+  .trazo,
+  .plazo,
+  .tocable {
+    transition: none;
+  }
+  .intento,
+  .enviando,
+  .sello,
+  .golpe,
+  .panel,
+  .texto {
+    animation: none;
+  }
+  .intento {
+    transform: translateY(9px);
+  }
+}

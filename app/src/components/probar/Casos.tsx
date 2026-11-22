@@ -1,62 +1,90 @@
-import { IconoAlerta, IconoBloqueado, IconoCheckCirculo, IconoExterno, IconoVolver } from "@/components/iconos";
+"use client";
 
-const EVIDENCIA = "https://github.com/haneiva1/pago-protegido#evidencia-on-chain";
+import { useEffect, useRef, useState, type ComponentType } from "react";
+import { IconoAlerta, IconoBloqueado, IconoReloj, IconoVolver } from "@/components/iconos";
+import { LlegaMal, NoConfirma, NoEnvia } from "./casos/Animados";
+import { IntentoEnVivo } from "./casos/IntentoEnVivo";
+import s from "./casos/casos.module.css";
 
-/** Cada caso en una línea, con la transacción real en la red de prueba (las del README, "Evidencia on-chain"). */
-const CASOS = [
-  {
-    Icono: IconoCheckCirculo,
-    titulo: "Todo bien",
-    frase: "La tienda cobra.",
-    href: "https://stellar.expert/explorer/testnet/tx/0d3cb6aa042da56b562c3490f5c45311b08af66d4fcf2eb80e742026aeefaba9",
-    link: "Ver en la red",
-  },
-  {
-    Icono: IconoAlerta,
-    titulo: "Llega mal",
-    frase: "Reclamo y un revisor decide, siempre entre los dos.",
-    href: "https://stellar.expert/explorer/testnet/tx/68ba9ed24755a4c401a28bfa122b5a48fee7929a1d9ae9256bb7f4e1b2ff889d",
-    link: "Ver en la red",
-  },
-  {
-    Icono: IconoVolver,
-    titulo: "No envía a tiempo",
-    frase: "La plata vuelve sola.",
-    href: "https://stellar.expert/explorer/testnet/tx/fdff2f9bb7ce10a0cf02f2d2dbbf299c38681bdea4db872bc98caec2713de0ee",
-    link: "Ver en la red",
-  },
-  {
-    Icono: IconoBloqueado,
-    titulo: "Alguien intenta desviar",
-    frase: "El contrato lo rechaza.",
-    href: EVIDENCIA,
-    link: "9 desvíos rechazados en testnet",
-  },
+/**
+ * "¿Y si algo sale mal?", debajo de la demo: cuatro casos para elegir, cada uno en 15 s o menos. El primero es en vivo
+ * (una orden real a la red que la red rechaza); los otros tres son animaciones cortas con su transacción real del README.
+ */
+const CASOS: { id: string; titulo: string; Icono: ComponentType<{ className?: string }>; enVivo?: boolean; Panel: ComponentType }[] = [
+  { id: "intento", titulo: "Alguien intenta llevarse la plata", Icono: IconoBloqueado, enVivo: true, Panel: IntentoEnVivo },
+  { id: "llega-mal", titulo: "Llega mal", Icono: IconoAlerta, Panel: LlegaMal },
+  { id: "no-envia", titulo: "La tienda no envía a tiempo", Icono: IconoVolver, Panel: NoEnvia },
+  { id: "no-confirma", titulo: "El comprador no confirma", Icono: IconoReloj, Panel: NoConfirma },
 ];
 
 export function Casos({ className = "" }: { className?: string }) {
+  const [elegido, setElegido] = useState(CASOS[0].id);
+  // El caso en vivo prepara su pedido recién cuando la sección se ve: no compite con el arranque de la demo de arriba.
+  const [visto, setVisto] = useState(false);
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || visto) return;
+    if (typeof IntersectionObserver === "undefined") return setVisto(true);
+    const io = new IntersectionObserver((e) => e.some((x) => x.isIntersecting) && setVisto(true), { rootMargin: "120px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [visto]);
+
+  const caso = CASOS.find((c) => c.id === elegido) ?? CASOS[0];
+  const Panel = caso.Panel;
+
   return (
-    <section data-testid="casos" className={className} aria-labelledby="casos-titulo">
-      <h2 id="casos-titulo" className="text-2xl">
-        Cómo manejamos cada caso
-      </h2>
-      <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {CASOS.map(({ Icono, titulo, frase, href, link }) => (
-          <li key={titulo} className="flex flex-col gap-2 rounded-card bg-white p-4 ring-1 ring-inset ring-tinta-200/70">
-            <div className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-exito-100 text-musgo">
+    <section ref={ref} id="casos" data-testid="casos" className={`scroll-mt-24 ${className}`} aria-labelledby="casos-titulo">
+      <div className="text-center">
+        <h2 id="casos-titulo" className="text-2xl lg:text-3xl">
+          ¿Y si algo sale mal?
+        </h2>
+        <p className="mt-1 text-sm text-tinta-600">Elige un caso.</p>
+      </div>
+
+      <div role="tablist" aria-label="Casos" className="mx-auto mt-5 grid max-w-4xl grid-cols-2 gap-2.5 lg:grid-cols-4">
+        {CASOS.map(({ id, titulo, Icono, enVivo }) => {
+          const activo = id === elegido;
+          return (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              id={`caso-tab-${id}`}
+              aria-selected={activo}
+              aria-controls="caso-panel"
+              data-testid={`tab-caso-${id}`}
+              onClick={() => setElegido(id)}
+              className={`${s.tocable} relative flex min-h-[4.5rem] items-center gap-2.5 rounded-card px-3 py-3 text-left ${
+                activo ? "bg-monte text-sal shadow-card" : "bg-white text-monte ring-1 ring-inset ring-tinta-200/80 hover:bg-tinta-50"
+              }`}
+            >
+              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${activo ? "bg-sal/10 text-yungas" : id === "intento" ? "bg-error-50 text-error-600" : "bg-tinta-100 text-tinta-700"}`}>
                 <Icono className="h-5 w-5" />
               </span>
-              <p className="text-base font-semibold text-monte">{titulo}</p>
-            </div>
-            <p className="text-sm text-tinta-700">{frase}</p>
-            <a href={href} target="_blank" rel="noreferrer" className="enlace mt-auto inline-flex items-center gap-1 text-sm">
-              {link}
-              <IconoExterno className="h-3.5 w-3.5" />
-            </a>
-          </li>
-        ))}
-      </ul>
+              <span className="flex flex-col items-start gap-1">
+                <span className="text-sm font-semibold leading-tight">{titulo}</span>
+                {enVivo && (
+                  <span className={`rounded-chip px-1.5 py-0.5 text-[10px] font-semibold uppercase leading-none tracking-wide ${activo ? "bg-yungas text-monte" : "bg-exito-100 text-musgo"}`}>
+                    En vivo
+                  </span>
+                )}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div
+        key={caso.id}
+        id="caso-panel"
+        role="tabpanel"
+        aria-labelledby={`caso-tab-${caso.id}`}
+        className={`${s.panel} mx-auto mt-4 max-w-4xl rounded-panel bg-white px-4 py-6 ring-1 ring-inset ring-tinta-200/70 sm:px-8`}
+      >
+        {caso.id === "intento" ? <IntentoEnVivo activo={visto} /> : <Panel />}
+      </div>
     </section>
   );
 }
