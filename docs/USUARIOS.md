@@ -1,6 +1,6 @@
 # Usuarios: entrevistas y pilotos
 
-Esta plantilla sirve para registrar cada conversación con vendedores (y compradores) y cada piloto. Esta semana sirve para medir la validación con entrevistas y con el formulario `/piloto` (ver el [CHANGELOG](../CHANGELOG.md)). La sección "Pilotos" se usa desde el plan de 30 días, cuando arrancan los 20 pilotos ([README](../README.md#plan-de-30-días)).
+Esta plantilla sirve para registrar cada conversación con vendedores (y compradores) y cada piloto. Antes de Trato, Hans ya hizo entre 12 y 15 entrevistas en persona con comercios de La Paz (mar–jun 2026), resumidas abajo; las entrevistas de Trato (con esta plantilla y el formulario `/piloto`, ver el [CHANGELOG](../CHANGELOG.md)) son el siguiente paso. La sección "Pilotos" se usa desde el plan de 30 días, cuando arrancan los 20 pilotos ([README](../README.md#plan-de-30-días)).
 
 **Segmento inicial:** vendedores de celulares y electrónica de Bs 1.000 a 7.000 que envían por encomienda a otras ciudades.
 
@@ -40,6 +40,20 @@ No son entrevistas. Revisamos páginas públicas de tiendas de celulares y elect
 - **Lo que no sabemos:** si los vendedores honestos pierden ventas por desconfianza. No encontramos ninguna fuente pública. Es lo que preguntan las entrevistas.
 
 Las URL, la tabla completa y la verificación están en [OBSERVACION-PUBLICA.md](OBSERVACION-PUBLICA.md).
+
+## Entrevistas en persona previas (mar–jun 2026)
+
+Hans visitó en persona entre 12 y 15 comercios de La Paz (ropa, tecnología y alimentos, varios en San Miguel). Son anteriores a Trato y no siguieron esta plantilla; no hay filas individuales en el registro.
+
+Lo que más se repitió:
+
+- **La mayoría exige el pago por adelantado**, porque si no, no hay venta.
+- **Hay desconfianza en el QR y en adoptar tecnología**, sobre todo en tiendas menos digitalizadas. Algunas usan QR, pero con dudas.
+- **Cerca de la mitad (unos 6 a 8) vende a otras ciudades** y cobra por QR antes de enviar.
+
+### Resumen de Hans
+
+La mayoría de los comercios cobra antes de entregar y desconfía del QR; cerca de la mitad vende a otras ciudades y cobra por QR antes de enviar.
 
 ## Encuesta propia a negocios que venden por WhatsApp (feb-2026)
 
