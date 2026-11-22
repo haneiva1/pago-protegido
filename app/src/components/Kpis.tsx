@@ -7,7 +7,7 @@ import { IconoExterno } from "./iconos";
 
 export function Stat({ label, value, sub, testId }: { label: string; value: string; sub?: string; testId?: string }) {
   return (
-    <div className="rounded-card bg-tinta-50 px-3 py-3.5 text-center ring-1 ring-tinta-200/60" data-testid={testId}>
+    <div className="rounded-card bg-tinta-50 px-3 py-4 text-center" data-testid={testId}>
       <p className="font-display text-2xl leading-none tracking-tight text-monte num">{value}</p>
       <p className="mt-1.5 text-xs font-medium text-tinta-700">{label}</p>
       {sub && <p className="mt-0.5 text-[11px] leading-tight text-tinta-500">{sub}</p>}

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Countdown, ShipDeadline } from "@/components/Guardian";
 import { Breakdown, SplitView, TxList } from "@/components/OrderBits";
-import { CopyButton, ErrorBox, ExplorerLink, Spinner, StatusBadge } from "@/components/ui";
+import { CopyButton, ErrorBox, Spinner, StatusBadge } from "@/components/ui";
 import { IconoAlerta, IconoBalanza, IconoBillete, IconoCamion, IconoCandado, IconoCelular, IconoCheckCirculo, IconoChevronDerecha, IconoInfo, IconoUsuario, IconoVolver } from "@/components/iconos";
 import { Stat } from "@/components/Kpis";
 import { Compartir } from "@/components/vendedor/Compartir";
@@ -73,12 +73,12 @@ export default function Panel() {
   if (pk === undefined) return null;
   if (pk === null)
     return (
-      <div className="card mx-auto max-w-md space-y-3 text-center sm:p-6">
+      <div className="mx-auto max-w-md space-y-3 pt-8 text-center">
         <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-exito-50 text-musgo">
           <IconoCandado className="h-6 w-6" />
         </span>
-        <h1 className="text-2xl">Todavía no tienes tienda en este dispositivo</h1>
-        <p className="muted">Crea tu tienda en 3 pasos y tu primer link.</p>
+        <h1 className="text-3xl">Todavía no tienes tienda en este dispositivo</h1>
+        <p className="text-base text-tinta-600">Crea tu tienda en 3 pasos y tu primer link.</p>
         <Link href="/vender" className="btn-primary w-full">
           Crear mi tienda
         </Link>
@@ -123,38 +123,40 @@ export default function Panel() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <section className="card flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
+    <div className="mx-auto max-w-3xl space-y-10">
+      <section className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <p className="eyebrow">Tu tienda</p>
-          <h1 className="mt-1 text-2xl sm:text-3xl" data-testid="tienda">
+          <h1 className="mt-1 text-3xl" data-testid="tienda">
             {seller.store_name}
           </h1>
-          <p className="muted mt-1">
+          <p className="mt-1 text-base text-tinta-600">
             {seller.city ? `${seller.city} · ` : ""}WhatsApp {seller.whatsapp} · {plural(seller.completedSales, "venta protegida", "ventas protegidas")}
           </p>
-          <p className="mt-2 text-xs">
-            <ExplorerLink href={explorer.account(seller.pubkey)}>Ver registro público de tu cuenta</ExplorerLink>
+          <p className="mt-2 text-sm">
+            <a className="enlace" href={explorer.account(seller.pubkey)} target="_blank" rel="noreferrer">
+              Ver el registro público de tu cuenta
+            </a>
           </p>
         </div>
-        <div className="panel-acento !p-5 sm:w-72 sm:flex-none">
-          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-monte/70">Saldo cobrado</p>
-          <p className="mt-1 font-display text-3xl tracking-tight num" data-testid="saldo">
+        <div className="sm:w-80 sm:flex-none sm:text-right">
+          <p className="eyebrow">Saldo cobrado</p>
+          <p className="mt-1 font-display text-5xl leading-none tracking-tight num" data-testid="saldo">
             {saldo}
           </p>
           {enCurso.cantidad > 0 && (
-            <p className="mt-2 text-xs text-monte/80" data-testid="por-cobrar">
+            <p className="mt-3 text-sm text-tinta-600" data-testid="por-cobrar">
               {enCurso.cantidad === 1 ? "Y 1 venta en curso" : `Y ${enCurso.cantidad} ventas en curso`} por {fmtBs(enCurso.netoBsCents)}, ya guardada
               {enCurso.cantidad === 1 ? "" : "s"} en el contrato: cobras cuando tu cliente confirma.
             </p>
           )}
           {enReclamo.cantidad > 0 && (
-            <p className="mt-1 text-xs text-monte/80" data-testid="en-reclamo">
+            <p className="mt-1 text-sm text-tinta-600" data-testid="en-reclamo">
               {enReclamo.cantidad === 1 ? "1 venta en reclamo" : `${enReclamo.cantidad} ventas en reclamo`}: hasta {fmtBs(enReclamo.hastaBsCents)}, según lo que
               decida el revisor.
             </p>
           )}
-          <button type="button" className="btn-oscuro btn-sm mt-4 w-full" aria-expanded={banco} onClick={() => setBanco((b) => !b)}>
+          <button type="button" className="btn-secondary btn-sm mt-4 w-full sm:w-auto" aria-expanded={banco} onClick={() => setBanco((b) => !b)}>
             <IconoBillete className="h-4 w-4" />
             Pasar a mi banco
           </button>
@@ -163,7 +165,7 @@ export default function Panel() {
 
       {banco && <PasarAMiBanco saldo={saldo} onCerrar={() => setBanco(false)} />}
 
-      <p data-testid="antifraude-vendedor" className="flex gap-3 rounded-card border border-tinta-200/80 bg-white p-4 text-sm text-tinta-700">
+      <p data-testid="antifraude-vendedor" className="flex gap-3 text-base text-tinta-700">
         <IconoInfo className="mt-0.5 h-5 w-5 flex-none text-musgo" />
         <span>
           <strong>Para cobrar no tienes que abrir ningún link.</strong> Lo que vendes te llega solo cuando el comprador confirma. Nadie de Trato te va a pedir
@@ -188,36 +190,36 @@ export default function Panel() {
       />
 
       {created && (
-        <section className="panel-suave space-y-3 !p-5 animate-aparecer sm:!p-6" data-testid="link-creado">
-          <h2 className="flex items-center gap-2 text-xl">
-            <IconoCheckCirculo className="h-6 w-6 flex-none text-musgo" />
-            ¡Tu link está listo!
-          </h2>
-          <p className="text-sm text-tinta-700">Mándaselo a tu cliente. Cuando pague, la plata espera entre los dos hasta que confirme que recibió.</p>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <code data-testid="link-url" className="flex-1 truncate rounded-control bg-white px-3.5 py-3 text-sm ring-1 ring-exito-200">
+        <section className="space-y-4 animate-aparecer" data-testid="link-creado">
+          <div className="panel-acento space-y-4 !p-5 sm:!p-6">
+            <h2 className="flex items-center gap-2 text-2xl">
+              <IconoCheckCirculo className="h-7 w-7 flex-none" />
+              ¡Tu link está listo!
+            </h2>
+            <p className="max-w-[40ch] text-base text-monte/80">Mándaselo a tu cliente. Cuando pague, la plata espera entre los dos hasta que confirme que recibió.</p>
+            <code data-testid="link-url" className="block truncate rounded-control bg-white/90 px-3.5 py-3 text-base text-monte">
               {linkUrl(created)}
             </code>
-            <CopyButton text={linkUrl(created)} label="Copiar link" testId="copiar-link" />
+            <div className="grid grid-cols-2 gap-2">
+              <CopyButton text={linkUrl(created)} label="Copiar link" className="btn-oscuro" testId="copiar-link" />
+              {orders.some((x) => x.slug === created) && (
+                <Compartir text={textoLink(orders.find((x) => x.slug === created)!, seller.store_name)} label="Compartir" className="btn-oscuro" testId="compartir-link" />
+              )}
+            </div>
           </div>
           {(() => {
             const o = orders.find((x) => x.slug === created);
-            return o ? (
-              <>
-                <Compartir text={textoLink(o, seller.store_name)} label="Compartir con tu cliente" className="btn-primary w-full" testId="compartir-link" />
-                <WhatsAppBox title="Mensaje para tu cliente" text={textoLink(o, seller.store_name)} />
-              </>
-            ) : null;
+            return o ? <WhatsAppBox title="Mensaje para tu cliente" text={textoLink(o, seller.store_name)} /> : null;
           })()}
         </section>
       )}
 
-      <section className="space-y-3">
-        <h2 className="text-xl">Pedidos</h2>
+      <section className="space-y-2">
+        <h2 className="text-2xl">Pedidos</h2>
         {orders.length === 0 && (
-          <div className="card flex flex-col items-center gap-2 py-8 text-center">
+          <div className="flex flex-col items-center gap-2 border-t border-tinta-200 py-10 text-center">
             <IconoBillete className="h-8 w-8 text-tinta-300" />
-            <p className="muted">Todavía no tienes pedidos. Crea tu primer link y compártelo.</p>
+            <p className="text-base text-tinta-600">Todavía no tienes pedidos. Crea tu primer link y compártelo.</p>
           </div>
         )}
         {orders.map((o) => (
@@ -236,9 +238,9 @@ export default function Panel() {
         ))}
       </section>
 
-      <section className="card space-y-3 sm:p-6" data-testid="kpis-vendedor">
+      <section className="space-y-4 border-t border-tinta-200 pt-6" data-testid="kpis-vendedor">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-xl">Tus números</h2>
+          <h2 className="text-2xl">Tus números</h2>
           {seller.slug && (
             <Link href={`/tienda/${seller.slug}`} className="inline-flex items-center gap-1 text-sm font-semibold text-musgo" data-testid="link-mi-perfil">
               Ver y compartir mi perfil público
@@ -266,12 +268,12 @@ export default function Panel() {
             sub={data.kpis.cobro_muestras ? "mediana desde el pago" : "todavía sin cobros"}
           />
         </div>
-        <p className="text-xs text-tinta-500">Calculados con el registro público de tus ventas: son los mismos que ven tus clientes en tu perfil.</p>
+        <p className="text-sm text-tinta-600">Calculados con el registro público de tus ventas: son los mismos que ven tus clientes en tu perfil.</p>
       </section>
 
       {seller.slug && <Insignia slug={seller.slug} storeName={seller.store_name} kpis={data.kpis} />}
 
-      <p className="text-center text-xs text-tinta-500">Modo práctica: no se mueve dinero real. {DOLLAR_NOTE}</p>
+      <p className="text-center text-sm text-tinta-500">Modo práctica: no se mueve dinero real. {DOLLAR_NOTE}</p>
     </div>
   );
 }
@@ -321,12 +323,12 @@ function OrderCard({
   }
 
   return (
-    <article ref={ref} className={`card scroll-mt-20 space-y-4 transition-shadow duration-300 ${focused || resaltado ? "ring-2 ring-yungas" : ""}`} data-testid={`pedido-${o.slug}`}>
+    <article ref={ref} className={`scroll-mt-20 space-y-4 border-t border-tinta-200 py-6 transition-colors duration-300 ${focused || resaltado ? "rounded-card border-transparent bg-exito-50 px-4" : ""}`} data-testid={`pedido-${o.slug}`}>
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="eyebrow">{o.code}</p>
           <h3 className="truncate text-lg">{o.product}</h3>
-          <p className="muted">
+          <p className="text-sm text-tinta-600">
             {fmtBs(o.price_bs_cents)} · {o.fee_payer === "comprador" ? "protección la paga el comprador" : "protección la regalas tú"} · {fmtDate(o.created_at)}
           </p>
         </div>
@@ -349,7 +351,7 @@ function OrderCard({
       )}
 
       {o.recipient_name && o.status !== "esperando_pago" && (
-        <div data-testid="datos-entrega-vendedor" className="space-y-1.5 rounded-control bg-tinta-50 p-3 text-sm text-tinta-700 ring-1 ring-tinta-200">
+        <div data-testid="datos-entrega-vendedor" className="space-y-1.5 text-base text-tinta-700">
           <p className="flex items-start gap-2">
             <IconoUsuario className="mt-0.5 h-4 w-4 flex-none text-musgo" />
             <span>
@@ -379,7 +381,7 @@ function OrderCard({
 
       {o.status === "pagado" && (
         <>
-          <div className="caja-exito flex gap-3">
+          <div className="flex gap-3 text-base text-tinta-700">
             <IconoCandado className="mt-0.5 h-5 w-5 flex-none text-musgo" />
             <span>
               Tu cliente pagó y la plata espera entre los dos en el contrato. Despacha y registra el envío: cobras cuando tu cliente confirme que lo recibió
@@ -394,7 +396,7 @@ function OrderCard({
 
       {o.status === "enviado" && (
         <>
-          <p className="flex items-start gap-2 text-sm text-tinta-600">
+          <p className="flex items-start gap-2 text-base text-tinta-600">
             <IconoCamion className="mt-0.5 h-5 w-5 flex-none text-musgo" />
             <span>
               Enviado: <strong>{envio}</strong>. Cuando tu cliente confirme, se te paga{o.deadline ? `; si no dice nada, el ${fmtDate(o.deadline)}` : ""}.
@@ -417,7 +419,7 @@ function OrderCard({
 
       {o.status === "liberado" && (
         <>
-          <p className="flex items-center gap-2 text-sm font-medium text-musgo">
+          <p className="flex items-center gap-2 text-base font-medium text-musgo">
             <IconoCheckCirculo className="h-5 w-5 flex-none" />
             Tu cliente confirmó. Ya se te pagó.
           </p>
@@ -468,13 +470,15 @@ function OrderCard({
 
       {o.txs.length > 0 && (
         <details className="group">
-          <summary className="cursor-pointer text-sm font-medium text-tinta-600">Movimientos ({o.txs.length})</summary>
+          <summary className="cursor-pointer text-base font-medium text-tinta-600">Movimientos ({o.txs.length})</summary>
           <TxList txs={o.txs} />
         </details>
       )}
       {o.escrow_id && (
-        <p className="text-xs text-tinta-500">
-          <ExplorerLink href={explorer.contract(o.escrow_id)}>Ver registro público del pedido</ExplorerLink>
+        <p className="text-sm">
+          <a className="enlace" href={explorer.contract(o.escrow_id)} target="_blank" rel="noreferrer">
+            Ver el registro público del pedido
+          </a>
         </p>
       )}
     </article>

@@ -41,7 +41,7 @@ export function fmtReparto(buyerPct: number): string {
 export function waText(ev: WaEvent, d: WaData): string {
   switch (ev) {
     case "link":
-      return `¡Hola! 👋 Te paso el link de pago protegido de ${d.store ?? "mi tienda"} para *${d.product}* (${d.price}).${d.flete ? `\n🚚 ${d.flete}.` : ""}\n\nTu plata queda guardada en un contrato y solo me llega cuando confirmas que recibiste. Si hay un problema, un tercero revisa el reclamo.\n\n👉 ${d.url}`;
+      return `¡Hola! 👋 Te paso el link de pago protegido de ${d.store ?? "mi tienda"} para *${d.product}* (${d.price}).${d.flete ? `\n🚚 ${d.flete}.` : ""}\n\nTu plata espera entre los dos y solo me llega cuando confirmas que recibiste. Si hay un problema, un tercero revisa el reclamo.\n\n👉 ${d.url}`;
     case "pagado":
       return `Hola ${d.store ?? ""} 👋 Ya pagué *${d.product}* (${d.price}) con Trato. La plata está guardada hasta que reciba. ¿Me avisas cuando lo despaches?\n\n${d.url}`;
     case "despacho":

@@ -184,3 +184,15 @@ test("textos nuevos de /probar sin palabras prohibidas", () => {
   const textos = [...ETAPAS.map((e) => e.titulo), ...ETAPAS.map((e) => e.corto), ...PASOS_PAGO.map((p) => p.haciendo)];
   for (const t of textos) for (const re of PROHIBIDAS) assert.doesNotMatch(t, re, `${re} en "${t}"`);
 });
+
+test("la presentación: un título grande por momento, sin palabras prohibidas", async () => {
+  const { tituloEtapa } = await import("../src/lib/probar.ts");
+  assert.equal(tituloEtapa({ pedido: false, status: null, desvios: 0 }), "La tienda crea el link");
+  assert.equal(tituloEtapa({ pedido: true, status: "esperando_pago", desvios: 0 }), "El comprador paga");
+  assert.equal(tituloEtapa({ pedido: true, status: "pagado", desvios: 0 }), "La plata espera entre los dos");
+  assert.equal(tituloEtapa({ pedido: true, status: "pagado", desvios: 1 }), "Nadie puede desviarla");
+  assert.equal(tituloEtapa({ pedido: true, status: "enviado", desvios: 1 }), "La tienda despachó");
+  assert.equal(tituloEtapa({ pedido: true, status: "liberado", desvios: 1 }), "La tienda cobró");
+  for (const s of ["esperando_pago", "pagado", "enviado", "liberado", "devuelto", "en_disputa", "resuelto"])
+    for (const re of PROHIBIDAS) assert.doesNotMatch(tituloEtapa({ pedido: true, status: s, desvios: 1 }), re);
+});

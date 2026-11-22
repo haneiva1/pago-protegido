@@ -9,7 +9,7 @@ import { CIUDADES } from "@/lib/format";
 import { apiFirmada } from "@/lib/api-firmada";
 import { WALLET_KIND, activateWallet, api, getWallet } from "@/lib/wallet";
 
-const PASOS = ["Tu tienda", "Tu WhatsApp", "Tu cuenta de cobro"];
+const PASOS = ["Tu tienda", "Tu WhatsApp", "Tu cuenta"];
 
 export default function Vender() {
   const router = useRouter();
@@ -79,7 +79,7 @@ export default function Vender() {
         {PASOS.map((p, i) => (
           <li key={p} className="flex flex-col gap-2">
             <span className={`h-1.5 rounded-full transition-colors duration-300 ${i <= step ? "bg-yungas" : "bg-tinta-200"}`} />
-            <span className={`text-xs ${i === step ? "font-semibold text-monte" : "text-tinta-500"}`} aria-current={i === step ? "step" : undefined}>
+            <span className={`text-sm ${i === step ? "font-semibold text-monte" : "text-tinta-500"}`} aria-current={i === step ? "step" : undefined}>
               {i + 1}. {p}
             </span>
           </li>
@@ -88,12 +88,12 @@ export default function Vender() {
 
       {pilotId && <p className="caja-exito mb-4">Vienes del piloto: tu tienda queda marcada como vendedor del piloto.</p>}
 
-      <div className="card space-y-5 sm:p-6">
+      <div className="space-y-5">
         {step === 0 && (
           <form onSubmit={next} className="space-y-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl">¿Cómo se llama tu tienda?</h1>
-              <p className="muted mt-1">Es el nombre que verán tus clientes al pagar.</p>
+              <h1 className="text-3xl">¿Cómo se llama tu tienda?</h1>
+              <p className="mt-1 text-base text-tinta-600">Es el nombre que verán tus clientes al pagar.</p>
             </div>
             <div>
               <label className="label" htmlFor="store">
@@ -120,8 +120,8 @@ export default function Vender() {
         {step === 1 && (
           <form onSubmit={next} className="space-y-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl">Tu WhatsApp</h1>
-              <p className="muted mt-1">Para que tus clientes te escriban y para armar los mensajes listos para enviar.</p>
+              <h1 className="text-3xl">Tu WhatsApp</h1>
+              <p className="mt-1 text-base text-tinta-600">Para que tus clientes te escriban y para armar los mensajes listos para enviar.</p>
             </div>
             <div>
               <label className="label" htmlFor="wa">
@@ -142,14 +142,14 @@ export default function Vender() {
         {step === 2 && (
           <div className="space-y-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl">Tu cuenta de cobro</h1>
-              <p className="mt-1 text-sm text-tinta-600">
+              <h1 className="text-3xl">Tu cuenta de cobro</h1>
+              <p className="mt-1 text-base text-tinta-600">
                 {WALLET_KIND === "pollar"
                   ? "Aquí recibes lo que vendes. Ingresa con Google o tu correo y la cuenta se crea sola. Las comisiones de red las pagamos nosotros."
                   : "Aquí recibes lo que vendes. Se crea sola en este dispositivo y solo tú puedes usarla: nosotros no podemos mover tu plata. Las comisiones de red las pagamos nosotros."}
               </p>
             </div>
-            <ul className="space-y-2 rounded-control bg-tinta-50 p-3 text-sm text-tinta-700">
+            <ul className="space-y-2 border-t border-tinta-200 pt-4 text-base text-tinta-700">
               <li className="flex items-start gap-2">
                 <IconoCandado className="mt-0.5 h-4 w-4 flex-none text-musgo" />
                 <span>
@@ -157,7 +157,7 @@ export default function Vender() {
                   {city ? ` · ${city}` : ""} · WhatsApp {whatsapp || "—"}
                 </span>
               </li>
-              <li className="pl-6 text-xs text-tinta-500">Modo práctica: no se mueve dinero real.</li>
+              <li className="pl-6 text-sm text-tinta-500">Modo práctica: no se mueve dinero real.</li>
             </ul>
             {busy && (
               <EsperaEnCurso

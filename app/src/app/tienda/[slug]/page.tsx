@@ -52,7 +52,7 @@ export default async function Tienda({ params }: { params: Promise<{ slug: strin
       {/* Cabecera en Monte: el perfil es la cara pública de la tienda, con el Nudo y el sello en Yungas. */}
       <section className="panel-oscuro space-y-5 !p-5 sm:!p-7" data-testid="perfil-tienda" data-oscuro="">
         <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 flex-none items-center justify-center rounded-full bg-yungas font-display text-xl text-monte sm:h-16 sm:w-16 sm:text-2xl">{initials}</div>
+          <div className="flex h-14 w-14 flex-none items-center justify-center rounded-full bg-yungas font-display text-lg text-monte sm:h-16 sm:w-16 sm:text-2xl">{initials}</div>
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl leading-tight text-sal sm:text-3xl" data-testid="perfil-nombre">
               {p.store_name}
@@ -83,7 +83,7 @@ export default async function Tienda({ params }: { params: Promise<{ slug: strin
       </section>
 
       <section className="card space-y-3 sm:p-6">
-        <h2 className="text-xl">Historial verificable</h2>
+        <h2 className="text-2xl">Historial verificable</h2>
         <p className="text-sm text-tinta-600">
           Las últimas compras de esta tienda, cada una con su link al registro público.{" "}
           <a className="enlace" href={explorer.account(p.cuenta)} target="_blank" rel="noreferrer">

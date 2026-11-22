@@ -210,3 +210,28 @@ export function errorDelContrato(raw: string | undefined, code?: number): string
   if (m) return m[0];
   return typeof code === "number" ? `Error(Contract, #${code})` : null;
 }
+
+// ---------- La presentación: un título grande por momento ----------
+
+/** El título grande de cada momento de la historia (la presentación de /probar). */
+export function tituloEtapa(p: { pedido: boolean; status: string | null; desvios: number }): string {
+  if (!p.pedido || p.status === null) return "La tienda crea el link";
+  switch (p.status) {
+    case "esperando_pago":
+      return "El comprador paga";
+    case "pagado":
+      return p.desvios > 0 ? "Nadie puede desviarla" : "La plata espera entre los dos";
+    case "enviado":
+      return "La tienda despachó";
+    case "liberado":
+      return "La tienda cobró";
+    case "devuelto":
+      return "La plata volvió al comprador";
+    case "en_disputa":
+      return "La plata está congelada";
+    case "resuelto":
+      return "El revisor repartió la plata";
+    default:
+      return "La historia sigue en los dos celulares";
+  }
+}

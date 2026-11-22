@@ -37,7 +37,7 @@ export function Reclamo({
   if (!motivos.length) return null;
   return (
     <form
-      className="card space-y-4 ring-2 ring-aviso-200 animate-aparecer"
+      className="space-y-4 rounded-card bg-white p-5 shadow-alzada ring-1 ring-aviso-200 animate-aparecer"
       data-testid="reclamo"
       onSubmit={(e) => {
         e.preventDefault();
@@ -48,7 +48,7 @@ export function Reclamo({
       }}
     >
       <div>
-        <h2 className="text-xl">¿Qué pasó?</h2>
+        <h2 className="text-2xl">¿Qué pasó?</h2>
         <p className="muted mt-1">Al enviar, la plata queda congelada y un revisor ve la evidencia de los dos lados. Arrepentirse no es motivo de reclamo.</p>
       </div>
 

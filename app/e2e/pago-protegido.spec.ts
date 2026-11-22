@@ -232,7 +232,7 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
     antes: async (p) => {
       await expect(p.getByTestId("vendedor")).toContainText("Vendedor: Tienda Sofi · Santa Cruz");
       await expect(p.getByTestId("reputacion")).toContainText("Tienda Sofi · Santa Cruz");
-      await expect(p.getByTestId("reputacion")).toContainText("Tienda nueva · igual tu plata queda guardada");
+      await expect(p.getByTestId("reputacion")).toContainText("Tienda nueva · igual tu plata espera entre los dos");
       await expect(p.getByTestId("vendedor")).toContainText("Tienda nueva");
       await expect(p.getByTestId("vendedor")).toContainText("Verificación de identidad: pendiente");
       await expect(p.getByTestId("proteccion")).toContainText("Bs 6,75");

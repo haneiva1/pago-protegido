@@ -10,10 +10,10 @@ import type { OrderView } from "@/lib/types";
 export function LineaDeTiempo({ v, onReload, onExtend }: { v: OrderView; onReload: () => void; onExtend?: () => void }) {
   const o = v.order;
   return (
-    <section className="card space-y-4">
+    <section className="space-y-4 border-t border-tinta-200 pt-6">
       {/* Con el código de 8 caracteres, en celular la etiqueta de estado baja en vez de cortar el título. */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
-        <h2 className="min-w-0 text-lg">Seguimiento · {o.code}</h2>
+        <h2 className="min-w-0 text-2xl">Seguimiento · {o.code}</h2>
         <StatusBadge status={o.status} />
       </div>
       <Timeline order={o} txs={v.txs} />
@@ -38,23 +38,23 @@ export function Cierre({ v }: { v: OrderView }) {
   const o = v.order;
   if (o.status === "liberado")
     return (
-      <section className="card space-y-3">
-        <h2 className="text-lg">Así se repartió el pago</h2>
+      <section className="space-y-3 border-t border-tinta-200 pt-6">
+        <h2 className="text-2xl">Así se repartió el pago</h2>
         <Breakdown money={v} fx={o.fx} feePayer={o.fee_payer} platformBps={v.platformFeeBps} />
       </section>
     );
   if (o.status === "resuelto")
     return (
-      <section className="card space-y-3">
-        <h2 className="text-lg">Decisión del revisor</h2>
+      <section className="space-y-3 border-t border-tinta-200 pt-6">
+        <h2 className="text-2xl">Decisión del revisor</h2>
         <SplitView money={v} buyerBps={o.buyer_bps} fx={o.fx} />
       </section>
     );
   if (o.status === "devuelto")
     return (
-      <section className="card space-y-3" data-testid="devolucion">
-        <h2 className="text-lg">Devolución por falta de despacho</h2>
-        <p className="text-sm text-tinta-600">El vendedor no registró el envío antes del plazo. El contrato devolvió el pago al comprador.</p>
+      <section className="space-y-3 border-t border-tinta-200 pt-6" data-testid="devolucion">
+        <h2 className="text-2xl">Devolución por falta de despacho</h2>
+        <p className="text-base text-tinta-600">El vendedor no registró el envío antes del plazo. El contrato devolvió el pago al comprador.</p>
         <SplitView money={v} buyerBps={o.buyer_bps} fx={o.fx} />
       </section>
     );
@@ -65,10 +65,10 @@ export function Cierre({ v }: { v: OrderView }) {
 export function RegistroPedido({ v }: { v: OrderView }) {
   const o = v.order;
   return (
-    <section className="card space-y-2">
-      <h2 className="text-lg">Registro del pedido</h2>
+    <section className="space-y-3 border-t border-tinta-200 pt-6">
+      <h2 className="text-2xl">Registro del pedido</h2>
       {v.onchain && (
-        <p className="text-xs text-tinta-600" data-testid="onchain">
+        <p className="text-sm text-tinta-600" data-testid="onchain">
           Guardado en el contrato ahora: <strong className="num">{fmtBsUnits(v.onchain.balance, o.fx)}</strong>
           {v.onchain.flags.released && " · pagado al vendedor"}
           {v.onchain.flags.disputed && " · en reclamo"}

@@ -23,11 +23,11 @@ export function Breakdown({ money, fx, feePayer, platformBps = 200 }: { money: M
   const prot = BigInt(b.platform) + BigInt(b.tw);
   return (
     <dl data-testid="desglose" className="grid grid-cols-2 gap-2 text-center">
-      <div className="rounded-control bg-exito-50 p-3 ring-1 ring-exito-200">
+      <div className="rounded-card bg-exito-50 p-4">
         <dt className="text-xs text-musgo">Vendedor recibió</dt>
         <dd className="mt-1 font-display text-lg text-monte num">{fmtBsUnits(b.seller, fx)}</dd>
       </div>
-      <div className="rounded-control bg-tinta-50 p-3 ring-1 ring-tinta-200">
+      <div className="rounded-card bg-tinta-50 p-4">
         <dt className="text-xs text-tinta-600">Protección{feePayer === "comprador" ? " (la pagó el comprador)" : ` (${String(platformBps / 100).replace(".", ",")}% + 0,3%)`}</dt>
         <dd className="mt-1 text-lg font-semibold num">{fmtBsUnits(prot, fx)}</dd>
       </div>
@@ -67,7 +67,7 @@ export function SplitView({ money, buyerBps, fx }: { money: MoneyView; buyerBps:
 function Reintegro({ r, fx }: { r: ReintegroView; fx: number }) {
   if (r.estado === "confirmado" && r.hash) {
     return (
-      <div data-testid="reintegro" className="col-span-2 space-y-1 rounded-control bg-exito-50 p-3 text-left ring-1 ring-exito-200">
+      <div data-testid="reintegro" className="col-span-2 space-y-1 rounded-card bg-exito-50 p-4 text-left">
         <p className="font-semibold text-monte">Te devolvimos todo lo que pagaste: {fmtBsUnits(r.pagado, fx)}</p>
         <p className="text-xs text-tinta-700">
           El contrato te devolvió {fmtBsUnits(r.recibido, fx)} y Trato te transfirió las comisiones ({fmtBsUnits(r.monto, fx)}).

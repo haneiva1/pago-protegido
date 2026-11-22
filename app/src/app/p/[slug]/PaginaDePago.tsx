@@ -172,11 +172,11 @@ export default function PaginaDePago() {
 
   if (o.status === "esperando_pago") {
     return (
-      <div className="mx-auto max-w-md space-y-4 pb-32">
+      <div className="mx-auto max-w-md space-y-8 pb-32">
         <AvisoNavegadorInterno />
         <Producto v={v} compacto={qrOpen} />
         {takenByOther ? (
-          <p className="card text-center text-sm text-tinta-600" data-testid="tomado">
+          <p className="rounded-card bg-tinta-50 p-4 text-center text-base text-tinta-700" data-testid="tomado">
             Este link ya lo está pagando otra persona.
           </p>
         ) : qrOpen || busy ? (
@@ -220,7 +220,7 @@ export default function PaginaDePago() {
   }
 
   return (
-    <div className="mx-auto max-w-md space-y-4">
+    <div className="mx-auto max-w-md space-y-6">
       <EstadoPedido v={v} />
       {me !== undefined && !isBuyer && <OtroNavegador v={v} />}
       <ErrorBox error={error} />
@@ -239,7 +239,7 @@ export default function PaginaDePago() {
       {isBuyer && (o.status === "pagado" || o.status === "enviado" || o.status === "en_disputa") && <CompraEnEsteNavegador />}
 
       {o.ship_imei && (o.status === "enviado" || o.status === "en_disputa") && (
-        <div data-testid="imei" className="card flex gap-3 text-sm">
+        <div data-testid="imei" className="flex gap-3 text-base">
           <IconoCelular className="mt-0.5 h-5 w-5 flex-none text-musgo" />
           <div className="space-y-1">
             <p className="font-semibold">
@@ -251,9 +251,9 @@ export default function PaginaDePago() {
       )}
 
       {isBuyer && o.status === "pagado" && !problem && (
-        <div className="card space-y-3 text-sm text-tinta-600">
+        <div className="space-y-3 text-base text-tinta-600">
           <p>Podrás pagar al vendedor cuando registre el envío y lo tengas en tus manos.</p>
-          <button className="btn-danger w-full" disabled={busy} onClick={() => setProblem(true)}>
+          <button className="btn-ghost w-full text-error-700 hover:bg-error-50" disabled={busy} onClick={() => setProblem(true)}>
             Tengo un problema
           </button>
         </div>
@@ -296,7 +296,7 @@ export default function PaginaDePago() {
 
 function ModoPractica() {
   return (
-    <p className="text-center text-xs text-tinta-500" data-testid="modo-practica">
+    <p className="text-center text-sm text-tinta-500" data-testid="modo-practica">
       Modo práctica: no se mueve dinero real. {DOLLAR_NOTE}
     </p>
   );

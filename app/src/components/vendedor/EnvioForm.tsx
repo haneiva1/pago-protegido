@@ -45,7 +45,7 @@ export function EnvioForm({ o, sellerPubkey, prefill, onDone }: { o: SellerOrder
 
   return (
     <form onSubmit={ship} className="space-y-3" data-testid="form-envio">
-      <p className="text-sm font-semibold text-monte">Registrar el envío</p>
+      <p className="text-lg font-semibold text-monte">Registrar el envío</p>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor={id("company")}>
@@ -82,8 +82,8 @@ export function EnvioForm({ o, sellerPubkey, prefill, onDone }: { o: SellerOrder
           </select>
         </div>
       </div>
-      <div className="space-y-3 rounded-control bg-tinta-50 p-3 ring-1 ring-tinta-200" data-testid="fotos-envio">
-        <p className="text-xs text-tinta-600">
+      <div className="space-y-3 border-t border-tinta-200 pt-3" data-testid="fotos-envio">
+        <p className="text-sm text-tinta-600">
           Saca las fotos desde aquí, nuevas y de este paquete. Cada una se guarda con su huella y la huella queda en el registro del envío: si hay un
           reclamo, el revisor ve que el archivo no cambió desde que lo subiste y si la misma foto aparece en otro pedido.
         </p>

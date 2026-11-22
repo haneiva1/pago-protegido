@@ -63,8 +63,8 @@ export function Seguimiento({
   const puedeExtender = Boolean(v.capabilities.extend && !o.extended && o.deadline && Date.now() < o.deadline);
 
   return (
-    <section className="card space-y-4" data-testid="seguimiento">
-      <ol className="relative grid grid-cols-4 gap-1 text-center text-[11px] font-medium" data-testid="pasos-seguimiento">
+    <section className="space-y-5" data-testid="seguimiento">
+      <ol className="relative grid grid-cols-4 gap-1 text-center text-xs font-medium" data-testid="pasos-seguimiento">
         {/* La línea que une los pasos: completa hasta el último hecho. */}
         <span aria-hidden className="absolute left-[12.5%] right-[12.5%] top-3.5 h-0.5 bg-tinta-200" />
         <span
@@ -87,7 +87,7 @@ export function Seguimiento({
       </ol>
 
       {esComprador && (
-        <div className="panel-suave !p-3 text-sm" data-testid="proximo-paso">
+        <div className="space-y-1 border-l-2 border-yungas pl-4 text-base" data-testid="proximo-paso">
           <p className="eyebrow">Tu próximo paso</p>
           {o.status === "pagado" && (
             <p className="mt-1">
@@ -117,9 +117,9 @@ export function Seguimiento({
                 )}
               </div>
               {puedeExtender ? (
-                <p className="text-xs text-tinta-500">«Todavía no llegó» suma otra ventana de revisión, una sola vez. La tienda no cobra mientras tanto.</p>
+                <p className="text-sm text-tinta-600">«Todavía no llegó» suma otra ventana de revisión, una sola vez. La tienda no cobra mientras tanto.</p>
               ) : o.extended ? (
-                <p className="text-xs text-tinta-500">Ya pediste más tiempo. Si no llega, abre un reclamo con el motivo «No llegó».</p>
+                <p className="text-sm text-tinta-600">Ya pediste más tiempo. Si no llega, abre un reclamo con el motivo «No llegó».</p>
               ) : null}
             </div>
           )}

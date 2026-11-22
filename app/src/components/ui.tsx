@@ -153,7 +153,7 @@ export function Cargando({ texto, tarda, className = "", testId }: { texto: stri
       <Spinner className="mt-0.5 h-4 w-4 shrink-0 text-musgo" />
       <span className="min-w-0">
         <span className="block font-medium text-monte">{texto}</span>
-        {tarda && <span className="block text-tinta-500">{tarda}</span>}
+        {tarda && <span className="block text-tinta-600">{tarda}</span>}
       </span>
     </div>
   );
@@ -165,7 +165,7 @@ export function Vacio({ icono, titulo, texto, accion, testId, className = "" }: 
     <div data-testid={testId} className={`flex flex-col items-center justify-center gap-2 px-6 py-10 text-center ${className}`}>
       {icono && <span className="mb-1 text-tinta-300 [&>svg]:h-10 [&>svg]:w-10">{icono}</span>}
       <p className="font-semibold text-monte">{titulo}</p>
-      {texto && <p className="max-w-xs text-sm text-tinta-500">{texto}</p>}
+      {texto && <p className="max-w-xs text-sm text-tinta-600">{texto}</p>}
       {accion && <div className="mt-2">{accion}</div>}
     </div>
   );

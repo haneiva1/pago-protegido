@@ -73,20 +73,20 @@ export function EstadoPedido({ v }: { v: OrderView }) {
       </p>
       <div className="mt-2 flex items-center gap-3">
         {icono}
-        <h1 className="text-2xl leading-tight">{m.t}</h1>
+        <h1 className="text-3xl leading-tight">{m.t}</h1>
       </div>
-      <p className={`mt-2 text-sm ${s.detalle}`}>{m.d}</p>
-      <p className="mt-4 font-display text-4xl tracking-tight num">{fmtBsUnits(o.amount_units, o.fx)}</p>
+      <p className={`mt-3 max-w-[32ch] text-base ${s.detalle}`}>{m.d}</p>
+      <p className="mt-5 font-display text-5xl leading-none tracking-tight num">{fmtBsUnits(o.amount_units, o.fx)}</p>
     </section>
   );
 }
 
 export function Antifraude({ code, host }: { code: string | null; host: string }) {
   return (
-    <section className="flex gap-3 rounded-card border border-tinta-200/80 bg-white p-4 text-xs text-tinta-600" data-testid="antifraude">
-      <IconoInfo className="mt-0.5 h-4 w-4 flex-none text-tinta-500" />
+    <section className="flex gap-3 border-t border-tinta-200 pt-5 text-sm text-tinta-600" data-testid="antifraude">
+      <IconoInfo className="mt-0.5 h-5 w-5 flex-none text-musgo" />
       <div className="space-y-1">
-        <p className="font-semibold text-tinta-800">Señales de confianza</p>
+        <p className="text-base font-semibold text-monte">Señales de confianza</p>
         <p>Si un QR de Trato está a nombre de una persona, es estafa.</p>
         <p>
           Verifica este link en{" "}
@@ -113,8 +113,8 @@ export function Antifraude({ code, host }: { code: string | null; host: string }
 export function Esqueleto() {
   const b = "animate-pulse rounded-chip bg-tinta-200/70";
   return (
-    <div className="mx-auto max-w-md space-y-4" data-testid="cargando" aria-busy="true" aria-label="Cargando el link de pago">
-      <section className="card space-y-3">
+    <div className="mx-auto max-w-md space-y-6" data-testid="cargando" aria-busy="true" aria-label="Cargando el link de pago">
+      <section className="space-y-3">
         <div className={`h-3 w-40 ${b}`} />
         <div className={`h-6 w-3/4 ${b}`} />
         <div className={`h-9 w-1/2 ${b}`} />
@@ -140,12 +140,12 @@ export function Esqueleto() {
 /** 404: el link no existe. Puede ser un link falso: no pagues y verifica el código. */
 export function LinkNoEncontrado() {
   return (
-    <section className="card mx-auto max-w-md space-y-3 text-center" data-testid="link-no-encontrado">
+    <section className="mx-auto max-w-md space-y-3 pt-6 text-center" data-testid="link-no-encontrado">
       <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-aviso-50 text-aviso-600">
         <IconoAlerta className="h-6 w-6" />
       </span>
-      <h1 className="text-xl">Este link de pago no existe</h1>
-      <p className="text-sm font-medium text-tinta-800">Puede ser un link falso. No pagues nada ni mandes tus datos hasta verificarlo.</p>
+      <h1 className="text-2xl">Este link de pago no existe</h1>
+      <p className="text-base font-medium text-tinta-800">Puede ser un link falso. No pagues nada ni mandes tus datos hasta verificarlo.</p>
       <p className="text-sm text-tinta-600">Pídele a la tienda el código del pedido (empieza con PP-) y revísalo en «Verificar un link».</p>
       <a className="btn-primary w-full" href="/verificar">
         Verificar un link
