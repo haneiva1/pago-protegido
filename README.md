@@ -163,8 +163,8 @@ Las tres se miden en el piloto (costo por pedido, tasa de reclamos y minutos por
 
 | Persona | Rol | Bio |
 |---|---|---|
-| **Hans Aneiva** | Producto y contratos | Escribió los contratos `pp_guardian` y `pp_arbiter`, el bot y la mayor parte de la app: 136 de los 168 commits de `main` al 22-nov |
-| **Joaquín** ([@JoaquinVM](https://github.com/JoaquinVM)) | Backend y usuarios | 32 commits en `main`, firmados como «joaquin» (se ven en sus PR [#12](https://github.com/haneiva1/pago-protegido/pull/12/commits) y [#13](https://github.com/haneiva1/pago-protegido/pull/13/commits)): plazos, privacidad del pedido, indexador verificado, evidencia firmada y la CI. Revisó 36 tiendas y 24 casos de estafa para la validación y lleva el piloto con vendedores (23–29 nov) |
+| **Hans Aneiva** ([LinkedIn](https://www.linkedin.com/in/hans-aneiva)) | Producto y contratos | Escribió los contratos `pp_guardian` y `pp_arbiter`, el bot y la mayor parte de la app: 136 de los 168 commits de `main` al 22-nov |
+| **Joaquín** ([@JoaquinVM](https://github.com/JoaquinVM) · [LinkedIn](https://www.linkedin.com/in/joaquin-viscafe/)) | Backend y usuarios | 32 commits en `main`, firmados como «joaquin» (se ven en sus PR [#12](https://github.com/haneiva1/pago-protegido/pull/12/commits) y [#13](https://github.com/haneiva1/pago-protegido/pull/13/commits)): plazos, privacidad del pedido, indexador verificado, evidencia firmada y la CI. Revisó 36 tiendas y 24 casos de estafa para la validación y lleva el piloto con vendedores (23–29 nov) |
 
 ## Más detalle
 
