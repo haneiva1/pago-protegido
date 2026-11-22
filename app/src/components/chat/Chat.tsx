@@ -104,7 +104,7 @@ export function Chat({
       </div>
 
       {hoja && (
-        <div className="absolute inset-0 z-20 flex items-end bg-monte/45 animate-aparecer" role="dialog" aria-label={hoja.titulo ?? "Hoja"}>
+        <div className="absolute inset-x-0 bottom-0 top-[52px] z-20 flex items-end bg-monte/45 animate-aparecer" role="dialog" aria-label={hoja.titulo ?? "Hoja"}>
           <div className="max-h-[90%] w-full overflow-y-auto rounded-t-panel bg-white px-4 pb-6 pt-2 shadow-alzada" data-testid="chat-hoja">
             <span className="mx-auto mb-2 block h-1 w-10 rounded-full bg-tinta-300" aria-hidden />
             <div className={`mb-1 flex items-center gap-2 ${hoja.titulo ? "justify-between" : "justify-end"}`}>

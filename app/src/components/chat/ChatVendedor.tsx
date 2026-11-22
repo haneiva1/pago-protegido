@@ -50,7 +50,7 @@ export function ChatVendedor() {
     const c = canal();
     if (!c) return;
     c.onmessage = (ev: MessageEvent) => {
-      if (ev.data?.tipo === "estafa-resultado") setEstafaHecha(true);
+      if (ev.data?.tipo === "estafa-vista") setEstafaHecha(true);
     };
     return () => c.close();
   }, [slug]);

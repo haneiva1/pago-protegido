@@ -62,6 +62,8 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
   const [altoMovil, setAltoMovil] = useState(640);
   const [mandado, setMandado] = useState(false);
   const [sub, setSub] = useState<string | null>(null);
+  // El bloqueo se ve 2 s en el celular del comprador antes de pasar la escena a la tienda.
+  const [bloqueoVisto, setBloqueoVisto] = useState(false);
   const escenario = useRef<HTMLDivElement>(null);
   const wallet = useRef<typeof import("@/lib/wallet") | null>(null);
   const status = registro?.pedido?.status ?? null;
@@ -126,9 +128,10 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
         setAviso("comprador");
       }
       if (d.tipo === "sub") setSub(typeof d.valor === "string" ? d.valor : null);
+      if (d.tipo === "actualiza") void cargar();
     };
     return () => c.close();
-  }, []);
+  }, [cargar]);
 
   // Si la pestaña se recarga, el "mandado" queda guardado por pedido.
   useEffect(() => {
@@ -145,7 +148,7 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
     const medir = () => {
       if (escenario.current) setEscala(escalaPara(escenario.current));
       // Encabezado fijo del sitio (56) + pestañas (52) + aire: el chat ocupa exactamente lo que queda.
-      setAltoMovil(Math.max(420, window.innerHeight - 120));
+      setAltoMovil(Math.max(420, window.innerHeight - 184));
     };
     medir();
     window.addEventListener("resize", medir);
@@ -163,7 +166,7 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
     const antes = prevStatus.current;
     prevStatus.current = status;
     if (antes === null && status === null) return;
-    const turno: RolProbar | null = status === "enviado" ? "comprador" : status === "pagado" ? "vendedor" : null;
+    const turno: RolProbar | null = status === "enviado" || status === "liberado" ? "comprador" : status === "pagado" ? "vendedor" : null;
     if (turno) {
       setTab(turno);
       setAviso(turno);
@@ -193,6 +196,9 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
     prevStatus.current = null;
     setRegistro(null);
     setDesvios([]);
+    setBloqueoVisto(false);
+    setMandado(false);
+    setSub(null);
     setDesvioError(null);
     setBloqueo(null);
     setTab("vendedor");
@@ -215,12 +221,16 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
     try {
       const r = await api<Omit<DesvioT, "at">>("/api/probar/desvio", { slug });
       setDesvios((d) => [{ ...r, at }, ...d]);
-      try {
-        window.sessionStorage.setItem(`pp.chat.estafa.${slug}`, "1");
-      } catch {}
       canal()?.postMessage({ tipo: "estafa-resultado", slug, at, ...r });
-      setTab("vendedor");
-      setAviso("vendedor");
+      setTimeout(() => {
+        try {
+          window.sessionStorage.setItem(`pp.chat.estafa.${slug}`, "1");
+        } catch {}
+        canal()?.postMessage({ tipo: "estafa-vista", slug });
+        setBloqueoVisto(true);
+        setTab("vendedor");
+        setAviso("vendedor");
+      }, 2000);
     } catch (e) {
       setDesvioError((e as Error).message);
       canal()?.postMessage({ tipo: "estafa-resultado", slug, at, rejected: false, detail: (e as Error).message });
@@ -233,7 +243,7 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
   const ultimo = desvios[0];
   const hayTienda = Boolean(registro?.tienda);
   const hayPedido = Boolean(registro?.pedido);
-  const paso = pasoDemo({ tienda: hayTienda, status: hayPedido ? status : null, estafa: desviando ? "en-curso" : desvios.length ? "bloqueada" : "no", mandado, sub });
+  const paso = pasoDemo({ tienda: hayTienda, status: hayPedido ? status : null, estafa: desviando || (desvios.length > 0 && !bloqueoVisto) ? "en-curso" : desvios.length ? "bloqueada" : "no", mandado, sub });
   const turno = paso.quien;
   const resumen = status === "liberado" && registro?.pedido ? resumenRed(filas, registro.pedido.created_at) : null;
   const mostrarEstafa = hayPlataGuardada(status) && status === "pagado" && desvios.length === 0;
@@ -274,7 +284,7 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
               {paso.linea}
             </p>
             {mostrarEstafa && (
-              <button className="btn-danger btn-sm" onClick={desviar} disabled={desviando} data-testid="desviar">
+              <button className="btn-danger btn-sm hidden lg:inline-flex" onClick={desviar} disabled={desviando} data-testid="desviar">
                 {desviando ? <Spinner className="h-4 w-4" /> : <IconoBloqueado className="h-4 w-4" />}
                 Alguien intenta robar la plata
               </button>
@@ -324,6 +334,19 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
                   {aviso === r && tab !== r && <span aria-label="hay algo nuevo" className="absolute right-2 top-2 h-2 w-2 rounded-full bg-yungas ring-2 ring-tinta-200" />}
                 </button>
               ))}
+            {/* En celular, el paso actual bajo las pestañas: una sola línea compacta. */}
+            <div className="order-2 flex items-center justify-between gap-3 lg:hidden" data-testid="paso-compacto">
+              <p className="min-w-0 text-sm leading-tight">
+                <strong className="block truncate text-monte">{paso.titulo}</strong>
+                <span className="block truncate text-tinta-600">{paso.linea}</span>
+              </p>
+              {mostrarEstafa && (
+                <button className="btn-danger btn-sm shrink-0" onClick={desviar} disabled={desviando} data-testid="desviar-movil">
+                  {desviando ? <Spinner className="h-4 w-4" /> : <IconoBloqueado className="h-4 w-4" />}
+                  Estafador
+                </button>
+              )}
+            </div>
             </div>
 
             <IPhone rol="vendedor" titulo="Chat de la Zapatería" turno={turno !== "comprador"} escala={escala} testId="marco-vendedor" className={`order-3 lg:order-none ${tab === "vendedor" ? "flex" : "hidden lg:flex"}`}>

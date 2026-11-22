@@ -55,7 +55,7 @@ export function IPhone({
       <div className="relative h-[var(--alto-movil,min(78svh,720px))] w-full shrink-0 sm:h-[calc(872px*var(--escala))] sm:w-[calc(413px*var(--escala))]">
         <div
           className={`absolute left-0 top-0 h-full w-full origin-top-left transition-opacity duration-300 sm:h-[872px] sm:w-[413px] sm:[transform:scale(var(--escala))] ${
-            turno ? "" : "opacity-50 saturate-0"
+            turno ? "" : "lg:opacity-50 lg:saturate-0"
           }`}
         >
           {/* Botones laterales: acción y volumen a la izquierda, encendido a la derecha. */}

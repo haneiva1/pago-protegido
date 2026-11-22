@@ -194,7 +194,7 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   await expect(comprador.getByTestId("chat-bloqueo")).toContainText("Bloqueado: la plata solo puede ir a la Zapatería o volver a ti", { timeout: 30_000 });
   // El error crudo del contrato queda en el cajón, no en el chat.
   await expect(comprador.getByTestId("chat-bloqueo")).not.toContainText("Error(Contract");
-  await expect(page.getByTestId("titulo-etapa")).toHaveText("Trato bloqueó al estafador");
+  await expect(page.getByTestId("titulo-etapa")).toHaveText("3. La Zapatería despacha");
   await expect(toca(vendedor, "enviado")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("desviar")).toHaveCount(0);
   await capturar(page, "82-probar-desvio-rechazado");
@@ -209,7 +209,7 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   const envio = page.getByTestId("paso-registro-envio");
   await expect(envio).toHaveAttribute("data-hecho", "si", { timeout: 30_000 });
   await expect(envio.locator(TX_LINK)).toHaveCount(1);
-  await expect(comprador.getByTestId("chat-enviado")).toContainText("SRV-2026-118734", { timeout: 30_000 });
+  await expect(comprador.getByTestId("chat-enviado")).toContainText("¿Te llegó?", { timeout: 30_000 });
   await expect(page.getByTestId("titulo-etapa")).toHaveText("4. La Zapatería cobra");
 
   // 5. El comprador recibe y paga: "Sí, me llegó" se habilita 1 minuto después del envío y pregunta antes.
@@ -224,7 +224,7 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   await expect(cobro).toContainText("Se pagó al vendedor");
   await expect(cobro.locator(TX_LINK)).toHaveCount(1);
   // La tienda cobró lo suyo: el precio completo (la protección la pagó el comprador) más el redondeo del contrato.
-  await expect(vendedor.getByTestId("chat-liberado")).toContainText("Bs 450,04", { timeout: 60_000 });
+  await expect(vendedor.getByTestId("chat-liberado")).toContainText("Cobraste Bs 450", { timeout: 60_000 });
   await expect(page.getByTestId("desvio-espera")).toHaveText("La plata ya salió del contrato por una de sus salidas.");
   await expect(page.getByTestId("titulo-etapa")).toHaveText("4. La Zapatería cobró");
   await expect(page.getByTestId("ahora")).toHaveText("La plata llegó a su cuenta");

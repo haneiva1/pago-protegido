@@ -129,6 +129,7 @@ export function ChatComprador({ slugInicial = null }: { slugInicial?: string | n
       const prepared = await api<PreparedTx>(`/api/orders/${slug}/action`, { action: "confirm", signer });
       await w.signAndSubmit(wal, prepared, progreso.push);
       await recargar();
+      canal()?.postMessage({ tipo: "actualiza" });
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -152,6 +153,12 @@ export function ChatComprador({ slugInicial = null }: { slugInicial?: string | n
     confirmando,
     host: typeof window !== "undefined" ? window.location.host : "",
   });
+
+  // Le cuenta a /probar si ya se puede pagar (la línea de ayuda de arriba).
+  const puedePagar = pedido?.status === "enviado" && pedido.confirm_after != null && ahora >= pedido.confirm_after;
+  useEffect(() => {
+    if (pedido?.status === "enviado") canal()?.postMessage({ tipo: "sub", valor: puedePagar ? "puede-pagar" : "cuenta-atras" });
+  }, [puedePagar, pedido?.status]);
 
   const vacio = !pedido || !reenviado;
 
