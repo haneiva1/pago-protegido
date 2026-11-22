@@ -131,7 +131,7 @@ export function Chat({
       )}
 
       {overlay && (
-        <div className="absolute inset-0 z-30 flex flex-col bg-sal animate-aparecer" role="dialog" aria-label={overlay.titulo} data-testid="chat-overlay">
+        <div className="absolute inset-0 z-30 flex flex-col bg-sal animate-[paso_280ms_var(--ease-suave)_both]" role="dialog" aria-label={overlay.titulo} data-testid="chat-overlay">
           <div className="flex shrink-0 items-center gap-1 bg-monte px-1.5 py-2 text-sal">
             <button type="button" className="flex h-9 items-center gap-1 rounded-full pl-1.5 pr-3 text-sm font-semibold hover:bg-sal/10" onClick={overlay.onCerrar} data-testid="volver-al-chat">
               <IconoAtras className="h-5 w-5" />
@@ -208,7 +208,7 @@ function Burbuja({ m, pasos, ocupado, retraso = 0, onBoton, onCarga }: { m: Mens
   const desconocido = m.de === "desconocido";
   return (
     <div
-      className={`flex flex-col ${propio ? "items-end" : "items-start"} animate-[entra_200ms_var(--ease-suave)_both]`}
+      className={`flex flex-col ${propio ? "items-end" : "items-start"} animate-[entra_260ms_var(--ease-suave)_both]`}
       style={retraso ? { animationDelay: `${retraso}ms` } : undefined}
       data-testid={`chat-${m.id}`}
       data-de={m.de}
@@ -290,7 +290,7 @@ function BotonRapido({ b, ocupado, onClick }: { b: Boton; ocupado?: boolean; onC
           ? "btn-danger w-full py-3 text-base"
           : b.principal
             ? "btn-primary w-full py-3 text-base disabled:bg-tinta-200 disabled:text-tinta-600 disabled:opacity-100"
-            : "flex w-full items-center justify-center rounded-control bg-white py-3 text-base font-semibold text-musgo ring-1 ring-tinta-200 transition-colors duration-150 hover:bg-tinta-50 disabled:opacity-50"
+            : "flex w-full items-center justify-center rounded-control bg-white py-3 text-base font-semibold text-musgo ring-1 ring-tinta-200 transition-[background-color,transform] duration-200 ease-[var(--ease-suave)] hover:bg-tinta-50 active:scale-[0.97] disabled:opacity-50"
       }
     >
       {b.texto}

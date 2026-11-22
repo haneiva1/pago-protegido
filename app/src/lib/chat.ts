@@ -125,10 +125,6 @@ export interface EstadoVendedor {
   pedido: PedidoChat | null;
   reenviado: boolean;
   enviando: boolean;
-  /** El estafador ya fue bloqueado: recién ahí la tienda puede marcar el envío (un solo botón por momento). */
-  estafaHecha?: boolean;
-  /** El intento del estafador está en curso (se ve en el chat del comprador). */
-  estafaEnCurso?: boolean;
   /** La red de prueba está lenta: se está reintentando (nunca se muestra el error crudo). */
   lento?: boolean;
   /** Falló tres veces: se ofrece "Reintentar". */
@@ -213,9 +209,7 @@ export function mensajesVendedor(e: EstadoVendedor): Mensaje[] {
     at: tPago,
     texto: `💸 Tu cliente pagó ${p.total} (${p.precio.replace(",00", "")} + ${proteccionBs(p.total, p.precio)} de protección).`,
   });
-  if (p.status === "pagado" && !e.estafaHecha && !e.estafaEnCurso)
-    m.push({ id: "estafa-aviso", de: "bot", at: tPago + 1000, texto: "Mientras tanto, mira qué pasa si alguien intenta robar la plata.", botones: [{ id: "estafa", texto: "Alguien intenta robar la plata", peligro: true }] });
-  if (p.status === "pagado" && e.estafaHecha)
+  if (p.status === "pagado")
     m.push({ id: "despacha", de: "bot", at: tPago + 1000, texto: "Despacha y toca Ya lo envié.", botones: e.enviando ? undefined : [{ id: "enviado", texto: "Ya lo envié", principal: true }] });
   if (p.status === "pagado") {
     if (e.fallo === "envio") m.push({ id: "fallo-envio", de: "bot", at: e.ahora, texto: "No pude registrar el envío ahora. Toca Reintentar.", botones: [{ id: "reintentar-envio", texto: "Reintentar", principal: true }] });
@@ -338,7 +332,7 @@ export const PASOS_DEMO: { n: PasoDemo; nombre: string }[] = [
 ];
 
 /** Paso actual (1 a 4), título (≤ 6 palabras) y línea (≤ 10 palabras) de cada momento. */
-export function pasoDemo(p: { tienda: boolean; status: string | null; estafa: "no" | "en-curso" | "bloqueada"; mandado?: boolean; sub?: string | null }): {
+export function pasoDemo(p: { tienda: boolean; status: string | null; mandado?: boolean; sub?: string | null }): {
   n: PasoDemo;
   titulo: string;
   linea: string;
@@ -360,9 +354,8 @@ const CORTA: Record<string, string> = {
   "Toca Vender": "Toca Vender",
   "Creando el link de pago…": "Creando el link…",
   "Toca Mandar al cliente": "Toca Mandar",
-  "Abre el link y paga con un toque": "Abre el link y paga",
-  "Toca Alguien intenta robar la plata": "Toca el botón rojo",
-  "Mira el chat del comprador": "Mira el chat",
+  "Abre el link y paga con QR": "Abre el link",
+  "Toca Escanear con mi banco": "Toca Escanear",
   "Toca Ya lo envié": "Toca Ya lo envié",
   "Espera la cuenta atrás": "Espera la cuenta atrás",
   "Toca Sí, me llegó": "Toca Sí, me llegó",
@@ -371,7 +364,7 @@ const CORTA: Record<string, string> = {
   "Un revisor decide": "Un revisor decide",
 };
 
-function pasoDemoLargo(p: { tienda: boolean; status: string | null; estafa: "no" | "en-curso" | "bloqueada"; mandado?: boolean; sub?: string | null }): {
+function pasoDemoLargo(p: { tienda: boolean; status: string | null; mandado?: boolean; sub?: string | null }): {
   n: PasoDemo;
   titulo: string;
   linea: string;
@@ -386,11 +379,9 @@ function pasoDemoLargo(p: { tienda: boolean; status: string | null; estafa: "no"
   if (p.status === "esperando_pago" && !p.mandado) return { n: 2, titulo: "2. La Zapatería vende", linea: "Toca Mandar al cliente", quien: "vendedor", terminado: false };
   switch (p.status) {
     case "esperando_pago":
-      return { n: 3, titulo: "3. El comprador paga", linea: "Abre el link y paga con un toque", quien: "comprador", terminado: false };
+      return { n: 3, titulo: "3. El comprador paga", linea: p.sub === "qr" ? "Toca Escanear con mi banco" : "Abre el link y paga con QR", quien: "comprador", terminado: false };
     case "pagado":
-      if (p.estafa === "en-curso") return { n: 3, titulo: "Alguien intenta robar la plata", linea: "Mira el chat del comprador", quien: "comprador", terminado: false };
-      if (p.estafa === "bloqueada") return { n: 3, titulo: "3. La Zapatería despacha", linea: "Toca Ya lo envié", quien: "vendedor", terminado: false };
-      return { n: 3, titulo: "3. La plata quedó guardada", linea: "Toca Alguien intenta robar la plata", quien: "vendedor", terminado: false };
+      return { n: 3, titulo: "3. La Zapatería despacha", linea: "Toca Ya lo envié", quien: "vendedor", terminado: false };
     case "enviado":
       return { n: 4, titulo: "4. La Zapatería cobra", linea: p.sub === "puede-pagar" ? "Toca Sí, me llegó" : "Espera la cuenta atrás", quien: "comprador", terminado: false };
     case "liberado":

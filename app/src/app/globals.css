@@ -275,7 +275,7 @@ textarea.input:focus-visible {
 /* ---------- Botones ---------- */
 
 @utility btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-control px-4 py-3 text-base font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-2 rounded-control px-4 py-3 text-base font-semibold transition-[color,background-color,border-color,opacity,transform] duration-200 ease-[var(--ease-suave)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
 }
 
 @utility btn-primary {
@@ -446,11 +446,11 @@ html[data-probar] footer[data-chrome] > div {
     opacity: 0;
   }
 }
-/* Un mensaje que entra al chat: fundido y 6 px hacia arriba. */
+/* Un mensaje que entra al chat: fundido y 8 px hacia arriba. */
 @keyframes entra {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -500,5 +500,73 @@ html[data-probar] footer[data-chrome] > div {
   }
   to {
     opacity: 1;
+  }
+}
+
+/* Un paso nuevo (título, ayuda, lo que acaba de pasar, el celular que toma el foco): fundido y 8 px hacia arriba. */
+@keyframes paso {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* El texto que se va en el fundido cruzado. */
+@keyframes sale {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+/* El pago con QR: la línea del visor barre el QR de arriba abajo y vuelve. */
+@keyframes barrido {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(var(--barrido, 220px));
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+}
+/* Las esquinas del visor de la cámara se cierran sobre el QR. */
+@keyframes visor {
+  from {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+/* El check del pago recibido entra con una escala corta. */
+@keyframes sello-check {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
   }
 }
