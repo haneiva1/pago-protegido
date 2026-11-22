@@ -29,6 +29,18 @@ Reglas para quien registra:
 - Preguntamos por hechos pasados antes de mostrar Trato.
 - Anotamos cómo llegamos a cada persona y todas las negativas.
 
+## Observación de fuentes públicas (21-nov-2026)
+
+No son entrevistas. Revisamos páginas públicas de tiendas de celulares y electrónica y notas de prensa. Escribimos la regla antes de mirar: «señal a favor si 3 o más de cada 10 tiendas revisadas piden el pago antes de enviar a otra ciudad».
+
+- **Tiendas revisadas:** 36 (Santa Cruz, La Paz, El Alto y Cochabamba). 8 piden el pago antes del envío a otra ciudad. Ninguna confirma en su página contra entrega a otra ciudad. 20 no publican cómo cobran. Con la regla, 8 de 36 no llega al umbral: **resultado no concluyente**. De las 11 que publican una política clara, 8 cobran antes.
+- **Estafas al comprador:** la prensa documenta en 2024–2026 ventas falsas de celulares con adelanto por QR y «envíos a todo el país» en Santa Cruz, La Paz, Cochabamba, Sucre y Oruro (Red Uno, El País, Bolivia Verifica).
+- **Comprobantes falsos al vendedor:** hay casos en Cochabamba, Santa Cruz y La Paz, en ventas dentro de la misma ciudad.
+- **Lo que ya existe:** Correos de Bolivia ofrece «puerta a puerta por cobrar» por Bs 2,50 adicionales (sep-2026), y hay couriers con cobro contra entrega.
+- **Lo que no sabemos:** si los vendedores honestos pierden ventas por desconfianza. No encontramos ninguna fuente pública. Es lo que preguntan las entrevistas.
+
+Las URL y la tabla completa están en el registro del equipo.
+
 ## Registro
 
 | Fecha | Tienda o persona | Ciudad | Cómo lo contactamos | Qué vende | ¿Vende a otras ciudades? | Ventas perdidas al mes | ¿Quién debería pagar? | Cita | ¿Piloto? |
