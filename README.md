@@ -50,6 +50,7 @@
 | Un solo relato de validación (15 entrevistas, encuesta a 27 negocios, 36 tiendas y 24 casos) y demo verificable | hecho | [PR #36](https://github.com/haneiva1/pago-protegido/pull/36) |
 | H-13 cerrado en código: un reclamo sin decisión se resuelve solo a los 7 días, todo al comprador si no hubo envío y todo a la tienda si lo hubo. Entra a testnet con el próximo despliegue de contratos | hecho | [PR #39](https://github.com/haneiva1/pago-protegido/pull/39) |
 | Desde el 22-nov tampoco depende de visitas: un cron de GitHub cada 5 minutos procesa los vencidos | hecho | [PR #42](https://github.com/haneiva1/pago-protegido/pull/42) · [workflow](.github/workflows/plazos.yml) |
+| 9 entrevistas con Trato en la mano (21 y 22-nov), una fila por persona en [docs/USUARIOS.md](docs/USUARIOS.md) | hecho. Entraron al repo a las 11:29, después de los dos análisis de IA de Atlas (09:36 y 11:24), así que ninguno de los dos las incluye | [PR #44](https://github.com/haneiva1/pago-protegido/pull/44) · [PR #46](https://github.com/haneiva1/pago-protegido/pull/46) |
 
 Los PR #3 a #9 aparecen como «cerrados» porque se integraron juntos en el [PR #10](https://github.com/haneiva1/pago-protegido/pull/10), que sí está mergeado: su código está en `main`.
 
@@ -164,7 +165,7 @@ Las tres se miden en el piloto (costo por pedido, tasa de reclamos y minutos por
 | Persona | Rol | Bio |
 |---|---|---|
 | **Hans Aneiva** ([LinkedIn](https://www.linkedin.com/in/hans-aneiva)) | Producto y contratos | Escribió los contratos `pp_guardian` y `pp_arbiter`, el bot y la mayor parte de la app: 136 de los 168 commits de `main` al 22-nov |
-| **Joaquín** ([@JoaquinVM](https://github.com/JoaquinVM) · [LinkedIn](https://www.linkedin.com/in/joaquin-viscafe/)) | Backend y usuarios | 32 commits en `main`, firmados como «joaquin» (se ven en sus PR [#12](https://github.com/haneiva1/pago-protegido/pull/12/commits) y [#13](https://github.com/haneiva1/pago-protegido/pull/13/commits)): plazos, privacidad del pedido, indexador verificado, evidencia firmada y la CI. Revisó 36 tiendas y 24 casos de estafa para la validación y lleva el piloto con vendedores (23–29 nov) |
+| **Joaquín** ([@JoaquinVM](https://github.com/JoaquinVM) · [LinkedIn](https://www.linkedin.com/in/joaquin-viscafe/)) | Backend y usuarios | 34 commits en `main`, firmados como «joaquin» (se ven en sus PR [#12](https://github.com/haneiva1/pago-protegido/pull/12/commits) y [#13](https://github.com/haneiva1/pago-protegido/pull/13/commits)): plazos, privacidad del pedido, indexador verificado, evidencia firmada y la CI. Revisó 36 tiendas y 24 casos de estafa para la validación y lleva el piloto con vendedores (23–29 nov) |
 
 ## Más detalle
 
