@@ -147,7 +147,7 @@ export function LinkRapido({
         <label className={`flex cursor-pointer items-start gap-2.5 rounded-control border p-3 text-sm transition-colors duration-150 ${f.feePayer === "comprador" ? OPCION_ACTIVA : OPCION}`}>
           <input type="radio" name="fee" className="mt-1 accent-monte" checked={f.feePayer === "comprador"} onChange={() => setF({ ...f, feePayer: "comprador" })} />
           <span>
-            <strong>El comprador</strong> ({PROTECCION.pct.toLocaleString("es-BO")}%, mín. Bs {PROTECCION.minBs}, máx. Bs {PROTECCION.maxBs}). Tú recibes el precio completo.
+            <strong>El comprador</strong> ({String(PROTECCION.pct).replace(".", ",")}%, mín. Bs {PROTECCION.minBs}, máx. Bs {PROTECCION.maxBs}). Tú recibes el precio completo.
           </span>
         </label>
         <label className={`flex cursor-pointer items-start gap-2.5 rounded-control border p-3 text-sm transition-colors duration-150 ${f.feePayer === "vendedor" ? OPCION_ACTIVA : OPCION}`}>

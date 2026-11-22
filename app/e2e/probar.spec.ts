@@ -155,9 +155,9 @@ test("/probar: dos celulares reales, registro en vivo, desvío rechazado por el 
   await page.getByTestId("desviar").click();
   const error = page.getByTestId("desvio-error");
   await expect(error).toHaveText("Error(Contract, #12)", CHAIN);
-  // En rojo: rose-700 (Chrome lo devuelve en lab(); otros navegadores, en rgb u oklch).
-  await expect(error).toHaveClass(/text-rose-700/);
-  await expect(error).toHaveCSS("color", /^(rgb\(19\d, 1\d, 6\d\)|oklch\(0\.51|lab\(41\.\d+ 71\.)/);
+  // En rojo de error de la marca: error-700 (#9b1e22), que Chrome devuelve como rgb(155, 30, 34).
+  await expect(error).toHaveClass(/text-error-700/);
+  await expect(error).toHaveCSS("color", "rgb(155, 30, 34)");
   await expect(page.getByTestId("desvio-resultado")).toContainText("Rechazado por el contrato");
   await expect(page.getByTestId("desvio-resultado")).toContainText("no se envió nada");
   await expect(page.getByTestId("registro-desvio")).toContainText("Intento de desvío rechazado: Error(Contract, #12)");

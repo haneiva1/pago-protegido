@@ -28,7 +28,7 @@ export function Breakdown({ money, fx, feePayer, platformBps = 200 }: { money: M
         <dd className="mt-1 font-display text-lg text-monte num">{fmtBsUnits(b.seller, fx)}</dd>
       </div>
       <div className="rounded-control bg-tinta-50 p-3 ring-1 ring-tinta-200">
-        <dt className="text-xs text-tinta-600">Protección{feePayer === "comprador" ? " (la pagó el comprador)" : ` (${(platformBps / 100).toLocaleString("es-BO")}% + 0,3%)`}</dt>
+        <dt className="text-xs text-tinta-600">Protección{feePayer === "comprador" ? " (la pagó el comprador)" : ` (${String(platformBps / 100).replace(".", ",")}% + 0,3%)`}</dt>
         <dd className="mt-1 text-lg font-semibold num">{fmtBsUnits(prot, fx)}</dd>
       </div>
       <p className="col-span-2 text-xs text-tinta-500">
@@ -44,7 +44,7 @@ export function SplitView({ money, buyerBps, fx }: { money: MoneyView; buyerBps:
   const s = money.split;
   const b = buyerBps / 100;
   // Sin "100 %" en pantalla (lista de palabras prohibidas): en los extremos se dice con palabras.
-  const pct = (x: number) => (x === 100 ? "todo" : x === 0 ? "nada" : `${x.toLocaleString("es-BO")}%`);
+  const pct = (x: number) => (x === 100 ? "todo" : x === 0 ? "nada" : `${String(x).replace(".", ",")}%`);
   return (
     <dl data-testid="reparto" className="grid grid-cols-2 gap-2 text-center">
       <div className="rounded-control bg-info-50 p-3 ring-1 ring-info-200">

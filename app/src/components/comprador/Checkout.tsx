@@ -84,7 +84,7 @@ export function Proteccion({ v }: { v: OrderView }) {
       {o.fee_payer === "comprador" ? (
         <div className="flex justify-between gap-3">
           <span className="text-tinta-600">
-            Protección ({PROTECCION.pct.toLocaleString("es-BO")}%, mín. Bs {PROTECCION.minBs}, máx. Bs {PROTECCION.maxBs})
+            Protección ({String(PROTECCION.pct).replace(".", ",")}%, mín. Bs {PROTECCION.minBs}, máx. Bs {PROTECCION.maxBs})
           </span>
           <span className="flex-none num">Bs {nf(prot)}</span>
         </div>
