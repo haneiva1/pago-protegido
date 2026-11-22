@@ -1,6 +1,6 @@
 # Usuarios: entrevistas y pilotos
 
-Esta plantilla sirve para registrar cada conversación con vendedores (y compradores) y cada piloto. Antes de Trato, Hans ya hizo 15 entrevistas en persona con comercios de La Paz (mar–jun 2026), resumidas abajo; las entrevistas de Trato (con esta plantilla y el formulario `/piloto`, ver el [CHANGELOG](../CHANGELOG.md)) son el siguiente paso. La sección "Pilotos" se usa desde el plan de 30 días, cuando arrancan los 20 pilotos ([README](../README.md#plan-de-30-días)).
+Esta plantilla sirve para registrar cada conversación con vendedores (y compradores) y cada piloto. Antes de Trato, Hans ya hizo 15 entrevistas en persona con comercios de La Paz (mar–jun 2026), resumidas abajo; las entrevistas de Trato empezaron el 21-nov y están [más abajo](#entrevistas-de-trato-21-y-22-nov-2026), con una fila por persona en el [Registro](#registro). El formulario `/piloto` recibe las inscripciones (ver el [CHANGELOG](../CHANGELOG.md)). La sección "Pilotos" se usa desde el plan de 30 días, cuando arrancan los 20 pilotos ([README](../README.md#plan-de-30-días)).
 
 **Segmento inicial:** vendedores de celulares y electrónica de Bs 1.000 a 7.000 que envían por encomienda a otras ciudades.
 
@@ -65,11 +65,79 @@ Encuestamos a 27 negocios que venden por WhatsApp (18 de productos y 9 de servic
 
 La encuesta fue anterior a Trato y no preguntó por envíos a otras ciudades. Eso lo cubren las entrevistas.
 
+## Entrevistas de Trato (21 y 22-nov-2026)
+
+Entrevistas cortas en La Paz, en las que mostramos Trato después de preguntar cómo venden y cobran hoy. Todas las personas autorizaron usar lo que contaron. Usamos alias. **9 entrevistas** tienen una fila por persona en el [Registro](#registro). Aparte, hicimos una ronda amplia en la calle y en San Miguel, sin conteo por persona (ver abajo).
+
+### Las 9 entrevistas con fila
+
+| # | Perfil | ¿Vende a otras ciudades? | Cómo cobra hoy | Lo que pasa | Comisión | Lo que valoró |
+|---|---|---|---|---|---|---|
+| A | Compradora de ropa (Marketplace, TikTok) | — | Paga por QR antes | Pagó a un vendedor nuevo, no le llegó y no le respondieron más | mitad y mitad | Pagar sin miedo; árbitro si no llega o llega dañado. Si llega dañado, prefiere devolverlo a pagar menos |
+| B | Particular que vende su celular (Marketplace) | no | Contra entrega, en lugar público | No vende a otros departamentos por montos altos; miedo a que el celular llegue dañado | comprador | Usaría la app |
+| C | Particular que vende cosas usadas | no | Contra entrega; a veces 50 % y 50 % | Dos compradores se echaron atrás cuando propuso verse en un lugar público | «no hay problema, es baja» | Confianza y evitar engaños |
+| D | Tienda de productos naturales | sí | Montos altos: el cliente pide pagar 50 % o en la terminal | Acepta solo 50 %; pierde unas 3 ventas al mes | mitad y mitad | No perder esas ventas; árbitro; WhatsApp |
+| E | Tienda de cuerinas y plantillas | sí | Depósito antes, siempre | Pierde una venta al mes de quien quiere pagar 50 %; otras 2 compran menos | comprador («es él quien necesita la confianza») | Usaría la app si paga el comprador |
+| F | Repostería | — | QR por adelantado (compra insumos) | En pedidos grandes aceptó 50, 80 o 20 %; clientes que no pagaron la diferencia o regatearon al ver el producto | — | Árbitro externo que vele por los dos; WhatsApp |
+| G | Marca de chocolates (envía a todo el país por flota) | sí | QR o transferencia antes | Compradores de otros departamentos no pagan antes por miedo a que no llegue; estima que pierde cerca de la mitad de sus ventas | — | WhatsApp y QR fácil. Duda: quién decide si algo sale mal |
+| H | Tienda de ropa tradicional | a veces | Casi no ofrece QR | Clientes a distancia no pagan porque creen que no va a llegar | — | Verse como vendedor confiable |
+| I | Revendedor de celulares y accesorios (Marketplace) | casi nunca | En persona | De 30 a 50 consultas, con las de otros departamentos con suerte cierra 3 o 4 | — | Le encantó; duda de que el comprador confíe en un intermediario |
+
+### Conteos (sobre las 9)
+
+| | Cuántos |
+|---|---|
+| Vendedores (con negocio o particulares) | 8 de 9 (la otra es compradora) |
+| Venden a otras ciudades (sí o a veces) | 4 de 8 vendedores |
+| Cuentan ventas a otras ciudades que se caen por desconfianza | 5 de 8 vendedores |
+| De esos, con número | 4 (unas 3 al mes, una al mes, «cerca de la mitad» como estimación propia, 3 o 4 de 30–50 consultas) |
+| Del segmento de celulares | 2 |
+| Valoran el árbitro o preguntan cómo se resuelve un problema | 6 |
+| Destacan que funcione por WhatsApp | 3 |
+| Quieren probarlo | 8 de 9 |
+| Comisión | mitad y mitad 2 · comprador 2 · «da igual, es baja» 1 · no se preguntó 4 |
+
+Con la [regla de lectura](#regla-de-lectura-escrita-antes-de-la-primera-entrevista), con menos de 10 vendedores no concluimos: reportamos **5 de 8**, sin porcentaje. 6 de las 9 personas son conocidos, amigos o familiares del equipo.
+
+### Lo que se repite
+
+1. **El problema es la primera venta a distancia.** Con clientes conocidos la venta se da; con un comprador nuevo de otro departamento, casi nunca.
+2. **Hay ventas que hoy no ocurren.** Dos particulares ni intentan vender fuera de su ciudad, y las tiendas pierden las ventas de quien quiere pagar la mitad.
+3. **El pago a medias es la salida improvisada** (50, 80 o 20 %). Trato reemplaza esa negociación: el comprador paga todo, pero la plata queda en medio.
+4. **Las disputas son la pregunta clave:** quién decide, fotos y acuerdos previos, un árbitro externo. Con un producto dañado, una compradora prefiere devolverlo a que le cobren menos.
+5. **Que funcione por WhatsApp pesa a favor.**
+6. **El riesgo es la adopción:** se desconfía de las apps nuevas y de un intermediario.
+
+Fuera del segmento inicial (chocolates, productos naturales, cuerinas) el problema es el mismo. Lo tomamos como señal de que el problema va más allá de los celulares; el segmento inicial no cambia.
+
+### Ronda amplia (sin conteo por persona)
+
+Compradores en la calle (entre 15 y 20) y vendedores de zapatos, ropa y fundas de celular en San Miguel (entre 12 y 15). Son cifras aproximadas: no las contamos como filas.
+
+- **Compradores:** la mayoría compró por internet, una gran parte fue estafada o le fue mal, y muchos dejaron de comprar en línea por eso. Lo que más gustó: que «nadie salga estafado».
+- **Vendedores:** les gustó que algo frene las estafas y valoraron verse más confiables frente a sus clientes. Una parte envía fuera de La Paz y otra no.
+- **Transversal:** hay resistencia a la tecnología nueva. Presentarlo como «protege tu plata» abrió más que presentarlo como fintech.
+- **Límites:** muestra chica, de una zona y pocos rubros. Varias personas ya habían sido entrevistadas en la ronda de mar–jun 2026, y entre los compradores había gente del equipo.
+
+### Para el producto
+
+- **Devolución con producto dañado:** hoy el árbitro solo reparte la plata.
+- **Comisión a mitades:** la pidieron 2 de 5, y hoy no es una opción.
+- **Mensaje:** empezar por «nadie sale estafado», no por la tecnología.
+
 ## Registro
 
 | Fecha | Tienda o persona | Ciudad | Cómo lo contactamos | Qué vende | ¿Vende a otras ciudades? | Ventas perdidas al mes | ¿Quién debería pagar? | Cita | ¿Piloto? |
 |---|---|---|---|---|---|---|---|---|---|
-| AAAA-MM-DD | *(alias si no autorizó nombre)* | | conocido / grupo de compraventa / Marketplace / tienda | | sí / no | *(número aproximado y por qué)* | comprador / vendedor / mitad / nadie | "…" | sí / no / después |
+| 2026-11-22 | A (compradora) | La Paz | conocido | compra ropa | — | — | mitad | — | quiere probar |
+| 2026-11-22 | B (particular) | La Paz | conocido | su celular | no | — (no vende fuera) | comprador | — | quiere probar |
+| 2026-11-22 | C (particular) | La Paz | conocido | cosas usadas | no | — (no vende fuera) | «da igual, es baja» | — | quiere probar |
+| 2026-11-22 | Tienda D | La Paz | conocido | productos naturales | sí | unas 3 (quieren pagar 50 %) | mitad | — | quiere probar |
+| 2026-11-22 | Tienda E | La Paz | — | cuerinas y plantillas | sí | una (quieren pagar 50 %) | comprador | — | quiere probar |
+| 2026-11-22 | F (repostería) | La Paz | conocido | postres | — | — | — | — | quiere probar |
+| 2026-11-21/22 | G (chocolates) | La Paz | — | chocolates | sí | «cerca de la mitad» (estimación propia) | — | — | se comprometió, cuando esté en WhatsApp |
+| 2026-11-21/22 | Tienda H | La Paz | tienda | ropa | a veces | sin cifra | — | — | reunión pendiente |
+| 2026-11-21/22 | I (revendedor) | La Paz | Marketplace | celulares y accesorios | casi nunca | cierra 3 o 4 de 30–50 consultas de otros departamentos | — | — | por definir |
 
 ### Guía rápida de preguntas
 
