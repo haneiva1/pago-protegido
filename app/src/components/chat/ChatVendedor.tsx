@@ -50,7 +50,7 @@ export function ChatVendedor() {
     const c = canal();
     if (!c) return;
     c.onmessage = (ev: MessageEvent) => {
-      if (ev.data?.tipo === "estafa-resultado") setEstafaHecha(true);
+      if (ev.data?.tipo === "estafa-vista") setEstafaHecha(true);
     };
     return () => c.close();
   }, [slug]);
@@ -158,6 +158,7 @@ export function ChatVendedor() {
       if (!o) throw new Error("No encontramos el pedido en tu panel");
       setOrden(o);
       setHoja("envio");
+      sub("hoja-envio");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -238,7 +239,10 @@ export function ChatVendedor() {
             : hoja === "envio" && orden && pk
               ? {
                   titulo: undefined,
-                  onCerrar: () => setHoja(null),
+                  onCerrar: () => {
+                    setHoja(null);
+                    sub(null);
+                  },
                   contenido: (
                     <div className="hoja-compacta">
                     <EnvioForm
@@ -247,6 +251,7 @@ export function ChatVendedor() {
                       prefill={null}
                       onDone={() => {
                         setHoja(null);
+                        sub(null);
                         void recargar();
                       }}
                     />

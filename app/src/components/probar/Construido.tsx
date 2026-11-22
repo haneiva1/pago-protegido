@@ -76,3 +76,24 @@ function legible(ms: number): string {
   const m = Math.floor(s / 60);
   return s % 60 ? `${m} min ${s % 60} s` : `${m} min`;
 }
+
+/** La misma evidencia como una línea de links para el pie de /probar (con el resumen de esta prueba cuando termina). */
+export function ConstruidoLinea({ resumen }: { resumen: { transacciones: number; duracionMs: number } | null }) {
+  const links = PUNTOS.flatMap((p) => p.links);
+  return (
+    <p data-testid="construido" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-tinta-600">
+      <span className="font-semibold text-monte">Lo que ya está construido:</span>
+      {links.map((l) => (
+        <a key={l.href} href={l.href} target="_blank" rel="noreferrer" className="enlace inline-flex items-center gap-1 whitespace-nowrap">
+          {l.label}
+          <IconoExterno className="h-3 w-3" />
+        </a>
+      ))}
+      {resumen && (
+        <span data-testid="construido-resumen" className="num">
+          · esta prueba: {resumen.transacciones} transacciones públicas en {legible(resumen.duracionMs)}
+        </span>
+      )}
+    </p>
+  );
+}

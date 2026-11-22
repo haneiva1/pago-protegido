@@ -44,9 +44,18 @@ export function Chat({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const ultimo = el.lastElementChild as HTMLElement | null;
-    ultimo?.scrollIntoView({ block: "end" });
-    el.scrollTop = el.scrollHeight;
+    const abajo = () => {
+      const ultimo = el.lastElementChild as HTMLElement | null;
+      ultimo?.scrollIntoView({ block: "end" });
+      el.scrollTop = el.scrollHeight;
+    };
+    abajo();
+    const raf = requestAnimationFrame(abajo);
+    const t = setTimeout(abajo, 120);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
   }, [lista.length, escribiendo, cargas, JSON.stringify(lista[lista.length - 1] ?? null)]);
 
   return (
@@ -74,7 +83,7 @@ export function Chat({
         </span>
       </header>
 
-      <div ref={ref} className="flex-1 space-y-1.5 overflow-y-auto px-3 py-3" data-testid="chat-mensajes" style={{ backgroundImage: PATRON, backgroundSize: "84px 84px" }}>
+      <div ref={ref} className="flex-1 space-y-1.5 overflow-y-auto px-3 pb-5 pt-3" data-testid="chat-mensajes" style={{ backgroundImage: PATRON, backgroundSize: "84px 84px" }}>
         <p className="mx-auto w-fit rounded-lg bg-tinta-100 px-3 py-1 text-xs font-medium text-tinta-600">Hoy</p>
         {lista.map((m) => (
           <Burbuja key={m.id} m={m} pasos={m.enCurso ? pasos : undefined} ocupado={ocupado} onBoton={onBoton} onCarga={() => setCargas((n) => n + 1)} />
@@ -104,7 +113,7 @@ export function Chat({
       </div>
 
       {hoja && (
-        <div className="absolute inset-0 z-20 flex items-end bg-monte/45 animate-aparecer" role="dialog" aria-label={hoja.titulo ?? "Hoja"}>
+        <div className="absolute inset-x-0 bottom-0 top-[52px] z-20 flex items-end bg-monte/45 animate-aparecer" role="dialog" aria-label={hoja.titulo ?? "Hoja"}>
           <div className="max-h-[90%] w-full overflow-y-auto rounded-t-panel bg-white px-4 pb-6 pt-2 shadow-alzada" data-testid="chat-hoja">
             <span className="mx-auto mb-2 block h-1 w-10 rounded-full bg-tinta-300" aria-hidden />
             <div className={`mb-1 flex items-center gap-2 ${hoja.titulo ? "justify-between" : "justify-end"}`}>

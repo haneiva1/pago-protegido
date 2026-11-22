@@ -47,8 +47,8 @@ test("tienda: el registro mínimo es Hola → Crear mi cuenta → creando; despu
   assert.match(textos(pagado), /Tu cliente pagó Bs 456,75/);
   const enviado = mensajesVendedor({ ...con, pedido: pedido("enviado"), reenviado: true });
   assert.equal(botones(enviado).length, 0);
-  assert.match(textos(enviado), /Ya lo envié: Trans Copacabana · SRV-2026-118734/);
-  assert.match(textos(mensajesVendedor({ ...con, pedido: pedido("liberado"), reenviado: true })), /Cobraste Bs 450,04/);
+  assert.match(textos(enviado), /Ya lo envié/);
+  assert.match(textos(mensajesVendedor({ ...con, pedido: pedido("liberado"), reenviado: true })), /Cobraste Bs 450\. Ya está en tu cuenta/);
 });
 
 test("comprador: nada hasta que la tienda manda el link; pagar, el estafador bloqueado y 'Sí, me llegó' con cuenta atrás", () => {
@@ -92,11 +92,11 @@ test("los 4 pasos: título de 6 palabras o menos y línea de 10 o menos; la esta
     [{ tienda: true, status: null, estafa: "no" }, 2, "vendedor"],
     [{ tienda: true, status: "esperando_pago", estafa: "no" }, 2, "vendedor"],
     [{ tienda: true, status: "esperando_pago", estafa: "no", mandado: true }, 3, "comprador"],
-    [{ tienda: true, status: "pagado", estafa: "no" }, 3, null],
-    [{ tienda: true, status: "pagado", estafa: "en-curso" }, 3, null],
+    [{ tienda: true, status: "pagado", estafa: "no" }, 3, "vendedor"],
+    [{ tienda: true, status: "pagado", estafa: "en-curso" }, 3, "comprador"],
     [{ tienda: true, status: "pagado", estafa: "bloqueada" }, 3, "vendedor"],
     [{ tienda: true, status: "enviado", estafa: "bloqueada" }, 4, "comprador"],
-    [{ tienda: true, status: "liberado", estafa: "bloqueada" }, 4, null],
+    [{ tienda: true, status: "liberado", estafa: "bloqueada" }, 4, "vendedor"],
   ];
   for (const [p, n, quien] of casos) {
     const r = pasoDemo(p);
@@ -106,7 +106,7 @@ test("los 4 pasos: título de 6 palabras o menos y línea de 10 o menos; la esta
     assert.ok(palabras(r.linea) <= 10, r.linea);
   }
   assert.equal(pasoDemo({ tienda: true, status: "pagado", estafa: "en-curso" }).titulo, "Alguien intenta robar la plata");
-  assert.match(pasoDemo({ tienda: true, status: "pagado", estafa: "bloqueada" }).titulo, /^Trato bloqueó/);
+  assert.equal(pasoDemo({ tienda: true, status: "pagado", estafa: "bloqueada" }).linea, "Toca Ya lo envié");
   assert.equal(pasoDemo({ tienda: false, status: null, estafa: "no", sub: "hoja-cuenta" }).linea, "Revisa el nombre y toca Listo");
   assert.equal(pasoDemo({ tienda: true, status: "liberado", estafa: "bloqueada" }).terminado, true);
   assert.equal(cuentaAtras(T0 + 61_000, T0), "1:01");
