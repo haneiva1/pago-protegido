@@ -11,8 +11,9 @@ const DIR = path.join(__dirname, "capturas");
 fs.mkdirSync(DIR, { recursive: true });
 const MOBILE = { width: 390, height: 844 };
 const DESKTOP = { width: 1280, height: 900 };
-// Para interactuar: alto suficiente para que los dos celulares quepan enteros (la barra fija de "Pagar" vive abajo del marco).
-const ESCRITORIO_ALTO = { width: 1280, height: 1400 };
+// Para interactuar: alto suficiente para que TODA la página quepa sin desplazarla. Si Playwright tuviera que desplazar la
+// página madre para llegar a un botón dentro de un iPhone, el punto del clic quedaría bajo el encabezado fijo del sitio.
+const ESCRITORIO_ALTO = { width: 1280, height: 3000 };
 const CHAIN = { timeout: 240_000 };
 const TX_LINK = 'a[href*="stellar.expert/explorer/testnet/tx/"]';
 const PROHIBIDAS = [
