@@ -85,6 +85,9 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
   const wallet = useRef<typeof import("@/lib/wallet") | null>(null);
   const status = registro?.pedido?.status ?? null;
   const prevStatus = useRef<string | null>(null);
+  // El slug vigente, para que el pedido del chat ("estafa" por el canal) no lea un cierre viejo de `registro`.
+  const slugRef = useRef<string | null>(null);
+  slugRef.current = registro?.pedido?.slug ?? null;
   // Sube con "Empezar de nuevo": una consulta que salió antes no puede traer de vuelta el pedido anterior.
   const generacion = useRef(0);
 
@@ -204,7 +207,7 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
           for (const ms of [150, 450]) setTimeout(() => document.querySelector<HTMLElement>('[role="tablist"]')?.scrollIntoView({ block: "start" }), ms);
       }
       if (d.tipo === "actualiza") void cargar();
-      if (d.tipo === "estafa") void desviar();
+      if (d.tipo === "estafa") void desviar(d.slug);
     };
     return () => c.close();
   }, [cargar]);
@@ -286,8 +289,9 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
   }
 
   /** "Alguien intenta robar la plata": la simulación real contra el contrato; el chat del comprador la cuenta como un mensaje del estafador. */
-  async function desviar() {
-    const slug = registro?.pedido?.slug;
+  async function desviar(slugDelChat?: unknown) {
+    // El chat de la tienda manda el slug en el mensaje; el registro de esta página es el respaldo.
+    const slug = (typeof slugDelChat === "string" && slugDelChat) || slugRef.current;
     if (!slug) return;
     const at = Date.now();
     setDesviando(true);
