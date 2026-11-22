@@ -12,7 +12,7 @@ import { RegistroEnVivo } from "@/components/probar/RegistroEnVivo";
 import type { Desvio as DesvioT, Plazos, Registro } from "@/components/probar/tipos";
 import { Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
-import { canal } from "@/components/chat/pedido";
+import { canal, conReintentos } from "@/components/chat/pedido";
 import { PASOS_DEMO, pasoDemo } from "@/lib/chat";
 import { PROBAR_SESION, filasRegistro, hayPlataGuardada, probarStorageKey, resumenRed, type RolProbar } from "@/lib/probar";
 
@@ -141,7 +141,8 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
       try {
         wallet.current ??= await import("@/lib/wallet");
         const w = wallet.current;
-        await Promise.all([w.activateWallet(w.getWallet("vendedor")), w.activateWallet(w.getWallet("comprador"))]);
+        // Cada rol reintenta solo (hasta 3 veces) si la red de prueba rechaza o tarda.
+        await Promise.all([conReintentos(() => w.activateWallet(w.getWallet("vendedor"))), conReintentos(() => w.activateWallet(w.getWallet("comprador")))]);
       } catch {
         // Si falla, cada chat activa su cuenta al momento de usarla, como antes.
       } finally {

@@ -111,3 +111,24 @@ export const sesion = {
     } catch {}
   },
 };
+
+/**
+ * Reintenta una llamada a la red de prueba (hasta 3 veces, con 2,5 s entre intentos) antes de rendirse: en testnet
+ * un `txInsufficientFee` o un tiempo de espera suelen pasar al segundo intento. `onReintento` avisa para mostrar
+ * "La red de prueba está lenta…" en lugar del error crudo.
+ */
+export async function conReintentos<T>(fn: () => Promise<T>, onReintento?: (intento: number) => void, intentos = 3, esperaMs = 2500): Promise<T> {
+  let ultimo: unknown;
+  for (let i = 1; i <= intentos; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      ultimo = e;
+      if (i < intentos) {
+        onReintento?.(i);
+        await new Promise((r) => setTimeout(r, esperaMs));
+      }
+    }
+  }
+  throw ultimo;
+}
