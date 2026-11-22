@@ -11,7 +11,10 @@ export function Desvio({
   error,
   ultimo,
   onDesviar,
+  soloResultado = false,
 }: {
+  /** En el cajón de detalles: solo el resultado, sin el botón ni la explicación (el botón vive en la vista principal). */
+  soloResultado?: boolean;
   status: string | null;
   desviando: boolean;
   error: string | null;
@@ -21,6 +24,7 @@ export function Desvio({
   const hay = hayPlataGuardada(status);
   return (
     <section data-testid="desvio" className="seccion">
+      {!soloResultado && (<>
       <div className="flex items-start gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-error-50 text-error-600">
           <IconoBloqueado className="h-5 w-5" />
@@ -38,6 +42,7 @@ export function Desvio({
         {desviando ? <Spinner /> : <IconoBloqueado className="h-5 w-5" />}
         Un estafador lo intenta
       </button>
+      </>)}
 
       {!hay && (
         <p className="text-sm leading-snug text-tinta-600" data-testid="desvio-espera">

@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EnvioForm } from "@/components/vendedor/EnvioForm";
-import { ErrorBox, useProgress } from "@/components/ui";
+import { ErrorBox, Spinner, useProgress } from "@/components/ui";
 import { api } from "@/lib/api";
 import { apiFirmada } from "@/lib/api-firmada";
 import { DEMO, mensajesVendedor, type PedidoChat } from "@/lib/chat";
+import { CIUDADES } from "@/lib/format";
 import type { SellerData, SellerOrder } from "@/lib/types";
 import { Chat } from "./Chat";
 import { canal, sesion, useAhora, useMarco, usePedidoChat } from "./pedido";
@@ -16,21 +17,23 @@ interface Registro {
 }
 
 /**
- * El chat de la tienda con Trato: alta por respuestas rápidas, "Vendo … a Bs 450" → link en tarjeta, reenviar al
- * cliente, aviso del pago, "Ya lo envié" (el formulario real de envío en una hoja) y el aviso del cobro.
+ * El chat de la tienda con Trato: "Hola" → "Crear mi cuenta" (hoja con nombre y ciudad) → "Vender…" → link en tarjeta →
+ * "Mandar al cliente" → aviso del pago → "Ya lo envié" (el formulario real de envío en una hoja) → aviso del cobro.
  * Las acciones son las mismas de /vender y /panel: cuenta local del rol vendedor, /api/sellers, /api/links, mark_shipped.
  */
 export function ChatVendedor() {
   useMarco();
   const ahora = useAhora();
   const [t0] = useState(() => Date.now());
-  const [alta, setAlta] = useState<{ nombre?: string; ciudad?: string; whatsapp?: string; creando?: boolean }>({});
+  const [alta, setAlta] = useState<{ hola?: boolean; creando?: boolean }>({});
   const [tienda, setTienda] = useState<string | null>(null);
   const [pk, setPk] = useState<string | null>(null);
   const [slug, setSlug] = useState<string | null>(null);
   const [creandoLink, setCreandoLink] = useState(false);
   const [reenviado, setReenviado] = useState(false);
-  const [hoja, setHoja] = useState<null | "envio">(null);
+  const [hoja, setHoja] = useState<null | "cuenta" | "envio">(null);
+  const [nombre, setNombre] = useState(DEMO.tienda);
+  const [ciudad, setCiudad] = useState(DEMO.ciudad);
   const [orden, setOrden] = useState<SellerOrder | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -61,14 +64,18 @@ export function ChatVendedor() {
     return () => clearInterval(t);
   }, [cargar]);
 
-  // "Reenviar a mi cliente" queda guardado por pedido y avisa al celular del comprador.
+  // "Mandar al cliente" queda guardado por pedido y avisa al celular del comprador.
   useEffect(() => {
     if (!slug) return;
     const ya = sesion.get(`pp.chat.reenviado.${slug}`) === "1" || (pedido ? pedido.status !== "esperando_pago" : false);
     if (ya) setReenviado(true);
   }, [slug, pedido?.status]);
 
-  async function crearCuenta(whatsapp: string) {
+  async function crearCuenta(e: React.FormEvent) {
+    e.preventDefault();
+    if (nombre.trim().length < 2 || !ciudad) return setError("Escribe el nombre de tu tienda y elige tu ciudad");
+    setHoja(null);
+    setAlta({ hola: true, creando: true });
     setOcupado(true);
     setError(null);
     progreso.reset();
@@ -78,14 +85,13 @@ export function ChatVendedor() {
       const pubkey = await wal.connect();
       await w.activateWallet(wal, progreso.push);
       progreso.push("Guardando tu tienda");
-      await apiFirmada(wal, "/api/sellers", { pubkey, storeName: DEMO.tienda, whatsapp, city: DEMO.ciudad, pilotId: null });
+      await apiFirmada(wal, "/api/sellers", { pubkey, storeName: nombre.trim(), whatsapp: DEMO.whatsapp, city: ciudad, pilotId: null });
       progreso.finish("Guardando tu tienda");
       setPk(pubkey);
-      setTienda(DEMO.tienda);
-      setAlta((a) => ({ ...a, creando: false }));
-    } catch (e) {
-      setError((e as Error).message);
-      setAlta((a) => ({ ...a, whatsapp: undefined, creando: false }));
+      setTienda(nombre.trim());
+    } catch (err) {
+      setError((err as Error).message);
+      setAlta({ hola: true, creando: false });
     } finally {
       setOcupado(false);
     }
@@ -115,7 +121,7 @@ export function ChatVendedor() {
     }
   }
 
-  function reenviar() {
+  function mandar() {
     if (!slug) return;
     sesion.set(`pp.chat.reenviado.${slug}`, "1");
     setReenviado(true);
@@ -142,13 +148,10 @@ export function ChatVendedor() {
 
   function onBoton(id: string) {
     setError(null);
-    if (id === "nombre") setAlta((a) => ({ ...a, nombre: DEMO.tienda }));
-    else if (id === "ciudad") setAlta((a) => ({ ...a, ciudad: DEMO.ciudad }));
-    else if (id === "whatsapp") {
-      setAlta((a) => ({ ...a, whatsapp: DEMO.whatsappBonito, creando: true }));
-      void crearCuenta(DEMO.whatsapp);
-    } else if (id === "vender") void crearLink();
-    else if (id === "reenviar") reenviar();
+    if (id === "hola") setAlta({ hola: true });
+    else if (id === "crear-cuenta") setHoja("cuenta");
+    else if (id === "vender") void crearLink();
+    else if (id === "mandar") mandar();
     else if (id === "enviado") void abrirEnvio();
   }
 
@@ -164,6 +167,35 @@ export function ChatVendedor() {
     host: typeof window !== "undefined" ? window.location.host : "",
   });
 
+  const hojaCuenta = {
+    titulo: "Tu cuenta de cobro",
+    onCerrar: () => setHoja(null),
+    contenido: (
+      <form onSubmit={crearCuenta} className="space-y-4" data-testid="form-cuenta">
+        <div>
+          <label className="label" htmlFor="chat-store">
+            Nombre de la tienda
+          </label>
+          <input id="chat-store" className="input" value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={60} />
+        </div>
+        <div>
+          <label className="label" htmlFor="chat-city">
+            Tu ciudad
+          </label>
+          <select id="chat-city" className="input" value={ciudad} onChange={(e) => setCiudad(e.target.value)}>
+            {CIUDADES.map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+        <ErrorBox error={error} />
+        <button className="btn-primary w-full py-3.5 text-base" disabled={ocupado} data-testid="listo">
+          {ocupado ? <Spinner className="h-4 w-4" /> : null} Listo
+        </button>
+      </form>
+    ),
+  };
+
   return (
     <>
       <Chat
@@ -173,26 +205,28 @@ export function ChatVendedor() {
         pasos={progreso.steps}
         ocupado={ocupado}
         hoja={
-          hoja === "envio" && orden && pk
-            ? {
-                titulo: undefined,
-                onCerrar: () => setHoja(null),
-                contenido: (
-                  <EnvioForm
-                    o={orden}
-                    sellerPubkey={pk}
-                    prefill={null}
-                    onDone={() => {
-                      setHoja(null);
-                      void recargar();
-                    }}
-                  />
-                ),
-              }
-            : null
+          hoja === "cuenta"
+            ? hojaCuenta
+            : hoja === "envio" && orden && pk
+              ? {
+                  titulo: undefined,
+                  onCerrar: () => setHoja(null),
+                  contenido: (
+                    <EnvioForm
+                      o={orden}
+                      sellerPubkey={pk}
+                      prefill={null}
+                      onDone={() => {
+                        setHoja(null);
+                        void recargar();
+                      }}
+                    />
+                  ),
+                }
+              : null
         }
       />
-      {error && (
+      {error && hoja !== "cuenta" && (
         <div className="absolute inset-x-3 bottom-16 z-40 animate-aparecer">
           <ErrorBox error={error} />
         </div>

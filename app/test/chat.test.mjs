@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DEMO, cuentaAtras, mensajesComprador, mensajesVendedor, tituloPaso } from "../src/lib/chat.ts";
+import { DEMO, cuentaAtras, mensajesComprador, mensajesVendedor, pasoDemo } from "../src/lib/chat.ts";
 
-const PROHIBIDAS = [/garant[ií]a/i, /\bseguro\b/i, /custodia/i, /arbitraje/i, /árbitro/i, /100\s?%/, /cripto/i, /\btoken/i, /stablecoin/i, /\bwallet\b/i, /\bllaves?\b/i, /blockchain/i, /stellar/i];
+const PROHIBIDAS = [/garant[ií]a/i, /\bseguro\b/i, /custodia/i, /arbitraje/i, /árbitro/i, /100\s?%/, /cripto/i, /\btoken/i, /stablecoin/i, /\bwallet\b/i, /\bllaves?\b/i, /blockchain/i, /stellar/i, /sofi/i];
 const T0 = Date.UTC(2026, 10, 22, 4, 0, 0);
 const pedido = (status, extra = {}) => ({
   slug: "zapatillas-nike-talla-40-abc123",
@@ -20,84 +20,89 @@ const pedido = (status, extra = {}) => ({
   confirm_after: T0 + 240_000,
   envio: "Trans Copacabana (encomiendas) · guía SRV-2026-118734 · 1,2 kg",
   recibido: status === "liberado" ? "Bs 450,04" : null,
-  url: "http://localhost:3160/p/zapatillas-nike-talla-40-abc123",
+  url: "https://trato.example/p/zapatillas-nike-talla-40-abc123",
   imagen: "/p/zapatillas-nike-talla-40-abc123/opengraph-image",
   ...extra,
 });
-const textos = (ms) => ms.map((m) => `${m.texto ?? ""} ${m.botones?.map((b) => b.texto).join(" ") ?? ""} ${m.tarjeta ? `${m.tarjeta.titulo} ${m.tarjeta.descripcion}` : ""}`).join("\n");
+const textos = (ms) => ms.map((m) => `${m.texto ?? ""} ${m.botones?.map((b) => b.texto).join(" ") ?? ""} ${m.tarjeta ? `${m.tarjeta.titulo} ${m.tarjeta.dominio}` : ""}`).join("\n");
 const botones = (ms) => ms.flatMap((m) => m.botones ?? []);
+const lineas = (t) => t.split("\n").length;
 
-test("tienda: el alta pide nombre, ciudad y WhatsApp, de a una respuesta sugerida", () => {
-  const base = { t0: T0, ahora: T0, tienda: null, creandoLink: false, pedido: null, reenviado: false, enviando: false, host: "localhost" };
-  let ms = mensajesVendedor({ ...base, alta: {} });
-  assert.deepEqual(
-    botones(ms).map((b) => b.id),
-    ["nombre"],
-  );
-  ms = mensajesVendedor({ ...base, alta: { nombre: DEMO.tienda } });
-  assert.deepEqual(botones(ms).map((b) => b.id), ["ciudad"]);
-  ms = mensajesVendedor({ ...base, alta: { nombre: DEMO.tienda, ciudad: DEMO.ciudad } });
-  assert.deepEqual(botones(ms).map((b) => b.id), ["whatsapp"]);
-  ms = mensajesVendedor({ ...base, alta: { nombre: DEMO.tienda, ciudad: DEMO.ciudad, whatsapp: DEMO.whatsappBonito, creando: true } });
-  assert.equal(ms.at(-1).enCurso, true);
-  assert.equal(botones(ms).length, 0);
-});
-
-test("tienda: con la tienda creada hay una sola acción por momento: vender, reenviar, 'Ya lo envié'", () => {
-  const base = { t0: T0, ahora: T0 + 500_000, alta: {}, tienda: DEMO.tienda, creandoLink: false, reenviado: false, enviando: false, host: "localhost" };
-  assert.deepEqual(botones(mensajesVendedor({ ...base, pedido: null })).map((b) => b.id), ["vender"]);
-  const conLink = mensajesVendedor({ ...base, pedido: pedido("esperando_pago") });
-  assert.deepEqual(botones(conLink).map((b) => b.id), ["reenviar"]);
-  assert.ok(conLink.some((m) => m.tarjeta?.titulo.includes("Zapatillas Nike talla 40 · Bs 450,00")));
-  assert.match(textos(conLink), /PP-7KM4Q9TX/);
-  const pagado = mensajesVendedor({ ...base, pedido: pedido("pagado"), reenviado: true });
+test("tienda: el registro mínimo es Hola → Crear mi cuenta → creando; después una sola acción por momento", () => {
+  const base = { t0: T0, ahora: T0 + 500_000, tienda: null, creandoLink: false, pedido: null, reenviado: false, enviando: false, host: "trato.example" };
+  assert.deepEqual(botones(mensajesVendedor({ ...base, alta: {} })).map((b) => b.id), ["hola"]);
+  assert.deepEqual(botones(mensajesVendedor({ ...base, alta: { hola: true } })).map((b) => b.id), ["crear-cuenta"]);
+  const creando = mensajesVendedor({ ...base, alta: { hola: true, creando: true } });
+  assert.equal(creando.at(-1).enCurso, true);
+  assert.equal(botones(creando).length, 0);
+  const con = { ...base, tienda: DEMO.tienda };
+  assert.deepEqual(botones(mensajesVendedor(con)).map((b) => b.id), ["vender"]);
+  const conLink = mensajesVendedor({ ...con, pedido: pedido("esperando_pago") });
+  assert.deepEqual(botones(conLink).map((b) => b.id), ["mandar"]);
+  assert.ok(conLink.some((m) => m.tarjeta?.titulo === "Zapatillas Nike talla 40 · Bs 450,00" && m.tarjeta.dominio === "trato.example"));
+  const pagado = mensajesVendedor({ ...con, pedido: pedido("pagado"), reenviado: true });
   assert.deepEqual(botones(pagado).map((b) => b.id), ["enviado"]);
-  assert.match(textos(pagado), /tu cliente pagó Bs 456,75 .* GUARDADO/);
-  const enviado = mensajesVendedor({ ...base, pedido: pedido("enviado"), reenviado: true });
+  assert.match(textos(pagado), /Tu cliente pagó Bs 456,75/);
+  const enviado = mensajesVendedor({ ...con, pedido: pedido("enviado"), reenviado: true });
   assert.equal(botones(enviado).length, 0);
-  assert.match(textos(enviado), /figura como enviado/);
-  const cobrado = mensajesVendedor({ ...base, pedido: pedido("liberado"), reenviado: true });
-  assert.match(textos(cobrado), /Te llegaron \*Bs 450,04\*/);
+  assert.match(textos(enviado), /Ya lo envié: Trans Copacabana · SRV-2026-118734/);
+  assert.match(textos(mensajesVendedor({ ...con, pedido: pedido("liberado"), reenviado: true })), /Cobraste Bs 450,04/);
 });
 
-test("comprador: nada hasta que la tienda reenvía; después pagar, el estafador bloqueado y 'Sí, me llegó' cuando corre el plazo", () => {
-  const base = { ahora: T0 + 200_000, tienda: DEMO.tienda, estafa: null, confirmando: false, host: "localhost" };
+test("comprador: nada hasta que la tienda manda el link; pagar, el estafador bloqueado y 'Sí, me llegó' con cuenta atrás", () => {
+  const base = { ahora: T0 + 200_000, tienda: DEMO.tienda, estafa: null, confirmando: false, host: "trato.example" };
   assert.equal(mensajesComprador({ ...base, pedido: pedido("esperando_pago"), reenviado: false }).length, 0);
   const link = mensajesComprador({ ...base, pedido: pedido("esperando_pago"), reenviado: true });
   assert.deepEqual(botones(link).map((b) => b.id), ["pagar"]);
-  assert.match(textos(link), /La plata espera entre los dos hasta que confirmes que te llegó/);
+  assert.match(textos(link), /Zapatería te mandó un link de pago protegido/);
   const estafa = mensajesComprador({ ...base, pedido: pedido("pagado"), reenviado: true, estafa: { at: T0 + 150_000, rechazado: true, error: "Error(Contract, #12)", detalle: "" } });
-  assert.match(textos(estafa), /soy del banco/);
-  assert.match(textos(estafa), /Bloqueado.*Error\(Contract, #12\)/);
+  assert.match(textos(estafa), /Soy del banco/);
+  assert.match(textos(estafa), /Bloqueado[\s\S]*Error\(Contract, #12\)/);
   assert.equal(estafa.find((m) => m.id === "estafa").de, "desconocido");
-  const antes = mensajesComprador({ ...base, pedido: pedido("enviado"), reenviado: true });
-  const b = botones(antes);
-  assert.deepEqual(b.map((x) => [x.id, Boolean(x.deshabilitado)]), [["me-llego", true], ["problema", false]]);
-  assert.match(textos(antes), /Puedes pagarle en 0:40/);
-  const despues = mensajesComprador({ ...base, ahora: T0 + 300_000, pedido: pedido("enviado"), reenviado: true });
-  assert.equal(botones(despues).find((x) => x.id === "me-llego").deshabilitado, false);
+  const antes = botones(mensajesComprador({ ...base, pedido: pedido("enviado"), reenviado: true }));
+  assert.deepEqual(antes.map((x) => [x.id, Boolean(x.deshabilitado)]), [["me-llego", true], ["problema", false]]);
+  assert.equal(antes[0].texto, "Sí, me llegó · 0:40");
+  const despues = botones(mensajesComprador({ ...base, ahora: T0 + 300_000, pedido: pedido("enviado"), reenviado: true }));
+  assert.deepEqual([despues[0].texto, despues[0].deshabilitado], ["Sí, me llegó", false]);
   const fin = mensajesComprador({ ...base, ahora: T0 + 400_000, pedido: pedido("liberado"), reenviado: true });
-  assert.match(textos(fin), /recibió Bs 450,04/);
+  assert.match(textos(fin), /Pagaste a Zapatería/);
   assert.equal(botones(fin).length, 0);
 });
 
-test("ningún texto del chat usa palabras prohibidas", () => {
-  const todo = [
+test("mensajes cortos: ninguno pasa de 2 líneas (3 en el saludo) y ninguno usa palabras prohibidas ni 'Sofi'", () => {
+  const todos = [
     ...["esperando_pago", "pagado", "enviado", "liberado", "devuelto", "en_disputa", "resuelto"].flatMap((s) => [
       ...mensajesVendedor({ t0: T0, ahora: T0 + 500_000, alta: {}, tienda: DEMO.tienda, creandoLink: false, pedido: pedido(s), reenviado: true, enviando: false, host: "x" }),
       ...mensajesComprador({ ahora: T0 + 500_000, tienda: DEMO.tienda, pedido: pedido(s), reenviado: true, estafa: { at: T0, rechazado: true, error: "Error(Contract, #12)", detalle: "" }, confirmando: false, host: "x" }),
     ]),
-    ...mensajesVendedor({ t0: T0, ahora: T0, alta: { nombre: "a", ciudad: "b", whatsapp: "c", creando: true }, tienda: null, creandoLink: false, pedido: null, reenviado: false, enviando: false, host: "x" }),
+    ...mensajesVendedor({ t0: T0, ahora: T0, alta: { hola: true, creando: true }, tienda: null, creandoLink: false, pedido: null, reenviado: false, enviando: false, host: "x" }),
   ];
-  const t = textos(todo);
+  for (const m of todos) if (m.texto) assert.ok(lineas(m.texto) <= 3 && m.texto.length <= 150, `largo: ${m.texto}`);
+  const t = textos(todos);
   for (const re of PROHIBIDAS) assert.doesNotMatch(t, re);
 });
 
-test("cuenta atrás y títulos de los pasos", () => {
+test("los 4 pasos: título de 6 palabras o menos y línea de 10 o menos; la estafa es un momento del paso 3", () => {
+  const palabras = (s) => s.replace(/^\d\.\s*/, "").split(/\s+/).filter(Boolean).length;
+  const casos = [
+    [{ tienda: false, status: null, estafa: "no" }, 1, "vendedor"],
+    [{ tienda: true, status: null, estafa: "no" }, 2, "vendedor"],
+    [{ tienda: true, status: "esperando_pago", estafa: "no" }, 3, "comprador"],
+    [{ tienda: true, status: "pagado", estafa: "no" }, 3, null],
+    [{ tienda: true, status: "pagado", estafa: "en-curso" }, 3, null],
+    [{ tienda: true, status: "pagado", estafa: "bloqueada" }, 3, "vendedor"],
+    [{ tienda: true, status: "enviado", estafa: "bloqueada" }, 4, "comprador"],
+    [{ tienda: true, status: "liberado", estafa: "bloqueada" }, 4, null],
+  ];
+  for (const [p, n, quien] of casos) {
+    const r = pasoDemo(p);
+    assert.equal(r.n, n);
+    assert.equal(r.quien, quien);
+    assert.ok(palabras(r.titulo) <= 6, r.titulo);
+    assert.ok(palabras(r.linea) <= 10, r.linea);
+  }
+  assert.equal(pasoDemo({ tienda: true, status: "pagado", estafa: "en-curso" }).titulo, "Alguien intenta robar la plata");
+  assert.match(pasoDemo({ tienda: true, status: "pagado", estafa: "bloqueada" }).titulo, /^Bloqueado/);
+  assert.equal(pasoDemo({ tienda: true, status: "liberado", estafa: "bloqueada" }).terminado, true);
   assert.equal(cuentaAtras(T0 + 61_000, T0), "1:01");
-  assert.equal(cuentaAtras(T0, T0 + 5000), "0:00");
-  assert.equal(tituloPaso({ tienda: false, status: null, estafa: false }).n, 1);
-  assert.equal(tituloPaso({ tienda: true, status: "esperando_pago", estafa: false }).quien, "comprador");
-  assert.equal(tituloPaso({ tienda: true, status: "pagado", estafa: true }).quien, "vendedor");
-  assert.equal(tituloPaso({ tienda: true, status: "liberado", estafa: true }).titulo, "La tienda cobró");
 });

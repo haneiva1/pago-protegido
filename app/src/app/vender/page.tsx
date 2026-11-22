@@ -99,7 +99,7 @@ export default function Vender() {
               <label className="label" htmlFor="store">
                 Nombre de la tienda
               </label>
-              <input id="store" className="input" autoFocus value={store} onChange={(e) => setStore(e.target.value)} placeholder="Tienda Sofi" maxLength={60} />
+              <input id="store" className="input" autoFocus value={store} onChange={(e) => setStore(e.target.value)} placeholder="Zapatería" maxLength={60} />
             </div>
             <div>
               <label className="label" htmlFor="city">

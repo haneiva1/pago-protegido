@@ -58,9 +58,10 @@
 
   --color-ink: #0a2a1b;
 
-  /* Letra: Funnel Display 800 solo para títulos; Funnel Sans 400, 500 y 600 para todo lo demás (700 no está cargada: nunca font-bold en texto). */
-  --font-sans: var(--font-funnel-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-display: var(--font-funnel-display), var(--font-funnel-sans), ui-sans-serif, system-ui, sans-serif;
+  /* Letra: Geist para texto y tÃ­tulos (tÃ­tulos en 600-700 con tracking -0.02em; texto en 400-500) y Geist Mono para cÃ³digos y cifras monoespaciadas. El logo es SVG y no cambia. */
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-geist), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   /*
    * Escala tipográfica única: 12 / 14 / 16 / 18 / 24 / 32 / 48 / 64 px (xs, sm, base, lg, 2xl, 3xl, 5xl, 6xl).
@@ -79,19 +80,19 @@
   --text-xl--line-height: 1.625rem;
   --text-2xl: 1.5rem;
   --text-2xl--line-height: 1.875rem;
-  --text-2xl--letter-spacing: -0.025em;
+  --text-2xl--letter-spacing: -0.02em;
   --text-3xl: 2rem;
   --text-3xl--line-height: 2.375rem;
-  --text-3xl--letter-spacing: -0.025em;
+  --text-3xl--letter-spacing: -0.02em;
   --text-4xl: 2rem;
   --text-4xl--line-height: 2.375rem;
-  --text-4xl--letter-spacing: -0.025em;
+  --text-4xl--letter-spacing: -0.02em;
   --text-5xl: 3rem;
   --text-5xl--line-height: 3.25rem;
-  --text-5xl--letter-spacing: -0.035em;
+  --text-5xl--letter-spacing: -0.02em;
   --text-6xl: 4rem;
   --text-6xl--line-height: 4.25rem;
-  --text-6xl--letter-spacing: -0.035em;
+  --text-6xl--letter-spacing: -0.02em;
 
   /* Radios: chip 8, control (botón e input) 12, tarjeta 16, panel 24. */
   --radius-chip: 0.5rem;
@@ -176,8 +177,12 @@ h1,
 h2,
 h3 {
   font-family: var(--font-display);
-  font-weight: 800;
-  letter-spacing: -0.01em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+h3 {
+  font-weight: 600;
 }
 
 h1,
@@ -189,7 +194,7 @@ h3 {
   text-wrap: pretty;
 }
 
-/* Funnel Sans llega hasta 600: la negrita del texto es semibold, nunca una negrita sintética. */
+/* La negrita del texto es semibold (600): el peso 700 queda para los tÃ­tulos. */
 b,
 strong {
   font-weight: 600;
@@ -383,4 +388,17 @@ html[data-marco] main {
 /* /probar necesita más ancho que el resto: dos celulares y el registro en vivo. */
 main:has(> [data-probar-ancho]) {
   max-width: 88rem;
+}
+
+/* Dentro de los celulares de /probar (el chat y la página de pago): la letra del sistema del iPhone, como un teléfono real. */
+html[data-marco] body,
+html[data-marco] h1,
+html[data-marco] h2,
+html[data-marco] h3 {
+  font-family: -apple-system, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
+}
+html[data-marco] h1,
+html[data-marco] h2,
+html[data-marco] h3 {
+  letter-spacing: -0.01em;
 }

@@ -64,7 +64,7 @@ export default function Piloto() {
       </header>
       <form className="card space-y-4 sm:p-6" onSubmit={submit} data-testid="form-piloto">
         {field("name", "Tu nombre", "Nombre y apellido")}
-        {field("store", "Nombre de la tienda", "Ej.: Tienda Sofi")}
+        {field("store", "Nombre de la tienda", "Ej.: Zapatería")}
         <div>
           <label className="label" htmlFor="p-city">
             Ciudad
