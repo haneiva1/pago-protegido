@@ -40,8 +40,10 @@ test("tienda: el registro mínimo es Hola → Crear mi cuenta → creando; despu
   const conLink = mensajesVendedor({ ...con, pedido: pedido("esperando_pago") });
   assert.deepEqual(botones(conLink).map((b) => b.id), ["mandar"]);
   assert.ok(conLink.some((m) => m.tarjeta?.titulo === "Zapatillas Nike talla 40 · Bs 450,00" && m.tarjeta.dominio === "trato.example"));
-  const pagado = mensajesVendedor({ ...con, pedido: pedido("pagado"), reenviado: true });
+  assert.equal(botones(mensajesVendedor({ ...con, pedido: pedido("pagado"), reenviado: true })).length, 0, "sin el estafador bloqueado no hay botón");
+  const pagado = mensajesVendedor({ ...con, pedido: pedido("pagado"), reenviado: true, estafaHecha: true });
   assert.deepEqual(botones(pagado).map((b) => b.id), ["enviado"]);
+  assert.match(textos(pagado), /Bs 450 \+ Bs 6,75 de protección/);
   assert.match(textos(pagado), /Tu cliente pagó Bs 456,75/);
   const enviado = mensajesVendedor({ ...con, pedido: pedido("enviado"), reenviado: true });
   assert.equal(botones(enviado).length, 0);
@@ -57,7 +59,8 @@ test("comprador: nada hasta que la tienda manda el link; pagar, el estafador blo
   assert.match(textos(link), /Zapatería te mandó un link de pago protegido/);
   const estafa = mensajesComprador({ ...base, pedido: pedido("pagado"), reenviado: true, estafa: { at: T0 + 150_000, rechazado: true, error: "Error(Contract, #12)", detalle: "" } });
   assert.match(textos(estafa), /Soy del banco/);
-  assert.match(textos(estafa), /Bloqueado[\s\S]*Error\(Contract, #12\)/);
+  assert.match(textos(estafa), /Bloqueado: la plata solo puede ir a la Zapatería o volver a ti/);
+  assert.doesNotMatch(textos(estafa), /Error\(Contract/);
   assert.equal(estafa.find((m) => m.id === "estafa").de, "desconocido");
   const antes = botones(mensajesComprador({ ...base, pedido: pedido("enviado"), reenviado: true }));
   assert.deepEqual(antes.map((x) => [x.id, Boolean(x.deshabilitado)]), [["me-llego", true], ["problema", false]]);
@@ -87,7 +90,8 @@ test("los 4 pasos: título de 6 palabras o menos y línea de 10 o menos; la esta
   const casos = [
     [{ tienda: false, status: null, estafa: "no" }, 1, "vendedor"],
     [{ tienda: true, status: null, estafa: "no" }, 2, "vendedor"],
-    [{ tienda: true, status: "esperando_pago", estafa: "no" }, 3, "comprador"],
+    [{ tienda: true, status: "esperando_pago", estafa: "no" }, 2, "vendedor"],
+    [{ tienda: true, status: "esperando_pago", estafa: "no", mandado: true }, 3, "comprador"],
     [{ tienda: true, status: "pagado", estafa: "no" }, 3, null],
     [{ tienda: true, status: "pagado", estafa: "en-curso" }, 3, null],
     [{ tienda: true, status: "pagado", estafa: "bloqueada" }, 3, "vendedor"],
@@ -102,7 +106,8 @@ test("los 4 pasos: título de 6 palabras o menos y línea de 10 o menos; la esta
     assert.ok(palabras(r.linea) <= 10, r.linea);
   }
   assert.equal(pasoDemo({ tienda: true, status: "pagado", estafa: "en-curso" }).titulo, "Alguien intenta robar la plata");
-  assert.match(pasoDemo({ tienda: true, status: "pagado", estafa: "bloqueada" }).titulo, /^Bloqueado/);
+  assert.match(pasoDemo({ tienda: true, status: "pagado", estafa: "bloqueada" }).titulo, /^Trato bloqueó/);
+  assert.equal(pasoDemo({ tienda: false, status: null, estafa: "no", sub: "hoja-cuenta" }).linea, "Revisa el nombre y toca Listo");
   assert.equal(pasoDemo({ tienda: true, status: "liberado", estafa: "bloqueada" }).terminado, true);
   assert.equal(cuentaAtras(T0 + 61_000, T0), "1:01");
 });

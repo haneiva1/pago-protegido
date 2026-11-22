@@ -46,16 +46,16 @@ export function IPhone({
   const e = Math.max(0.3, Math.min(1, escala));
   const vars = { "--escala": String(e) } as CSSProperties;
   return (
-    <figure data-testid={testId} data-turno={turno ? "si" : "no"} className={`w-full flex-col items-center sm:w-auto ${className}`} style={vars}>
+    <figure data-testid={testId} data-turno={turno ? "si" : "no"} className={`w-full scroll-mt-16 flex-col items-center sm:w-auto ${className}`} style={vars}>
       <figcaption className="mb-3 hidden h-6 items-center gap-1.5 whitespace-nowrap rounded-full bg-tinta-100 px-3 text-xs font-medium text-tinta-700 sm:inline-flex">
         <Icono className="h-3.5 w-3.5" />
         {titulo}
       </figcaption>
       {/* El contenedor reserva el tamaño escalado; adentro, el teléfono a tamaño real, escalado desde arriba a la izquierda. */}
-      <div className="relative h-[min(78svh,720px)] w-full shrink-0 sm:h-[calc(872px*var(--escala))] sm:w-[calc(413px*var(--escala))]">
+      <div className="relative h-[var(--alto-movil,min(78svh,720px))] w-full shrink-0 sm:h-[calc(872px*var(--escala))] sm:w-[calc(413px*var(--escala))]">
         <div
           className={`absolute left-0 top-0 h-full w-full origin-top-left transition-opacity duration-300 sm:h-[872px] sm:w-[413px] sm:[transform:scale(var(--escala))] ${
-            turno ? "" : "opacity-70"
+            turno ? "" : "opacity-50 saturate-0"
           }`}
         >
           {/* Botones laterales: acción y volumen a la izquierda, encendido a la derecha. */}

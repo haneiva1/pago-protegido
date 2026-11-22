@@ -402,3 +402,14 @@ html[data-marco] h2,
 html[data-marco] h3 {
   letter-spacing: -0.01em;
 }
+
+/* En /probar: sin el "Crear mi link" del encabezado del sitio (la demo tiene una sola acción por paso). */
+html[data-probar] header[data-chrome] a[href="/vender"],
+html[data-probar] header[data-chrome] a.btn-oscuro {
+  display: none;
+}
+
+/* Hojas del chat: el formulario real de envío sin la sección de fotos (opcional), para que el botón quede a la vista. */
+.hoja-compacta [data-testid="fotos-envio"] {
+  display: none;
+}

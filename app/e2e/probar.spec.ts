@@ -167,7 +167,8 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   // El chat vuelve solo y cuenta que la plata quedó guardada; la tienda recibe el aviso con "Ya lo envié".
   await expect(comprador.getByTestId("chat-pagado")).toBeVisible({ timeout: 30_000 });
   await expect(comprador.getByTestId("chat-overlay")).toBeHidden({ timeout: 15_000 });
-  await expect(toca(vendedor, "enviado")).toBeVisible({ timeout: 30_000 });
+  // Un solo botón por momento: la tienda no puede despachar hasta que el estafador quede bloqueado.
+  await expect(toca(vendedor, "enviado")).toHaveCount(0);
 
   const pagoReg = page.getByTestId("paso-registro-pago");
   await expect(pagoReg).toHaveAttribute("data-hecho", "si", { timeout: 30_000 });
@@ -190,9 +191,11 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   await expect(page.getByTestId("desvio-resultado")).toContainText("no se envió nada");
   await expect(page.getByTestId("registro-desvio")).toContainText("Intento de desvío rechazado: Error(Contract, #12)");
   await expect(comprador.getByTestId("chat-estafa")).toContainText("Soy del banco");
-  await expect(comprador.getByTestId("chat-bloqueo")).toContainText("Bloqueado", { timeout: 30_000 });
-  await expect(comprador.getByTestId("chat-bloqueo")).toContainText("Error(Contract, #12)");
-  await expect(page.getByTestId("titulo-etapa")).toHaveText("Bloqueado: solo dos salidas");
+  await expect(comprador.getByTestId("chat-bloqueo")).toContainText("Bloqueado: la plata solo puede ir a la Zapatería o volver a ti", { timeout: 30_000 });
+  // El error crudo del contrato queda en el cajón, no en el chat.
+  await expect(comprador.getByTestId("chat-bloqueo")).not.toContainText("Error(Contract");
+  await expect(page.getByTestId("titulo-etapa")).toHaveText("Trato bloqueó al estafador");
+  await expect(toca(vendedor, "enviado")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("desviar")).toHaveCount(0);
   await capturar(page, "82-probar-desvio-rechazado");
 
@@ -201,7 +204,6 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   const hoja = vendedor.getByTestId("chat-hoja");
   await hoja.getByLabel("Empresa de envío").selectOption("Trans Copacabana (encomiendas)");
   await hoja.getByLabel("Número de guía").fill("SRV-2026-118734");
-  await hoja.getByLabel("Peso declarado (kg)").fill("1,2");
   await clic(hoja.getByRole("button", { name: "Marcar como enviado" }));
   await expect(vendedor.getByTestId("chat-enviado")).toContainText("Envío registrado", CHAIN);
   const envio = page.getByTestId("paso-registro-envio");

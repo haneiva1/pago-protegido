@@ -159,8 +159,7 @@ export default function Vender() {
             </ul>
             {busy && (
               <EsperaEnCurso
-                titulo="Creando tu cuenta de cobro"
-                nota="Suele tardar unos 10 segundos: se crea y se activa tu cuenta en la red de prueba, y después se guarda tu tienda."
+                titulo="Creando tu cuenta de cobro… unos 10 segundos"
                 steps={pasos}
                 testId="espera-cuenta"
               />

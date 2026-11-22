@@ -117,7 +117,16 @@ export interface EstadoVendedor {
   pedido: PedidoChat | null;
   reenviado: boolean;
   enviando: boolean;
+  /** El estafador ya fue bloqueado: recién ahí la tienda puede marcar el envío (un solo botón por momento). */
+  estafaHecha?: boolean;
   host: string;
+}
+
+/** "Bs 6,75": lo que paga el comprador de más (protección) a partir de los dos montos en texto. */
+export function proteccionBs(total: string, precio: string): string {
+  const n = (s: string) => Number(s.replace(/[^\d,]/g, "").replace(",", "."));
+  const d = Math.round((n(total) - n(precio)) * 100) / 100;
+  return `Bs ${d.toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 const seg = (t0: number, n: number) => t0 + n * 1000;
@@ -166,7 +175,7 @@ export function mensajesVendedor(e: EstadoVendedor): Mensaje[] {
     id: "link",
     de: "bot",
     at: p.created_at,
-    texto: `Tu link de pago protegido, código ${p.code ?? ""}:`,
+    texto: "Tu link de pago protegido:",
     tarjeta: tarjetaDe(p, e.host),
     botones: e.reenviado ? undefined : [{ id: "mandar", texto: "Mandar al cliente", principal: true }],
   });
@@ -181,8 +190,8 @@ export function mensajesVendedor(e: EstadoVendedor): Mensaje[] {
     id: "pagado",
     de: "bot",
     at: tPago,
-    texto: `💸 Tu cliente pagó ${p.total}. La plata está guardada, todavía no en tu cuenta.${p.status === "pagado" ? "\nDespacha y toca Ya lo envié." : ""}`,
-    botones: p.status === "pagado" && !e.enviando ? [{ id: "enviado", texto: "Ya lo envié", principal: true }] : undefined,
+    texto: `💸 Tu cliente pagó ${p.total}: ${p.precio.replace(",00", "")} + ${proteccionBs(p.total, p.precio)} de protección. Guardado hasta que confirme.${p.status === "pagado" && e.estafaHecha && !e.enviando ? "\nDespacha y toca Ya lo envié." : ""}`,
+    botones: p.status === "pagado" && e.estafaHecha && !e.enviando ? [{ id: "enviado", texto: "Ya lo envié", principal: true }] : undefined,
   });
   if (p.status === "pagado") {
     if (e.enviando) m.push({ id: "enviando", de: "bot", at: e.ahora, enCurso: true, texto: "Registrando el envío. Unos 10 segundos." });
@@ -238,7 +247,7 @@ export function mensajesComprador(e: EstadoComprador): Mensaje[] {
   if (p.status === "esperando_pago") return m;
   const tPago = p.paid_at ?? p.created_at + 30_000;
   m.push({ id: "yo-pague", de: "yo", at: tPago - 1000, texto: `Pagué ${p.total} ✅` });
-  m.push({ id: "pagado", de: "bot", at: tPago, texto: "🔒 Tu plata quedó guardada. Solo sale cuando confirmes que te llegó." });
+  m.push({ id: "pagado", de: "bot", at: tPago, texto: `🔒 Pagaste ${p.total}: ${p.precio.replace(",00", "")} + ${proteccionBs(p.total, p.precio)} de protección. Solo sale cuando confirmes.` });
   if (e.estafa) {
     const x = e.estafa;
     m.push({ id: "estafa", de: "desconocido", at: x.at, desconocidoDe: ESTAFADOR.numero, texto: `Soy del banco. Autoriza el pago a esta cuenta: ${ESTAFADOR.cuenta}.` });
@@ -250,7 +259,7 @@ export function mensajesComprador(e: EstadoComprador): Mensaje[] {
       texto: x.enCurso
         ? "Revisando en el contrato…"
         : x.rechazado
-          ? `🚫 Bloqueado. La plata solo puede ir a ${e.tienda} o volver a ti.${x.error ? `\n${x.error}` : ""}`
+          ? `🚫 Bloqueado: la plata solo puede ir a la ${e.tienda} o volver a ti.`
           : `La simulación no falló: hay que revisar los roles de este contrato. ${x.detalle}`,
     });
   }
@@ -300,21 +309,25 @@ export const PASOS_DEMO: { n: PasoDemo; nombre: string }[] = [
 ];
 
 /** Paso actual (1 a 4), título (≤ 6 palabras) y línea (≤ 10 palabras) de cada momento. */
-export function pasoDemo(p: { tienda: boolean; status: string | null; estafa: "no" | "en-curso" | "bloqueada" }): {
+export function pasoDemo(p: { tienda: boolean; status: string | null; estafa: "no" | "en-curso" | "bloqueada"; mandado?: boolean; sub?: string | null }): {
   n: PasoDemo;
   titulo: string;
   linea: string;
   quien: "vendedor" | "comprador" | null;
   terminado: boolean;
 } {
-  if (!p.tienda) return { n: 1, titulo: "1. La Zapatería se registra", linea: "Escribe Hola y toca Crear mi cuenta", quien: "vendedor", terminado: false };
-  if (p.status === null) return { n: 2, titulo: "2. La Zapatería vende", linea: "Toca Vender y manda el link", quien: "vendedor", terminado: false };
+  if (!p.tienda) {
+    const linea = p.sub === "hoja-cuenta" ? "Revisa el nombre y toca Listo" : p.sub === "creando" ? "Creando la cuenta de cobro…" : p.sub === "hola" ? "Toca Crear mi cuenta" : "Escribe Hola y toca Crear mi cuenta";
+    return { n: 1, titulo: "1. La Zapatería se registra", linea, quien: "vendedor", terminado: false };
+  }
+  if (p.status === null) return { n: 2, titulo: "2. La Zapatería vende", linea: p.sub === "creando-link" ? "Creando el link de pago…" : "Toca Vender", quien: "vendedor", terminado: false };
+  if (p.status === "esperando_pago" && !p.mandado) return { n: 2, titulo: "2. La Zapatería vende", linea: "Toca Mandar al cliente", quien: "vendedor", terminado: false };
   switch (p.status) {
     case "esperando_pago":
       return { n: 3, titulo: "3. El comprador paga", linea: "Abre el link y paga con un toque", quien: "comprador", terminado: false };
     case "pagado":
       if (p.estafa === "en-curso") return { n: 3, titulo: "Alguien intenta robar la plata", linea: "Mira el chat del comprador", quien: null, terminado: false };
-      if (p.estafa === "bloqueada") return { n: 3, titulo: "Bloqueado: solo dos salidas", linea: "La Zapatería despacha y toca Ya lo envié", quien: "vendedor", terminado: false };
+      if (p.estafa === "bloqueada") return { n: 3, titulo: "Trato bloqueó al estafador", linea: "Ahora la Zapatería despacha: toca Ya lo envié", quien: "vendedor", terminado: false };
       return { n: 3, titulo: "3. La plata quedó guardada", linea: "Toca Alguien intenta robar la plata", quien: null, terminado: false };
     case "enviado":
       return { n: 4, titulo: "4. La Zapatería cobra", linea: "Confirma la entrega y la plata llega", quien: "comprador", terminado: false };

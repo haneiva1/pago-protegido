@@ -1,23 +1,22 @@
 "use client";
 
-import { Progress, Spinner, type ProgressStep } from "@/components/ui";
+import { Spinner, type ProgressStep } from "@/components/ui";
 
 /**
- * Espera larga explicada: qué está pasando, cuánto suele tardar y los pasos que ya salieron (cada uno con su
- * transacción). Nadie debe pensar que se colgó.
+ * Espera larga explicada en una sola línea ("Guardando tu pago… unos 30 segundos") con una barra de avance.
+ * Nadie debe pensar que se colgó; los detalles (cada transacción) quedan en el registro del pedido al terminar.
  */
-export function EsperaEnCurso({ titulo, nota, steps, testId }: { titulo: string; nota: string; steps: ProgressStep[]; testId?: string }) {
+export function EsperaEnCurso({ titulo, nota, testId }: { titulo: string; nota?: string; steps?: ProgressStep[]; testId?: string }) {
   return (
-    <section className="space-y-3 rounded-card bg-tinta-50 p-4 animate-aparecer" data-testid={testId ?? "espera"} aria-live="polite">
-      <div className="flex items-center gap-2 text-musgo">
-        <Spinner className="h-5 w-5" />
-        <h2 className="font-sans text-lg font-semibold text-monte">{titulo}</h2>
-      </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-tinta-100" aria-hidden>
+    <section className="space-y-2.5 rounded-card bg-tinta-50 p-4 animate-aparecer" data-testid={testId ?? "espera"} aria-live="polite">
+      <p className="flex items-center gap-2 text-base font-semibold text-monte">
+        <Spinner className="h-4 w-4 flex-none text-musgo" />
+        {titulo}
+      </p>
+      <div className="h-1.5 overflow-hidden rounded-full bg-tinta-200" aria-hidden>
         <div className="h-full w-1/3 rounded-full bg-yungas animate-barra" />
       </div>
-      <p className="text-base text-tinta-600">{nota}</p>
-      <Progress steps={steps} />
+      {nota ? <p className="text-sm text-tinta-600">{nota}</p> : null}
     </section>
   );
 }

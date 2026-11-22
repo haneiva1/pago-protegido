@@ -159,13 +159,13 @@ export default function PaginaDePago() {
   const esperando =
     busy && espera === "pago" ? (
       <EsperaEnCurso
-        titulo="Guardando tu pago"
-        nota="Suele tardar unos 30 segundos: se crea el contrato de este pedido y tu pago queda guardado ahí. No cierres esta página."
+        titulo="Guardando tu pago… unos 30 segundos"
+        nota="No cierres esta página."
         steps={progress.steps}
         testId="espera-pago"
       />
     ) : busy && espera === "accion" ? (
-      <EsperaEnCurso titulo="Enviando tu confirmación" nota="Unos segundos: la firma de tu cuenta queda en el registro público." steps={progress.steps} testId="espera-accion" />
+      <EsperaEnCurso titulo="Enviando tu confirmación… unos segundos" steps={progress.steps} testId="espera-accion" />
     ) : (
       <Progress steps={progress.steps} />
     );
@@ -180,7 +180,7 @@ export default function PaginaDePago() {
           <p className="rounded-card bg-tinta-50 p-4 text-center text-base text-tinta-700" data-testid="tomado">
             Este link ya lo está pagando otra persona.
           </p>
-        ) : qrOpen || busy ? (
+        ) : busy ? null : qrOpen ? (
           <PagoQr v={v} busy={busy} onPay={() => delivery && pagar(delivery)} />
         ) : null}
         {esperando}

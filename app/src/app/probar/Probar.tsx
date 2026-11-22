@@ -59,6 +59,9 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
   const [reiniciando, setReiniciando] = useState(false);
   const [cajon, setCajon] = useState(false);
   const [escala, setEscala] = useState(0.72);
+  const [altoMovil, setAltoMovil] = useState(640);
+  const [mandado, setMandado] = useState(false);
+  const [sub, setSub] = useState<string | null>(null);
   const escenario = useRef<HTMLDivElement>(null);
   const wallet = useRef<typeof import("@/lib/wallet") | null>(null);
   const status = registro?.pedido?.status ?? null;
@@ -105,11 +108,44 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
     return () => clearInterval(t);
   }, [listo, cargar, marco]);
 
-  // Los iPhone se escalan para entrar en lo que queda de pantalla; se vuelve a medir si cambia el viewport o lo de arriba.
+  // Marca la página para el CSS del sitio (en /probar se esconde el "Crear mi link" del encabezado).
+  useEffect(() => {
+    document.documentElement.setAttribute("data-probar", "1");
+    return () => document.documentElement.removeAttribute("data-probar");
+  }, []);
+
+  // Lo que cuentan los chats por el canal: el link ya llegó al comprador, el sub-estado del alta y el resultado de la estafa.
+  useEffect(() => {
+    const c = canal();
+    if (!c) return;
+    c.onmessage = (ev: MessageEvent) => {
+      const d = ev.data ?? {};
+      if (d.tipo === "link-reenviado") {
+        setMandado(true);
+        setTab("comprador");
+        setAviso("comprador");
+      }
+      if (d.tipo === "sub") setSub(typeof d.valor === "string" ? d.valor : null);
+    };
+    return () => c.close();
+  }, []);
+
+  // Si la pestaña se recarga, el "mandado" queda guardado por pedido.
+  useEffect(() => {
+    const slug = registro?.pedido?.slug;
+    if (!slug) return setMandado(false);
+    try {
+      if (window.sessionStorage.getItem(`pp.chat.reenviado.${slug}`) === "1") setMandado(true);
+    } catch {}
+  }, [registro?.pedido?.slug]);
+
+  // Los iPhone se escalan para entrar en lo que queda de pantalla; en celular, el chat ocupa lo que queda bajo el encabezado del sitio.
   useEffect(() => {
     if (!listo) return;
     const medir = () => {
       if (escenario.current) setEscala(escalaPara(escenario.current));
+      // Encabezado fijo del sitio (56) + pestañas (52) + aire: el chat ocupa exactamente lo que queda.
+      setAltoMovil(Math.max(420, window.innerHeight - 120));
     };
     medir();
     window.addEventListener("resize", medir);
@@ -121,18 +157,22 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
     };
   }, [listo]);
 
-  // En el celular (pestañas), cada paso lleva al chat de quien tiene que actuar.
+  // En el celular (pestañas), cada paso lleva al chat de quien tiene que actuar, y el teléfono se trae al tope de la pantalla.
   useEffect(() => {
     if (status === prevStatus.current) return;
     const antes = prevStatus.current;
     prevStatus.current = status;
     if (antes === null && status === null) return;
-    const turno: RolProbar | null = status === "esperando_pago" || status === "enviado" ? "comprador" : status === "pagado" ? "vendedor" : null;
+    const turno: RolProbar | null = status === "enviado" ? "comprador" : status === "pagado" ? "vendedor" : null;
     if (turno) {
       setTab(turno);
       setAviso(turno);
     }
   }, [status]);
+  useEffect(() => {
+    if (window.matchMedia("(min-width: 1024px)").matches) return;
+    document.querySelector<HTMLElement>('[role="tablist"]')?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [tab, status]);
 
   async function empezarDeNuevo() {
     setReiniciando(true);
@@ -175,7 +215,12 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
     try {
       const r = await api<Omit<DesvioT, "at">>("/api/probar/desvio", { slug });
       setDesvios((d) => [{ ...r, at }, ...d]);
+      try {
+        window.sessionStorage.setItem(`pp.chat.estafa.${slug}`, "1");
+      } catch {}
       canal()?.postMessage({ tipo: "estafa-resultado", slug, at, ...r });
+      setTab("vendedor");
+      setAviso("vendedor");
     } catch (e) {
       setDesvioError((e as Error).message);
       canal()?.postMessage({ tipo: "estafa-resultado", slug, at, rejected: false, detail: (e as Error).message });
@@ -188,7 +233,7 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
   const ultimo = desvios[0];
   const hayTienda = Boolean(registro?.tienda);
   const hayPedido = Boolean(registro?.pedido);
-  const paso = pasoDemo({ tienda: hayTienda, status: hayPedido ? status : null, estafa: desviando ? "en-curso" : desvios.length ? "bloqueada" : "no" });
+  const paso = pasoDemo({ tienda: hayTienda, status: hayPedido ? status : null, estafa: desviando ? "en-curso" : desvios.length ? "bloqueada" : "no", mandado, sub });
   const turno = paso.quien;
   const resumen = status === "liberado" && registro?.pedido ? resumenRed(filas, registro.pedido.created_at) : null;
   const mostrarEstafa = hayPlataGuardada(status) && status === "pagado" && desvios.length === 0;
@@ -258,8 +303,8 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
       {listo && (
         <>
           {/* El escenario: los dos iPhone; el que no toca, atenuado. En celular, uno a la vez, en pestañas. */}
-          <div ref={escenario} className="flex flex-col gap-3 lg:grid lg:grid-cols-[auto_auto] lg:items-start lg:justify-center lg:gap-16">
-            <div role="tablist" aria-label="Celulares" className="order-2 grid grid-cols-2 gap-1 rounded-control bg-tinta-200/60 p-1 lg:hidden">
+          <div ref={escenario} className="flex flex-col gap-3 lg:grid lg:grid-cols-[auto_auto] lg:items-start lg:justify-center lg:gap-16" style={{ "--alto-movil": `${altoMovil}px` } as React.CSSProperties}>
+            <div role="tablist" aria-label="Celulares" className="order-2 grid scroll-mt-16 grid-cols-2 gap-1 rounded-control bg-tinta-200/60 p-1 lg:hidden">
               {(["vendedor", "comprador"] as const).map((r) => (
                 <button
                   key={r}

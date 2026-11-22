@@ -39,14 +39,19 @@ export function Chat({
 }) {
   const { lista, escribiendo } = useEscribiendo(mensajes);
   const ref = useRef<HTMLDivElement>(null);
+  const [cargas, setCargas] = useState(0);
+  // Siempre al último mensaje: en cada mensaje nuevo, al cambiar sus botones y cuando termina de cargar una imagen.
   useEffect(() => {
     const el = ref.current;
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [lista.length, escribiendo, JSON.stringify(lista[lista.length - 1] ?? null)]);
+    if (!el) return;
+    const ultimo = el.lastElementChild as HTMLElement | null;
+    ultimo?.scrollIntoView({ block: "end" });
+    el.scrollTop = el.scrollHeight;
+  }, [lista.length, escribiendo, cargas, JSON.stringify(lista[lista.length - 1] ?? null)]);
 
   return (
     <div className="relative flex h-dvh flex-col overflow-hidden bg-sal text-monte" data-testid={testId}>
-      <header className="flex shrink-0 items-center gap-1 bg-monte px-1.5 py-2 text-sal">
+      <header className="sticky top-0 z-10 flex shrink-0 items-center gap-1 bg-monte px-1.5 py-2 text-sal">
         <span className="flex h-9 w-9 items-center justify-center" aria-hidden>
           <IconoAtras className="h-5 w-5" />
         </span>
@@ -72,7 +77,7 @@ export function Chat({
       <div ref={ref} className="flex-1 space-y-1.5 overflow-y-auto px-3 py-3" data-testid="chat-mensajes" style={{ backgroundImage: PATRON, backgroundSize: "84px 84px" }}>
         <p className="mx-auto w-fit rounded-lg bg-tinta-100 px-3 py-1 text-xs font-medium text-tinta-600">Hoy</p>
         {lista.map((m) => (
-          <Burbuja key={m.id} m={m} pasos={m.enCurso ? pasos : undefined} ocupado={ocupado} onBoton={onBoton} />
+          <Burbuja key={m.id} m={m} pasos={m.enCurso ? pasos : undefined} ocupado={ocupado} onBoton={onBoton} onCarga={() => setCargas((n) => n + 1)} />
         ))}
         {escribiendo && (
           <div className="flex w-fit items-center gap-1 rounded-2xl rounded-tl-md bg-white px-3 py-2.5 shadow-[0_1px_1px_rgb(10_42_27/0.06)]" aria-hidden>
@@ -158,7 +163,7 @@ function conNegritas(texto: string) {
   return texto.split(/(\*[^*]+\*)/g).map((t, i) => (t.startsWith("*") && t.endsWith("*") ? <strong key={i}>{t.slice(1, -1)}</strong> : <span key={i}>{t}</span>));
 }
 
-function Burbuja({ m, pasos, ocupado, onBoton }: { m: Mensaje; pasos?: ProgressStep[]; ocupado?: boolean; onBoton: (id: string) => void }) {
+function Burbuja({ m, pasos, ocupado, onBoton, onCarga }: { m: Mensaje; pasos?: ProgressStep[]; ocupado?: boolean; onBoton: (id: string) => void; onCarga?: () => void }) {
   if (m.sistema)
     return (
       <p className="mx-auto max-w-[92%] rounded-lg bg-aviso-50 px-3 py-1.5 text-center text-xs text-aviso-700" data-testid="chat-sistema">
@@ -198,7 +203,7 @@ function Burbuja({ m, pasos, ocupado, onBoton }: { m: Mensaje; pasos?: ProgressS
         {m.tarjeta && (
           <a href={m.tarjeta.url} target="_blank" rel="noreferrer" className="mt-2 block overflow-hidden rounded-xl bg-tinta-50 ring-1 ring-tinta-200/80" data-testid="chat-tarjeta">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={m.tarjeta.imagen} alt="" className="aspect-[1200/630] w-full object-cover" />
+            <img src={m.tarjeta.imagen} alt="" className="aspect-[1200/630] w-full object-cover" onLoad={onCarga} />
             <span className="block px-3 py-2">
               <span className="block truncate text-sm font-semibold text-monte">{m.tarjeta.titulo}</span>
               <span className="mt-0.5 block truncate text-xs text-tinta-500">{m.tarjeta.dominio}</span>

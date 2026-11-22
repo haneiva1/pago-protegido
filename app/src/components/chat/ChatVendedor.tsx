@@ -37,9 +37,23 @@ export function ChatVendedor() {
   const [orden, setOrden] = useState<SellerOrder | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const [estafaHecha, setEstafaHecha] = useState(false);
   const progreso = useProgress();
   const wallet = useRef<typeof import("@/lib/wallet") | null>(null);
   const { pedido, recargar } = usePedidoChat(slug);
+  /** Le cuenta a /probar en qué sub-estado está el chat (para la línea de ayuda de arriba). */
+  const sub = (valor: string | null) => canal()?.postMessage({ tipo: "sub", valor });
+
+  // El estafador ya fue bloqueado (lo avisa /probar por el canal o quedó guardado): recién ahí aparece "Ya lo envié".
+  useEffect(() => {
+    if (slug && sesion.get(`pp.chat.estafa.${slug}`) === "1") setEstafaHecha(true);
+    const c = canal();
+    if (!c) return;
+    c.onmessage = (ev: MessageEvent) => {
+      if (ev.data?.tipo === "estafa-resultado") setEstafaHecha(true);
+    };
+    return () => c.close();
+  }, [slug]);
 
   const cargarWallet = useCallback(async () => (wallet.current ??= await import("@/lib/wallet")), []);
 
@@ -76,6 +90,7 @@ export function ChatVendedor() {
     if (nombre.trim().length < 2 || !ciudad) return setError("Escribe el nombre de tu tienda y elige tu ciudad");
     setHoja(null);
     setAlta({ hola: true, creando: true });
+    sub("creando");
     setOcupado(true);
     setError(null);
     progreso.reset();
@@ -89,9 +104,11 @@ export function ChatVendedor() {
       progreso.finish("Guardando tu tienda");
       setPk(pubkey);
       setTienda(nombre.trim());
+      sub(null);
     } catch (err) {
       setError((err as Error).message);
       setAlta({ hola: true, creando: false });
+      sub("hola");
     } finally {
       setOcupado(false);
     }
@@ -101,6 +118,7 @@ export function ChatVendedor() {
     if (!pk) return;
     setOcupado(true);
     setCreandoLink(true);
+    sub("creando-link");
     setError(null);
     try {
       const w = await cargarWallet();
@@ -116,6 +134,7 @@ export function ChatVendedor() {
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      sub(null);
       setCreandoLink(false);
       setOcupado(false);
     }
@@ -148,8 +167,13 @@ export function ChatVendedor() {
 
   function onBoton(id: string) {
     setError(null);
-    if (id === "hola") setAlta({ hola: true });
-    else if (id === "crear-cuenta") setHoja("cuenta");
+    if (id === "hola") {
+      setAlta({ hola: true });
+      sub("hola");
+    } else if (id === "crear-cuenta") {
+      setHoja("cuenta");
+      sub("hoja-cuenta");
+    }
     else if (id === "vender") void crearLink();
     else if (id === "mandar") mandar();
     else if (id === "enviado") void abrirEnvio();
@@ -164,12 +188,16 @@ export function ChatVendedor() {
     pedido: pedido && pedido.slug === slug ? (pedido as PedidoChat) : null,
     reenviado,
     enviando: hoja === "envio",
+    estafaHecha,
     host: typeof window !== "undefined" ? window.location.host : "",
   });
 
   const hojaCuenta = {
     titulo: "Tu cuenta de cobro",
-    onCerrar: () => setHoja(null),
+    onCerrar: () => {
+      setHoja(null);
+      sub("hola");
+    },
     contenido: (
       <form onSubmit={crearCuenta} className="space-y-4" data-testid="form-cuenta">
         <div>
@@ -212,6 +240,7 @@ export function ChatVendedor() {
                   titulo: undefined,
                   onCerrar: () => setHoja(null),
                   contenido: (
+                    <div className="hoja-compacta">
                     <EnvioForm
                       o={orden}
                       sellerPubkey={pk}
@@ -221,6 +250,7 @@ export function ChatVendedor() {
                         void recargar();
                       }}
                     />
+                    </div>
                   ),
                 }
               : null

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Spinner } from "@/components/ui";
+import { IconoChevronAbajo } from "@/components/iconos";
 import { fmtBsUnits, unitsToNumber } from "@/lib/format";
 import type { OrderView } from "@/lib/types";
 
@@ -11,8 +11,8 @@ const ENTIDAD_QR = process.env.NEXT_PUBLIC_QR_ENTIDAD?.trim() || "Trato";
 const PASOS = ["Guarda el QR en tu galería.", "Abre tu banco → Pagar con QR → Galería.", "Elige la imagen del QR y confirma el pago."];
 
 /**
- * QR como se paga en Bolivia: el comprador lo escanea con el mismo celular, así que se puede guardar o compartir y
- * subir desde la galería de la app del banco. Mientras tanto, "Esperando tu pago…" con el candado abierto.
+ * QR como se paga en Bolivia: el QR, una línea y el botón de pago. Cómo guardarlo o compartirlo para subirlo desde la
+ * galería del banco queda plegado en "¿Cómo pago con este QR?". Mientras se paga, la página muestra solo la espera.
  */
 export function PagoQr({ v, busy, onPay }: { v: OrderView; busy: boolean; onPay: () => void }) {
   const o = v.order;
@@ -61,66 +61,52 @@ export function PagoQr({ v, busy, onPay }: { v: OrderView; busy: boolean; onPay:
     <section className="space-y-5 animate-aparecer" data-testid="qr">
       <div className="space-y-1.5">
         <p className="eyebrow">Compra protegida · {o.code}</p>
-        <h2 className="text-2xl">Paga con el QR desde tu banco</h2>
+        <h2 className="text-2xl">Paga {fmtBsUnits(o.amount_units, o.fx)} con el QR desde tu banco</h2>
       </div>
       <div className="flex flex-col items-center gap-2">
         {qr ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={qr} alt={`QR de pago ${o.code}`} className="h-52 w-52 rounded-card ring-1 ring-tinta-200" data-testid="imagen-qr" />
+          <img src={qr} alt={`QR de pago ${o.code}`} className="h-56 w-56 rounded-card ring-1 ring-tinta-200" data-testid="imagen-qr" />
         ) : (
-          <div className="h-52 w-52 animate-pulse rounded-card bg-tinta-100" />
+          <div className="h-56 w-56 animate-pulse rounded-card bg-tinta-100" />
         )}
         <p className="text-center text-sm text-tinta-600" data-testid="qr-entidad">
           QR de ejemplo a nombre de {ENTIDAD_QR}, nunca de una persona
         </p>
       </div>
-      <div className="space-y-1 text-center">
-        <p className="font-display text-5xl leading-none tracking-tight num">{fmtBsUnits(o.amount_units, o.fx)}</p>
-        <p className="text-sm text-tinta-600">{o.product}</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <button type="button" className="btn-ghost btn-sm" onClick={guardar} disabled={!qr}>
-          Guardar QR
-        </button>
-        <button type="button" className="btn-ghost btn-sm" onClick={compartir} disabled={!qr}>
-          Compartir QR
-        </button>
-      </div>
-      {aviso && <p className="text-center text-sm text-tinta-600">{aviso}</p>}
-
-      <ol className="space-y-2.5 border-t border-tinta-200 pt-4 text-base" data-testid="pasos-qr">
-        {PASOS.map((p, i) => (
-          <li key={p} className="flex gap-2.5">
-            <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full text-xs font-semibold text-monte ring-1 ring-monte/30 num">{i + 1}</span>
-            <span className="text-tinta-700">{p}</span>
-          </li>
-        ))}
-      </ol>
-
-      <div className="flex items-center justify-center gap-2 text-base font-medium text-tinta-700" data-testid="esperando-pago" aria-live="polite">
-        {busy ? (
-          "Guardando tu pago…"
-        ) : (
-          <>
-            <span className="h-2.5 w-2.5 rounded-full bg-yungas animate-latido" aria-hidden />
-            Esperando tu pago…
-          </>
-        )}
-      </div>
-
-      <p className="text-center text-sm text-tinta-600" data-testid="rampa-simulada">
-        Pago simulado en la red de prueba. En producción lo hace una entidad certificada por ASFI.
+      <p className="sr-only" data-testid="esperando-pago" aria-live="polite">
+        Esperando tu pago…
       </p>
       <button className="btn-primary w-full" disabled={busy} onClick={onPay}>
-        {busy ? (
-          <>
-            <Spinner /> Procesando pago…
-          </>
-        ) : (
-          "Simular pago del banco (modo práctica)"
-        )}
+        Simular pago del banco (modo práctica)
       </button>
+
+      <details className="group text-sm text-tinta-600">
+        <summary className="flex cursor-pointer list-none items-center justify-center gap-1.5 font-medium text-musgo [&::-webkit-details-marker]:hidden">
+          ¿Cómo pago con este QR?
+          <IconoChevronAbajo className="h-4 w-4 transition-transform duration-200 group-open:rotate-180" />
+        </summary>
+        <div className="mt-3 space-y-3">
+          <p data-testid="rampa-simulada">Pago simulado en la red de prueba. En producción lo hace una entidad certificada por ASFI.</p>
+          <ol className="space-y-2" data-testid="pasos-qr">
+            {PASOS.map((p, i) => (
+              <li key={p} className="flex gap-2.5">
+                <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full text-xs font-semibold text-monte ring-1 ring-monte/30 num">{i + 1}</span>
+                <span className="text-tinta-700">{p}</span>
+              </li>
+            ))}
+          </ol>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" className="btn-secondary btn-sm" onClick={guardar} disabled={!qr}>
+              Guardar QR
+            </button>
+            <button type="button" className="btn-secondary btn-sm" onClick={compartir} disabled={!qr}>
+              Compartir QR
+            </button>
+          </div>
+          {aviso && <p className="text-center">{aviso}</p>}
+        </div>
+      </details>
     </section>
   );
 }
