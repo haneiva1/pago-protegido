@@ -41,6 +41,16 @@ No son entrevistas. Revisamos páginas públicas de tiendas de celulares y elect
 
 Las URL, la tabla completa y la verificación están en [OBSERVACION-PUBLICA.md](OBSERVACION-PUBLICA.md).
 
+## Encuesta propia a negocios que venden por WhatsApp (feb-2026)
+
+Encuestamos a 27 negocios que venden por WhatsApp (18 de productos y 9 de servicios). Es nuestra primera señal sobre el problema que ataca Trato:
+
+- **6 de 27** viven cada semana el «ya pagué» que no se puede verificar; para 3 es su problema principal. Es el riesgo del vendedor que Trato ataca: la plata queda bloqueada y visible antes de enviar.
+- **19 de 27** perdieron ventas en WhatsApp por desorden o demora.
+- **15 de 27** aceptaron una entrevista de seguimiento; esas entrevistas son el siguiente paso para validar las ventas entre ciudades y la tarifa.
+
+La encuesta fue anterior a Trato y no preguntó por envíos a otras ciudades. Eso lo cubren las entrevistas.
+
 ## Registro
 
 | Fecha | Tienda o persona | Ciudad | Cómo lo contactamos | Qué vende | ¿Vende a otras ciudades? | Ventas perdidas al mes | ¿Quién debería pagar? | Cita | ¿Piloto? |
@@ -56,21 +66,6 @@ Las URL, la tabla completa y la verificación están en [OBSERVACION-PUBLICA.md]
 5. ¿Te pasó alguna estafa o algún comprobante falso?
 6. Si el pago queda retenido hasta que el cliente confirma, ¿quién debería pagar la comisión y cuánto es razonable?
 7. ¿Probarías con tus próximos pedidos, con USD de prueba?
-
-## Encuesta previa (feb-2026)
-
-**Qué es y qué no es.** Del 11 al 13 de febrero de 2026 el equipo hizo una encuesta para un proyecto anterior sobre ventas por WhatsApp. Respondieron 27 negocios: 18 venden productos y 9, servicios. **No se hizo para Trato**: no pregunta por ventas a otra ciudad, por encomiendas ni por pagos retenidos, y no es del segmento inicial. Por eso no cuenta como entrevista ni entra en la regla de lectura de arriba. La dejamos acá como antecedente, sin nombres, contactos ni citas.
-
-| Pregunta | Respuestas (de 27) |
-|---|---|
-| Parte de sus ventas que entra por WhatsApp | menos del 30%: 8 · 30–60%: 11 · 60–90%: 7 · más del 90%: 1 |
-| Perdieron ventas por desorden o demora en WhatsApp | sí: 19 (17 algunas al mes, 2 algunas por semana) · no: 8 |
-| En una semana normal les pasa… (podían marcar varias) | "Me preguntan lo mismo todo el tiempo": 14 · "Tardo en responder y el cliente se va": 8 · "Me dicen 'ya pagué' y es difícil verificar": 6 · "Se me pasan pedidos": 5 · "Entregas mal coordinadas": 2 · precios: 2 · stock: 2 · "No tengo mayores problemas": 8 |
-| El problema que más les afecta | preguntas repetidas: 7 · demora: 6 · ninguno: 5 · pedidos perdidos: 3 · "ya pagué": 3 · precios: 2 · stock: 1 |
-| Horas al día atendiendo WhatsApp | menos de 30 min: 6 · 30–60 min: 8 · 1–2 h: 7 · 2–4 h: 6 |
-| Aceptan una entrevista de 15 minutos (para ese proyecto) | sí: 15 · no: 9 · sin respuesta: 3 |
-
-**Lo único que tomamos para Trato:** 6 de 27 marcaron que en una semana normal les dicen "ya pagué" y les cuesta verificarlo, y para 3 es el problema que más les afecta. Es el lado del vendedor que describe [PROBLEMA.md](PROBLEMA.md#2-el-lado-del-vendedor-comprobantes-de-pago-falsos). No dice nada sobre ventas entre ciudades ni sobre si usarían Trato: eso lo tienen que decir las entrevistas del Registro.
 
 ## Pilotos
 
