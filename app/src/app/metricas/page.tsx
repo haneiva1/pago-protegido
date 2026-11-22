@@ -112,7 +112,7 @@ export default async function Metricas() {
         </p>
         {m.error && (
           <p className="mt-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900" data-testid="aviso-red">
-            {m.error} Se muestran los últimos datos guardados, del {fmtHora(m.actualizado)}.
+            {m.error} {m.actualizado ? `Se muestran los últimos datos guardados, del ${fmtHora(m.actualizado)}.` : "Todavía no hay datos guardados: vuelve a intentar en un momento."}
           </p>
         )}
       </header>

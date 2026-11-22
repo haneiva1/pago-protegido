@@ -56,10 +56,14 @@ export function toChainError(raw: string): ChainError {
   return new ChainError(`La red rechazó la operación: ${raw.slice(0, 240)}`);
 }
 
+// Solo los candados viven en globalThis (los comparten todas las rutas). El cliente de red NO: Next empaqueta cada ruta por
+// separado y un cliente creado por /metricas o /transparencia (otra copia del SDK) rompía los pagos hasta reiniciar.
+// `__ppRpc` queda solo como sustituto para pruebas; el código de la app nunca lo escribe.
 const g = globalThis as unknown as { __ppRpc?: rpc.Server; __ppLocks?: Map<string, Promise<void>> };
+let propio: rpc.Server | undefined;
 
 export function server(): rpc.Server {
-  return (g.__ppRpc ??= new rpc.Server(RPC_URL));
+  return g.__ppRpc ?? (propio ??= new rpc.Server(RPC_URL));
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

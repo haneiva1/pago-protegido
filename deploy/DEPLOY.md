@@ -38,6 +38,19 @@ Puntos a revisar en ese primer build:
 - **better-sqlite3:** debería bajar su binario precompilado para Linux. Si no puede, lo compila con las herramientas que instala el Dockerfile.
 - **`next build` sin secretos:** se espera que funcione, porque `cfg()` lee las llaves solo en runtime. Si alguna página las pide al prerenderizar, hay que marcarla como dinámica en la app.
 
+## Railway (la demo pública)
+
+La demo corre en Railway con `deploy/app.Dockerfile`. Railway rechaza la instrucción `VOLUME`, por eso el Dockerfile ya no la trae: el volumen se crea en Railway, no en la imagen. Lo que necesita el servicio (sin valores secretos aquí; las llaves de testnet se cargan solo en el panel de Railway, nunca en el repo):
+
+- **Volumen** montado en `/data`, para la base SQLite.
+- **Variables:**
+  - `RAILWAY_RUN_UID=0`: el volumen se monta como root y la app (usuario `node`) no podría escribir en él.
+  - `PORT=3000`.
+  - `PP_DB_PATH=/data/pp.db`.
+  - `PP_PROBAR=1`: habilita `/probar` (la prueba de punta a punta).
+  - Más las variables de `app.env.example` (llaves y configuración de testnet) y las `NEXT_PUBLIC_*` del build.
+- **Contexto de build:** la raíz del repo, con `deploy/app.Dockerfile` como Dockerfile.
+
 ## (a) VPS con Docker, unos 10 minutos
 
 Requisitos:

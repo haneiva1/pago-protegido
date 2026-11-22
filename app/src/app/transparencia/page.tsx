@@ -54,7 +54,8 @@ export default async function Transparencia() {
   try {
     await ingestEvents();
   } catch (e) {
-    warning = `No se pudo consultar la red ahora (${(e as Error).message.slice(0, 80)}). Se muestran los últimos datos guardados.`;
+    console.error("[transparencia] no se pudo leer la red:", (e as Error).message);
+    warning = "No se pudo consultar la red ahora. Se muestran los últimos datos guardados.";
   }
   let m: Metrics;
   let pm: Metrics | null = null;
