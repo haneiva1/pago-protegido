@@ -1,24 +1,111 @@
 @import "tailwindcss";
 
+/*
+ * Sistema visual de Trato (manual de marca del 21-nov-2026).
+ * Cuatro colores de marca, una escala de neutros con el verde de Monte ("tinta") y una paleta sobria de estados.
+ * Regla de oro: Yungas va en fondos y en el botón principal (texto en Monte), nunca como texto sobre claro.
+ */
 @theme {
-  /* Marca final de Trato: Yungas #50DE50 (firma), Monte #0A2A1B (texto/oscuro), Sal #F5F7F1 (fondo claro), Musgo #0F6E3D (texto verde sobre claro). */
+  /* Marca */
   --color-yungas: #50de50;
   --color-monte: #0a2a1b;
   --color-sal: #f5f7f1;
   --color-musgo: #0f6e3d;
-  /* Escala brand-*: los tonos 400-600 son Yungas (fondos, nunca texto sobre claro); 700+ son Musgo/Monte (texto). */
-  --color-brand-50: #eef9ea;
-  --color-brand-100: #d9f4d4;
-  --color-brand-200: #b4ecb0;
+
+  /* Neutros "tinta": grises con el verde de Monte. Reemplazan a slate/gray/zinc. 50 = Sal, 900 = Monte. */
+  --color-tinta-50: #f5f7f1;
+  --color-tinta-100: #e8efea;
+  --color-tinta-200: #d7e1da;
+  --color-tinta-300: #bbc8c0;
+  --color-tinta-400: #8e9d93;
+  --color-tinta-500: #5f7066;
+  --color-tinta-600: #4d6054;
+  --color-tinta-700: #354b3e;
+  --color-tinta-800: #1d3a2a;
+  --color-tinta-900: #0a2a1b;
+
+  /* Verde de marca por tonos: 50-200 fondos suaves; 400-600 = Yungas (fondos y botón); 700 = Musgo (texto sobre claro); 900 = Monte. */
+  --color-brand-50: #e9fdec;
+  --color-brand-100: #d3fbda;
+  --color-brand-200: #aef1bb;
   --color-brand-400: #50de50;
   --color-brand-500: #50de50;
   --color-brand-600: #50de50;
   --color-brand-700: #0f6e3d;
   --color-brand-800: #0c5a32;
   --color-brand-900: #0a2a1b;
+
+  /* Estados. Texto: 600/700 sobre el 50 de su familia (AA). Éxito es el verde de marca (texto en Musgo). */
+  --color-exito-50: #e9fdec;
+  --color-exito-100: #d3fbda;
+  --color-exito-200: #aef1bb;
+  --color-exito-700: #0f6e3d;
+  --color-error-50: #fff2f0;
+  --color-error-100: #ffdfdc;
+  --color-error-200: #fcc0ba;
+  --color-error-600: #b63132;
+  --color-error-700: #9b1e22;
+  --color-aviso-50: #fff5e8;
+  --color-aviso-100: #ffe6bf;
+  --color-aviso-200: #fece8c;
+  --color-aviso-600: #9d6800;
+  --color-aviso-700: #7b5100;
+  --color-info-50: #eff6fd;
+  --color-info-100: #dcebfc;
+  --color-info-200: #bcd8f5;
+  --color-info-600: #2266a4;
+  --color-info-700: #0e4f86;
+
   --color-ink: #0a2a1b;
+
+  /* Letra: Funnel Display 800 solo para títulos; Funnel Sans 400-600 para todo lo demás (700 no está cargada: nunca font-bold en texto). */
   --font-sans: var(--font-funnel-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-display: var(--font-funnel-display), var(--font-funnel-sans), ui-sans-serif, system-ui, sans-serif;
+
+  /* Radios: chip 8, control (botón e input) 12, tarjeta 16, panel 24. */
+  --radius-chip: 0.5rem;
+  --radius-control: 0.75rem;
+  --radius-card: 1rem;
+  --radius-panel: 1.5rem;
+
+  /* Sombras: casi nada. La jerarquía la dan el color y el espacio, no la sombra. */
+  --shadow-card: 0 1px 2px rgb(10 42 27 / 0.05), 0 2px 8px -2px rgb(10 42 27 / 0.06);
+  --shadow-alzada: 0 12px 32px -16px rgb(10 42 27 / 0.25);
+  --shadow-celular: 0 28px 56px -28px rgb(10 42 27 / 0.4);
+
+  /* Movimiento sobrio. */
+  --ease-suave: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-aparecer: aparecer 240ms var(--ease-suave) both;
+  --animate-latido: latido 1.6s ease-in-out infinite;
+  --animate-barra: barra 1.4s var(--ease-suave) infinite;
+
+  @keyframes aparecer {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes latido {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+  @keyframes barra {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(250%);
+    }
+  }
 }
 
 :root {
@@ -33,6 +120,7 @@ body {
 
 body {
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 h1,
@@ -40,45 +128,171 @@ h2,
 h3 {
   font-family: var(--font-display);
   font-weight: 800;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+/* Funnel Sans llega hasta 600: la negrita del texto es semibold, nunca una negrita sintética. */
+b,
+strong {
+  font-weight: 600;
+}
+
+p {
+  text-wrap: pretty;
 }
 
 input[type="range"] {
   accent-color: var(--color-yungas);
 }
 
-@utility card {
-  @apply rounded-2xl border border-slate-200 bg-white p-5 shadow-sm;
+/* Foco visible en todo: Musgo sobre claro, Yungas sobre Monte. */
+:focus-visible {
+  outline: 2px solid var(--color-musgo);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.bg-monte :focus-visible,
+[data-oscuro] :focus-visible {
+  outline-color: var(--color-yungas);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- Superficies ---------- */
+
+/* Tarjeta: blanco sobre Sal, borde fino y sombra mínima. Para formularios y bloques de contenido. */
+@utility card {
+  @apply rounded-card border border-tinta-200/80 bg-white p-5 shadow-card;
+}
+
+/* Panel oscuro (Monte, texto Sal): para lo que importa de verdad, como el registro en vivo o un dato clave. */
+@utility panel-oscuro {
+  @apply rounded-panel bg-monte p-6 text-sal;
+}
+
+/* Panel de acento (Yungas, texto Monte): la firma de la marca, con moderación: un momento por pantalla. */
+@utility panel-acento {
+  @apply rounded-panel bg-yungas p-6 text-monte;
+}
+
+/* Panel suave (verde claro): notas de confianza y estados de éxito. */
+@utility panel-suave {
+  @apply rounded-card border border-exito-200/70 bg-exito-50 p-4 text-monte;
+}
+
+/* ---------- Botones ---------- */
+
 @utility btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-base font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-2 rounded-control px-4 py-3 text-base font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 @utility btn-primary {
-  @apply btn bg-yungas text-monte hover:brightness-95 active:brightness-90;
+  @apply btn bg-yungas text-monte hover:bg-[#45d345] active:bg-[#3cc83c];
 }
 
 @utility btn-secondary {
-  @apply btn border border-slate-300 bg-white text-slate-800 hover:bg-slate-50;
+  @apply btn border border-tinta-300 bg-white text-monte hover:bg-tinta-50 active:bg-tinta-100;
+}
+
+/* Botón oscuro: Monte con texto Sal, para acciones principales sobre fondos claros cuando Yungas ya se usó. */
+@utility btn-oscuro {
+  @apply btn bg-monte text-sal hover:bg-tinta-800 active:bg-tinta-700;
+}
+
+/* Botón fantasma: sin borde, texto en Musgo. */
+@utility btn-ghost {
+  @apply btn text-musgo hover:bg-exito-50 active:bg-exito-100;
 }
 
 @utility btn-danger {
-  @apply btn border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100;
+  @apply btn border border-error-200 bg-error-50 text-error-700 hover:bg-error-100 active:bg-error-200;
 }
 
+@utility btn-sm {
+  @apply px-3 py-2 text-sm;
+}
+
+/* ---------- Formularios ---------- */
+
 @utility input {
-  @apply w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-base outline-none placeholder:text-slate-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-100;
+  @apply w-full rounded-control border border-tinta-300 bg-white px-3.5 py-3 text-base text-monte outline-none placeholder:text-tinta-400 focus:border-musgo focus:ring-4 focus:ring-exito-100;
 }
 
 @utility label {
-  @apply mb-1.5 block text-sm font-medium text-slate-700;
+  @apply mb-1.5 block text-sm font-medium text-tinta-700;
 }
 
 @utility muted {
-  @apply text-sm text-slate-500;
+  @apply text-sm text-tinta-500;
 }
 
-/* /probar: las páginas reales dentro de los marcos de celular, sin encabezado ni pie (SCRIPT_MARCO en el layout). */
+/* Antetítulo: pequeño, en mayúsculas, Musgo. */
+@utility eyebrow {
+  @apply text-xs font-semibold uppercase tracking-[0.08em] text-musgo;
+}
+
+@utility enlace {
+  @apply font-medium text-musgo underline decoration-exito-200 underline-offset-2 transition-colors hover:decoration-musgo;
+}
+
+/* Cifras alineadas (montos, horas, contadores). */
+@utility num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Chips y cajas de estado ---------- */
+
+@utility chip {
+  @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset;
+}
+@utility chip-neutro {
+  @apply chip bg-tinta-100 text-tinta-700 ring-tinta-200;
+}
+@utility chip-exito {
+  @apply chip bg-exito-50 text-exito-700 ring-exito-200;
+}
+@utility chip-info {
+  @apply chip bg-info-50 text-info-700 ring-info-200;
+}
+@utility chip-aviso {
+  @apply chip bg-aviso-50 text-aviso-700 ring-aviso-200;
+}
+@utility chip-error {
+  @apply chip bg-error-50 text-error-700 ring-error-200;
+}
+@utility chip-oscuro {
+  @apply chip bg-monte text-sal ring-monte;
+}
+
+@utility caja {
+  @apply rounded-control border px-4 py-3 text-sm;
+}
+@utility caja-exito {
+  @apply caja border-exito-200 bg-exito-50 text-monte;
+}
+@utility caja-info {
+  @apply caja border-info-200 bg-info-50 text-info-700;
+}
+@utility caja-aviso {
+  @apply caja border-aviso-200 bg-aviso-50 text-aviso-700;
+}
+@utility caja-error {
+  @apply caja border-error-200 bg-error-50 text-error-700;
+}
+
+/* ---------- /probar ---------- */
+
+/* Las páginas reales dentro de los marcos de celular, sin encabezado ni pie (SCRIPT_MARCO en el layout). */
 html[data-marco] [data-chrome] {
   display: none;
 }
