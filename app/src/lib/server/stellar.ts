@@ -19,6 +19,8 @@ import { FRIENDBOT_URL, HORIZON_URL, NETWORK_PASSPHRASE, RPC_URL, cfg } from "./
 export class ChainError extends Error {
   code?: number;
   raw?: string;
+  /** Código con que la red rechazó la transacción al recibirla (p. ej. `txInsufficientFee`); no la aplicó. */
+  rechazo?: string;
   constructor(message: string, code?: number, raw?: string) {
     super(message);
     this.code = code;
@@ -83,6 +85,37 @@ export async function retry<T>(fn: () => Promise<T>, tries = 4): Promise<T> {
   throw last;
 }
 
+/**
+ * Comisión de inclusión por operación que ofrece la plataforma (stroops) en el fee bump y en sus propias invocaciones.
+ * Con `BASE_FEE` (100) la red de prueba congestionada rechazaba el registro con `txInsufficientFee`; 0,01 XLM es una
+ * oferta máxima holgada (la red cobra la tarifa de inclusión vigente, no necesariamente todo) y no toca ningún monto.
+ */
+export const COMISION_RED = 100_000;
+
+/** Rechazos de la red que se arreglan volviendo a enviar: comisión corta o transacción vencida. */
+export const RECHAZOS_REINTENTABLES = ["txInsufficientFee", "txTooLate"] as const;
+
+/**
+ * Reintenta en silencio, hasta 3 veces y con espera creciente, cuando la red rechazó la transacción al recibirla por uno
+ * de `codigos` (la rechazada no se aplicó: reenviar no duplica nada). `enviar(intento)` arma y manda una nueva en cada
+ * intento; cualquier otro error, o el cuarto rechazo, sale tal cual.
+ */
+export async function reintentarRechazo<T>(
+  enviar: (intento: number) => Promise<T>,
+  codigos: readonly string[] = RECHAZOS_REINTENTABLES,
+  esperaMs = 1500,
+): Promise<T> {
+  for (let intento = 0; ; intento++) {
+    try {
+      return await enviar(intento);
+    } catch (e) {
+      const reintentable = e instanceof ChainError && !!e.rechazo && codigos.includes(e.rechazo);
+      if (!reintentable || intento >= 3) throw e;
+      await sleep(esperaMs * (intento + 1));
+    }
+  }
+}
+
 /** Serializa las transacciones de una misma cuenta de origen (evita choques de secuencia). */
 export async function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const locks = (g.__ppLocks ??= new Map());
@@ -114,10 +147,16 @@ export const u32 = (v: number) => nativeToScVal(v, { type: "u32" });
 export const str = (v: string) => nativeToScVal(v, { type: "string" });
 
 /** Arma, simula y ensambla una invocación con `source` como cuenta de origen. */
-export async function prepareInvoke(source: string, contractId: string, method: string, args: xdr.ScVal[]): Promise<Transaction> {
+export async function prepareInvoke(
+  source: string,
+  contractId: string,
+  method: string,
+  args: xdr.ScVal[],
+  fee: string = BASE_FEE,
+): Promise<Transaction> {
   const s = server();
   const account = await retry(() => s.getAccount(source));
-  const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase: NETWORK_PASSPHRASE })
+  const tx = new TransactionBuilder(account, { fee, networkPassphrase: NETWORK_PASSPHRASE })
     .addOperation(new Contract(contractId).call(method, ...args))
     .setTimeout(300)
     .build();
@@ -159,6 +198,13 @@ export interface Sent {
   returnValue?: xdr.ScVal;
 }
 
+/** Nombre del rechazo; si el fee bump falla por la transacción de adentro, el de adentro (p. ej. `txTooLate`). */
+function codigoRechazo(r: { type?: string; innerResultPair?: { result?: { result?: { type?: string } } } } | undefined): string {
+  if (!r?.type) return "desconocido";
+  if (r.type === "txFeeBumpInnerFailed") return r.innerResultPair?.result?.result?.type ?? r.type;
+  return r.type;
+}
+
 /** Envía y espera la confirmación. */
 export async function sendAndWait(tx: Transaction | FeeBumpTransaction): Promise<Sent> {
   const s = server();
@@ -169,8 +215,10 @@ export async function sendAndWait(tx: Transaction | FeeBumpTransaction): Promise
     sent = await retry(() => s.sendTransaction(tx));
   }
   if (sent.status === "ERROR") {
-    const code = sent.errorResult?.result.type ?? "desconocido";
-    throw new ChainError(`La red rechazó la transacción (${code})`);
+    const code = codigoRechazo(sent.errorResult?.result);
+    const err = new ChainError(`La red rechazó la transacción (${code})`);
+    err.rechazo = code;
+    throw err;
   }
   const until = Date.now() + 120_000;
   while (Date.now() < until) {
@@ -191,11 +239,14 @@ export async function sendAndWait(tx: Transaction | FeeBumpTransaction): Promise
 
 /** Invocación firmada por una llave del servidor (plataforma, árbitro). */
 export async function invokeAs(kp: Keypair, contractId: string, method: string, args: xdr.ScVal[]): Promise<Sent> {
-  return withLock(kp.publicKey(), async () => {
-    const tx = await prepareInvoke(kp.publicKey(), contractId, method, args);
-    tx.sign(kp);
-    return sendAndWait(tx);
-  });
+  return withLock(kp.publicKey(), () =>
+    // Cada intento se arma de nuevo (secuencia y plazo frescos): así también se arregla un `txTooLate`.
+    reintentarRechazo(async (intento) => {
+      const tx = await prepareInvoke(kp.publicKey(), contractId, method, args, String(COMISION_RED * 2 ** intento));
+      tx.sign(kp);
+      return sendAndWait(tx);
+    }),
+  );
 }
 
 /**
@@ -204,9 +255,16 @@ export async function invokeAs(kp: Keypair, contractId: string, method: string, 
  */
 export async function feeBumpAndSend(inner: Transaction): Promise<Sent> {
   const p = cfg().plataforma;
-  const fb = TransactionBuilder.buildFeeBumpTransaction(p, BASE_FEE, inner, NETWORK_PASSPHRASE);
-  fb.sign(p);
-  return sendAndWait(fb);
+  // La de adentro ya viene firmada por el usuario y no se puede rearmar acá: solo se reenvía con una comisión mayor.
+  // Un `txTooLate` de la de adentro no se arregla reenviándola; lo resuelve el chat pidiendo una nueva.
+  return reintentarRechazo(
+    (intento) => {
+      const fb = TransactionBuilder.buildFeeBumpTransaction(p, String(COMISION_RED * 2 ** intento), inner, NETWORK_PASSPHRASE);
+      fb.sign(p);
+      return sendAndWait(fb);
+    },
+    ["txInsufficientFee"],
+  );
 }
 
 // ---------- Cuentas, trustline, rampa y saldos ----------
