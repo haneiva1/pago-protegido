@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { probarActivo } from "@/lib/server/orders";
 import { IconoCandado, IconoCheckCirculo } from "@/components/iconos";
 import { TratoSimbolo } from "@/components/TratoLogo";
 
@@ -16,6 +18,8 @@ const BENEFICIOS = [
 ];
 
 export default function Home() {
+  // La demo es la portada: con PP_PROBAR activo, / lleva directo a /probar (pedido de Hans, 02:54).
+  if (probarActivo()) redirect("/probar");
   return (
     <div className="space-y-16 sm:space-y-24">
       {/* Portada: una promesa, una acción. */}

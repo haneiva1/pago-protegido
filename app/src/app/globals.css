@@ -403,10 +403,14 @@ html[data-marco] h3 {
   letter-spacing: -0.01em;
 }
 
-/* En /probar: sin el "Crear mi link" del encabezado del sitio (la demo tiene una sola acción por paso). */
-html[data-probar] header[data-chrome] a[href="/vender"],
-html[data-probar] header[data-chrome] a.btn-oscuro {
+/* En /probar el encabezado es mínimo: logo y la franja "Modo práctica"; sin navegación ni "Crear mi link" (la demo tiene una sola acción por paso). El pie queda en una línea. */
+html[data-probar] header[data-chrome] nav > div,
+html[data-probar] footer[data-chrome] nav {
   display: none;
+}
+html[data-probar] footer[data-chrome] > div {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
 }
 
 /* Hojas del chat: el formulario real de envío sin la sección de fotos (opcional), para que el botón quede a la vista. */

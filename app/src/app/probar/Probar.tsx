@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { IconoBillete, IconoBloqueado, IconoBolsa, IconoCerrar, IconoCheck, IconoChevronAbajo, IconoInfo, IconoReiniciar, IconoReloj, IconoTienda, IconoUsuario } from "@/components/iconos";
-import { Construido } from "@/components/probar/Construido";
+import { Casos } from "@/components/probar/Casos";
+import { ComoFunciona3 } from "@/components/probar/ComoFunciona3";
+import { ConstruidoLinea } from "@/components/probar/Construido";
+import { Intro } from "@/components/probar/Intro";
 import { Desvio } from "@/components/probar/Desvio";
 import { IPHONE_ALTO, IPHONE_ANCHO, IPHONE_ETIQUETA, IPhone } from "@/components/probar/IPhone";
 import { RegistroEnVivo } from "@/components/probar/RegistroEnVivo";
@@ -16,6 +19,17 @@ import { PROBAR_SESION, filasRegistro, hayPlataGuardada, probarStorageKey, resum
 const POLL_MS = 3000;
 const minutos = (s: number) => `${Math.round(s / 60)} ${Math.round(s / 60) === 1 ? "minuto" : "minutos"}`;
 const ICONOS = [IconoUsuario, IconoTienda, IconoBillete, IconoCheck];
+/** Lo que acaba de pasar, por estado del pedido (≤ 6 palabras). */
+const HECHO: Record<string, string> = {
+  tienda: "La Zapatería ya tiene cuenta",
+  esperando_pago: "El link ya está en el chat",
+  pagado: "La plata quedó guardada",
+  enviado: "El envío quedó registrado",
+  liberado: "La Zapatería cobró",
+  devuelto: "La plata volvió al comprador",
+  en_disputa: "Hay un reclamo abierto",
+  resuelto: "El revisor repartió la plata",
+};
 
 function leerSesion(): boolean {
   try {
@@ -35,7 +49,8 @@ function guardarSesion() {
 function escalaPara(escenario: HTMLElement): number {
   const lg = window.matchMedia("(min-width: 1024px)").matches;
   const top = escenario.getBoundingClientRect().top + window.scrollY;
-  const porAlto = (window.innerHeight - top - 16 - IPHONE_ETIQUETA) / IPHONE_ALTO;
+  // En escritorio la etiqueta sobre el teléfono no se muestra (la nombra la franja del paso): todo el alto es para el iPhone.
+  const porAlto = (window.innerHeight - top - 8 - (lg ? 0 : IPHONE_ETIQUETA)) / IPHONE_ALTO;
   // En escritorio manda el alto, sin piso: los dos iPhone tienen que entrar completos sin desplazar la página.
   const e = lg ? Math.min(1, Math.max(0.45, porAlto)) : Math.min((escenario.clientWidth - 8) / IPHONE_ANCHO, porAlto >= 0.72 ? porAlto : 1);
   return Math.round(Math.min(1, e) * 1000) / 1000;
@@ -62,6 +77,8 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
   const [altoMovil, setAltoMovil] = useState(640);
   const [mandado, setMandado] = useState(false);
   const [sub, setSub] = useState<string | null>(null);
+  // El bloqueo se ve 2 s en el celular del comprador antes de pasar la escena a la tienda.
+  const [bloqueoVisto, setBloqueoVisto] = useState(false);
   const escenario = useRef<HTMLDivElement>(null);
   const wallet = useRef<typeof import("@/lib/wallet") | null>(null);
   const status = registro?.pedido?.status ?? null;
@@ -125,10 +142,16 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
         setTab("comprador");
         setAviso("comprador");
       }
-      if (d.tipo === "sub") setSub(typeof d.valor === "string" ? d.valor : null);
+      if (d.tipo === "sub") {
+        setSub(typeof d.valor === "string" ? d.valor : null);
+        // Al abrir una hoja dentro del chat el foco puede mover la página: se vuelve a anclar a las pestañas.
+        if (!window.matchMedia("(min-width: 1024px)").matches)
+          for (const ms of [150, 450]) setTimeout(() => document.querySelector<HTMLElement>('[role="tablist"]')?.scrollIntoView({ block: "start" }), ms);
+      }
+      if (d.tipo === "actualiza") void cargar();
     };
     return () => c.close();
-  }, []);
+  }, [cargar]);
 
   // Si la pestaña se recarga, el "mandado" queda guardado por pedido.
   useEffect(() => {
@@ -145,7 +168,7 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
     const medir = () => {
       if (escenario.current) setEscala(escalaPara(escenario.current));
       // Encabezado fijo del sitio (56) + pestañas (52) + aire: el chat ocupa exactamente lo que queda.
-      setAltoMovil(Math.max(420, window.innerHeight - 120));
+      setAltoMovil(Math.max(420, window.innerHeight - 184));
     };
     medir();
     window.addEventListener("resize", medir);
@@ -163,7 +186,7 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
     const antes = prevStatus.current;
     prevStatus.current = status;
     if (antes === null && status === null) return;
-    const turno: RolProbar | null = status === "enviado" ? "comprador" : status === "pagado" ? "vendedor" : null;
+    const turno: RolProbar | null = status === "enviado" ? "comprador" : status === "pagado" || status === "liberado" ? "vendedor" : null;
     if (turno) {
       setTab(turno);
       setAviso(turno);
@@ -193,6 +216,9 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
     prevStatus.current = null;
     setRegistro(null);
     setDesvios([]);
+    setBloqueoVisto(false);
+    setMandado(false);
+    setSub(null);
     setDesvioError(null);
     setBloqueo(null);
     setTab("vendedor");
@@ -215,12 +241,17 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
     try {
       const r = await api<Omit<DesvioT, "at">>("/api/probar/desvio", { slug });
       setDesvios((d) => [{ ...r, at }, ...d]);
-      try {
-        window.sessionStorage.setItem(`pp.chat.estafa.${slug}`, "1");
-      } catch {}
       canal()?.postMessage({ tipo: "estafa-resultado", slug, at, ...r });
-      setTab("vendedor");
-      setAviso("vendedor");
+      setTimeout(() => {
+        try {
+          window.sessionStorage.setItem(`pp.chat.estafa.${slug}`, "1");
+        } catch {}
+        canal()?.postMessage({ tipo: "estafa-vista", slug });
+        setBloqueoVisto(true);
+        setAviso("vendedor");
+      }, 2000);
+      // En celular la escena del estafador se queda en el comprador hasta que el jurado toque la pestaña o pasen 6 s.
+      setTimeout(() => setTab("vendedor"), 6000);
     } catch (e) {
       setDesvioError((e as Error).message);
       canal()?.postMessage({ tipo: "estafa-resultado", slug, at, rejected: false, detail: (e as Error).message });
@@ -233,18 +264,33 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
   const ultimo = desvios[0];
   const hayTienda = Boolean(registro?.tienda);
   const hayPedido = Boolean(registro?.pedido);
-  const paso = pasoDemo({ tienda: hayTienda, status: hayPedido ? status : null, estafa: desviando ? "en-curso" : desvios.length ? "bloqueada" : "no", mandado, sub });
+  const paso = pasoDemo({ tienda: hayTienda, status: hayPedido ? status : null, estafa: desviando || (desvios.length > 0 && !bloqueoVisto) ? "en-curso" : desvios.length ? "bloqueada" : "no", mandado, sub });
   const turno = paso.quien;
   const resumen = status === "liberado" && registro?.pedido ? resumenRed(filas, registro.pedido.created_at) : null;
   const mostrarEstafa = hayPlataGuardada(status) && status === "pagado" && desvios.length === 0;
 
   return (
-    <div data-probar-ancho className="space-y-3" data-testid="probar">
+    <div data-probar-ancho className="space-y-3 lg:grid lg:grid-cols-[380px_minmax(0,1fr)] lg:gap-x-10 lg:gap-y-5 lg:space-y-0" data-testid="probar">
       <h1 className="sr-only">Prueba Trato de punta a punta</h1>
+      {/* Columna izquierda en escritorio: qué es Trato, cómo funciona y los dos controles. */}
+      <aside className="space-y-4 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:space-y-6">
+        <Intro />
+        <ComoFunciona3 vertical />
+        <div className="flex flex-wrap items-center gap-2" data-testid="controles">
+          <button className="btn-secondary btn-sm" onClick={() => setCajon(true)} data-testid="ver-detalles" aria-expanded={cajon}>
+            <IconoInfo className="h-4 w-4" />
+            Ver detalles
+          </button>
+          <button className="btn-secondary btn-sm" onClick={empezarDeNuevo} disabled={reiniciando} data-testid="empezar-de-nuevo">
+            {reiniciando ? <Spinner className="h-4 w-4" /> : <IconoReiniciar className="h-4 w-4" />}
+            Empezar de nuevo
+          </button>
+        </div>
+      </aside>
 
       {/* Arriba: los 4 pasos con ícono, el actual resaltado; a la derecha, "Ver detalles" y "Empezar de nuevo". */}
       {/* Una sola franja: los 4 pasos, el título del paso (≤ 6 palabras) con su línea (≤ 10) y los dos controles. */}
-      <header className="grid grid-cols-1 items-center gap-x-6 gap-y-2 lg:grid-cols-[auto_minmax(0,1fr)_auto]">
+      <header className="grid grid-cols-1 items-center gap-x-6 gap-y-2 lg:col-start-2 lg:row-start-1 lg:grid-cols-[auto_minmax(0,1fr)]">
         <ol aria-label={`Paso ${paso.n} de 4`} className="flex items-center gap-1 sm:gap-2" data-testid="pasos">
           {PASOS_DEMO.map((p, i) => {
             const Icono = ICONOS[i];
@@ -252,7 +298,7 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
             return (
               <li key={p.n} data-paso={p.n} data-estado={estado} className="flex items-center gap-1 sm:gap-2">
                 <span
-                  className={`inline-flex h-9 items-center gap-1.5 rounded-full px-2.5 text-sm font-semibold transition-colors duration-300 sm:px-3 ${
+                  className={`inline-flex h-8 items-center gap-1.5 rounded-full px-2.5 text-sm font-semibold transition-colors duration-300 sm:px-3 ${
                     estado === "ahora" ? "bg-monte text-sal" : estado === "hecho" ? "bg-exito-100 text-musgo" : "bg-tinta-100 text-tinta-500"
                   }`}
                 >
@@ -267,35 +313,24 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
         </ol>
         {listo && (
           <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 lg:px-2">
-            <h2 data-testid="titulo-etapa" className="text-2xl leading-tight lg:text-3xl" data-paso={paso.n}>
+            <h2 data-testid="titulo-etapa" className="text-2xl leading-tight" data-paso={paso.n}>
               {paso.titulo}
             </h2>
             <p data-testid="ahora" className="text-sm text-tinta-600 lg:text-base">
               {paso.linea}
             </p>
             {mostrarEstafa && (
-              <button className="btn-danger btn-sm" onClick={desviar} disabled={desviando} data-testid="desviar">
+              <button className="btn-danger btn-sm hidden lg:inline-flex" onClick={desviar} disabled={desviando} data-testid="desviar">
                 {desviando ? <Spinner className="h-4 w-4" /> : <IconoBloqueado className="h-4 w-4" />}
                 Alguien intenta robar la plata
               </button>
             )}
           </div>
         )}
-        <div className="flex shrink-0 items-center gap-2 lg:col-start-3">
-          <button className="btn-secondary btn-sm" onClick={() => setCajon(true)} data-testid="ver-detalles" aria-expanded={cajon}>
-            <IconoInfo className="h-4 w-4" />
-            Ver detalles
-          </button>
-          <button className="btn-secondary btn-sm" onClick={empezarDeNuevo} disabled={reiniciando} data-testid="empezar-de-nuevo">
-            {reiniciando ? <Spinner className="h-4 w-4" /> : <IconoReiniciar className="h-4 w-4" />}
-            <span className="hidden sm:inline">Empezar de nuevo</span>
-            <span className="sm:hidden">De nuevo</span>
-          </button>
-        </div>
       </header>
 
       {bloqueo && (
-        <p data-testid="probar-bloqueo" className="caja-aviso">
+        <p data-testid="probar-bloqueo" className="caja-aviso lg:col-start-2">
           {bloqueo}
         </p>
       )}
@@ -303,7 +338,7 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
       {listo && (
         <>
           {/* El escenario: los dos iPhone; el que no toca, atenuado. En celular, uno a la vez, en pestañas. */}
-          <div ref={escenario} className="flex flex-col gap-3 lg:grid lg:grid-cols-[auto_auto] lg:items-start lg:justify-center lg:gap-16" style={{ "--alto-movil": `${altoMovil}px` } as React.CSSProperties}>
+          <div ref={escenario} className="flex flex-col gap-3 lg:col-start-2 lg:row-start-2 lg:grid lg:grid-cols-[auto_auto] lg:items-start lg:justify-center lg:gap-16" style={{ "--alto-movil": `${altoMovil}px` } as React.CSSProperties}>
             <div role="tablist" aria-label="Celulares" className="order-2 grid scroll-mt-16 grid-cols-2 gap-1 rounded-control bg-tinta-200/60 p-1 lg:hidden">
               {(["vendedor", "comprador"] as const).map((r) => (
                 <button
@@ -324,6 +359,19 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
                   {aviso === r && tab !== r && <span aria-label="hay algo nuevo" className="absolute right-2 top-2 h-2 w-2 rounded-full bg-yungas ring-2 ring-tinta-200" />}
                 </button>
               ))}
+            {/* En celular, el paso actual bajo las pestañas: una sola línea compacta. */}
+            <div className="order-2 space-y-2 lg:hidden" data-testid="paso-compacto">
+              <p className="text-sm leading-tight">
+                <strong className="block text-monte">{paso.titulo}</strong>
+                <span className="block text-tinta-600">{paso.corta}</span>
+              </p>
+              {mostrarEstafa && (
+                <button className="btn-danger w-full py-3" onClick={desviar} disabled={desviando} data-testid="desviar-movil">
+                  {desviando ? <Spinner className="h-4 w-4" /> : <IconoBloqueado className="h-5 w-5" />}
+                  Alguien intenta robar la plata
+                </button>
+              )}
+            </div>
             </div>
 
             <IPhone rol="vendedor" titulo="Chat de la Zapatería" turno={turno !== "comprador"} escala={escala} testId="marco-vendedor" className={`order-3 lg:order-none ${tab === "vendedor" ? "flex" : "hidden lg:flex"}`}>
@@ -333,6 +381,24 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
             <IPhone rol="comprador" titulo="Chat del comprador" turno={turno !== "vendedor"} escala={escala} testId="marco-comprador" className={`order-3 lg:order-none ${tab === "comprador" ? "flex" : "hidden lg:flex"}`}>
               <iframe key={`c${marco}`} name="comprador" title="Chat del comprador (simulación)" src="/probar/chat/comprador" className="h-full w-full border-0 bg-sal" />
             </IPhone>
+          </div>
+
+          {/* Lo que acaba de pasar, en 6 palabras o menos, y por qué la demo es simulada. */}
+          <p data-testid="recien" className="text-center text-2xl lg:col-span-2 lg:text-3xl">
+            {HECHO[status ?? (hayTienda ? "tienda" : "")] ?? ""}
+          </p>
+          <p className="mx-auto flex max-w-3xl items-start justify-center gap-2 text-sm leading-snug text-tinta-600 lg:col-span-2" data-testid="por-que-simulado">
+            <IconoInfo className="mt-0.5 h-4 w-4 shrink-0 text-tinta-500" />
+            <span>
+              ¿Por qué simulado? Meta solo deja que un número de prueba le responda a 5 teléfonos hasta verificar la empresa. El bot real ya está hecho
+              (carpeta bot/, 191 tests, API oficial de WhatsApp) y lo mostramos en vivo en la final.
+            </span>
+          </p>
+          <div className="lg:col-span-2">
+            <Casos />
+          </div>
+          <div className="lg:col-span-2">
+            <ConstruidoLinea resumen={resumen} />
           </div>
         </>
       )}
@@ -381,14 +447,6 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
               <li>Si el comprador no hace nada, {minutos(plazos.despachoSegundos)} después del envío cualquiera puede liberar el pago al vendedor.</li>
             </ul>
           </details>
-          <p className="flex items-start gap-2 text-sm leading-snug text-tinta-600" data-testid="por-que-simulado">
-            <IconoInfo className="mt-0.5 h-4 w-4 shrink-0 text-tinta-500" />
-            <span>
-              ¿Por qué simulado? Meta solo deja que un número de prueba le responda a 5 teléfonos hasta verificar la empresa. El bot real ya está hecho
-              (carpeta bot/, 191 tests, API oficial de WhatsApp) y lo mostramos en vivo en la final.
-            </span>
-          </p>
-          <Construido resumen={resumen} />
         </div>
       </aside>
     </div>
