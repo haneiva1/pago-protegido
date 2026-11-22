@@ -96,7 +96,7 @@ export function LlegaMal() {
           nombre="Comprador"
           tono={paso >= 4 ? "exito" : "neutro"}
           extra={
-            <span className={`${s.aparece} absolute -left-1 -top-3 flex items-center gap-1 whitespace-nowrap rounded-chip bg-error-50 px-1.5 py-0.5 text-[10px] font-semibold text-error-700 ring-1 ring-error-200 sm:text-xs ${paso >= 1 ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"}`}>
+            <span className={`${s.aparece} absolute -left-1 -top-3 flex items-center gap-1 whitespace-nowrap rounded-chip bg-error-50 px-1.5 py-0.5 text-[10px] font-semibold text-error-700 ring-1 ring-error-200 sm:text-xs ${paso >= 1 && paso < 4 ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"}`}>
               <IconoAlerta className="h-3 w-3" />
               Foto
             </span>
@@ -162,7 +162,7 @@ export function NoConfirma() {
         />
         <Contrato lleno={paso < 3} />
         <Nodo en={P.tienda} icono={<IconoTienda className="h-5 w-5" />} nombre="Tienda" tono={paso >= 3 ? "exito" : "neutro"} />
-        <Viajero desde={{ x: P.tienda.x, y: 62 }} hasta={{ x: P.comprador.x, y: 62 }} llegado={paso >= 1} visible={paso < 2}>
+        <Viajero desde={{ x: P.tienda.x, y: 54 }} hasta={{ x: P.comprador.x, y: 54 }} llegado={paso >= 1} visible={paso < 2}>
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-monte ring-1 ring-tinta-200">
             <IconoCamion className="h-4 w-4" />
           </span>

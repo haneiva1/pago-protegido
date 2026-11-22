@@ -20,18 +20,19 @@ type Estado =
   | { fase: "error"; mensaje: string };
 
 /** La flecha del intruso: de su cuenta, abajo, hacia el borde inferior del contrato. */
-const INTENTO = "M 80 74 L 80 50";
+const INTENTO = "M 80 70 L 80 43";
 
 /**
  * Caso 1, en vivo: alguien consiguió el número del pedido y le pide a la red que le pague a su cuenta. El botón manda esa
  * orden (el mismo desvío de /probar: `escrow.resolve_dispute` hacia otra cuenta) y la red la rechaza.
  */
-export function IntentoEnVivo() {
+export function IntentoEnVivo({ activo = true }: { activo?: boolean }) {
   const [pedido, setPedido] = useState<PedidoConPlata | null>(null);
   const [estado, setEstado] = useState<Estado>({ fase: "buscando" });
   const vivo = useRef(true);
 
   useEffect(() => {
+    if (!activo) return;
     vivo.current = true;
     (async () => {
       try {
@@ -51,7 +52,7 @@ export function IntentoEnVivo() {
     return () => {
       vivo.current = false;
     };
-  }, []);
+  }, [activo]);
 
   async function intentar() {
     if (!pedido) return;
@@ -98,8 +99,8 @@ export function IntentoEnVivo() {
           <span
             key={estado.d.at}
             data-testid="intento-sello"
-            className={`${s.sello} absolute whitespace-nowrap rounded-chip border-2 border-error-600 bg-white/95 px-2.5 py-1 text-sm font-semibold uppercase tracking-wide text-error-700 shadow-card sm:text-base`}
-            style={{ left: "50%", top: "66%" }}
+            className={`${s.sello} absolute whitespace-nowrap rounded-chip border-2 border-error-600 bg-white/95 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-error-700 shadow-card sm:px-2.5 sm:py-1 sm:text-base`}
+            style={{ left: "50%", top: "58%" }}
           >
             {rechazado ? (porLaRed ? "Rechazado por la red" : "Rechazado por el servidor") : "Revisar"}
           </span>

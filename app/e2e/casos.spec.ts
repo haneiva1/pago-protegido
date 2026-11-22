@@ -25,6 +25,12 @@ async function revisarPalabras(page: Page) {
   for (const re of PROHIBIDAS) expect(t, `palabra prohibida ${re}`).not.toMatch(re);
 }
 
+/** Lleva la sección a la vista (después de que la demo de arriba termine de acomodarse): ahí el caso en vivo arranca. */
+async function irACasos(page: Page) {
+  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.getByTestId("casos").evaluate((el) => el.scrollIntoView({ block: "start" }));
+}
+
 async function capturaCasos(page: Page, nombre: string) {
   const casos = page.getByTestId("casos");
   await casos.evaluate((el) => el.scrollIntoView({ block: "start" }));
@@ -43,7 +49,7 @@ test("/probar · casos animados: cada uno termina en su frase y enlaza su transa
     await page.route("**/api/wallet/activate", (r) => r.fulfill({ status: 503, body: JSON.stringify({ error: "sin red en esta prueba" }) }));
     await page.goto("/probar");
     const casos = page.getByTestId("casos");
-    await casos.scrollIntoViewIfNeeded();
+    await irACasos(page);
     await expect(casos.getByRole("heading", { level: 2 })).toHaveText("¿Y si algo sale mal?");
     await expect(casos.getByRole("tab")).toHaveCount(4);
     await expect(page.getByTestId("tab-caso-intento")).toHaveAttribute("aria-selected", "true");
@@ -72,11 +78,14 @@ test("/probar · caso en vivo: prepara un pedido con plata adentro, manda la ord
   const page = await ctx.newPage();
   await page.goto("/probar");
   const casos = page.getByTestId("casos");
-  await casos.scrollIntoViewIfNeeded();
+  await irACasos(page);
   const boton = page.getByTestId("intentar-llevarsela");
   await expect(boton).toBeVisible();
   // Sin pedido de la demo principal: lo prepara en segundo plano (tienda, link y pago reales en la red de prueba).
-  await expect(page.getByTestId("intento-preparando")).toBeVisible({ timeout: 30_000 });
+  await expect(async () => {
+    await irACasos(page);
+    await expect(page.getByTestId("intento-preparando")).toBeVisible({ timeout: 3_000 });
+  }).toPass({ timeout: 45_000 });
   await expect(boton).toBeEnabled({ timeout: 5 * 60_000 });
   await expect(page.getByTestId("intento-escena")).toContainText(/\d+,\d{2}/);
 

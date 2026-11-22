@@ -83,7 +83,7 @@ export function Casos({ className = "" }: { className?: string }) {
         aria-labelledby={`caso-tab-${caso.id}`}
         className={`${s.panel} mx-auto mt-4 max-w-4xl rounded-panel bg-white px-4 py-6 ring-1 ring-inset ring-tinta-200/70 sm:px-8`}
       >
-        {caso.id === "intento" && !visto ? <div className="h-80" /> : <Panel />}
+        {caso.id === "intento" ? <IntentoEnVivo activo={visto} /> : <Panel />}
       </div>
     </section>
   );

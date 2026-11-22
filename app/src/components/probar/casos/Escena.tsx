@@ -8,10 +8,10 @@ import s from "./casos.module.css";
  * (letra fija y legible en celular); las flechas, un SVG con el mismo sistema de coordenadas.
  */
 export const P = {
-  comprador: { x: 20, y: 36 },
-  contrato: { x: 80, y: 36 },
-  tienda: { x: 140, y: 36 },
-  abajo: { x: 80, y: 84 },
+  comprador: { x: 20, y: 28 },
+  contrato: { x: 80, y: 28 },
+  tienda: { x: 140, y: 28 },
+  abajo: { x: 80, y: 80 },
 } as const;
 type Punto = { x: number; y: number };
 
@@ -143,5 +143,5 @@ export function Flecha({ d, tono, visible = true, punteada = false, className = 
 }
 
 /** Las dos salidas permitidas, de la caja del contrato a cada lado. */
-export const SALIDA_TIENDA = "M 105 36 L 124 36";
-export const SALIDA_COMPRADOR = "M 55 36 L 36 36";
+export const SALIDA_TIENDA = "M 105 28 L 124 28";
+export const SALIDA_COMPRADOR = "M 55 28 L 36 28";
