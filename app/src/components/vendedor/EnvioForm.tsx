@@ -8,7 +8,7 @@ import { IconoChevronAbajo } from "@/components/iconos";
 import { ErrorBox, Spinner, useProgress } from "@/components/ui";
 import { CIUDADES, EMPRESAS } from "@/lib/format";
 import type { SellerOrder } from "@/lib/types";
-import { api, getWallet, signAndSubmit, type PreparedTx } from "@/lib/wallet";
+import { registrarEnvio } from "@/lib/vendedor";
 
 /**
  * Registrar el envío (M9) en dos campos a la vista: empresa y número de guía. El peso (prellenado), el destino (el del
@@ -34,9 +34,7 @@ export function EnvioForm({ o, sellerPubkey, prefill, onDone }: { o: SellerOrder
     setError(null);
     progress.reset();
     try {
-      const body = { action: "ship", signer: sellerPubkey, ...f, photo: fotoPaquete, ...(fotoGuia ? { photoGuia: fotoGuia } : {}) };
-      const prepared = await api<PreparedTx>(`/api/orders/${o.slug}/action`, body);
-      await signAndSubmit(getWallet("vendedor"), prepared, progress.push);
+      await registrarEnvio({ slug: o.slug, signer: sellerPubkey, empresa: f.company, guia: f.tracking, pesoKg: f.weight, ciudad: f.city, imei: f.imei, fotoPaquete, fotoGuia, onProgress: progress.push });
       onDone();
     } catch (err) {
       setError((err as Error).message);

@@ -41,7 +41,7 @@ export interface Mensaje {
 /** Lo que vende la demo: igual que en el e2e de /probar. La tienda se llama "Zapatería". */
 export const DEMO = {
   tienda: "Zapatería",
-  ciudad: "Santa Cruz",
+  ciudad: "La Paz",
   /** Número de prueba: la demo lo completa sola, no se muestra. */
   whatsapp: "59171234567",
   producto: "Zapatillas Nike talla 40",
@@ -87,6 +87,8 @@ export interface PedidoChat {
   envio?: string | null;
   /** Lo que recibió la tienda al liberar ("Bs 450,04"). */
   recibido?: string | null;
+  /** Lo que dice la API sobre la espera para pagar a la tienda ("1 minuto (modo demo)"). */
+  confirmDelay?: string | null;
   url: string;
   imagen: string;
 }
@@ -161,7 +163,7 @@ export function mensajesVendedor(e: EstadoVendedor): Mensaje[] {
     de: "bot",
     at: tA,
     texto: `Listo, ${e.tienda}. ¿Qué vendes hoy?`,
-    botones: e.pedido || e.creandoLink ? undefined : [{ id: "vender", texto: `Vender ${DEMO.producto} a Bs ${DEMO.precioBs}`, principal: true }],
+    botones: e.pedido || e.creandoLink ? undefined : [{ id: "vender", texto: "Vender Zapatillas Nike Bs 450", principal: true }],
   });
   if (e.creandoLink && !e.pedido) {
     m.push({ id: "yo-vendo", de: "yo", at: e.ahora, texto: DEMO.vendo });
@@ -195,7 +197,7 @@ export function mensajesVendedor(e: EstadoVendedor): Mensaje[] {
   if (p.status === "pagado" && e.estafaHecha)
     m.push({ id: "despacha", de: "bot", at: tPago + 1000, texto: "Despacha y toca Ya lo envié.", botones: e.enviando ? undefined : [{ id: "enviado", texto: "Ya lo envié", principal: true }] });
   if (p.status === "pagado") {
-    if (e.enviando) m.push({ id: "enviando", de: "bot", at: e.ahora, enCurso: true, texto: "Registrando el envío. Unos 10 segundos." });
+    if (e.enviando) m.push({ id: "enviando", de: "bot", at: e.ahora, enCurso: true, texto: "Registrando el envío (Trans Copacabana · SRV-2026-118734). Unos 10 segundos." });
     return m;
   }
   if (p.status === "devuelto") {
@@ -275,7 +277,7 @@ export function mensajesComprador(e: EstadoComprador): Mensaje[] {
     id: "enviado",
     de: "bot",
     at: tEnvio,
-    texto: `📦 ${e.tienda} envió tu pedido. ¿Te llegó?`,
+    texto: `📦 ${e.tienda} envió tu pedido. ¿Te llegó?${p.status === "enviado" && !puede && p.confirmDelay ? `\nTrato espera ${p.confirmDelay.replace(/ \(modo demo\)/, "")} en la demo; en la vida real, 2 horas o 24.` : ""}`,
     botones:
       p.status === "enviado" && !e.confirmando
         ? [

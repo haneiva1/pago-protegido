@@ -238,6 +238,13 @@ function Burbuja({ m, pasos, ocupado, onBoton, onCarga }: { m: Mensaje; pasos?: 
 function BotonRapido({ b, ocupado, onClick }: { b: Boton; ocupado?: boolean; onClick: () => void }) {
   const off = Boolean(ocupado || b.deshabilitado);
   return (
+    <>
+    {b.principal && !off && (
+      <span className="flex items-center gap-1.5 pl-1 text-xs font-semibold text-musgo" data-testid="toca-aqui" aria-hidden>
+        <span className="h-2 w-2 rounded-full bg-yungas animate-latido" />
+        Toca aquí
+      </span>
+    )}
     <button
       type="button"
       onClick={onClick}
@@ -251,5 +258,6 @@ function BotonRapido({ b, ocupado, onClick }: { b: Boton; ocupado?: boolean; onC
     >
       {b.texto}
     </button>
+    </>
   );
 }

@@ -148,20 +148,25 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   // (con reintentos si la red falla, como el e2e con pagos).
   await clic(toca(comprador, "pagar"));
   const pago = comprador.frameLocator('iframe[name="pago"]');
-  await clic(pago.getByTestId("barra-pagar").getByRole("button", { name: /Pagar Bs .* con QR/ }));
-  await pago.getByLabel("Quién recibe").fill("Ana Pérez");
-  await pago.getByLabel("Ciudad de destino").selectOption("Cochabamba");
-  await clic(pago.getByRole("button", { name: /Ver el QR para pagar Bs/ }));
+  // La página de pago: con un toque si los datos de entrega vienen precargados; si no, el camino de siempre (datos, QR).
+  await clic(pago.getByTestId("barra-pagar").getByRole("button", { name: /^Pagar Bs/ }));
+  if (await pago.getByLabel("Quién recibe").isVisible().catch(() => false)) {
+    await pago.getByLabel("Quién recibe").fill("Ana Pérez");
+    await pago.getByLabel("Ciudad de destino").selectOption("Cochabamba");
+    await clic(pago.getByRole("button", { name: /Ver el QR para pagar Bs/ }));
+  }
+  // Dentro de /probar el pago sale con ese único toque; si la página todavía pide "Simular pago del banco", se toca también.
   const simular = pago.getByRole("button", { name: "Simular pago del banco (modo práctica)" });
   const ok = pago.getByTestId("estado-pedido");
   const err = pago.getByTestId("error");
   for (let intento = 1; ; intento++) {
-    await clic(simular);
+    if (await simular.waitFor({ timeout: 4000 }).then(() => true, () => false)) await clic(simular);
     await expect(ok.or(err).first()).toBeVisible(CHAIN);
     if (await ok.isVisible()) break;
     const msg = await err.first().innerText();
     console.log(`[e2e probar] pago, intento ${intento} falló en la red: ${msg}`);
     if (intento >= 3) throw new Error(`El pago falló 3 veces: ${msg}`);
+    await clic(pago.getByTestId("barra-pagar").getByRole("button", { name: /^Pagar Bs/ }));
   }
   await expect(ok).toContainText("Tu pago está guardado", CHAIN);
   // El chat vuelve solo y cuenta que la plata quedó guardada; la tienda recibe el aviso con "Ya lo envié".
@@ -199,12 +204,8 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   await expect(page.getByTestId("desviar")).toHaveCount(0);
   await capturar(page, "82-probar-desvio-rechazado");
 
-  // 4. La tienda despacha: "Ya lo envié" abre el formulario real de envío en una hoja (tiene 2 minutos desde el pago).
+  // 4. La tienda despacha: "Ya lo envié" registra el envío real con los datos de la demo, sin formulario (tiene 2 minutos desde el pago).
   await clic(toca(vendedor, "enviado"));
-  const hoja = vendedor.getByTestId("chat-hoja");
-  await hoja.getByLabel("Empresa de envío").selectOption("Trans Copacabana (encomiendas)");
-  await hoja.getByLabel("Número de guía").fill("SRV-2026-118734");
-  await clic(hoja.getByRole("button", { name: "Marcar como enviado" }));
   await expect(vendedor.getByTestId("chat-enviado")).toContainText("Envío registrado", CHAIN);
   const envio = page.getByTestId("paso-registro-envio");
   await expect(envio).toHaveAttribute("data-hecho", "si", { timeout: 30_000 });

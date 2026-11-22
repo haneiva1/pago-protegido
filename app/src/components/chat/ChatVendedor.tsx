@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { EnvioForm } from "@/components/vendedor/EnvioForm";
 import { ErrorBox, Spinner, useProgress } from "@/components/ui";
 import { api } from "@/lib/api";
 import { apiFirmada } from "@/lib/api-firmada";
 import { DEMO, mensajesVendedor, type PedidoChat } from "@/lib/chat";
 import { CIUDADES } from "@/lib/format";
-import type { SellerData, SellerOrder } from "@/lib/types";
+import type { PreparedTx } from "@/lib/wallet/types";
+
+/** Datos del envío de la demo (los mismos del e2e): la tienda no escribe nada. */
+const ENVIO = { company: "Trans Copacabana (encomiendas)", tracking: "SRV-2026-118734", weight: "1,2", city: "La Paz" };
 import { Chat } from "./Chat";
 import { canal, sesion, useAhora, useMarco, usePedidoChat } from "./pedido";
 
@@ -31,13 +33,13 @@ export function ChatVendedor() {
   const [slug, setSlug] = useState<string | null>(null);
   const [creandoLink, setCreandoLink] = useState(false);
   const [reenviado, setReenviado] = useState(false);
-  const [hoja, setHoja] = useState<null | "cuenta" | "envio">(null);
+  const [hoja, setHoja] = useState<null | "cuenta">(null);
   const [nombre, setNombre] = useState(DEMO.tienda);
   const [ciudad, setCiudad] = useState(DEMO.ciudad);
-  const [orden, setOrden] = useState<SellerOrder | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [estafaHecha, setEstafaHecha] = useState(false);
+  const [enviando, setEnviando] = useState(false);
   const progreso = useProgress();
   const wallet = useRef<typeof import("@/lib/wallet") | null>(null);
   const { pedido, recargar } = usePedidoChat(slug);
@@ -147,21 +149,24 @@ export function ChatVendedor() {
     canal()?.postMessage({ tipo: "link-reenviado", slug });
   }
 
-  async function abrirEnvio() {
+  /** "Ya lo envié": registra el envío real con los datos de la demo, sin abrir ningún formulario (la misma firma que EnvioForm). */
+  async function registrarEnvio() {
     if (!pk || !slug) return;
     setOcupado(true);
+    setEnviando(true);
     setError(null);
+    progreso.reset();
     try {
       const w = await cargarWallet();
-      const d = await apiFirmada<SellerData>(w.getWallet("vendedor"), `/api/sellers/${pk}/panel`);
-      const o = d.orders.find((x) => x.slug === slug) ?? null;
-      if (!o) throw new Error("No encontramos el pedido en tu panel");
-      setOrden(o);
-      setHoja("envio");
-      sub("hoja-envio");
+      const body = { action: "ship", signer: pk, company: ENVIO.company, tracking: ENVIO.tracking, weight: ENVIO.weight, city: ENVIO.city, imei: "", photo: "" };
+      const prepared = await api<PreparedTx>(`/api/orders/${slug}/action`, body);
+      await w.signAndSubmit(w.getWallet("vendedor"), prepared, progreso.push);
+      await recargar();
+      canal()?.postMessage({ tipo: "actualiza" });
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      setEnviando(false);
       setOcupado(false);
     }
   }
@@ -177,7 +182,7 @@ export function ChatVendedor() {
     }
     else if (id === "vender") void crearLink();
     else if (id === "mandar") mandar();
-    else if (id === "enviado") void abrirEnvio();
+    else if (id === "enviado") void registrarEnvio();
   }
 
   const mensajes = mensajesVendedor({
@@ -188,7 +193,7 @@ export function ChatVendedor() {
     creandoLink,
     pedido: pedido && pedido.slug === slug ? (pedido as PedidoChat) : null,
     reenviado,
-    enviando: hoja === "envio",
+    enviando,
     estafaHecha,
     host: typeof window !== "undefined" ? window.location.host : "",
   });
@@ -233,33 +238,7 @@ export function ChatVendedor() {
         onBoton={onBoton}
         pasos={progreso.steps}
         ocupado={ocupado}
-        hoja={
-          hoja === "cuenta"
-            ? hojaCuenta
-            : hoja === "envio" && orden && pk
-              ? {
-                  titulo: undefined,
-                  onCerrar: () => {
-                    setHoja(null);
-                    sub(null);
-                  },
-                  contenido: (
-                    <div className="hoja-compacta">
-                    <EnvioForm
-                      o={orden}
-                      sellerPubkey={pk}
-                      prefill={null}
-                      onDone={() => {
-                        setHoja(null);
-                        sub(null);
-                        void recargar();
-                      }}
-                    />
-                    </div>
-                  ),
-                }
-              : null
-        }
+        hoja={hoja === "cuenta" ? hojaCuenta : null}
       />
       {error && hoja !== "cuenta" && (
         <div className="absolute inset-x-3 bottom-16 z-40 animate-aparecer">

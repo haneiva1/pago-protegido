@@ -18,6 +18,7 @@ import { Seguimiento, useRecogido } from "@/components/comprador/Seguimiento";
 import { TarjetaVendedor } from "@/components/comprador/Vendedor";
 import { ApiError, api } from "@/lib/api";
 import { NO_CARGO_CUENTA, cargaUnaVez } from "@/lib/comprador";
+import { enProbar } from "@/lib/probar";
 import { MOTIVO_PRESION, fmtBs, fmtBsUnits } from "@/lib/format";
 import type { OrderView } from "@/lib/types";
 import { apiFirmada } from "@/lib/api-firmada";
@@ -36,6 +37,9 @@ const cargarWallet = cargaUnaVez(() =>
 /** Qué espera está corriendo, para explicarla: el pago (varias transacciones) o una acción del pedido. */
 type Espera = "pago" | "accion" | null;
 
+/** Dentro de /probar el pago es de un toque: datos de entrega precargados, sin hoja ni QR. */
+const ENTREGA_DEMO: DatosEntrega = { recipient: "Ana Pérez", city: "La Paz", agency: "" };
+
 export default function PaginaDePago() {
   const { slug } = useParams<{ slug: string }>();
   const [v, setV] = useState<OrderView | null>(null);
@@ -51,6 +55,7 @@ export default function PaginaDePago() {
   const [ask, setAsk] = useState(false);
   const [pressure, setPressure] = useState(false);
   const [delivery, setDelivery] = useState<DatosEntrega | null>(null);
+  const [demo, setDemo] = useState(false);
   const progress = useProgress();
   const now = useNow();
   const [recogido, marcarRecogido] = useRecogido(slug);
@@ -63,6 +68,8 @@ export default function PaginaDePago() {
       else setError((e as Error).message);
     }
   }, [slug]);
+
+  useEffect(() => setDemo(enProbar()), []);
 
   useEffect(() => {
     if (hayCuentaGuardada("comprador"))
@@ -156,10 +163,11 @@ export default function PaginaDePago() {
     });
 
   // La espera explicada: el pago encadena varias transacciones (unos 30 s); una acción del pedido, una sola.
+  const hechos = progress.steps.filter((s) => s.done).length;
   const esperando =
     busy && espera === "pago" ? (
       <EsperaEnCurso
-        titulo="Guardando tu pago… unos 30 segundos"
+        titulo={demo ? `Guardando tu pago… ${Math.min(hechos + 1, 4)} de 4` : "Guardando tu pago… unos 30 segundos"}
         nota="No cierres esta página."
         steps={progress.steps}
         testId="espera-pago"
@@ -197,7 +205,12 @@ export default function PaginaDePago() {
         {!takenByOther && !qrOpen && !busy && (
           <BarraPagar
             total={total}
+            label={demo ? `Pagar ${total}` : undefined}
             onPagar={() => {
+              if (demo) {
+                void pagar(ENTREGA_DEMO);
+                return;
+              }
               cargarWallet().catch(() => {}); // se adelanta la descarga mientras llena los datos; si falla, "Pagar" reintenta
               setHoja(true);
             }}

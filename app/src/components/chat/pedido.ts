@@ -41,6 +41,7 @@ export function aPedidoChat(v: OrderView): PedidoChat {
     confirm_after: o.confirm_after,
     envio: envioTexto(o),
     recibido: v.breakdown ? fmtBsUnits(v.breakdown.seller, o.fx) : null,
+    confirmDelay: v.confirmDelay ?? null,
     url: `${origin}/p/${o.slug}`,
     imagen: `/p/${o.slug}/opengraph-image`,
   };
