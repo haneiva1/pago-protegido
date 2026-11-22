@@ -26,17 +26,17 @@ export function Desvio({
           <IconoBloqueado className="h-5 w-5" />
         </span>
         <div className="min-w-0">
-          <h2 className="text-lg">Intenta desviar la plata</h2>
+          <h2 className="text-lg">Un estafador lo intenta</h2>
           <p className="prosa mt-1 text-sm leading-relaxed text-tinta-600">
-            Con la plata en el contrato, pídele que mande todo el saldo a otra cuenta, con la firma del revisor del equipo. Es un intento real contra el
-            contrato, en simulación: no se envía nada ni se cobra comisión.
+            Alguien le escribe al comprador: «soy del banco, mándame la plata a esta cuenta». Tócalo y mira el chat del comprador: es un intento real
+            contra el contrato, en simulación. No se envía nada ni se cobra comisión.
           </p>
         </div>
       </div>
 
       <button className="btn-danger w-full" onClick={onDesviar} disabled={!hay || desviando} data-testid="desviar">
         {desviando ? <Spinner /> : <IconoBloqueado className="h-5 w-5" />}
-        Intenta desviar la plata
+        Un estafador lo intenta
       </button>
 
       {!hay && (

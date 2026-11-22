@@ -51,6 +51,8 @@ Los PR #3 a #9 aparecen como «cerrados» porque se integraron juntos en el [PR 
 
 **En el navegador (2 minutos):** en [`/probar`](https://app-production-d0fc8f63.up.railway.app/probar), el vendedor y el comprador aparecen lado a lado. Cada paso muestra su transacción en stellar.expert, incluido un intento de desvío que el contrato rechaza.
 
+¿Por qué simulado? Meta solo deja que un número de prueba le responda a 5 teléfonos hasta verificar la empresa. El bot real ya está hecho (carpeta `bot/`, 191 tests, API oficial de WhatsApp) y lo mostramos en vivo en la final.
+
 La demo corre en Stellar testnet (plata de prueba) con el commit `5400e4c`. Usa un despliegue paralelo de `pp_guardian`, `pp_arbiter` y LABUSD, creado el 21-nov para la demo: no son los contratos de [Evidencia on-chain](#evidencia-on-chain), aunque el código es el mismo. Por eso en la demo `/metricas` y `/transparencia` aparecen sin datos.
 
 **En tu máquina, sin claves.** Requisitos: Rust y cargo, Node 22 o más, y Chromium para Playwright.

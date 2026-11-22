@@ -11,8 +11,8 @@ export function Pasos({ estados, numero, terminada }: { estados: Record<EtapaId,
           <li key={et.id} data-etapa={et.id} data-estado={st} className="flex items-center gap-2">
             <Circulo estado={st} n={i + 1} />
             <span className={`text-sm leading-none ${st === "ahora" ? "font-semibold text-monte" : st === "hecha" ? "hidden font-medium text-tinta-700 sm:inline" : "hidden font-medium text-tinta-500 sm:inline"}`}>
-              <span className="hidden lg:inline">{et.titulo}</span>
-              <span className="lg:hidden">{et.corto}</span>
+              <span className="hidden 2xl:inline">{et.titulo}</span>
+              <span className="2xl:hidden">{et.corto}</span>
             </span>
             {i < ETAPAS.length - 1 && <span aria-hidden className={`ml-0.5 hidden h-px w-4 sm:block ${st === "hecha" ? "bg-musgo" : "bg-tinta-200"}`} />}
           </li>
@@ -26,7 +26,7 @@ export function Pasos({ estados, numero, terminada }: { estados: Record<EtapaId,
 export function Guia({ titulo, texto, turno }: { titulo: string; texto: string; turno: RolProbar | null }) {
   return (
     <section aria-label="Qué está pasando" className="space-y-1.5">
-      <h2 data-testid="titulo-etapa" className="text-2xl lg:text-3xl">
+      <h2 data-testid="titulo-etapa" className="text-3xl lg:text-4xl">
         {titulo}
       </h2>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -37,7 +37,7 @@ export function Guia({ titulo, texto, turno }: { titulo: string; texto: string; 
         {turno && (
           <span className="chip bg-yungas text-monte" data-testid="turno">
             {turno === "vendedor" ? <IconoTienda className="h-3.5 w-3.5" /> : <IconoBolsa className="h-3.5 w-3.5" />}
-            Celular del {turno}
+            {turno === "vendedor" ? "Chat de la tienda" : "Chat del comprador"}
           </span>
         )}
       </div>

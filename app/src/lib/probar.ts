@@ -12,12 +12,15 @@ export const probarStorageKey = (role: RolProbar) => `pp.probar.${role}`;
 /** Marca de sesión de /probar (sessionStorage): ya se pidió permiso al servidor para esta prueba. */
 export const PROBAR_SESION = "pp.probar.sesion";
 
-/** ¿Esta página es /probar o corre dentro de uno de sus marcos? */
+/** /probar y sus rutas (/probar/chat/…): la vitrina y las páginas que corren dentro de sus celulares. */
+export const esRutaProbar = (pathname: string) => pathname === PROBAR_PATH || pathname.startsWith(`${PROBAR_PATH}/`);
+
+/** ¿Esta página es /probar (o una de sus rutas) o corre dentro de uno de sus marcos? */
 export function enProbar(): boolean {
   if (typeof window === "undefined") return false;
   try {
-    if (window.location.pathname === PROBAR_PATH) return true;
-    return window.self !== window.top && window.top?.location.pathname === PROBAR_PATH;
+    if (esRutaProbar(window.location.pathname)) return true;
+    return window.self !== window.top && esRutaProbar(window.top?.location.pathname ?? "");
   } catch {
     // Marco dentro de otro sitio: no hay acceso a `top`, así que no es /probar.
     return false;
@@ -25,7 +28,7 @@ export function enProbar(): boolean {
 }
 
 /** Script que corre antes de pintar el layout: dentro de un marco de /probar esconde el encabezado y el pie. */
-export const SCRIPT_MARCO = `try{if(window.self!==window.top&&window.top.location.pathname===${JSON.stringify(PROBAR_PATH)})document.documentElement.setAttribute("data-marco","probar")}catch(e){}`;
+export const SCRIPT_MARCO = `try{var p=window.top.location.pathname,q=${JSON.stringify(PROBAR_PATH)};if(window.self!==window.top&&(p===q||p.indexOf(q+"/")===0))document.documentElement.setAttribute("data-marco","probar")}catch(e){}`;
 
 // ---------- Registro en vivo ----------
 
@@ -82,16 +85,16 @@ export function filasRegistro(txs: TxProbar[], vendedor: string): FilaRegistro[]
 
 /** Estado del pedido → qué hacer ahora (la guía de arriba de /probar). */
 export function siguientePaso(p: { tienda: boolean; status: string | null }): string {
-  if (!p.tienda) return "Crea la tienda en el celular del vendedor: nombre, ciudad y WhatsApp.";
+  if (!p.tienda) return "En el chat de la tienda, toca las respuestas sugeridas: nombre, ciudad y WhatsApp.";
   switch (p.status) {
     case null:
-      return "Crea un link en el panel del vendedor: producto y precio.";
+      return "En el chat de la tienda, toca «Vendo Zapatillas Nike talla 40 a Bs 450» y después «Reenviar a mi cliente».";
     case "esperando_pago":
-      return "El link llegó al celular del comprador: paga con el QR simulado.";
+      return "El link llegó al celular del comprador: toca «Abrir y pagar» y paga con el QR simulado.";
     case "pagado":
-      return "La plata espera entre los dos. Intenta desviarla y después registra el envío desde el celular del vendedor: tiene 2 minutos.";
+      return "La plata espera entre los dos. Toca «Un estafador lo intenta» y mira el chat del comprador; después, en el chat de la tienda, «Ya lo envié».";
     case "enviado":
-      return "Envío registrado. En 1 minuto el comprador puede confirmar que recibió y pagar al vendedor.";
+      return "Envío registrado. Cuando le llegue, el comprador toca «Sí, me llegó» y le paga a la tienda.";
     case "liberado":
       return "Listo: el vendedor cobró. La plata salió por una de sus dos salidas.";
     case "devuelto":
@@ -119,9 +122,9 @@ export type EtapaId = "link" | "pago" | "desvio" | "envio" | "cobro";
 export type EstadoEtapa = "hecha" | "ahora" | "pendiente" | "omitida";
 
 export const ETAPAS: { id: EtapaId; titulo: string; corto: string }[] = [
-  { id: "link", titulo: "La tienda crea el link", corto: "Link" },
-  { id: "pago", titulo: "El comprador paga", corto: "Pago" },
-  { id: "desvio", titulo: "Alguien intenta desviar la plata", corto: "Desvío" },
+  { id: "link", titulo: "La tienda vende por WhatsApp", corto: "Vende" },
+  { id: "pago", titulo: "El comprador paga desde WhatsApp", corto: "Pago" },
+  { id: "desvio", titulo: "Un estafador lo intenta", corto: "Estafa" },
   { id: "envio", titulo: "La tienda despacha", corto: "Envío" },
   { id: "cobro", titulo: "El comprador recibe y la tienda cobra", corto: "Cobro" },
 ];
@@ -215,16 +218,16 @@ export function errorDelContrato(raw: string | undefined, code?: number): string
 
 /** El título grande de cada momento de la historia (la presentación de /probar). */
 export function tituloEtapa(p: { pedido: boolean; status: string | null; desvios: number }): string {
-  if (!p.pedido || p.status === null) return "La tienda crea el link";
+  if (!p.pedido || p.status === null) return "1. La tienda vende por WhatsApp";
   switch (p.status) {
     case "esperando_pago":
-      return "El comprador paga";
+      return "2. El comprador paga desde el link que le llegó por WhatsApp";
     case "pagado":
-      return p.desvios > 0 ? "Nadie puede desviarla" : "La plata espera entre los dos";
+      return p.desvios > 0 ? "4. Un estafador lo intentó y no pudo" : "3. La plata espera entre los dos";
     case "enviado":
-      return "La tienda despachó";
+      return "5. La tienda despachó";
     case "liberado":
-      return "La tienda cobró";
+      return "6. La tienda cobró";
     case "devuelto":
       return "La plata volvió al comprador";
     case "en_disputa":

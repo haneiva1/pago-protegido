@@ -1,10 +1,11 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type FrameLocator, type Locator, type Page } from "@playwright/test";
 import { randomInt } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-// /probar contra Stellar TESTNET (transacciones reales), con PP_PROBAR=1 y plazos de demo: el vendedor y el comprador
-// en dos marcos de celular con las páginas reales, el registro en vivo, el intento de desvío y "Empezar de nuevo".
+// /probar contra Stellar TESTNET (transacciones reales), con PP_PROBAR=1 y plazos de demo: la tienda y el comprador en
+// dos iPhone con un chat como el de WhatsApp (respuestas rápidas que disparan las acciones reales), la plata esperando
+// entre los dos, el estafador rechazado por el contrato, el cajón "Ver en la red" y "Empezar de nuevo".
 // Capturas de celular y escritorio en e2e/capturas/80-…; en cada una se revisa que no haya palabras prohibidas.
 
 const DIR = path.join(__dirname, "capturas");
@@ -37,7 +38,7 @@ const SECRETO = /\bS[A-Z2-7]{55}\b/;
 async function revisarPalabras(page: Page) {
   const text = await page.locator("body").innerText();
   for (const re of PROHIBIDAS) expect(text, `palabra prohibida ${re} en ${page.url()}`).not.toMatch(re);
-  // Los marcos tienen las páginas del vendedor y del comprador: misma lista estricta.
+  // Los marcos tienen los chats y la página de pago: misma lista estricta.
   for (const f of page.frames().filter((f) => f !== page.mainFrame())) {
     const t = await f.locator("body").innerText().catch(() => "");
     for (const re of PROHIBIDAS) expect(t, `palabra prohibida ${re} en el marco ${f.url()}`).not.toMatch(re);
@@ -58,7 +59,18 @@ async function capturar(page: Page, nombre: string) {
   await page.waitForTimeout(200);
 }
 
-test("/probar: dos celulares reales, registro en vivo, desvío rechazado por el contrato y pago al vendedor", async ({ browser, baseURL }) => {
+/** Respuesta rápida del chat: un botón bajo el último mensaje del bot. */
+const toca = (chat: FrameLocator, id: string) => chat.getByTestId(`chat-boton-${id}`);
+
+/** Clic dentro de un iPhone (o en sus hojas y overlay): centra el elemento en su marco y en la página antes de hacer clic. Si
+ * Playwright tuviera que desplazar la página madre por su cuenta, el punto del clic podría quedar bajo el encabezado fijo del sitio. */
+async function clic(l: Locator) {
+  await l.waitFor();
+  await l.evaluate((el) => el.scrollIntoView({ block: "center", inline: "nearest" }));
+  await l.click();
+}
+
+test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estafador rechazado por el contrato y el cobro", async ({ browser, baseURL }) => {
   const ctx = await browser.newContext({ viewport: ESCRITORIO_ALTO, deviceScaleFactor: 1 });
   const page = await ctx.newPage();
   const lecturas: Promise<void>[] = [];
@@ -77,35 +89,35 @@ test("/probar: dos celulares reales, registro en vivo, desvío rechazado por el 
 
   await page.goto("/probar");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Prueba Trato de punta a punta");
-  await expect(page.getByTestId("esperando-link")).toContainText("Todavía no te llegó ningún link");
+  await expect(page.getByTestId("dentro-de-whatsapp")).toContainText("Trato funciona dentro de WhatsApp");
+  await expect(page.getByTestId("titulo-etapa")).toHaveText("1. La tienda vende por WhatsApp");
   await expect(page.getByTestId("desviar")).toBeDisabled();
-  await expect(page.getByTestId("plazos")).toContainText("2 minutos para registrar el envío");
   await expect(page.getByTestId("dos-salidas")).toHaveText("Dos salidas, nunca una tercera.");
+  // El registro y los plazos viven en el cajón "Ver en la red".
+  await page.getByTestId("ver-en-la-red").click();
+  await expect(page.getByTestId("cajon-red")).toHaveAttribute("data-abierto", "si");
+  await expect(page.getByTestId("plazos")).toContainText("2 minutos para registrar el envío");
+  await expect(page.getByTestId("registro")).toContainText("Todavía no hay movimientos");
+  await page.getByTestId("cerrar-cajon").click();
+  await expect(page.getByTestId("cajon-red")).toHaveAttribute("data-abierto", "no");
 
-  // Marco del vendedor: la página real de /vender, sin el encabezado ni el pie del sitio (modo embebido).
+  // Los dos iPhone: el chat de la tienda y el del comprador, sin el encabezado ni el pie del sitio (modo embebido).
   const vendedor = page.frameLocator('iframe[name="vendedor"]');
-  await expect(vendedor.getByLabel("Nombre de la tienda")).toBeVisible();
+  const comprador = page.frameLocator('iframe[name="comprador"]');
+  await expect(vendedor.getByTestId("chat-vendedor")).toBeVisible();
   await expect(vendedor.locator("header[data-chrome]")).toBeHidden();
   await expect(vendedor.locator("footer[data-chrome]")).toBeHidden();
+  await expect(comprador.getByTestId("esperando-link")).toContainText("Todavía no te llegó ningún link");
   await capturar(page, "80-probar-inicio");
 
-  // 1. Crear el link: el vendedor crea su tienda (cuenta de prueba nueva, activada por el servidor) y el link.
-  await vendedor.getByLabel("Nombre de la tienda").fill("Tienda Sofi");
-  await vendedor.getByLabel("Tu ciudad").selectOption("Santa Cruz");
-  await vendedor.getByRole("button", { name: "Continuar" }).click();
-  await vendedor.getByLabel("Número de WhatsApp").fill("59171234567");
-  await vendedor.getByRole("button", { name: "Continuar" }).click();
-  await vendedor.getByRole("button", { name: "Crear mi cuenta de cobro y continuar" }).click();
-  await expect(vendedor.getByTestId("tienda")).toHaveText("Tienda Sofi", CHAIN);
-  // Link rápido (PR #7): producto, precio y días para despachar; la categoría va en "Más detalles".
-  await vendedor.getByLabel("Producto").fill("Zapatillas Nike talla 40");
-  await vendedor.getByLabel("Precio en Bs").fill("450");
-  await vendedor.getByLabel("Días para despachar", { exact: true }).selectOption("3");
-  const mas = vendedor.getByTestId("mas-detalles");
-  if (!(await mas.evaluate((e) => (e as HTMLDetailsElement).open))) await mas.locator("summary").click();
-  await vendedor.getByLabel(/^Categoría/).selectOption("Ropa y calzado");
-  await vendedor.getByRole("button", { name: "Crear link" }).click();
-  const url = (await vendedor.getByTestId("link-url").textContent())!.trim();
+  // 1. La tienda vende por WhatsApp: el alta con respuestas sugeridas (cuenta de prueba nueva, activada por el servidor) y el link.
+  await clic(toca(vendedor, "nombre"));
+  await clic(toca(vendedor, "ciudad"));
+  await clic(toca(vendedor, "whatsapp"));
+  await expect(toca(vendedor, "vender")).toBeVisible(CHAIN);
+  await clic(toca(vendedor, "vender"));
+  await expect(toca(vendedor, "reenviar")).toBeVisible({ timeout: 60_000 });
+  const url = (await vendedor.getByTestId("chat-tarjeta").first().getAttribute("href"))!;
   const slug = url.split("/p/")[1];
   expect(slug).toMatch(/^[a-z0-9-]+$/);
   // Desde /probar el link usa los plazos de demo (2 minutos), aunque el panel no tenga ?demo=1.
@@ -119,22 +131,27 @@ test("/probar: dos celulares reales, registro en vivo, desvío rechazado por el 
   await expect(link).toContainText(/Link PP-[2-9A-HJKMNP-Z]{8} creado: todavía no se movió plata/);
   await expect(link.locator(TX_LINK)).toHaveCount(1);
 
-  // El link llega solo al celular del comprador.
-  const comprador = page.frameLocator('iframe[name="comprador"]');
-  await expect(comprador.getByTestId("codigo")).toHaveText(/Compra protegida · PP-[2-9A-HJKMNP-Z]{8}/, { timeout: 30_000 });
+  // El link llega al chat del comprador cuando la tienda lo reenvía.
+  await clic(toca(vendedor, "reenviar"));
+  await expect(toca(comprador, "pagar")).toBeVisible({ timeout: 30_000 });
+  await expect(comprador.getByTestId("chat-tarjeta").first()).toHaveAttribute("href", url);
   await expect(page.getByTestId("ahora")).toContainText("El link llegó al celular del comprador");
+  await expect(page.getByTestId("titulo-etapa")).toContainText("2. El comprador paga desde el link que le llegó por WhatsApp");
   await capturar(page, "81-probar-link-en-el-comprador");
 
-  // 2. Pagar: datos de entrega, QR y pago simulado del banco (con reintentos si la red falla, como el e2e con pagos).
-  await comprador.getByTestId("barra-pagar").getByRole("button", { name: /Pagar Bs .* con QR/ }).click();
-  await comprador.getByLabel("Quién recibe").fill("Ana Pérez");
-  await comprador.getByLabel("Ciudad de destino").selectOption("Cochabamba");
-  await comprador.getByRole("button", { name: /Ver el QR para pagar Bs/ }).click();
-  const simular = comprador.getByRole("button", { name: "Simular pago del banco (modo práctica)" });
-  const ok = comprador.getByTestId("estado-pedido");
-  const err = comprador.getByTestId("error");
+  // 2. Pagar: "Abrir y pagar" abre la página de pago real dentro del celular: datos de entrega, QR y pago simulado del banco
+  // (con reintentos si la red falla, como el e2e con pagos).
+  await clic(toca(comprador, "pagar"));
+  const pago = comprador.frameLocator('iframe[name="pago"]');
+  await clic(pago.getByTestId("barra-pagar").getByRole("button", { name: /Pagar Bs .* con QR/ }));
+  await pago.getByLabel("Quién recibe").fill("Ana Pérez");
+  await pago.getByLabel("Ciudad de destino").selectOption("Cochabamba");
+  await clic(pago.getByRole("button", { name: /Ver el QR para pagar Bs/ }));
+  const simular = pago.getByRole("button", { name: "Simular pago del banco (modo práctica)" });
+  const ok = pago.getByTestId("estado-pedido");
+  const err = pago.getByTestId("error");
   for (let intento = 1; ; intento++) {
-    await simular.click();
+    await clic(simular);
     await expect(ok.or(err).first()).toBeVisible(CHAIN);
     if (await ok.isVisible()) break;
     const msg = await err.first().innerText();
@@ -142,58 +159,73 @@ test("/probar: dos celulares reales, registro en vivo, desvío rechazado por el 
     if (intento >= 3) throw new Error(`El pago falló 3 veces: ${msg}`);
   }
   await expect(ok).toContainText("Tu pago está guardado", CHAIN);
+  // El chat vuelve solo y cuenta que la plata quedó guardada; la tienda recibe el aviso con "Ya lo envié".
+  await expect(comprador.getByTestId("chat-pagado")).toBeVisible({ timeout: 30_000 });
+  await expect(comprador.getByTestId("chat-overlay")).toBeHidden({ timeout: 15_000 });
+  await expect(toca(vendedor, "enviado")).toBeVisible({ timeout: 30_000 });
 
-  const pago = page.getByTestId("paso-registro-pago");
-  await expect(pago).toHaveAttribute("data-hecho", "si", { timeout: 30_000 });
-  await expect(pago).toContainText("Pago simulado del banco");
-  await expect(pago).toContainText("Se creó el contrato de este pedido");
-  await expect(pago).toContainText("El comprador guardó el pago en el contrato");
-  expect(await pago.locator(TX_LINK).count()).toBeGreaterThanOrEqual(3);
+  const pagoReg = page.getByTestId("paso-registro-pago");
+  await expect(pagoReg).toHaveAttribute("data-hecho", "si", { timeout: 30_000 });
+  await expect(pagoReg).toContainText("Pago simulado del banco");
+  await expect(pagoReg).toContainText("Se creó el contrato de este pedido");
+  await expect(pagoReg).toContainText("El comprador guardó el pago en el contrato");
+  expect(await pagoReg.locator(TX_LINK).count()).toBeGreaterThanOrEqual(3);
   await expect(page.getByTestId("registro-contrato")).toHaveAttribute("href", /stellar\.expert\/explorer\/testnet\/contract\/C[A-Z2-7]{55}$/);
+  await expect(page.getByTestId("titulo-etapa")).toHaveText("3. La plata espera entre los dos");
 
-  // 3. Intenta desviar la plata: simulación real contra el contrato, rechazada con el error del contrato, en rojo.
+  // 3. Un estafador lo intenta: simulación real contra el contrato, rechazada con el error del contrato, en rojo de marca,
+  // y contada en el chat del comprador como un mensaje de un número desconocido que Trato bloquea.
   await expect(page.getByTestId("desviar")).toBeEnabled({ timeout: 30_000 });
   await page.getByTestId("desviar").click();
   const error = page.getByTestId("desvio-error");
   await expect(error).toHaveText("Error(Contract, #12)", CHAIN);
-  // En rojo de error de la marca: error-700 (#9b1e22), que Chrome devuelve como rgb(155, 30, 34).
   await expect(error).toHaveClass(/text-error-700/);
   await expect(error).toHaveCSS("color", "rgb(155, 30, 34)");
   await expect(page.getByTestId("desvio-resultado")).toContainText("Rechazado por el contrato");
   await expect(page.getByTestId("desvio-resultado")).toContainText("no se envió nada");
   await expect(page.getByTestId("registro-desvio")).toContainText("Intento de desvío rechazado: Error(Contract, #12)");
+  await expect(comprador.getByTestId("chat-estafa")).toContainText("soy del banco");
+  await expect(comprador.getByTestId("chat-bloqueo")).toContainText("Bloqueado", { timeout: 30_000 });
+  await expect(comprador.getByTestId("chat-bloqueo")).toContainText("Error(Contract, #12)");
+  await expect(page.getByTestId("titulo-etapa")).toHaveText("4. Un estafador lo intentó y no pudo");
   await capturar(page, "82-probar-desvio-rechazado");
 
-  // 4. Registrar el envío (el vendedor tiene 2 minutos desde el pago).
-  const card = vendedor.getByTestId(`pedido-${slug}`);
-  await expect(card.getByTestId("estado")).toHaveText("Pagado (despacha)", { timeout: 60_000 });
-  await card.getByLabel("Empresa de envío").selectOption("Trans Copacabana (encomiendas)");
-  await card.getByLabel("Número de guía").fill("SRV-2026-118734");
-  await card.getByLabel("Peso declarado (kg)").fill("1,2");
-  await card.getByRole("button", { name: "Marcar como enviado" }).click();
-  await expect(card.getByTestId("estado")).toHaveText("Enviado", CHAIN);
+  // 4. La tienda despacha: "Ya lo envié" abre el formulario real de envío en una hoja (tiene 2 minutos desde el pago).
+  await clic(toca(vendedor, "enviado"));
+  const hoja = vendedor.getByTestId("chat-hoja");
+  await hoja.getByLabel("Empresa de envío").selectOption("Trans Copacabana (encomiendas)");
+  await hoja.getByLabel("Número de guía").fill("SRV-2026-118734");
+  await hoja.getByLabel("Peso declarado (kg)").fill("1,2");
+  await clic(hoja.getByRole("button", { name: "Marcar como enviado" }));
+  await expect(vendedor.getByTestId("chat-enviado")).toContainText("figura como enviado", CHAIN);
   const envio = page.getByTestId("paso-registro-envio");
   await expect(envio).toHaveAttribute("data-hecho", "si", { timeout: 30_000 });
   await expect(envio.locator(TX_LINK)).toHaveCount(1);
+  await expect(comprador.getByTestId("chat-enviado")).toContainText("1,2 kg", { timeout: 30_000 });
 
-  // 5. Pagar al vendedor: se habilita 1 minuto después del envío y pregunta antes.
-  const pagarVendedor = comprador.getByRole("button", { name: "Pagar al vendedor (irreversible)" });
-  await expect(pagarVendedor).toBeVisible({ timeout: 60_000 });
-  await expect(pagarVendedor).toBeEnabled({ timeout: 150_000 });
-  await pagarVendedor.click();
-  await comprador.getByRole("button", { name: "Sí, lo tengo y está bien" }).click();
-  await expect(comprador.getByTestId("estado-pedido")).toContainText("Se pagó al vendedor", CHAIN);
+  // 5. El comprador recibe y paga: "Sí, me llegó" se habilita 1 minuto después del envío y pregunta antes.
+  const meLlego = toca(comprador, "me-llego");
+  await expect(meLlego).toBeVisible({ timeout: 60_000 });
+  await expect(meLlego).toBeEnabled({ timeout: 150_000 });
+  await clic(meLlego);
+  await clic(comprador.getByTestId("chat-hoja").getByRole("button", { name: "Sí, lo tengo y está bien" }));
+  await expect(comprador.getByTestId("chat-liberado")).toContainText("pagaste al vendedor", CHAIN);
   const cobro = page.getByTestId("paso-registro-cobro");
   await expect(cobro).toHaveAttribute("data-hecho", "si", { timeout: 30_000 });
   await expect(cobro).toContainText("Se pagó al vendedor");
   await expect(cobro.locator(TX_LINK)).toHaveCount(1);
-  await expect(vendedor.getByTestId("saldo")).toHaveText("Bs 450,04", { timeout: 60_000 });
+  // La tienda cobró lo suyo: el precio completo (la protección la pagó el comprador) más el redondeo del contrato.
+  await expect(vendedor.getByTestId("chat-liberado")).toContainText("Bs 450,04", { timeout: 60_000 });
   await expect(page.getByTestId("desviar")).toBeDisabled();
   await expect(page.getByTestId("desvio-espera")).toHaveText("La plata ya salió del contrato por una de sus salidas.");
   await expect(page.getByTestId("ahora")).toContainText("Listo: el vendedor cobró");
+  await expect(page.getByTestId("titulo-etapa")).toHaveText("6. La tienda cobró");
+  // El cierre: lo que ya está construido, con el resumen de esta prueba.
+  await expect(page.getByTestId("construido")).toContainText("Lo que ya está construido");
+  await expect(page.getByTestId("construido-resumen")).toContainText(/\d+ transacciones públicas/);
   await capturar(page, "83-probar-pagado-al-vendedor");
 
-  // Celular: el vendedor y el comprador van en pestañas.
+  // Celular: los dos chats van en pestañas.
   await page.setViewportSize(MOBILE);
   await expect(page.getByTestId("tab-vendedor")).toBeVisible();
   await page.getByTestId("tab-vendedor").click();
@@ -209,10 +241,10 @@ test("/probar: dos celulares reales, registro en vivo, desvío rechazado por el 
   const cuentas = await page.evaluate(() => ["pp.probar.vendedor", "pp.probar.comprador", "pp.billetera.vendedor", "pp.billetera.comprador"].map((k) => localStorage.getItem(k) !== null));
   expect(cuentas).toEqual([true, true, false, false]);
 
-  // Empezar de nuevo: cuentas nuevas, marcos y registro limpios.
+  // Empezar de nuevo: cuentas nuevas, chats y registro limpios.
   await page.getByTestId("empezar-de-nuevo").click();
-  await expect(page.getByTestId("esperando-link")).toBeVisible();
-  await expect(vendedor.getByLabel("Nombre de la tienda")).toBeVisible();
+  await expect(comprador.getByTestId("esperando-link")).toBeVisible({ timeout: 30_000 });
+  await expect(toca(vendedor, "nombre")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("registro")).toContainText("Todavía no hay movimientos");
   expect(await page.evaluate(() => [localStorage.getItem("pp.probar.vendedor"), localStorage.getItem("pp.probar.comprador")])).toEqual([null, null]);
 
