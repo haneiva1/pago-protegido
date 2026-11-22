@@ -38,8 +38,6 @@ export function ChatVendedor() {
   const [ciudad, setCiudad] = useState(DEMO.ciudad);
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
-  const [estafaHecha, setEstafaHecha] = useState(false);
-  const [estafaEnCurso, setEstafaEnCurso] = useState(false);
   const [lento, setLento] = useState(false);
   const [fallo, setFallo] = useState<"cuenta" | "link" | "envio" | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -48,21 +46,6 @@ export function ChatVendedor() {
   const { pedido, recargar } = usePedidoChat(slug);
   /** Le cuenta a /probar en qué sub-estado está el chat (para la línea de ayuda de arriba). */
   const sub = (valor: string | null) => canal()?.postMessage({ tipo: "sub", valor });
-
-  // El estafador ya fue bloqueado (lo avisa /probar por el canal o quedó guardado): recién ahí aparece "Ya lo envié".
-  useEffect(() => {
-    if (slug && sesion.get(`pp.chat.estafa.${slug}`) === "1") setEstafaHecha(true);
-    const c = canal();
-    if (!c) return;
-    c.onmessage = (ev: MessageEvent) => {
-      if (ev.data?.tipo === "estafa-en-curso") setEstafaEnCurso(true);
-      if (ev.data?.tipo === "estafa-vista") {
-        setEstafaHecha(true);
-        setEstafaEnCurso(false);
-      }
-    };
-    return () => c.close();
-  }, [slug]);
 
   const cargarWallet = useCallback(async () => (wallet.current ??= await import("@/lib/wallet")), []);
 
@@ -208,11 +191,6 @@ export function ChatVendedor() {
     else if (id === "enviado" || id === "reintentar-envio") void registrarEnvio();
     else if (id === "reintentar-cuenta") void crearCuentaReal();
     else if (id === "reintentar-link") void crearLink();
-    else if (id === "estafa") {
-      // /probar hace la simulación real contra el contrato y la cuenta en el chat del comprador.
-      setEstafaEnCurso(true);
-      canal()?.postMessage({ tipo: "estafa", slug });
-    }
   }
 
   const mensajes = mensajesVendedor({
@@ -224,8 +202,6 @@ export function ChatVendedor() {
     pedido: pedido && pedido.slug === slug ? (pedido as PedidoChat) : null,
     reenviado,
     enviando,
-    estafaHecha,
-    estafaEnCurso,
     lento,
     fallo,
     host: typeof window !== "undefined" ? window.location.host : "",

@@ -49,7 +49,7 @@ export function IPhone({
     <figure
       data-testid={testId}
       data-turno={turno ? "si" : "no"}
-      className={`w-full scroll-mt-16 flex-col items-center sm:w-auto lg:transition-transform lg:duration-300 lg:ease-[var(--ease-suave)] ${turno ? "" : "lg:scale-[0.98]"} ${className}`}
+      className={`w-full scroll-mt-16 flex-col items-center sm:w-auto lg:transition-transform lg:duration-500 lg:ease-[var(--ease-suave)] ${turno ? "" : "lg:scale-[0.98]"} ${className}`}
       style={vars}
     >
       <figcaption className="mb-3 hidden h-6 items-center gap-1.5 whitespace-nowrap rounded-full bg-tinta-100 px-3 text-xs font-medium text-tinta-700 sm:inline-flex lg:hidden">
@@ -59,7 +59,7 @@ export function IPhone({
       {/* El contenedor reserva el tamaño escalado; adentro, el teléfono a tamaño real, escalado desde arriba a la izquierda. */}
       <div className="relative h-[var(--alto-movil,min(78svh,720px))] w-full shrink-0 sm:h-[calc(872px*var(--escala))] sm:w-[calc(413px*var(--escala))]">
         <div
-          className={`absolute left-0 top-0 h-full w-full origin-top-left transition-[opacity,filter] duration-300 ease-[var(--ease-suave)] sm:h-[872px] sm:w-[413px] sm:[transform:scale(var(--escala))] ${
+          className={`absolute left-0 top-0 h-full w-full origin-top-left transition-[opacity,filter] duration-500 ease-[var(--ease-suave)] sm:h-[872px] sm:w-[413px] sm:[transform:scale(var(--escala))] ${
             turno ? "" : "lg:opacity-50 lg:saturate-0"
           }`}
         >

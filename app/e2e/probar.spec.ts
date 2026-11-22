@@ -5,7 +5,7 @@ import path from "node:path";
 
 // /probar contra Stellar TESTNET (transacciones reales), con PP_PROBAR=1 y plazos de demo: la tienda y el comprador en
 // dos iPhone con un chat como el de WhatsApp (respuestas rápidas que disparan las acciones reales), la plata esperando
-// entre los dos, el estafador rechazado por el contrato, el cajón "Ver en la red" y "Empezar de nuevo".
+// entre los dos (pago con QR y "Escanear con mi banco"), el camino feliz sin estafador, el cajón "Ver en la red" y "Empezar de nuevo".
 // Capturas de celular y escritorio en e2e/capturas/80-…; en cada una se revisa que no haya palabras prohibidas.
 
 const DIR = path.join(__dirname, "capturas");
@@ -70,7 +70,7 @@ async function clic(l: Locator) {
   await l.click();
 }
 
-test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estafador rechazado por el contrato y el cobro", async ({ browser, baseURL }) => {
+test("/probar: dos chats de WhatsApp simulados, el pago con QR, la plata entre los dos y el cobro (camino feliz)", async ({ browser, baseURL }) => {
   const ctx = await browser.newContext({ viewport: ESCRITORIO_ALTO, deviceScaleFactor: 1 });
   const page = await ctx.newPage();
   const lecturas: Promise<void>[] = [];
@@ -104,7 +104,7 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   // Los dos iPhone: el chat de la tienda y el del comprador, sin el encabezado ni el pie del sitio (modo embebido).
   const vendedor = page.frameLocator('iframe[name="vendedor"]');
   const comprador = page.frameLocator('iframe[name="comprador"]');
-  // El botón del estafador vive en el chat de la Zapatería y aparece recién con la plata en el contrato.
+  // Camino feliz: el estafador no está en la demo principal.
   await expect(toca(vendedor, "estafa")).toHaveCount(0);
   await expect(vendedor.getByTestId("chat-vendedor")).toBeVisible();
   await expect(vendedor.locator("header[data-chrome]")).toBeHidden();
@@ -141,39 +141,35 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   await expect(toca(comprador, "pagar")).toBeVisible({ timeout: 30_000 });
   await expect(comprador.getByTestId("chat-tarjeta").first()).toHaveAttribute("href", url);
   await expect(page.getByTestId("titulo-etapa")).toHaveText("3. El comprador paga");
-  await expect(page.getByTestId("ahora")).toHaveText("Abre el link y paga con un toque");
+  await expect(page.getByTestId("ahora")).toHaveText("Abre el link y paga con QR");
   await capturar(page, "81-probar-link-en-el-comprador");
 
-  // 2. Pagar: "Abrir y pagar" abre la página de pago real dentro del celular: datos de entrega, QR y pago simulado del banco
-  // (con reintentos si la red falla, como el e2e con pagos).
+  // 2. Pagar con QR: "Abrir y pagar" abre dentro del celular el QR grande con el monto y "Escanear con mi banco"; al tocarlo,
+  // el visor barre el QR, aparece "Pago recibido" y el pago real en la red de prueba corre por detrás (con reintentos si la red falla).
   await clic(toca(comprador, "pagar"));
   const pago = comprador.frameLocator('iframe[name="pago"]');
-  // La página de pago: con un toque si los datos de entrega vienen precargados; si no, el camino de siempre (datos, QR).
-  await clic(pago.getByTestId("barra-pagar").getByRole("button", { name: /^Pagar Bs/ }));
-  if (await pago.getByLabel("Quién recibe").isVisible().catch(() => false)) {
-    await pago.getByLabel("Quién recibe").fill("Ana Pérez");
-    await pago.getByLabel("Ciudad de destino").selectOption("Cochabamba");
-    await clic(pago.getByRole("button", { name: /Ver el QR para pagar Bs/ }));
-  }
-  // Dentro de /probar el pago sale con ese único toque; si la página todavía pide "Simular pago del banco", se toca también.
-  const simular = pago.getByRole("button", { name: "Simular pago del banco (modo práctica)" });
+  await expect(pago.getByTestId("qr-demo")).toBeVisible({ timeout: 30_000 });
+  await expect(pago.getByTestId("qr-monto")).toHaveText("Bs 456,75");
+  await expect(pago.getByTestId("imagen-qr")).toBeVisible();
+  await expect(pago.getByTestId("rotulo-qr")).toHaveText("Simulación del pago con QR (modo práctica)");
+  await expect(page.getByTestId("ahora")).toHaveText("Toca Escanear con mi banco");
+  await capturar(page, "81b-probar-qr");
+  const escanear = pago.getByTestId("escanear");
   const ok = pago.getByTestId("estado-pedido");
   const err = pago.getByTestId("error");
   for (let intento = 1; ; intento++) {
-    if (await simular.waitFor({ timeout: 4000 }).then(() => true, () => false)) await clic(simular);
+    await clic(escanear);
+    if (intento === 1) await expect(pago.getByTestId("pago-recibido").or(ok).or(err).first()).toBeVisible({ timeout: 15_000 });
     await expect(ok.or(err).first()).toBeVisible(CHAIN);
     if (await ok.isVisible()) break;
     const msg = await err.first().innerText();
     console.log(`[e2e probar] pago, intento ${intento} falló en la red: ${msg}`);
     if (intento >= 3) throw new Error(`El pago falló 3 veces: ${msg}`);
-    await clic(pago.getByTestId("barra-pagar").getByRole("button", { name: /^Pagar Bs/ }));
   }
   await expect(ok).toContainText("Tu pago está guardado", CHAIN);
   // El chat vuelve solo y cuenta que la plata quedó guardada; la tienda recibe el aviso con "Ya lo envié".
   await expect(comprador.getByTestId("chat-pagado")).toBeVisible({ timeout: 30_000 });
   await expect(comprador.getByTestId("chat-overlay")).toBeHidden({ timeout: 15_000 });
-  // Un solo botón por momento: la tienda no puede despachar hasta que el estafador quede bloqueado.
-  await expect(toca(vendedor, "enviado")).toHaveCount(0);
 
   const pagoReg = page.getByTestId("paso-registro-pago");
   await expect(pagoReg).toHaveAttribute("data-hecho", "si", { timeout: 30_000 });
@@ -182,27 +178,13 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   await expect(pagoReg).toContainText("El comprador guardó el pago en el contrato");
   expect(await pagoReg.locator(TX_LINK).count()).toBeGreaterThanOrEqual(3);
   await expect(page.getByTestId("registro-contrato")).toHaveAttribute("href", /stellar\.expert\/explorer\/testnet\/contract\/C[A-Z2-7]{55}$/);
-  await expect(page.getByTestId("titulo-etapa")).toHaveText("3. La plata quedó guardada");
-
-  // 3. Un estafador lo intenta: simulación real contra el contrato, rechazada con el error del contrato, en rojo de marca,
-  // y contada en el chat del comprador como un mensaje de un número desconocido que Trato bloquea.
-  await expect(toca(vendedor, "estafa")).toBeVisible({ timeout: 30_000 });
-  await clic(toca(vendedor, "estafa"));
-  const error = page.getByTestId("desvio-error");
-  await expect(error).toHaveText("Error(Contract, #12)", CHAIN);
-  await expect(error).toHaveClass(/text-error-700/);
-  await expect(error).toHaveCSS("color", "rgb(155, 30, 34)");
-  await expect(page.getByTestId("desvio-resultado")).toContainText("Rechazado por el contrato");
-  await expect(page.getByTestId("desvio-resultado")).toContainText("no se envió nada");
-  await expect(page.getByTestId("registro-desvio")).toContainText("Intento de desvío rechazado: Error(Contract, #12)");
-  await expect(comprador.getByTestId("chat-estafa")).toContainText("Soy del banco");
-  await expect(comprador.getByTestId("chat-bloqueo")).toContainText("Bloqueado: la plata solo puede ir a la Zapatería o volver a ti", { timeout: 30_000 });
-  // El error crudo del contrato queda en el cajón, no en el chat.
-  await expect(comprador.getByTestId("chat-bloqueo")).not.toContainText("Error(Contract");
+  // Camino feliz: con la plata entre los dos, la tienda despacha (sin estafador en el chat ni en los pasos).
   await expect(page.getByTestId("titulo-etapa")).toHaveText("3. La Zapatería despacha");
+  await expect(page.getByTestId("ahora")).toHaveText("Toca Ya lo envié");
   await expect(toca(vendedor, "enviado")).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId("desviar")).toHaveCount(0);
-  await capturar(page, "82-probar-desvio-rechazado");
+  await expect(toca(vendedor, "estafa")).toHaveCount(0);
+  await expect(comprador.getByTestId("chat-estafa")).toHaveCount(0);
+  await capturar(page, "82-probar-plata-guardada");
 
   // 4. La tienda despacha: "Ya lo envié" registra el envío real con los datos de la demo, sin formulario (tiene 2 minutos desde el pago).
   await clic(toca(vendedor, "enviado"));

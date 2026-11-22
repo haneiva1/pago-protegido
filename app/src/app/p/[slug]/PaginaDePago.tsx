@@ -12,6 +12,8 @@ import { ConfirmarPago, PreguntaConfirmar } from "@/components/comprador/Confirm
 import { EsperaEnCurso } from "@/components/comprador/Espera";
 import { Antifraude, Esqueleto, EstadoPedido, LinkNoEncontrado } from "@/components/comprador/Estado";
 import { PagoQr } from "@/components/comprador/PagoQr";
+import { QrEscaneo } from "@/components/comprador/QrEscaneo";
+import { canal } from "@/components/chat/pedido";
 import { Reclamo } from "@/components/comprador/Reclamo";
 import { Cierre, LineaDeTiempo, RegistroPedido } from "@/components/comprador/Registro";
 import { Seguimiento, useRecogido } from "@/components/comprador/Seguimiento";
@@ -37,7 +39,7 @@ const cargarWallet = cargaUnaVez(() =>
 /** Qué espera está corriendo, para explicarla: el pago (varias transacciones) o una acción del pedido. */
 type Espera = "pago" | "accion" | null;
 
-/** Dentro de /probar el pago es de un toque: datos de entrega precargados, sin hoja ni QR. */
+/** Dentro de /probar el pago es el QR con "Escanear con mi banco": datos de entrega precargados, sin hoja. */
 const ENTREGA_DEMO: DatosEntrega = { recipient: "Ana Pérez", city: "La Paz", agency: "" };
 
 export default function PaginaDePago() {
@@ -70,6 +72,11 @@ export default function PaginaDePago() {
   }, [slug]);
 
   useEffect(() => setDemo(enProbar()), []);
+  // Dentro de /probar: le cuenta a la página que el QR está a la vista (la línea de ayuda dice "Toca Escanear con mi banco").
+  const qrDemo = demo && v?.order.status === "esperando_pago";
+  useEffect(() => {
+    if (qrDemo) canal()?.postMessage({ tipo: "sub", valor: "qr" });
+  }, [qrDemo]);
 
   useEffect(() => {
     if (hayCuentaGuardada("comprador"))
@@ -177,6 +184,15 @@ export default function PaginaDePago() {
     ) : (
       <Progress steps={progress.steps} />
     );
+
+  if (o.status === "esperando_pago" && demo && !takenByOther) {
+    return (
+      <div className="mx-auto max-w-md space-y-4 pb-10">
+        <QrEscaneo v={v} busy={busy} hechos={hechos} error={error} onEscanear={() => void pagar(ENTREGA_DEMO)} />
+        <ErrorBox error={error} />
+      </div>
+    );
+  }
 
   if (o.status === "esperando_pago") {
     return (
