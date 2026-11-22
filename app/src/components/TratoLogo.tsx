@@ -7,9 +7,9 @@ export function TratoLogo({ sobre = "claro", className = "h-7 w-auto" }: { sobre
   const simbolo = sobre === "oscuro" ? "#50DE50" : "#0A2A1B";
   const palabra = sobre === "oscuro" ? "#F5F7F1" : "#0A2A1B";
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 564.63 134.5" role="img" aria-label="Trato" className={className}>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 588.63 134.5" role="img" aria-label="Trato" className={className}>
       <path fill={simbolo} transform="translate(0 31.5) scale(0.9537)" d={SIMBOLO} />
-      <path fill={palabra} transform="translate(150.63 0)" d={PALABRA} />
+      <path fill={palabra} transform="translate(174.63 0)" d={PALABRA} />
     </svg>
   );
 }
