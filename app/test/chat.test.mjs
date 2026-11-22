@@ -40,8 +40,9 @@ test("tienda: el registro mínimo es Hola → Crear mi cuenta → creando; despu
   const conLink = mensajesVendedor({ ...con, pedido: pedido("esperando_pago") });
   assert.deepEqual(botones(conLink).map((b) => b.id), ["mandar"]);
   assert.ok(conLink.some((m) => m.tarjeta?.titulo === "Zapatillas Nike talla 40 · Bs 450,00" && m.tarjeta.dominio === "trato.example"));
-  assert.deepEqual(botones(mensajesVendedor({ ...con, pedido: pedido("pagado"), reenviado: true })).map((b) => b.id), ["estafa"], "con la plata guardada, lo único tocable es el estafador");
-  const pagado = mensajesVendedor({ ...con, pedido: pedido("pagado"), reenviado: true, estafaHecha: true });
+  // Camino feliz: con la plata guardada, lo único tocable es "Ya lo envié" (el estafador ya no está en la demo principal).
+  const pagado = mensajesVendedor({ ...con, pedido: pedido("pagado"), reenviado: true });
+  assert.doesNotMatch(textos(pagado), /robar/);
   assert.deepEqual(botones(pagado).map((b) => b.id), ["enviado"]);
   assert.match(textos(pagado), /Bs 450 \+ Bs 6,75 de protección/);
   assert.match(textos(pagado), /Tu cliente pagó Bs 456,75/);
@@ -85,18 +86,17 @@ test("mensajes cortos: ninguno pasa de 2 líneas (3 en el saludo) y ninguno usa 
   for (const re of PROHIBIDAS) assert.doesNotMatch(t, re);
 });
 
-test("los 4 pasos: título de 6 palabras o menos y línea de 10 o menos; la estafa es un momento del paso 3", () => {
+test("los 4 pasos: título de 6 palabras o menos y línea de 10 o menos; camino feliz sin estafador", () => {
   const palabras = (s) => s.replace(/^\d\.\s*/, "").split(/\s+/).filter(Boolean).length;
   const casos = [
-    [{ tienda: false, status: null, estafa: "no" }, 1, "vendedor"],
-    [{ tienda: true, status: null, estafa: "no" }, 2, "vendedor"],
-    [{ tienda: true, status: "esperando_pago", estafa: "no" }, 2, "vendedor"],
-    [{ tienda: true, status: "esperando_pago", estafa: "no", mandado: true }, 3, "comprador"],
-    [{ tienda: true, status: "pagado", estafa: "no" }, 3, "vendedor"],
-    [{ tienda: true, status: "pagado", estafa: "en-curso" }, 3, "comprador"],
-    [{ tienda: true, status: "pagado", estafa: "bloqueada" }, 3, "vendedor"],
-    [{ tienda: true, status: "enviado", estafa: "bloqueada" }, 4, "comprador"],
-    [{ tienda: true, status: "liberado", estafa: "bloqueada" }, 4, "vendedor"],
+    [{ tienda: false, status: null }, 1, "vendedor"],
+    [{ tienda: true, status: null }, 2, "vendedor"],
+    [{ tienda: true, status: "esperando_pago" }, 2, "vendedor"],
+    [{ tienda: true, status: "esperando_pago", mandado: true }, 3, "comprador"],
+    [{ tienda: true, status: "esperando_pago", mandado: true, sub: "qr" }, 3, "comprador"],
+    [{ tienda: true, status: "pagado" }, 3, "vendedor"],
+    [{ tienda: true, status: "enviado" }, 4, "comprador"],
+    [{ tienda: true, status: "liberado" }, 4, "vendedor"],
   ];
   for (const [p, n, quien] of casos) {
     const r = pasoDemo(p);
@@ -105,9 +105,10 @@ test("los 4 pasos: título de 6 palabras o menos y línea de 10 o menos; la esta
     assert.ok(palabras(r.titulo) <= 6, r.titulo);
     assert.ok(palabras(r.linea) <= 10, r.linea);
   }
-  assert.equal(pasoDemo({ tienda: true, status: "pagado", estafa: "en-curso" }).titulo, "Alguien intenta robar la plata");
-  assert.equal(pasoDemo({ tienda: true, status: "pagado", estafa: "bloqueada" }).linea, "Toca Ya lo envié");
-  assert.equal(pasoDemo({ tienda: false, status: null, estafa: "no", sub: "hoja-cuenta" }).linea, "Revisa el nombre y toca Listo");
-  assert.equal(pasoDemo({ tienda: true, status: "liberado", estafa: "bloqueada" }).terminado, true);
+  assert.equal(pasoDemo({ tienda: true, status: "pagado" }).titulo, "3. La Zapatería despacha");
+  assert.equal(pasoDemo({ tienda: true, status: "pagado" }).linea, "Toca Ya lo envié");
+  assert.equal(pasoDemo({ tienda: true, status: "esperando_pago", mandado: true, sub: "qr" }).linea, "Toca Escanear con mi banco");
+  assert.equal(pasoDemo({ tienda: false, status: null, sub: "hoja-cuenta" }).linea, "Revisa el nombre y toca Listo");
+  assert.equal(pasoDemo({ tienda: true, status: "liberado" }).terminado, true);
   assert.equal(cuentaAtras(T0 + 61_000, T0), "1:01");
 });

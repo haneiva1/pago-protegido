@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { IconoBillete, IconoBloqueado, IconoBolsa, IconoCerrar, IconoCheck, IconoChevronAbajo, IconoInfo, IconoReiniciar, IconoReloj, IconoTienda, IconoUsuario } from "@/components/iconos";
 import { Casos } from "@/components/probar/Casos";
 import { CheckTrazo } from "@/components/probar/CheckTrazo";
+import { Cruzado } from "@/components/probar/Cruzado";
 import { ComoFunciona3 } from "@/components/probar/ComoFunciona3";
 import { ConstruidoLinea } from "@/components/probar/Construido";
 import { Intro } from "@/components/probar/Intro";
@@ -102,7 +103,7 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
   const [mandado, setMandado] = useState(false);
   const [sub, setSub] = useState<string | null>(null);
   // El bloqueo se ve 2 s en el celular del comprador antes de pasar la escena a la tienda.
-  const [bloqueoVisto, setBloqueoVisto] = useState(false);
+  const [, setBloqueoVisto] = useState(false);
   // Precalentar: las dos cuentas de prueba (tienda y comprador) se crean y activan en segundo plano apenas carga la demo.
   const [precalentando, setPrecalentando] = useState<null | number>(null);
   const escenario = useRef<HTMLDivElement>(null);
@@ -186,30 +187,6 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
     };
   }, [listo, marco]);
 
-  useEffect(() => {
-    if (!listo) return;
-    let vivo = true;
-    const t0 = Date.now();
-    setPrecalentando(0);
-    const tic = setInterval(() => vivo && setPrecalentando(Math.round((Date.now() - t0) / 1000)), 1000);
-    (async () => {
-      try {
-        wallet.current ??= await import("@/lib/wallet");
-        const w = wallet.current;
-        await Promise.all([w.activateWallet(w.getWallet("vendedor")), w.activateWallet(w.getWallet("comprador"))]);
-      } catch {
-        // Si falla, cada chat activa la suya al momento de usarla (como antes).
-      } finally {
-        clearInterval(tic);
-        if (vivo) setPrecalentando(null);
-      }
-    })();
-    return () => {
-      vivo = false;
-      clearInterval(tic);
-    };
-  }, [listo, marco]);
-
   // Marca la página para el CSS del sitio (en /probar se esconde el "Crear mi link" del encabezado).
   useEffect(() => {
     document.documentElement.setAttribute("data-probar", "1");
@@ -234,7 +211,6 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
           for (const ms of [150, 450]) setTimeout(() => document.querySelector<HTMLElement>('[role="tablist"]')?.scrollIntoView({ block: "start" }), ms);
       }
       if (d.tipo === "actualiza") void cargar();
-      if (d.tipo === "estafa") void desviar(d.slug);
     };
     return () => c.close();
   }, [cargar]);
@@ -364,7 +340,7 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
   const ultimo = desvios[0];
   const hayTienda = Boolean(registro?.tienda);
   const hayPedido = Boolean(registro?.pedido);
-  const paso = pasoDemo({ tienda: hayTienda, status: hayPedido ? status : null, estafa: desviando || (desvios.length > 0 && !bloqueoVisto) ? "en-curso" : desvios.length ? "bloqueada" : "no", mandado, sub });
+  const paso = pasoDemo({ tienda: hayTienda, status: hayPedido ? status : null, mandado, sub });
   const turno = paso.quien;
   const resumen = status === "liberado" && registro?.pedido ? resumenRed(filas, registro.pedido.created_at) : null;
 
@@ -412,14 +388,14 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
         </ol>
         {listo && (
           <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 lg:px-2">
-            <h2 key={paso.titulo} data-testid="titulo-etapa" className="text-2xl leading-tight animate-[fundido_240ms_var(--ease-suave)_both]" data-paso={paso.n}>
-              {paso.titulo}
+            <h2 data-testid="titulo-etapa" className="text-2xl leading-tight" data-paso={paso.n}>
+              <Cruzado clave={paso.titulo}>{paso.titulo}</Cruzado>
             </h2>
-            <p key={paso.linea} data-testid="ahora" className="text-sm text-tinta-600 animate-[fundido_240ms_var(--ease-suave)_both] lg:text-base">
-              {paso.linea}
+            <p data-testid="ahora" className="text-sm text-tinta-600 lg:text-base">
+              <Cruzado clave={paso.linea}>{paso.linea}</Cruzado>
             </p>
             {precalentando !== null && (sub === "hoja-cuenta" || sub === "creando") && (
-              <span className="inline-flex items-center gap-1.5 text-sm text-tinta-500" data-testid="precalentando">
+              <span className="inline-flex items-center gap-1.5 text-sm text-tinta-500 animate-[paso_260ms_var(--ease-suave)_both]" data-testid="precalentando">
                 <Spinner className="h-3.5 w-3.5" />
                 Preparando tu cuenta… unos segundos
               </span>
@@ -473,29 +449,31 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
                     setTab(r);
                     if (aviso === r) setAviso(null);
                   }}
-                  className={`relative inline-flex items-center justify-center gap-2 rounded-chip px-3 py-2 text-sm font-semibold transition-colors duration-150 ${
+                  className={`relative inline-flex items-center justify-center gap-2 rounded-chip px-3 py-2 text-sm font-semibold transition-[color,background-color,box-shadow,transform] duration-250 ease-[var(--ease-suave)] active:scale-[0.97] ${
                     tab === r ? "bg-white text-monte shadow-card" : "text-tinta-600"
                   }`}
                 >
                   {r === "vendedor" ? <IconoTienda className="h-4 w-4" /> : <IconoBolsa className="h-4 w-4" />}
                   {r === "vendedor" ? "Zapatería" : "Comprador"}
-                  {aviso === r && tab !== r && <span aria-label="hay algo nuevo" className="absolute right-2 top-2 h-2 w-2 rounded-full bg-yungas ring-2 ring-tinta-200" />}
+                  {aviso === r && tab !== r && <span aria-label="hay algo nuevo" className="absolute right-2 top-2 h-2 w-2 rounded-full bg-yungas ring-2 ring-tinta-200 animate-[sello_240ms_var(--ease-suave)_both]" />}
                 </button>
               ))}
             {/* En celular, el paso actual bajo las pestañas: una sola línea compacta. */}
             <div className="order-2 space-y-2 lg:hidden" data-testid="paso-compacto">
-              <p key={`${paso.titulo}|${paso.corta}`} className="text-sm leading-tight animate-[fundido_240ms_var(--ease-suave)_both]">
-                <strong className="block text-monte">{paso.titulo}</strong>
-                <span className="block text-tinta-600">{paso.corta}</span>
+              <p className="text-sm leading-tight">
+                <Cruzado clave={`${paso.titulo}|${paso.corta}`}>
+                  <strong className="block text-monte">{paso.titulo}</strong>
+                  <span className="block text-tinta-600">{paso.corta}</span>
+                </Cruzado>
               </p>
             </div>
             </div>
 
-            <IPhone rol="vendedor" titulo="Chat de la Zapatería" turno={turno !== "comprador"} escala={escala} testId="marco-vendedor" className={`order-3 lg:order-none ${tab === "vendedor" ? "flex" : "hidden lg:flex"}`}>
+            <IPhone rol="vendedor" titulo="Chat de la Zapatería" turno={turno !== "comprador"} escala={escala} testId="marco-vendedor" className={`order-3 lg:order-none max-lg:animate-[paso_280ms_var(--ease-suave)_both] ${tab === "vendedor" ? "flex" : "hidden lg:flex"}`}>
               <iframe key={`v${marco}`} name="vendedor" title="Chat de la Zapatería (simulación)" src="/probar/chat/vendedor" className="h-full w-full border-0 bg-sal" />
             </IPhone>
 
-            <IPhone rol="comprador" titulo="Chat del comprador" turno={turno !== "vendedor"} escala={escala} testId="marco-comprador" className={`order-3 lg:order-none ${tab === "comprador" ? "flex" : "hidden lg:flex"}`}>
+            <IPhone rol="comprador" titulo="Chat del comprador" turno={turno !== "vendedor"} escala={escala} testId="marco-comprador" className={`order-3 lg:order-none max-lg:animate-[paso_280ms_var(--ease-suave)_both] ${tab === "comprador" ? "flex" : "hidden lg:flex"}`}>
               <iframe key={`c${marco}`} name="comprador" title="Chat del comprador (simulación)" src="/probar/chat/comprador" className="h-full w-full border-0 bg-sal" />
             </IPhone>
           </div>
@@ -504,7 +482,7 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
           <p
             key={HECHO[status ?? (hayTienda ? "tienda" : "")] ?? ""}
             data-testid="recien"
-            className="flex items-center justify-center gap-2 text-center text-2xl animate-[fundido_240ms_var(--ease-suave)_both] lg:col-span-2 lg:text-3xl"
+            className="flex items-center justify-center gap-2 text-center text-2xl animate-[paso_280ms_var(--ease-suave)_both] lg:col-span-2 lg:text-3xl"
           >
             {status === "liberado" && <CheckTrazo circulo className="h-7 w-7 shrink-0 text-musgo lg:h-8 lg:w-8" />}
             {HECHO[status ?? (hayTienda ? "tienda" : "")] ?? ""}
