@@ -64,7 +64,7 @@ export default function Home() {
                 <div>
                   <p className="text-sm text-tinta-600">Celular Samsung Galaxy A35</p>
                   <p className="mt-1 font-display text-3xl leading-none tracking-tight text-monte num">Bs 2.500</p>
-                  <p className="mt-2 text-xs text-tinta-500">Tienda Sofi · Santa Cruz · 128 ventas protegidas, 2 reclamos</p>
+                  <p className="mt-2 text-xs text-tinta-500">Zapatería · Santa Cruz · 128 ventas protegidas, 2 reclamos</p>
                 </div>
                 <div className="panel-suave flex items-start gap-2.5 !p-3 text-xs">
                   <IconoCandado className="mt-px h-4 w-4 shrink-0 text-musgo" />

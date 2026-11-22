@@ -159,6 +159,9 @@ const fotoDe = (page: Page, y: number) => page.screenshot({ clip: { x: 0, y, wid
 async function llenarEnvio(card: Locator, e: { empresa: string; guia?: string; peso: string; ciudad?: string; fotos?: [Buffer, Buffer]; imei?: string }) {
   await card.getByLabel("Empresa de envío").selectOption(e.empresa);
   if (e.guia) await card.getByLabel("Número de guía").fill(e.guia);
+  // El peso, el destino y las fotos van plegados en "Más datos".
+  const mas = card.getByTestId("mas-datos-envio");
+  if (!(await mas.evaluate((el) => (el as HTMLDetailsElement).open))) await mas.locator("summary").click();
   await card.getByLabel("Peso declarado (kg)").fill(e.peso);
   if (e.ciudad) await card.getByLabel("Ciudad de destino").selectOption(e.ciudad);
   if (e.fotos) {

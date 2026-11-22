@@ -1,20 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconoBolsa, IconoCerrar, IconoChevronAbajo, IconoDocumento, IconoInfo, IconoReiniciar, IconoReloj, IconoTienda } from "@/components/iconos";
+import { IconoBillete, IconoBloqueado, IconoBolsa, IconoCerrar, IconoCheck, IconoChevronAbajo, IconoInfo, IconoReiniciar, IconoReloj, IconoTienda, IconoUsuario } from "@/components/iconos";
 import { Construido } from "@/components/probar/Construido";
 import { Desvio } from "@/components/probar/Desvio";
 import { IPHONE_ALTO, IPHONE_ANCHO, IPHONE_ETIQUETA, IPhone } from "@/components/probar/IPhone";
-import { PlataEntreLosDos } from "@/components/probar/PlataEntreLosDos";
 import { RegistroEnVivo } from "@/components/probar/RegistroEnVivo";
 import type { Desvio as DesvioT, Plazos, Registro } from "@/components/probar/tipos";
 import { Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
 import { canal } from "@/components/chat/pedido";
-import { PROBAR_SESION, etapaActual, etapas, filasRegistro, probarStorageKey, resumenRed, siguientePaso, tituloEtapa, turnoDe, type RolProbar } from "@/lib/probar";
+import { PASOS_DEMO, pasoDemo } from "@/lib/chat";
+import { PROBAR_SESION, filasRegistro, hayPlataGuardada, probarStorageKey, resumenRed, type RolProbar } from "@/lib/probar";
 
 const POLL_MS = 3000;
 const minutos = (s: number) => `${Math.round(s / 60)} ${Math.round(s / 60) === 1 ? "minuto" : "minutos"}`;
+const ICONOS = [IconoUsuario, IconoTienda, IconoBillete, IconoCheck];
 
 function leerSesion(): boolean {
   try {
@@ -30,21 +31,20 @@ function guardarSesion() {
   } catch {}
 }
 
-/**
- * Escala del iPhone para que entre en el espacio que queda debajo de la guía. En escritorio manda el alto (nunca menos de
- * 0,7: el chat adentro tiene que seguir legible); en celular manda el ancho, salvo que el alto alcance para verlo entero.
- */
+/** Escala del iPhone según la altura que queda bajo la cabecera: en escritorio entran completos (bisel e indicador de inicio incluidos). */
 function escalaPara(escenario: HTMLElement): number {
   const lg = window.matchMedia("(min-width: 1024px)").matches;
   const top = escenario.getBoundingClientRect().top + window.scrollY;
   const porAlto = (window.innerHeight - top - 16 - IPHONE_ETIQUETA) / IPHONE_ALTO;
-  const e = lg ? Math.min(1, Math.max(0.7, porAlto)) : Math.min((escenario.clientWidth - 8) / IPHONE_ANCHO, porAlto >= 0.72 ? porAlto : 1);
+  // En escritorio manda el alto, sin piso: los dos iPhone tienen que entrar completos sin desplazar la página.
+  const e = lg ? Math.min(1, Math.max(0.45, porAlto)) : Math.min((escenario.clientWidth - 8) / IPHONE_ANCHO, porAlto >= 0.72 ? porAlto : 1);
   return Math.round(Math.min(1, e) * 1000) / 1000;
 }
 
 /**
- * /probar: la tienda y el comprador en dos iPhone con un chat como el de WhatsApp (paleta de Trato), la plata esperando
- * entre los dos, un estafador que lo intenta y no puede, y el registro en vivo en un cajón aparte ("Ver en la red").
+ * /probar: cuatro pasos (se registra · vende · le pagan · cobra), un título de pocas palabras, dos iPhone con un chat
+ * y un solo botón que resalta por paso. Todo lo demás (registro en la red, plazos, por qué simulado, lo construido) va en
+ * el cajón "Ver detalles".
  */
 export default function Probar({ plazos }: { plazos: Plazos }) {
   const [listo, setListo] = useState(false);
@@ -58,9 +58,10 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
   const [desvioError, setDesvioError] = useState<string | null>(null);
   const [reiniciando, setReiniciando] = useState(false);
   const [cajon, setCajon] = useState(false);
-  // Reloj de un segundo para las cuentas regresivas (plazo de despacho y espera para pagar al vendedor).
-  const [ahora, setAhora] = useState(() => Date.now());
   const [escala, setEscala] = useState(0.72);
+  const [altoMovil, setAltoMovil] = useState(640);
+  const [mandado, setMandado] = useState(false);
+  const [sub, setSub] = useState<string | null>(null);
   const escenario = useRef<HTMLDivElement>(null);
   const wallet = useRef<typeof import("@/lib/wallet") | null>(null);
   const status = registro?.pedido?.status ?? null;
@@ -107,20 +108,44 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
     return () => clearInterval(t);
   }, [listo, cargar, marco]);
 
-  // Solo hace falta el reloj mientras hay una espera que contar: pagando, plazo de despacho o espera para cobrar.
-  const contando = status === "pagado" || status === "enviado" || status === "esperando_pago";
+  // Marca la página para el CSS del sitio (en /probar se esconde el "Crear mi link" del encabezado).
   useEffect(() => {
-    if (!contando) return;
-    setAhora(Date.now());
-    const t = setInterval(() => setAhora(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, [contando]);
+    document.documentElement.setAttribute("data-probar", "1");
+    return () => document.documentElement.removeAttribute("data-probar");
+  }, []);
 
-  // Los iPhone se escalan para entrar en lo que queda de pantalla; se vuelve a medir si cambia el viewport o lo de arriba.
+  // Lo que cuentan los chats por el canal: el link ya llegó al comprador, el sub-estado del alta y el resultado de la estafa.
+  useEffect(() => {
+    const c = canal();
+    if (!c) return;
+    c.onmessage = (ev: MessageEvent) => {
+      const d = ev.data ?? {};
+      if (d.tipo === "link-reenviado") {
+        setMandado(true);
+        setTab("comprador");
+        setAviso("comprador");
+      }
+      if (d.tipo === "sub") setSub(typeof d.valor === "string" ? d.valor : null);
+    };
+    return () => c.close();
+  }, []);
+
+  // Si la pestaña se recarga, el "mandado" queda guardado por pedido.
+  useEffect(() => {
+    const slug = registro?.pedido?.slug;
+    if (!slug) return setMandado(false);
+    try {
+      if (window.sessionStorage.getItem(`pp.chat.reenviado.${slug}`) === "1") setMandado(true);
+    } catch {}
+  }, [registro?.pedido?.slug]);
+
+  // Los iPhone se escalan para entrar en lo que queda de pantalla; en celular, el chat ocupa lo que queda bajo el encabezado del sitio.
   useEffect(() => {
     if (!listo) return;
     const medir = () => {
       if (escenario.current) setEscala(escalaPara(escenario.current));
+      // Encabezado fijo del sitio (56) + pestañas (52) + aire: el chat ocupa exactamente lo que queda.
+      setAltoMovil(Math.max(420, window.innerHeight - 120));
     };
     medir();
     window.addEventListener("resize", medir);
@@ -132,28 +157,22 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
     };
   }, [listo]);
 
-  // En el celular (pestañas), cada paso lleva al chat de quien tiene que actuar.
+  // En el celular (pestañas), cada paso lleva al chat de quien tiene que actuar, y el teléfono se trae al tope de la pantalla.
   useEffect(() => {
     if (status === prevStatus.current) return;
     const antes = prevStatus.current;
     prevStatus.current = status;
     if (antes === null && status === null) return;
-    const turno: RolProbar | null = status === "esperando_pago" || status === "enviado" ? "comprador" : status === "pagado" ? "vendedor" : null;
+    const turno: RolProbar | null = status === "enviado" ? "comprador" : status === "pagado" ? "vendedor" : null;
     if (turno) {
       setTab(turno);
       setAviso(turno);
     }
   }, [status]);
-
-  // En celular, al cambiar de pestaña el teléfono que toca se trae entero a la vista.
-  const claveScroll = `${tab}:${status ?? ""}`;
-  const scrollAnterior = useRef(claveScroll);
   useEffect(() => {
-    if (scrollAnterior.current === claveScroll) return;
-    scrollAnterior.current = claveScroll;
     if (window.matchMedia("(min-width: 1024px)").matches) return;
-    document.querySelector<HTMLElement>(`[data-testid="marco-${tab}"]`)?.scrollIntoView({ block: "end", behavior: "smooth" });
-  }, [claveScroll, tab]);
+    document.querySelector<HTMLElement>('[role="tablist"]')?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [tab, status]);
 
   async function empezarDeNuevo() {
     setReiniciando(true);
@@ -184,18 +203,24 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
     setReiniciando(false);
   }
 
-  /** "Un estafador lo intenta": la simulación real contra el contrato; el chat del comprador la cuenta como un mensaje del estafador. */
+  /** "Alguien intenta robar la plata": la simulación real contra el contrato; el chat del comprador la cuenta como un mensaje del estafador. */
   async function desviar() {
     const slug = registro?.pedido?.slug;
     if (!slug) return;
     const at = Date.now();
     setDesviando(true);
     setDesvioError(null);
+    setTab("comprador");
     canal()?.postMessage({ tipo: "estafa-en-curso", slug, at });
     try {
       const r = await api<Omit<DesvioT, "at">>("/api/probar/desvio", { slug });
       setDesvios((d) => [{ ...r, at }, ...d]);
+      try {
+        window.sessionStorage.setItem(`pp.chat.estafa.${slug}`, "1");
+      } catch {}
       canal()?.postMessage({ tipo: "estafa-resultado", slug, at, ...r });
+      setTab("vendedor");
+      setAviso("vendedor");
     } catch (e) {
       setDesvioError((e as Error).message);
       canal()?.postMessage({ tipo: "estafa-resultado", slug, at, rejected: false, detail: (e as Error).message });
@@ -208,32 +233,58 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
   const ultimo = desvios[0];
   const hayTienda = Boolean(registro?.tienda);
   const hayPedido = Boolean(registro?.pedido);
-  const estados = etapas({ pedido: hayPedido, status, desvios: desvios.length, envio: filas.some((f) => f.paso === "envio") });
-  const { numero, terminada } = etapaActual(estados);
-  const turno = turnoDe({ tienda: hayTienda, status: hayPedido ? status : null });
+  const paso = pasoDemo({ tienda: hayTienda, status: hayPedido ? status : null, estafa: desviando ? "en-curso" : desvios.length ? "bloqueada" : "no", mandado, sub });
+  const turno = paso.quien;
   const resumen = status === "liberado" && registro?.pedido ? resumenRed(filas, registro.pedido.created_at) : null;
+  const mostrarEstafa = hayPlataGuardada(status) && status === "pagado" && desvios.length === 0;
 
   return (
-    <div data-probar-ancho className="space-y-4" data-testid="probar">
+    <div data-probar-ancho className="space-y-3" data-testid="probar">
       <h1 className="sr-only">Prueba Trato de punta a punta</h1>
-      {/* Una sola línea: el título enorme del paso (y a quién le toca), con los dos controles a la derecha. */}
-      <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-          <h2 data-testid="titulo-etapa" className="text-3xl lg:text-4xl" data-paso={numero} data-terminada={terminada ? "si" : "no"}>
-            {listo ? tituloEtapa({ pedido: hayPedido, status, desvios: desvios.length }) : "Prueba Trato de punta a punta"}
-          </h2>
-          {listo && turno && (
-            <span className="chip-oscuro" data-testid="turno">
-              {turno === "vendedor" ? <IconoTienda className="h-3.5 w-3.5" /> : <IconoBolsa className="h-3.5 w-3.5" />}
-              {turno === "vendedor" ? "Toca en el chat de la tienda" : "Toca en el chat del comprador"}
-            </span>
-          )}
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <button className="btn-secondary btn-sm" onClick={() => setCajon(true)} data-testid="ver-en-la-red" aria-expanded={cajon}>
-            <IconoDocumento className="h-4 w-4" />
-            <span className="hidden sm:inline">Ver en la red</span>
-            <span className="sm:hidden">Red</span>
+
+      {/* Arriba: los 4 pasos con ícono, el actual resaltado; a la derecha, "Ver detalles" y "Empezar de nuevo". */}
+      {/* Una sola franja: los 4 pasos, el título del paso (≤ 6 palabras) con su línea (≤ 10) y los dos controles. */}
+      <header className="grid grid-cols-1 items-center gap-x-6 gap-y-2 lg:grid-cols-[auto_minmax(0,1fr)_auto]">
+        <ol aria-label={`Paso ${paso.n} de 4`} className="flex items-center gap-1 sm:gap-2" data-testid="pasos">
+          {PASOS_DEMO.map((p, i) => {
+            const Icono = ICONOS[i];
+            const estado = p.n < paso.n || (p.n === paso.n && paso.terminado) ? "hecho" : p.n === paso.n ? "ahora" : "pendiente";
+            return (
+              <li key={p.n} data-paso={p.n} data-estado={estado} className="flex items-center gap-1 sm:gap-2">
+                <span
+                  className={`inline-flex h-9 items-center gap-1.5 rounded-full px-2.5 text-sm font-semibold transition-colors duration-300 sm:px-3 ${
+                    estado === "ahora" ? "bg-monte text-sal" : estado === "hecho" ? "bg-exito-100 text-musgo" : "bg-tinta-100 text-tinta-500"
+                  }`}
+                >
+                  {estado === "hecho" ? <IconoCheck className="h-4 w-4" /> : <Icono className="h-4 w-4" />}
+                  <span className="num">{p.n}</span>
+                  <span className={estado === "ahora" ? "inline" : "hidden sm:inline"}>{p.nombre}</span>
+                </span>
+                {i < PASOS_DEMO.length - 1 && <span aria-hidden className="h-px w-2 bg-tinta-300 sm:w-4" />}
+              </li>
+            );
+          })}
+        </ol>
+        {listo && (
+          <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 lg:px-2">
+            <h2 data-testid="titulo-etapa" className="text-2xl leading-tight lg:text-3xl" data-paso={paso.n}>
+              {paso.titulo}
+            </h2>
+            <p data-testid="ahora" className="text-sm text-tinta-600 lg:text-base">
+              {paso.linea}
+            </p>
+            {mostrarEstafa && (
+              <button className="btn-danger btn-sm" onClick={desviar} disabled={desviando} data-testid="desviar">
+                {desviando ? <Spinner className="h-4 w-4" /> : <IconoBloqueado className="h-4 w-4" />}
+                Alguien intenta robar la plata
+              </button>
+            )}
+          </div>
+        )}
+        <div className="flex shrink-0 items-center gap-2 lg:col-start-3">
+          <button className="btn-secondary btn-sm" onClick={() => setCajon(true)} data-testid="ver-detalles" aria-expanded={cajon}>
+            <IconoInfo className="h-4 w-4" />
+            Ver detalles
           </button>
           <button className="btn-secondary btn-sm" onClick={empezarDeNuevo} disabled={reiniciando} data-testid="empezar-de-nuevo">
             {reiniciando ? <Spinner className="h-4 w-4" /> : <IconoReiniciar className="h-4 w-4" />}
@@ -251,13 +302,9 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
 
       {listo && (
         <>
-          <p data-testid="ahora" className="prosa text-base leading-snug text-tinta-700">
-            {siguientePaso({ tienda: hayTienda, status: hayPedido ? status : null })}
-          </p>
-
-          {/* El escenario: los dos iPhone con la plata en el medio. En celular, uno a la vez, en pestañas. */}
-          <div ref={escenario} className="flex flex-col gap-3 lg:grid lg:grid-cols-[auto_minmax(10rem,13rem)_auto] lg:items-start lg:justify-center lg:gap-8">
-            <div role="tablist" aria-label="Celulares" className="order-2 grid grid-cols-2 gap-1 rounded-control bg-tinta-200/60 p-1 lg:hidden">
+          {/* El escenario: los dos iPhone; el que no toca, atenuado. En celular, uno a la vez, en pestañas. */}
+          <div ref={escenario} className="flex flex-col gap-3 lg:grid lg:grid-cols-[auto_auto] lg:items-start lg:justify-center lg:gap-16" style={{ "--alto-movil": `${altoMovil}px` } as React.CSSProperties}>
+            <div role="tablist" aria-label="Celulares" className="order-2 grid scroll-mt-16 grid-cols-2 gap-1 rounded-control bg-tinta-200/60 p-1 lg:hidden">
               {(["vendedor", "comprador"] as const).map((r) => (
                 <button
                   key={r}
@@ -273,55 +320,24 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
                   }`}
                 >
                   {r === "vendedor" ? <IconoTienda className="h-4 w-4" /> : <IconoBolsa className="h-4 w-4" />}
-                  {r === "vendedor" ? "Chat de la tienda" : "Chat del comprador"}
-                  {turno === r && <span className="sr-only">(te toca)</span>}
+                  {r === "vendedor" ? "Zapatería" : "Comprador"}
                   {aviso === r && tab !== r && <span aria-label="hay algo nuevo" className="absolute right-2 top-2 h-2 w-2 rounded-full bg-yungas ring-2 ring-tinta-200" />}
                 </button>
               ))}
             </div>
 
-            <IPhone
-              rol="vendedor"
-              titulo="Simulación del chat de WhatsApp de la tienda"
-              turno={turno === "vendedor"}
-              escala={escala}
-              testId="marco-vendedor"
-              className={`order-3 lg:order-none ${tab === "vendedor" ? "flex" : "hidden lg:flex"}`}
-            >
-              <iframe key={`v${marco}`} name="vendedor" title="Chat de WhatsApp de la tienda (simulación)" src="/probar/chat/vendedor" className="h-full w-full border-0 bg-sal" />
+            <IPhone rol="vendedor" titulo="Chat de la Zapatería" turno={turno !== "comprador"} escala={escala} testId="marco-vendedor" className={`order-3 lg:order-none ${tab === "vendedor" ? "flex" : "hidden lg:flex"}`}>
+              <iframe key={`v${marco}`} name="vendedor" title="Chat de la Zapatería (simulación)" src="/probar/chat/vendedor" className="h-full w-full border-0 bg-sal" />
             </IPhone>
 
-            <PlataEntreLosDos pedido={registro?.pedido ?? null} tienda={registro?.tienda?.nombre ?? null} filas={filas} plazos={plazos} ahora={ahora} className="order-1 lg:order-none lg:self-start lg:pt-20" />
-
-            <IPhone
-              rol="comprador"
-              titulo="Simulación del chat de WhatsApp del comprador"
-              turno={turno === "comprador"}
-              escala={escala}
-              testId="marco-comprador"
-              className={`order-3 lg:order-none ${tab === "comprador" ? "flex" : "hidden lg:flex"}`}
-            >
-              <iframe key={`c${marco}`} name="comprador" title="Chat de WhatsApp del comprador (simulación)" src="/probar/chat/comprador" className="h-full w-full border-0 bg-sal" />
+            <IPhone rol="comprador" titulo="Chat del comprador" turno={turno !== "vendedor"} escala={escala} testId="marco-comprador" className={`order-3 lg:order-none ${tab === "comprador" ? "flex" : "hidden lg:flex"}`}>
+              <iframe key={`c${marco}`} name="comprador" title="Chat del comprador (simulación)" src="/probar/chat/comprador" className="h-full w-full border-0 bg-sal" />
             </IPhone>
           </div>
-
-          <p className="mx-auto flex max-w-3xl items-start gap-2 text-sm leading-snug text-tinta-600" data-testid="por-que-simulado">
-            <IconoInfo className="mt-0.5 h-4 w-4 shrink-0 text-tinta-500" />
-            <span>
-              <span data-testid="dentro-de-whatsapp" className="font-medium text-tinta-700">Trato funciona dentro de WhatsApp: no hay que bajar ninguna app.</span> ¿Por qué simulado? Meta solo deja que un número de prueba le responda a 5 teléfonos hasta verificar la empresa. El bot real ya está hecho
-              (carpeta bot/, 191 tests, API oficial de WhatsApp) y lo mostramos en vivo en la final.
-            </span>
-          </p>
-
-          <div className="mx-auto max-w-2xl">
-            <Desvio status={status} desviando={desviando} error={desvioError} ultimo={ultimo} onDesviar={desviar} />
-          </div>
-
-          {status === "liberado" && <Construido resumen={resumen} />}
         </>
       )}
 
-      {/* Cajón "Ver en la red": el registro en vivo con cada transacción y los plazos de esta demo. Siempre en el DOM, para los tests. */}
+      {/* Cajón "Ver detalles": el registro en la red, el estafador, los plazos, por qué simulado y lo construido. Siempre en el DOM, para los tests. */}
       <div
         aria-hidden={!cajon}
         className={`fixed inset-0 z-40 bg-monte/40 transition-opacity duration-300 ${cajon ? "opacity-100" : "pointer-events-none opacity-0"}`}
@@ -330,22 +346,28 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
       <aside
         data-testid="cajon-red"
         data-abierto={cajon ? "si" : "no"}
-        aria-label="Ver en la red"
-        className={`fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col bg-monte text-sal shadow-alzada transition-transform duration-300 ${cajon ? "translate-x-0" : "translate-x-full"}`}
+        aria-label="Ver detalles"
+        className={`fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col bg-sal text-monte shadow-alzada transition-transform duration-300 ${cajon ? "translate-x-0" : "translate-x-full"}`}
       >
         <div className="flex items-center justify-between gap-3 px-5 py-4">
-          <p className="text-base font-semibold">Ver en la red</p>
-          <button type="button" className="flex h-9 w-9 items-center justify-center rounded-full text-sal/80 hover:bg-sal/10" onClick={() => setCajon(false)} aria-label="Cerrar" data-testid="cerrar-cajon">
+          <div>
+            <p className="text-base font-semibold">Ver detalles</p>
+            <p className="text-sm text-tinta-600" data-testid="dentro-de-whatsapp">
+              Trato funciona dentro de WhatsApp: no hay que bajar ninguna app.
+            </p>
+          </div>
+          <button type="button" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-tinta-600 hover:bg-tinta-100" onClick={() => setCajon(false)} aria-label="Cerrar" data-testid="cerrar-cajon">
             <IconoCerrar className="h-5 w-5" />
           </button>
         </div>
-        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 pb-8">
+        <div className="min-h-0 flex-1 space-y-8 overflow-y-auto px-5 pb-10">
           <RegistroEnVivo registro={registro} filas={filas} desvios={desvios} />
-          <details data-testid="plazos" className="group text-sm text-sal/80">
-            <summary className="flex cursor-pointer list-none items-center gap-2 font-medium text-sal [&::-webkit-details-marker]:hidden">
-              <IconoReloj className="h-4 w-4 shrink-0 text-sal/70" />
+          <Desvio status={status} desviando={desviando} error={desvioError} ultimo={ultimo} onDesviar={desviar} soloResultado />
+          <details data-testid="plazos" className="group text-sm text-tinta-600">
+            <summary className="flex cursor-pointer list-none items-center gap-2 font-medium text-tinta-700 [&::-webkit-details-marker]:hidden">
+              <IconoReloj className="h-4 w-4 shrink-0 text-tinta-500" />
               Plazos de esta demo
-              <IconoChevronAbajo className="ml-auto h-4 w-4 shrink-0 text-sal/70 transition-transform duration-150 group-open:rotate-180" />
+              <IconoChevronAbajo className="ml-auto h-4 w-4 shrink-0 text-tinta-500 transition-transform duration-150 group-open:rotate-180" />
             </summary>
             <ul className="mt-3 list-disc space-y-1.5 pl-5 leading-relaxed">
               <li>
@@ -359,6 +381,14 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
               <li>Si el comprador no hace nada, {minutos(plazos.despachoSegundos)} después del envío cualquiera puede liberar el pago al vendedor.</li>
             </ul>
           </details>
+          <p className="flex items-start gap-2 text-sm leading-snug text-tinta-600" data-testid="por-que-simulado">
+            <IconoInfo className="mt-0.5 h-4 w-4 shrink-0 text-tinta-500" />
+            <span>
+              ¿Por qué simulado? Meta solo deja que un número de prueba le responda a 5 teléfonos hasta verificar la empresa. El bot real ya está hecho
+              (carpeta bot/, 191 tests, API oficial de WhatsApp) y lo mostramos en vivo en la final.
+            </span>
+          </p>
+          <Construido resumen={resumen} />
         </div>
       </aside>
     </div>

@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
-import { Funnel_Display, Funnel_Sans } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import { TratoLogo } from "@/components/TratoLogo";
 import { WalletRuntime } from "@/components/WalletRuntime";
 import { SCRIPT_MARCO } from "@/lib/probar";
@@ -25,8 +25,8 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const funnelDisplay = Funnel_Display({ subsets: ["latin"], weight: "800", variable: "--font-funnel-display", display: "swap" });
-const funnelSans = Funnel_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-funnel-sans", display: "swap" });
+const geist = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swap" });
+const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono", display: "swap" });
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#0A2A1B" };
 
@@ -40,7 +40,7 @@ const PIE = [
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     // data-marco lo pone SCRIPT_MARCO en el navegador (dentro de /probar): por eso el aviso de hidratación se ignora.
-    <html lang="es" suppressHydrationWarning className={`${funnelDisplay.variable} ${funnelSans.variable}`}>
+    <html lang="es" suppressHydrationWarning className={`${geist.variable} ${geistMono.variable}`}>
       <body className="flex min-h-screen flex-col">
         {/* Modo embebido de /probar: corre antes de pintar, así el encabezado nunca aparece dentro del marco. */}
         <script dangerouslySetInnerHTML={{ __html: SCRIPT_MARCO }} />

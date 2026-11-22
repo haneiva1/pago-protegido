@@ -99,7 +99,7 @@ export default function Vender() {
               <label className="label" htmlFor="store">
                 Nombre de la tienda
               </label>
-              <input id="store" className="input" autoFocus value={store} onChange={(e) => setStore(e.target.value)} placeholder="Tienda Sofi" maxLength={60} />
+              <input id="store" className="input" autoFocus value={store} onChange={(e) => setStore(e.target.value)} placeholder="Zapatería" maxLength={60} />
             </div>
             <div>
               <label className="label" htmlFor="city">
@@ -159,8 +159,7 @@ export default function Vender() {
             </ul>
             {busy && (
               <EsperaEnCurso
-                titulo="Creando tu cuenta de cobro"
-                nota="Suele tardar unos 10 segundos: se crea y se activa tu cuenta en la red de prueba, y después se guarda tu tienda."
+                titulo="Creando tu cuenta de cobro… unos 10 segundos"
                 steps={pasos}
                 testId="espera-cuenta"
               />

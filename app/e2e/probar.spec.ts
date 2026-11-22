@@ -89,13 +89,15 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
 
   await page.goto("/probar");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Prueba Trato de punta a punta");
-  await expect(page.getByTestId("dentro-de-whatsapp")).toContainText("Trato funciona dentro de WhatsApp");
-  await expect(page.getByTestId("titulo-etapa")).toHaveText("1. La tienda vende por WhatsApp");
-  await expect(page.getByTestId("desviar")).toBeDisabled();
+  await expect(page.getByTestId("titulo-etapa")).toHaveText("1. La Zapatería se registra");
+  await expect(page.getByTestId("ahora")).toHaveText("Escribe Hola y toca Crear mi cuenta");
+  // El botón del estafador aparece recién con la plata en el contrato.
+  await expect(page.getByTestId("desviar")).toHaveCount(0);
   await expect(page.getByTestId("dos-salidas")).toHaveText("Dos salidas, nunca una tercera.");
   // El registro y los plazos viven en el cajón "Ver en la red".
-  await page.getByTestId("ver-en-la-red").click();
+  await page.getByTestId("ver-detalles").click();
   await expect(page.getByTestId("cajon-red")).toHaveAttribute("data-abierto", "si");
+  await expect(page.getByTestId("dentro-de-whatsapp")).toContainText("Trato funciona dentro de WhatsApp");
   await expect(page.getByTestId("plazos")).toContainText("2 minutos para registrar el envío");
   await expect(page.getByTestId("registro")).toContainText("Todavía no hay movimientos");
   await page.getByTestId("cerrar-cajon").click();
@@ -110,13 +112,16 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   await expect(comprador.getByTestId("esperando-link")).toContainText("Todavía no te llegó ningún link");
   await capturar(page, "80-probar-inicio");
 
-  // 1. La tienda vende por WhatsApp: el alta con respuestas sugeridas (cuenta de prueba nueva, activada por el servidor) y el link.
-  await clic(toca(vendedor, "nombre"));
-  await clic(toca(vendedor, "ciudad"));
-  await clic(toca(vendedor, "whatsapp"));
+  // 1. La Zapatería se registra: "Hola" → "Crear mi cuenta" → hoja con nombre y ciudad prellenados → "Listo" (cuenta de prueba nueva,
+  // activada por el servidor). 2. Vende: "Vender…" crea el link real; "Mandar al cliente" lo hace llegar al otro chat.
+  await clic(toca(vendedor, "hola"));
+  await clic(toca(vendedor, "crear-cuenta"));
+  await expect(vendedor.getByTestId("form-cuenta").getByLabel("Nombre de la tienda")).toHaveValue("Zapatería");
+  await clic(vendedor.getByTestId("listo"));
   await expect(toca(vendedor, "vender")).toBeVisible(CHAIN);
   await clic(toca(vendedor, "vender"));
-  await expect(toca(vendedor, "reenviar")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("titulo-etapa")).toHaveText("2. La Zapatería vende");
+  await expect(toca(vendedor, "mandar")).toBeVisible({ timeout: 60_000 });
   const url = (await vendedor.getByTestId("chat-tarjeta").first().getAttribute("href"))!;
   const slug = url.split("/p/")[1];
   expect(slug).toMatch(/^[a-z0-9-]+$/);
@@ -131,12 +136,12 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   await expect(link).toContainText(/Link PP-[2-9A-HJKMNP-Z]{8} creado: todavía no se movió plata/);
   await expect(link.locator(TX_LINK)).toHaveCount(1);
 
-  // El link llega al chat del comprador cuando la tienda lo reenvía.
-  await clic(toca(vendedor, "reenviar"));
+  // El link llega al chat del comprador cuando la tienda lo manda.
+  await clic(toca(vendedor, "mandar"));
   await expect(toca(comprador, "pagar")).toBeVisible({ timeout: 30_000 });
   await expect(comprador.getByTestId("chat-tarjeta").first()).toHaveAttribute("href", url);
-  await expect(page.getByTestId("ahora")).toContainText("El link llegó al celular del comprador");
-  await expect(page.getByTestId("titulo-etapa")).toContainText("2. El comprador paga desde el link que le llegó por WhatsApp");
+  await expect(page.getByTestId("titulo-etapa")).toHaveText("3. El comprador paga");
+  await expect(page.getByTestId("ahora")).toHaveText("Abre el link y paga con un toque");
   await capturar(page, "81-probar-link-en-el-comprador");
 
   // 2. Pagar: "Abrir y pagar" abre la página de pago real dentro del celular: datos de entrega, QR y pago simulado del banco
@@ -162,7 +167,8 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   // El chat vuelve solo y cuenta que la plata quedó guardada; la tienda recibe el aviso con "Ya lo envié".
   await expect(comprador.getByTestId("chat-pagado")).toBeVisible({ timeout: 30_000 });
   await expect(comprador.getByTestId("chat-overlay")).toBeHidden({ timeout: 15_000 });
-  await expect(toca(vendedor, "enviado")).toBeVisible({ timeout: 30_000 });
+  // Un solo botón por momento: la tienda no puede despachar hasta que el estafador quede bloqueado.
+  await expect(toca(vendedor, "enviado")).toHaveCount(0);
 
   const pagoReg = page.getByTestId("paso-registro-pago");
   await expect(pagoReg).toHaveAttribute("data-hecho", "si", { timeout: 30_000 });
@@ -171,7 +177,7 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   await expect(pagoReg).toContainText("El comprador guardó el pago en el contrato");
   expect(await pagoReg.locator(TX_LINK).count()).toBeGreaterThanOrEqual(3);
   await expect(page.getByTestId("registro-contrato")).toHaveAttribute("href", /stellar\.expert\/explorer\/testnet\/contract\/C[A-Z2-7]{55}$/);
-  await expect(page.getByTestId("titulo-etapa")).toHaveText("3. La plata espera entre los dos");
+  await expect(page.getByTestId("titulo-etapa")).toHaveText("3. La plata quedó guardada");
 
   // 3. Un estafador lo intenta: simulación real contra el contrato, rechazada con el error del contrato, en rojo de marca,
   // y contada en el chat del comprador como un mensaje de un número desconocido que Trato bloquea.
@@ -184,10 +190,13 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   await expect(page.getByTestId("desvio-resultado")).toContainText("Rechazado por el contrato");
   await expect(page.getByTestId("desvio-resultado")).toContainText("no se envió nada");
   await expect(page.getByTestId("registro-desvio")).toContainText("Intento de desvío rechazado: Error(Contract, #12)");
-  await expect(comprador.getByTestId("chat-estafa")).toContainText("soy del banco");
-  await expect(comprador.getByTestId("chat-bloqueo")).toContainText("Bloqueado", { timeout: 30_000 });
-  await expect(comprador.getByTestId("chat-bloqueo")).toContainText("Error(Contract, #12)");
-  await expect(page.getByTestId("titulo-etapa")).toHaveText("4. Un estafador lo intentó y no pudo");
+  await expect(comprador.getByTestId("chat-estafa")).toContainText("Soy del banco");
+  await expect(comprador.getByTestId("chat-bloqueo")).toContainText("Bloqueado: la plata solo puede ir a la Zapatería o volver a ti", { timeout: 30_000 });
+  // El error crudo del contrato queda en el cajón, no en el chat.
+  await expect(comprador.getByTestId("chat-bloqueo")).not.toContainText("Error(Contract");
+  await expect(page.getByTestId("titulo-etapa")).toHaveText("Trato bloqueó al estafador");
+  await expect(toca(vendedor, "enviado")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("desviar")).toHaveCount(0);
   await capturar(page, "82-probar-desvio-rechazado");
 
   // 4. La tienda despacha: "Ya lo envié" abre el formulario real de envío en una hoja (tiene 2 minutos desde el pago).
@@ -195,13 +204,13 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   const hoja = vendedor.getByTestId("chat-hoja");
   await hoja.getByLabel("Empresa de envío").selectOption("Trans Copacabana (encomiendas)");
   await hoja.getByLabel("Número de guía").fill("SRV-2026-118734");
-  await hoja.getByLabel("Peso declarado (kg)").fill("1,2");
   await clic(hoja.getByRole("button", { name: "Marcar como enviado" }));
-  await expect(vendedor.getByTestId("chat-enviado")).toContainText("figura como enviado", CHAIN);
+  await expect(vendedor.getByTestId("chat-enviado")).toContainText("Envío registrado", CHAIN);
   const envio = page.getByTestId("paso-registro-envio");
   await expect(envio).toHaveAttribute("data-hecho", "si", { timeout: 30_000 });
   await expect(envio.locator(TX_LINK)).toHaveCount(1);
-  await expect(comprador.getByTestId("chat-enviado")).toContainText("1,2 kg", { timeout: 30_000 });
+  await expect(comprador.getByTestId("chat-enviado")).toContainText("SRV-2026-118734", { timeout: 30_000 });
+  await expect(page.getByTestId("titulo-etapa")).toHaveText("4. La Zapatería cobra");
 
   // 5. El comprador recibe y paga: "Sí, me llegó" se habilita 1 minuto después del envío y pregunta antes.
   const meLlego = toca(comprador, "me-llego");
@@ -209,17 +218,16 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   await expect(meLlego).toBeEnabled({ timeout: 150_000 });
   await clic(meLlego);
   await clic(comprador.getByTestId("chat-hoja").getByRole("button", { name: "Sí, lo tengo y está bien" }));
-  await expect(comprador.getByTestId("chat-liberado")).toContainText("pagaste al vendedor", CHAIN);
+  await expect(comprador.getByTestId("chat-liberado")).toContainText("Pagaste a Zapatería", CHAIN);
   const cobro = page.getByTestId("paso-registro-cobro");
   await expect(cobro).toHaveAttribute("data-hecho", "si", { timeout: 30_000 });
   await expect(cobro).toContainText("Se pagó al vendedor");
   await expect(cobro.locator(TX_LINK)).toHaveCount(1);
   // La tienda cobró lo suyo: el precio completo (la protección la pagó el comprador) más el redondeo del contrato.
   await expect(vendedor.getByTestId("chat-liberado")).toContainText("Bs 450,04", { timeout: 60_000 });
-  await expect(page.getByTestId("desviar")).toBeDisabled();
   await expect(page.getByTestId("desvio-espera")).toHaveText("La plata ya salió del contrato por una de sus salidas.");
-  await expect(page.getByTestId("ahora")).toContainText("Listo: el vendedor cobró");
-  await expect(page.getByTestId("titulo-etapa")).toHaveText("6. La tienda cobró");
+  await expect(page.getByTestId("titulo-etapa")).toHaveText("4. La Zapatería cobró");
+  await expect(page.getByTestId("ahora")).toHaveText("La plata llegó a su cuenta");
   // El cierre: lo que ya está construido, con el resumen de esta prueba.
   await expect(page.getByTestId("construido")).toContainText("Lo que ya está construido");
   await expect(page.getByTestId("construido-resumen")).toContainText(/\d+ transacciones públicas/);
@@ -244,7 +252,7 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   // Empezar de nuevo: cuentas nuevas, chats y registro limpios.
   await page.getByTestId("empezar-de-nuevo").click();
   await expect(comprador.getByTestId("esperando-link")).toBeVisible({ timeout: 30_000 });
-  await expect(toca(vendedor, "nombre")).toBeVisible({ timeout: 30_000 });
+  await expect(toca(vendedor, "hola")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("registro")).toContainText("Todavía no hay movimientos");
   expect(await page.evaluate(() => [localStorage.getItem("pp.probar.vendedor"), localStorage.getItem("pp.probar.comprador")])).toEqual([null, null]);
 

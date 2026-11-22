@@ -1,15 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Nudo, IconoCerrar } from "@/components/iconos";
+import { IconoCerrar, IconoMas, Nudo } from "@/components/iconos";
 import { Progress, Spinner, type ProgressStep } from "@/components/ui";
 import { horaChat, type Boton, type Mensaje } from "@/lib/chat";
-import { IconoAtras, IconoCamara, IconoClip, IconoMicrofono, IconoPuntos, IconoTelefono, IconoVideo, IconoVistos } from "./iconos-chat";
+import { IconoAtras, IconoCamara, IconoMicrofono, IconoTelefono, IconoVideo, IconoVistos } from "./iconos-chat";
+
+/** Patrón sutil propio: el Nudo de Trato repetido, muy tenue sobre Sal (nada del fondo de WhatsApp). */
+const PATRON = `url("data:image/svg+xml;utf8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="84" height="84" viewBox="0 0 84 84"><path d="M34 36 42 42.5 50 36v12L42 42.5 34 48Z" fill="rgba(10,42,27,0.045)"/></svg>',
+)}")`;
 
 /**
  * Pantalla de chat con la estructura y los gestos de una app de mensajería (encabezado con contacto, burbujas con
  * cola, hora y doble visto, separador de fecha, respuestas rápidas, barra de escribir), con la paleta de Trato.
- * El contacto es el bot "Trato", con el Nudo de avatar.
+ * El contacto es la cuenta de empresa "Trato", con el Nudo de avatar.
  */
 export function Chat({
   mensajes,
@@ -26,7 +31,7 @@ export function Chat({
   pasos?: ProgressStep[];
   /** Alguna acción en curso: los botones se desactivan. */
   ocupado?: boolean;
-  /** Hoja inferior (formularios reales): { titulo, contenido, onCerrar }. */
+  /** Hoja inferior (formularios reales): { titulo?, contenido, onCerrar }. */
   hoja?: { titulo?: string; contenido: React.ReactNode; onCerrar: () => void } | null;
   /** Vista a pantalla completa dentro del celular (p. ej. la página de pago). */
   overlay?: { titulo: string; contenido: React.ReactNode; onCerrar: () => void } | null;
@@ -34,24 +39,29 @@ export function Chat({
 }) {
   const { lista, escribiendo } = useEscribiendo(mensajes);
   const ref = useRef<HTMLDivElement>(null);
+  const [cargas, setCargas] = useState(0);
+  // Siempre al último mensaje: en cada mensaje nuevo, al cambiar sus botones y cuando termina de cargar una imagen.
   useEffect(() => {
     const el = ref.current;
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [lista.length, escribiendo, lista[lista.length - 1]?.texto]);
+    if (!el) return;
+    const ultimo = el.lastElementChild as HTMLElement | null;
+    ultimo?.scrollIntoView({ block: "end" });
+    el.scrollTop = el.scrollHeight;
+  }, [lista.length, escribiendo, cargas, JSON.stringify(lista[lista.length - 1] ?? null)]);
 
   return (
     <div className="relative flex h-dvh flex-col overflow-hidden bg-sal text-monte" data-testid={testId}>
-      <header className="flex shrink-0 items-center gap-1 bg-monte px-1.5 py-2 text-sal">
+      <header className="sticky top-0 z-10 flex shrink-0 items-center gap-1 bg-monte px-1.5 py-2 text-sal">
         <span className="flex h-9 w-9 items-center justify-center" aria-hidden>
           <IconoAtras className="h-5 w-5" />
         </span>
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-yungas" aria-hidden>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sal" aria-hidden>
           <Nudo className="h-4 w-4 text-monte" />
         </span>
         <div className="ml-1 min-w-0 flex-1 leading-tight">
           <p className="truncate text-base font-semibold">Trato</p>
           <p className="truncate text-xs text-sal/70" data-testid="chat-estado">
-            {escribiendo ? "escribiendo…" : "en línea"}
+            {escribiendo ? "escribiendo…" : "cuenta de empresa"}
           </p>
         </div>
         <span className="flex items-center gap-0.5 text-sal/80" aria-hidden>
@@ -61,16 +71,13 @@ export function Chat({
           <span className="flex h-9 w-9 items-center justify-center">
             <IconoTelefono className="h-5 w-5" />
           </span>
-          <span className="flex h-9 w-9 items-center justify-center">
-            <IconoPuntos className="h-5 w-5" />
-          </span>
         </span>
       </header>
 
-      <div ref={ref} className="flex-1 space-y-1.5 overflow-y-auto px-3 py-3" data-testid="chat-mensajes">
+      <div ref={ref} className="flex-1 space-y-1.5 overflow-y-auto px-3 py-3" data-testid="chat-mensajes" style={{ backgroundImage: PATRON, backgroundSize: "84px 84px" }}>
         <p className="mx-auto w-fit rounded-lg bg-tinta-100 px-3 py-1 text-xs font-medium text-tinta-600">Hoy</p>
         {lista.map((m) => (
-          <Burbuja key={m.id} m={m} pasos={m.enCurso ? pasos : undefined} ocupado={ocupado} onBoton={onBoton} />
+          <Burbuja key={m.id} m={m} pasos={m.enCurso ? pasos : undefined} ocupado={ocupado} onBoton={onBoton} onCarga={() => setCargas((n) => n + 1)} />
         ))}
         {escribiendo && (
           <div className="flex w-fit items-center gap-1 rounded-2xl rounded-tl-md bg-white px-3 py-2.5 shadow-[0_1px_1px_rgb(10_42_27/0.06)]" aria-hidden>
@@ -82,13 +89,13 @@ export function Chat({
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5 px-2 pb-2 pt-1">
-        <span className="flex h-10 w-10 items-center justify-center text-tinta-500" aria-hidden>
-          <IconoClip className="h-6 w-6" />
+        <span className="flex h-10 w-10 items-center justify-center text-tinta-600" aria-hidden>
+          <IconoMas className="h-6 w-6" />
         </span>
         <div className="flex h-11 flex-1 items-center rounded-full bg-white px-4 text-base text-tinta-400 ring-1 ring-tinta-200">
-          <span className="truncate">{ocupado ? "Un momento…" : "Toca una respuesta"}</span>
+          <span className="truncate">Mensaje</span>
         </div>
-        <span className="flex h-10 w-10 items-center justify-center text-tinta-500" aria-hidden>
+        <span className="flex h-10 w-10 items-center justify-center text-tinta-600" aria-hidden>
           <IconoCamara className="h-6 w-6" />
         </span>
         <span className="flex h-11 w-11 items-center justify-center rounded-full bg-monte text-sal" aria-hidden>
@@ -146,7 +153,7 @@ function useEscribiendo(mensajes: Mensaje[]) {
     );
     return () => clearTimeout(t);
   }, [pendientes.map((m) => m.id).join("|")]);
-  // El primer mensaje pendiente que no es del bot (lo que "yo" acabo de tocar) se muestra al instante.
+  // Lo que "yo" acabo de tocar se muestra al instante.
   const lista = mensajes.filter((m) => vistos.has(m.id) || m.de === "yo");
   return { lista, escribiendo };
 }
@@ -156,7 +163,7 @@ function conNegritas(texto: string) {
   return texto.split(/(\*[^*]+\*)/g).map((t, i) => (t.startsWith("*") && t.endsWith("*") ? <strong key={i}>{t.slice(1, -1)}</strong> : <span key={i}>{t}</span>));
 }
 
-function Burbuja({ m, pasos, ocupado, onBoton }: { m: Mensaje; pasos?: ProgressStep[]; ocupado?: boolean; onBoton: (id: string) => void }) {
+function Burbuja({ m, pasos, ocupado, onBoton, onCarga }: { m: Mensaje; pasos?: ProgressStep[]; ocupado?: boolean; onBoton: (id: string) => void; onCarga?: () => void }) {
   if (m.sistema)
     return (
       <p className="mx-auto max-w-[92%] rounded-lg bg-aviso-50 px-3 py-1.5 text-center text-xs text-aviso-700" data-testid="chat-sistema">
@@ -196,11 +203,10 @@ function Burbuja({ m, pasos, ocupado, onBoton }: { m: Mensaje; pasos?: ProgressS
         {m.tarjeta && (
           <a href={m.tarjeta.url} target="_blank" rel="noreferrer" className="mt-2 block overflow-hidden rounded-xl bg-tinta-50 ring-1 ring-tinta-200/80" data-testid="chat-tarjeta">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={m.tarjeta.imagen} alt="" className="aspect-[1200/630] w-full object-cover" />
+            <img src={m.tarjeta.imagen} alt="" className="aspect-[1200/630] w-full object-cover" onLoad={onCarga} />
             <span className="block px-3 py-2">
               <span className="block truncate text-sm font-semibold text-monte">{m.tarjeta.titulo}</span>
-              <span className="block text-xs leading-snug text-tinta-600">{m.tarjeta.descripcion}</span>
-              <span className="mt-0.5 block truncate text-xs text-tinta-500">{m.tarjeta.url.replace(/^https?:\/\//, "")}</span>
+              <span className="mt-0.5 block truncate text-xs text-tinta-500">{m.tarjeta.dominio}</span>
             </span>
           </a>
         )}

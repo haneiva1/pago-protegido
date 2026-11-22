@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EnvioForm } from "@/components/vendedor/EnvioForm";
-import { ErrorBox, useProgress } from "@/components/ui";
+import { ErrorBox, Spinner, useProgress } from "@/components/ui";
 import { api } from "@/lib/api";
 import { apiFirmada } from "@/lib/api-firmada";
 import { DEMO, mensajesVendedor, type PedidoChat } from "@/lib/chat";
+import { CIUDADES } from "@/lib/format";
 import type { SellerData, SellerOrder } from "@/lib/types";
 import { Chat } from "./Chat";
 import { canal, sesion, useAhora, useMarco, usePedidoChat } from "./pedido";
@@ -16,27 +17,43 @@ interface Registro {
 }
 
 /**
- * El chat de la tienda con Trato: alta por respuestas rápidas, "Vendo … a Bs 450" → link en tarjeta, reenviar al
- * cliente, aviso del pago, "Ya lo envié" (el formulario real de envío en una hoja) y el aviso del cobro.
+ * El chat de la tienda con Trato: "Hola" → "Crear mi cuenta" (hoja con nombre y ciudad) → "Vender…" → link en tarjeta →
+ * "Mandar al cliente" → aviso del pago → "Ya lo envié" (el formulario real de envío en una hoja) → aviso del cobro.
  * Las acciones son las mismas de /vender y /panel: cuenta local del rol vendedor, /api/sellers, /api/links, mark_shipped.
  */
 export function ChatVendedor() {
   useMarco();
   const ahora = useAhora();
   const [t0] = useState(() => Date.now());
-  const [alta, setAlta] = useState<{ nombre?: string; ciudad?: string; whatsapp?: string; creando?: boolean }>({});
+  const [alta, setAlta] = useState<{ hola?: boolean; creando?: boolean }>({});
   const [tienda, setTienda] = useState<string | null>(null);
   const [pk, setPk] = useState<string | null>(null);
   const [slug, setSlug] = useState<string | null>(null);
   const [creandoLink, setCreandoLink] = useState(false);
   const [reenviado, setReenviado] = useState(false);
-  const [hoja, setHoja] = useState<null | "envio">(null);
+  const [hoja, setHoja] = useState<null | "cuenta" | "envio">(null);
+  const [nombre, setNombre] = useState(DEMO.tienda);
+  const [ciudad, setCiudad] = useState(DEMO.ciudad);
   const [orden, setOrden] = useState<SellerOrder | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const [estafaHecha, setEstafaHecha] = useState(false);
   const progreso = useProgress();
   const wallet = useRef<typeof import("@/lib/wallet") | null>(null);
   const { pedido, recargar } = usePedidoChat(slug);
+  /** Le cuenta a /probar en qué sub-estado está el chat (para la línea de ayuda de arriba). */
+  const sub = (valor: string | null) => canal()?.postMessage({ tipo: "sub", valor });
+
+  // El estafador ya fue bloqueado (lo avisa /probar por el canal o quedó guardado): recién ahí aparece "Ya lo envié".
+  useEffect(() => {
+    if (slug && sesion.get(`pp.chat.estafa.${slug}`) === "1") setEstafaHecha(true);
+    const c = canal();
+    if (!c) return;
+    c.onmessage = (ev: MessageEvent) => {
+      if (ev.data?.tipo === "estafa-resultado") setEstafaHecha(true);
+    };
+    return () => c.close();
+  }, [slug]);
 
   const cargarWallet = useCallback(async () => (wallet.current ??= await import("@/lib/wallet")), []);
 
@@ -61,14 +78,19 @@ export function ChatVendedor() {
     return () => clearInterval(t);
   }, [cargar]);
 
-  // "Reenviar a mi cliente" queda guardado por pedido y avisa al celular del comprador.
+  // "Mandar al cliente" queda guardado por pedido y avisa al celular del comprador.
   useEffect(() => {
     if (!slug) return;
     const ya = sesion.get(`pp.chat.reenviado.${slug}`) === "1" || (pedido ? pedido.status !== "esperando_pago" : false);
     if (ya) setReenviado(true);
   }, [slug, pedido?.status]);
 
-  async function crearCuenta(whatsapp: string) {
+  async function crearCuenta(e: React.FormEvent) {
+    e.preventDefault();
+    if (nombre.trim().length < 2 || !ciudad) return setError("Escribe el nombre de tu tienda y elige tu ciudad");
+    setHoja(null);
+    setAlta({ hola: true, creando: true });
+    sub("creando");
     setOcupado(true);
     setError(null);
     progreso.reset();
@@ -78,14 +100,15 @@ export function ChatVendedor() {
       const pubkey = await wal.connect();
       await w.activateWallet(wal, progreso.push);
       progreso.push("Guardando tu tienda");
-      await apiFirmada(wal, "/api/sellers", { pubkey, storeName: DEMO.tienda, whatsapp, city: DEMO.ciudad, pilotId: null });
+      await apiFirmada(wal, "/api/sellers", { pubkey, storeName: nombre.trim(), whatsapp: DEMO.whatsapp, city: ciudad, pilotId: null });
       progreso.finish("Guardando tu tienda");
       setPk(pubkey);
-      setTienda(DEMO.tienda);
-      setAlta((a) => ({ ...a, creando: false }));
-    } catch (e) {
-      setError((e as Error).message);
-      setAlta((a) => ({ ...a, whatsapp: undefined, creando: false }));
+      setTienda(nombre.trim());
+      sub(null);
+    } catch (err) {
+      setError((err as Error).message);
+      setAlta({ hola: true, creando: false });
+      sub("hola");
     } finally {
       setOcupado(false);
     }
@@ -95,6 +118,7 @@ export function ChatVendedor() {
     if (!pk) return;
     setOcupado(true);
     setCreandoLink(true);
+    sub("creando-link");
     setError(null);
     try {
       const w = await cargarWallet();
@@ -110,12 +134,13 @@ export function ChatVendedor() {
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      sub(null);
       setCreandoLink(false);
       setOcupado(false);
     }
   }
 
-  function reenviar() {
+  function mandar() {
     if (!slug) return;
     sesion.set(`pp.chat.reenviado.${slug}`, "1");
     setReenviado(true);
@@ -142,13 +167,15 @@ export function ChatVendedor() {
 
   function onBoton(id: string) {
     setError(null);
-    if (id === "nombre") setAlta((a) => ({ ...a, nombre: DEMO.tienda }));
-    else if (id === "ciudad") setAlta((a) => ({ ...a, ciudad: DEMO.ciudad }));
-    else if (id === "whatsapp") {
-      setAlta((a) => ({ ...a, whatsapp: DEMO.whatsappBonito, creando: true }));
-      void crearCuenta(DEMO.whatsapp);
-    } else if (id === "vender") void crearLink();
-    else if (id === "reenviar") reenviar();
+    if (id === "hola") {
+      setAlta({ hola: true });
+      sub("hola");
+    } else if (id === "crear-cuenta") {
+      setHoja("cuenta");
+      sub("hoja-cuenta");
+    }
+    else if (id === "vender") void crearLink();
+    else if (id === "mandar") mandar();
     else if (id === "enviado") void abrirEnvio();
   }
 
@@ -161,8 +188,41 @@ export function ChatVendedor() {
     pedido: pedido && pedido.slug === slug ? (pedido as PedidoChat) : null,
     reenviado,
     enviando: hoja === "envio",
+    estafaHecha,
     host: typeof window !== "undefined" ? window.location.host : "",
   });
+
+  const hojaCuenta = {
+    titulo: "Tu cuenta de cobro",
+    onCerrar: () => {
+      setHoja(null);
+      sub("hola");
+    },
+    contenido: (
+      <form onSubmit={crearCuenta} className="space-y-4" data-testid="form-cuenta">
+        <div>
+          <label className="label" htmlFor="chat-store">
+            Nombre de la tienda
+          </label>
+          <input id="chat-store" className="input" value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={60} />
+        </div>
+        <div>
+          <label className="label" htmlFor="chat-city">
+            Tu ciudad
+          </label>
+          <select id="chat-city" className="input" value={ciudad} onChange={(e) => setCiudad(e.target.value)}>
+            {CIUDADES.map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+        <ErrorBox error={error} />
+        <button className="btn-primary w-full py-3.5 text-base" disabled={ocupado} data-testid="listo">
+          {ocupado ? <Spinner className="h-4 w-4" /> : null} Listo
+        </button>
+      </form>
+    ),
+  };
 
   return (
     <>
@@ -173,26 +233,30 @@ export function ChatVendedor() {
         pasos={progreso.steps}
         ocupado={ocupado}
         hoja={
-          hoja === "envio" && orden && pk
-            ? {
-                titulo: undefined,
-                onCerrar: () => setHoja(null),
-                contenido: (
-                  <EnvioForm
-                    o={orden}
-                    sellerPubkey={pk}
-                    prefill={null}
-                    onDone={() => {
-                      setHoja(null);
-                      void recargar();
-                    }}
-                  />
-                ),
-              }
-            : null
+          hoja === "cuenta"
+            ? hojaCuenta
+            : hoja === "envio" && orden && pk
+              ? {
+                  titulo: undefined,
+                  onCerrar: () => setHoja(null),
+                  contenido: (
+                    <div className="hoja-compacta">
+                    <EnvioForm
+                      o={orden}
+                      sellerPubkey={pk}
+                      prefill={null}
+                      onDone={() => {
+                        setHoja(null);
+                        void recargar();
+                      }}
+                    />
+                    </div>
+                  ),
+                }
+              : null
         }
       />
-      {error && (
+      {error && hoja !== "cuenta" && (
         <div className="absolute inset-x-3 bottom-16 z-40 animate-aparecer">
           <ErrorBox error={error} />
         </div>
