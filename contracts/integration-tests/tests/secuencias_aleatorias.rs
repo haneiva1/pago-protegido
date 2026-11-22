@@ -9,7 +9,8 @@
 //! [min, max], a veces con un error a propósito), avanzar el tiempo (poco,
 //! mucho o justo al borde de un plazo), mark_shipped, confirm, extend,
 //! dispute, resolve con bps al azar (también inválidos), auto_release,
-//! refund_unshipped, y llamadas DIRECTAS al escrow de TW: de terceros
+//! refund_unshipped, start_claim, resolve_expired (H-13) y llamadas DIRECTAS
+//! al escrow de TW: de terceros
 //! (release_funds, approve_milestone, resolve_dispute,
 //! withdraw_remaining_funds, dispute_escrow, change_milestone_status,
 //! update_escrow), que siempre deben fallar, y de roles legítimos de TW
@@ -45,7 +46,16 @@
 //!   `dispute` no tiene plazo. Si el modelo exigiera un plazo, este test lo
 //!   detectaría: las secuencias sí abren reclamos tardíos.
 //! - [I5] Vivacidad: al final, toda compra fondeada se puede cerrar
-//!   (auto_release, resolve o refund_unshipped) y todos los escrows quedan en 0.
+//!   (auto_release, resolve, refund_unshipped o resolve_expired) y todos los
+//!   escrows quedan en 0.
+//! - [I6] Plazo del reclamo (H-13): `dispute` hace correr el plazo
+//!   (`CLAIM_SECS`) y, si la disputa se abrió directo en TW, `start_claim` lo
+//!   hace correr; el plazo on-chain es siempre el del modelo. Antes del plazo
+//!   `resolve_expired` falla; pasado el plazo, todo reclamo abierto termina en
+//!   una de las dos salidas: TODO al comprador sin envío registrado o TODO al
+//!   vendedor con envío. Nunca a un tercero ([I2]). En el cierre, todo reclamo
+//!   con el plazo vencido se cierra con `resolve_expired`, y otros también
+//!   (esperando al plazo).
 //!
 //! Cómo correrlo:
 //!   cargo test -p pp_integration_tests --test secuencias_aleatorias
@@ -62,7 +72,7 @@ extern crate std;
 mod common;
 use common::*;
 
-use pp_arbiter::Split;
+use pp_arbiter::{Split, CLAIM_SECS};
 use pp_guardian::{Escrow, Flags, Purchase};
 use soroban_sdk::{
     map,
@@ -127,6 +137,8 @@ enum Desenlace {
     AutoLiberada,
     Resuelta,
     Devuelta,
+    /// H-13: cerrada por `resolve_expired` al vencer el plazo del reclamo.
+    Vencida,
 }
 
 /// Lo que el modelo espera de cada compra.
@@ -146,6 +158,8 @@ struct Compra {
     evidencia: Option<String>,
     /// Flag `disputed` del escrow de TW.
     en_disputa: bool,
+    /// Momento en que empezó a correr el plazo del reclamo en pp_arbiter.
+    reclamo_en: Option<u64>,
     /// Un rol de TW (platform o el vendedor) cambió el escrow ANTES del fondeo
     /// (disputa o status directo): ya no coincide con lo que firma el
     /// comprador y `fund` falla para siempre (EscrowMismatch).
@@ -161,7 +175,7 @@ impl Compra {
         matches!(self.desenlace, Some(Desenlace::Confirmada | Desenlace::AutoLiberada))
     }
     fn resuelta(&self) -> bool {
-        matches!(self.desenlace, Some(Desenlace::Resuelta | Desenlace::Devuelta))
+        matches!(self.desenlace, Some(Desenlace::Resuelta | Desenlace::Devuelta | Desenlace::Vencida))
     }
     /// Igual a `check_open` del guardián.
     fn abierta(&self) -> bool {
@@ -169,6 +183,10 @@ impl Compra {
     }
     fn plazo_envio(&self) -> u64 {
         self.fondeada_en + self.envio_secs
+    }
+    /// Vencimiento del plazo del reclamo (H-13), si ya corre.
+    fn plazo_reclamo(&self) -> Option<u64> {
+        self.reclamo_en.map(|t| t + CLAIM_SECS)
     }
     /// Saldo que debería tener el escrow.
     fn saldo_esperado(&self) -> i128 {
@@ -210,6 +228,8 @@ enum Op {
     Resolver { i: usize, firma: Address, bps: u32 },
     AutoLiberar { i: usize },
     DevolverNoEnviado { i: usize },
+    IniciarPlazo { i: usize },
+    ResolverVencido { i: usize },
     Directa { i: usize, firma: Address, d: Directa },
 }
 
@@ -225,6 +245,8 @@ impl Op {
             | Op::Resolver { i, .. }
             | Op::AutoLiberar { i }
             | Op::DevolverNoEnviado { i }
+            | Op::IniciarPlazo { i }
+            | Op::ResolverVencido { i }
             | Op::Directa { i, .. } => Some(*i),
         }
     }
@@ -239,13 +261,19 @@ impl Op {
             Op::Resolver { .. } => "resolve",
             Op::AutoLiberar { .. } => "auto_release",
             Op::DevolverNoEnviado { .. } => "refund_unshipped",
+            Op::IniciarPlazo { .. } => "start_claim",
+            Op::ResolverVencido { .. } => "resolve_expired",
             Op::Directa { .. } => "tw_directa",
         }
     }
     fn es_desenlace(&self) -> bool {
         matches!(
             self,
-            Op::Confirmar { .. } | Op::Resolver { .. } | Op::AutoLiberar { .. } | Op::DevolverNoEnviado { .. }
+            Op::Confirmar { .. }
+                | Op::Resolver { .. }
+                | Op::AutoLiberar { .. }
+                | Op::DevolverNoEnviado { .. }
+                | Op::ResolverVencido { .. }
         )
     }
 }
@@ -366,6 +394,7 @@ impl Mercado {
             extendida: false,
             evidencia: None,
             en_disputa: false,
+            reclamo_en: None,
             tocada_antes: false,
             desenlace: None,
         });
@@ -483,7 +512,7 @@ impl Mercado {
                 // Justo en el borde de un plazo (−1, 0, +1 segundo).
                 let mut bordes = Lista::new();
                 for c in self.compras.iter().filter(|c| c.fondeada()) {
-                    for base in [Some(c.plazo_envio()), c.liberar_en].into_iter().flatten() {
+                    for base in [Some(c.plazo_envio()), c.liberar_en, c.plazo_reclamo()].into_iter().flatten() {
                         for b in [base.saturating_sub(1), base, base + 1] {
                             if b >= ahora {
                                 bordes.push(b - ahora);
@@ -557,7 +586,7 @@ impl Mercado {
                 let (firma, como) = self.quien(az, &correcto);
                 Op::Disputar { i, firma, como }
             }
-            62..=68 => {
+            62..=66 => {
                 let i = self.elegir_compra(az, |c| c.en_disputa);
                 let firma = if az.prob(75) { self.t.admin.clone() } else { az.elegir(&self.personas()) };
                 let bps = match az.hasta(100) {
@@ -570,9 +599,11 @@ impl Mercado {
                 };
                 Op::Resolver { i, firma, bps }
             }
+            67..=68 => Op::IniciarPlazo { i: self.elegir_compra(az, |c| c.en_disputa) },
             69..=77 => Op::AutoLiberar { i: self.elegir_compra(az, enviada) },
-            78..=82 => Op::DevolverNoEnviado { i: self.elegir_compra(az, |c| c.en_disputa) },
-            83..=93 => self.generar_tercero(az),
+            78..=80 => Op::DevolverNoEnviado { i: self.elegir_compra(az, |c| c.en_disputa) },
+            81..=84 => Op::ResolverVencido { i: self.elegir_compra(az, |c| c.en_disputa) },
+            85..=93 => self.generar_tercero(az),
             _ => self.generar_rol(az),
         }
     }
@@ -682,6 +713,8 @@ impl Mercado {
             Op::Resolver { i, firma, bps } => format!("resolve({}, bps={bps}) firma={}", e(i), self.n(firma)),
             Op::AutoLiberar { i } => format!("auto_release({}) sin firma", e(i)),
             Op::DevolverNoEnviado { i } => format!("refund_unshipped({}) sin firma", e(i)),
+            Op::IniciarPlazo { i } => format!("start_claim({}) sin firma", e(i)),
+            Op::ResolverVencido { i } => format!("resolve_expired({}) sin firma", e(i)),
             Op::Directa { i, firma, d } => {
                 let d = match d {
                     Directa::ReleaseFunds { signer } => format!("release_funds({})", self.n(signer)),
@@ -782,6 +815,13 @@ impl Mercado {
                 let c = c.unwrap();
                 c.en_disputa && c.saldo_esperado() > 0 && c.enviada_en.is_none() && ahora >= c.plazo_envio()
             }
+            // H-13: el plazo corre con el escrow de TW en disputa (la haya
+            // abierto quien sea); si ya corre, no se mueve.
+            Op::IniciarPlazo { .. } => c.unwrap().en_disputa,
+            Op::ResolverVencido { .. } => {
+                let c = c.unwrap();
+                c.en_disputa && c.saldo_esperado() > 0 && c.plazo_reclamo().map_or(false, |v| ahora >= v)
+            }
             // Un tercero nunca. Un rol legítimo: disputa si no hay otra abierta
             // y no está resuelta (H-1: después de liberar, sí); status mientras
             // no esté liberada ni resuelta.
@@ -881,6 +921,19 @@ impl Mercado {
             Op::DevolverNoEnviado { i } => {
                 env.set_auths(&[]);
                 let r = arb.try_refund_unshipped(&self.compras[*i].escrow);
+                let mut out = res(&r);
+                if let Ok(Ok(s)) = r {
+                    out.split = Some(s);
+                }
+                out
+            }
+            Op::IniciarPlazo { i } => {
+                env.set_auths(&[]);
+                res(&arb.try_start_claim(&self.compras[*i].escrow))
+            }
+            Op::ResolverVencido { i } => {
+                env.set_auths(&[]);
+                let r = arb.try_resolve_expired(&self.compras[*i].escrow);
                 let mut out = res(&r);
                 if let Ok(Ok(s)) = r {
                     out.split = Some(s);
@@ -1054,6 +1107,8 @@ impl Mercado {
             Op::Disputar { .. } => {
                 let c = &mut self.compras[i];
                 c.en_disputa = true;
+                // H-13: dispute hace correr el plazo del reclamo.
+                c.reclamo_en.get_or_insert(ahora);
                 if c.liberar_en.map_or(false, |r| ahora >= r) {
                     // H-10: reclamo abierto después de release_at.
                     self.stats.entry("reclamo_tardio_h10").or_insert((0, 0)).0 += 1;
@@ -1080,10 +1135,31 @@ impl Mercado {
                 delta[i_tw] += tw_nom;
                 delta[i_esc] -= monto;
             }
-            Op::Resolver { .. } | Op::DevolverNoEnviado { .. } => {
-                let bps = if let Op::Resolver { bps, .. } = op { *bps } else { BPS_MAX };
+            Op::IniciarPlazo { .. } => {
+                self.compras[i].reclamo_en.get_or_insert(ahora);
+            }
+            Op::Resolver { .. } | Op::DevolverNoEnviado { .. } | Op::ResolverVencido { .. } => {
+                let enviada = self.compras[i].enviada_en.is_some();
+                let bps = match op {
+                    Op::Resolver { bps, .. } => *bps,
+                    // H-13: todo al vendedor con envío, todo al comprador sin envío.
+                    Op::ResolverVencido { .. } if enviada => 0,
+                    _ => BPS_MAX,
+                };
                 let comprador = comprador.expect("resolve sin comprador");
                 let s = r.split.clone().expect("split");
+                if let Op::ResolverVencido { .. } = op {
+                    let plazo = self.compras[i].plazo_reclamo().expect("[I6] resolve_expired sin plazo");
+                    assert!(ahora >= plazo, "[I6] resolve_expired antes del plazo");
+                    let todo = if enviada { (0, monto) } else { (monto, 0) };
+                    assert_eq!(
+                        (s.buyer_amount, s.seller_amount),
+                        todo,
+                        "[I6] resolve_expired no fue todo a una de las dos partes (enviada={enviada})"
+                    );
+                    let salida = if enviada { "vencida_al_vendedor" } else { "vencida_al_comprador" };
+                    self.stats.entry(salida).or_insert((0, 0)).0 += 1;
+                }
                 // Reparto del árbitro: la unidad sobrante va al comprador.
                 let al_vendedor = monto * (BPS_MAX - bps) as i128 / BPS_MAX as i128;
                 assert_eq!(
@@ -1091,10 +1167,10 @@ impl Mercado {
                     (comprador.clone(), vendedor.clone(), monto, monto - al_vendedor, al_vendedor),
                     "[I3] split inesperado (bps={bps})"
                 );
-                desenlace = Some(if matches!(op, Op::Resolver { .. }) {
-                    Desenlace::Resuelta
-                } else {
-                    Desenlace::Devuelta
+                desenlace = Some(match op {
+                    Op::Resolver { .. } => Desenlace::Resuelta,
+                    Op::DevolverNoEnviado { .. } => Desenlace::Devuelta,
+                    _ => Desenlace::Vencida,
                 });
                 // resolve_dispute de TW: cada destinatario paga su proporción.
                 // (platform también puede ser el comprador: los deltas se suman.)
@@ -1129,6 +1205,7 @@ impl Mercado {
                 Desenlace::AutoLiberada => "auto_liberada",
                 Desenlace::Resuelta => "resuelta",
                 Desenlace::Devuelta => "devuelta_no_enviada",
+                Desenlace::Vencida => "vencida",
             };
             *self.desenlaces.entry(nombre).or_insert(0) += 1;
         }
@@ -1157,6 +1234,11 @@ impl Mercado {
                 assert_eq!(p, Some(esperado), "[I4] Purchase de e{i} distinta del modelo ({desc})");
             }
         }
+        assert_eq!(
+            self.t.arbiter.claim_deadline(&c.escrow),
+            c.plazo_reclamo(),
+            "[I6] plazo del reclamo de e{i} distinto del modelo ({desc})"
+        );
         let e = self.t.tw(&c.escrow).get_escrow();
         let flags = Flags { disputed: c.en_disputa, released: c.liberada(), resolved: c.resuelta() };
         assert_eq!(e.flags, flags, "[I4] flags de TW de e{i} distintos del modelo ({desc})");
@@ -1191,6 +1273,23 @@ impl Mercado {
                     assert!(self.paso(op), "[I5] el comprador no pudo disputar e{i}");
                 }
                 let c = &self.compras[i];
+                let vencido = c.plazo_reclamo().map_or(false, |v| self.ahora() >= v);
+                // [I6] Pasado el plazo, el reclamo SIEMPRE se cierra solo; antes
+                // del plazo, a veces se espera a que venza.
+                if vencido || az.prob(35) {
+                    if c.reclamo_en.is_none() {
+                        // Disputa abierta directo en TW (TW-1): alguien inicia el plazo.
+                        assert!(self.paso(Op::IniciarPlazo { i }), "[I6] start_claim falló en e{i}");
+                    }
+                    let v = self.compras[i].plazo_reclamo().expect("[I6] sin plazo de reclamo");
+                    let ahora = self.ahora();
+                    if v > ahora {
+                        assert!(!self.paso(Op::ResolverVencido { i }), "[I6] resolve_expired antes del plazo en e{i}");
+                        self.paso(Op::Avanzar(v - ahora));
+                    }
+                    assert!(self.paso(Op::ResolverVencido { i }), "[I6] pasado el plazo, e{i} no se cerró solo");
+                    continue;
+                }
                 let op = if c.enviada_en.is_none() && self.ahora() >= c.plazo_envio() && az.prob(50) {
                     Op::DevolverNoEnviado { i }
                 } else {
@@ -1297,13 +1396,18 @@ fn correr_lote(lote: u64) {
     if semillas.len() >= 40 {
         for tipo in [
             "fund", "mark_shipped", "confirm", "extend", "dispute", "resolve", "auto_release",
-            "refund_unshipped", "tw_directa",
+            "refund_unshipped", "start_claim", "resolve_expired", "tw_directa",
         ] {
             let (ok, err) = resumen.stats.get(tipo).copied().unwrap_or((0, 0));
             assert!(ok > 0 && err > 0, "lote {lote}: {tipo} sin casos ok y err ({ok}/{err})");
         }
-        for d in ["confirmada", "auto_liberada", "resuelta", "devuelta_no_enviada"] {
+        for d in ["confirmada", "auto_liberada", "resuelta", "devuelta_no_enviada", "vencida"] {
             assert!(resumen.desenlaces.get(d).copied().unwrap_or(0) > 0, "lote {lote}: nunca hubo {d}");
+        }
+        // [I6] Las dos salidas del plazo vencido aparecen.
+        for salida in ["vencida_al_comprador", "vencida_al_vendedor"] {
+            let (n, _) = resumen.stats.get(salida).copied().unwrap_or((0, 0));
+            assert!(n > 0, "lote {lote}: nunca hubo {salida}");
         }
     }
 }

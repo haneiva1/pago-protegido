@@ -18,11 +18,18 @@
 //!   `release_at` y bloquear la liberación automática.
 //!   H-10 es conocido, arreglo previsto en v3 (`docs/SEGURIDAD.md`): disputa
 //!   solo hasta `release_at` + un período de gracia.
+//! - H-13 (reclamo sin desenlace por defecto): CERRADO en código. Un reclamo
+//!   tiene un plazo máximo para que el revisor decida (`CLAIM_SECS`, 7 días
+//!   desde que se abre). Pasado el plazo, cualquiera llama
+//!   `pp_arbiter.resolve_expired`: todo al comprador si no hay envío
+//!   registrado, todo al vendedor si lo hay, nunca a un tercero. Los tests
+//!   `h13_*` muestran el arreglo, no una debilidad.
 extern crate std;
 
 mod common;
 use common::*;
 
+use pp_arbiter::{Error as AErr, CLAIM_SECS};
 use pp_guardian::{Error as GErr, Escrow, Flags, Milestone, Roles, Trustline};
 use soroban_sdk::{
     contract, contractimpl, contracttype,
@@ -276,4 +283,161 @@ fn h10_conocido_reclamo_tardio_bloquea_auto_release() {
     t.arbiter.resolve(&escrow, &0);
     assert_eq!(t.bal(&escrow), 0);
     assert_eq!(t.bal(&t.seller), 1_465_500_000);
+}
+
+// ───────────────────────── H-13: plazo máximo del reclamo ─────────────────────────
+
+/// Neto de quien se lleva TODO el saldo de un reclamo de `AMOUNT`: TW descuenta
+/// su 0,3% y el 2% de platform.
+const NETO_TODO: i128 = 1_465_500_000;
+
+/// Los terceros (extraño, admin, guardián y árbitro) siguen en 0.
+fn terceros_en_cero(t: &Ctx) {
+    for a in [&t.stranger, &t.admin, &t.guardian.address, &t.arbiter.address] {
+        assert_eq!(t.bal(a), 0);
+    }
+}
+
+/// H-13: `pp_guardian.dispute` hace correr el plazo en el mismo momento. Antes
+/// de que venza (hasta un segundo antes), `resolve_expired` falla con su error
+/// propio y no mueve nada.
+#[test]
+fn h13_antes_del_plazo_resolve_expired_falla() {
+    let t = setup();
+    let (escrow, _) = t.funded();
+    t.advance(3_600);
+    assert_eq!(t.arbiter.claim_deadline(&escrow), None);
+    t.guardian.dispute(&escrow, &t.buyer);
+    let abierto = t.now();
+    assert_eq!(t.arbiter.claim_deadline(&escrow), Some(abierto + CLAIM_SECS));
+    assert_eq!(CLAIM_SECS, 7 * 24 * 3600);
+
+    let antes = t.snapshot(&t.everyone(&escrow));
+    assert_eq!(t.arbiter.try_resolve_expired(&escrow), Err(Ok(AErr::ClaimDeadlineNotReached)));
+    t.set_time(abierto + CLAIM_SECS - 1);
+    assert_eq!(t.arbiter.try_resolve_expired(&escrow), Err(Ok(AErr::ClaimDeadlineNotReached)));
+    assert_eq!(t.snapshot(&t.everyone(&escrow)), antes);
+    assert_eq!(t.bal(&escrow), AMOUNT);
+    assert!(t.tw(&escrow).get_escrow().flags.disputed);
+}
+
+/// H-13: pasado el plazo y sin envío registrado, cualquiera (sin ninguna
+/// firma) cierra el reclamo y TODO vuelve al comprador.
+#[test]
+fn h13_vencido_sin_envio_todo_al_comprador() {
+    let t = setup();
+    let (escrow, _) = t.funded();
+    t.guardian.dispute(&escrow, &t.seller);
+    let comprador_antes = t.bal(&t.buyer);
+    t.set_time(t.arbiter.claim_deadline(&escrow).unwrap());
+
+    t.env.set_auths(&[]); // nadie firma
+    let s = t.arbiter.resolve_expired(&escrow);
+    assert_eq!(
+        (s.buyer.clone(), s.seller.clone(), s.balance, s.buyer_amount, s.seller_amount),
+        (t.buyer.clone(), t.seller.clone(), AMOUNT, AMOUNT, 0)
+    );
+    assert_eq!(t.bal(&escrow), 0);
+    assert_eq!(t.bal(&t.buyer), comprador_antes + NETO_TODO);
+    assert_eq!(t.bal(&t.seller), 0);
+    let (tw_nom, pl_nom) = nominal_fees(AMOUNT, PLATFORM_FEE_BPS);
+    assert_eq!((t.bal(&t.tw_fee), t.bal(&t.platform)), (tw_nom, pl_nom));
+    terceros_en_cero(&t);
+    let f = t.tw(&escrow).get_escrow().flags;
+    assert!(f.resolved && !f.disputed && !f.released);
+}
+
+/// H-13: pasado el plazo y con el envío registrado en pp_guardian, TODO va al
+/// vendedor.
+#[test]
+fn h13_vencido_con_envio_todo_al_vendedor() {
+    let t = setup();
+    let (escrow, _) = t.funded();
+    t.ship(&escrow);
+    t.guardian.dispute(&escrow, &t.buyer);
+    let comprador_antes = t.bal(&t.buyer);
+    t.set_time(t.arbiter.claim_deadline(&escrow).unwrap() + 1);
+
+    t.env.set_auths(&[]);
+    let s = t.arbiter.resolve_expired(&escrow);
+    assert_eq!(
+        (s.buyer.clone(), s.seller.clone(), s.balance, s.buyer_amount, s.seller_amount),
+        (t.buyer.clone(), t.seller.clone(), AMOUNT, 0, AMOUNT)
+    );
+    assert_eq!(t.bal(&escrow), 0);
+    assert_eq!(t.bal(&t.seller), NETO_TODO);
+    assert_eq!(t.bal(&t.buyer), comprador_antes);
+    terceros_en_cero(&t);
+}
+
+/// H-13: un reclamo cerrado por plazo no se puede volver a resolver por
+/// ninguna vía, ni volver a abrir.
+#[test]
+fn h13_resuelto_por_plazo_no_se_puede_volver_a_resolver() {
+    let t = setup();
+    let (escrow, _) = t.funded();
+    t.guardian.dispute(&escrow, &t.buyer);
+    t.set_time(t.arbiter.claim_deadline(&escrow).unwrap());
+    t.arbiter.resolve_expired(&escrow);
+
+    let antes = t.snapshot(&t.everyone(&escrow));
+    t.advance(CLAIM_SECS);
+    assert_eq!(t.arbiter.try_resolve_expired(&escrow), Err(Ok(AErr::NotInDispute)));
+    assert_eq!(t.arbiter.try_resolve(&escrow, &0), Err(Ok(AErr::NotInDispute)));
+    assert_eq!(t.arbiter.try_refund_unshipped(&escrow), Err(Ok(AErr::NotInDispute)));
+    assert_eq!(t.arbiter.try_start_claim(&escrow), Err(Ok(AErr::NotInDispute)));
+    assert_eq!(t.guardian.try_dispute(&escrow, &t.buyer), Err(Ok(GErr::EscrowAlreadyResolved)));
+    assert!(t.tw(&escrow).try_dispute_escrow(&t.platform).is_err());
+    assert_eq!(t.snapshot(&t.everyone(&escrow)), antes);
+}
+
+/// H-13: si el revisor decide antes del plazo, todo sigue igual: su reparto
+/// se aplica y después `resolve_expired` ya no tiene nada que hacer.
+#[test]
+fn h13_si_el_revisor_decide_antes_del_plazo_nada_cambia() {
+    let t = setup();
+    let (escrow, _) = t.funded();
+    t.ship(&escrow);
+    t.guardian.dispute(&escrow, &t.buyer);
+    let vence = t.arbiter.claim_deadline(&escrow).unwrap();
+    t.set_time(vence - 1);
+    let s = t.arbiter.resolve(&escrow, &5_000);
+    assert_eq!((s.buyer_amount, s.seller_amount), (AMOUNT / 2, AMOUNT / 2));
+    assert_eq!(t.bal(&escrow), 0);
+
+    t.set_time(vence + 1);
+    let antes = t.snapshot(&t.everyone(&escrow));
+    assert_eq!(t.arbiter.try_resolve_expired(&escrow), Err(Ok(AErr::NotInDispute)));
+    assert_eq!(t.snapshot(&t.everyone(&escrow)), antes);
+    terceros_en_cero(&t);
+}
+
+/// H-13 con TW-1: si la disputa se abre directo en Trustless Work (platform),
+/// el plazo no corre hasta que alguien llama `start_claim` (sin firma).
+/// `start_claim` falla sin disputa y no mueve un plazo que ya corre.
+#[test]
+fn h13_disputa_directa_en_tw_corre_desde_start_claim() {
+    let t = setup();
+    let (escrow, _) = t.funded();
+    assert_eq!(t.arbiter.try_start_claim(&escrow), Err(Ok(AErr::NotInDispute)));
+
+    t.tw(&escrow).dispute_escrow(&t.platform);
+    assert_eq!(t.arbiter.claim_deadline(&escrow), None);
+    t.advance(30 * 24 * 3600);
+    assert_eq!(t.arbiter.try_resolve_expired(&escrow), Err(Ok(AErr::ClaimNotStarted)));
+
+    t.env.set_auths(&[]);
+    let vence = t.arbiter.start_claim(&escrow);
+    assert_eq!(vence, t.now() + CLAIM_SECS);
+    t.advance(3_600);
+    assert_eq!(t.arbiter.start_claim(&escrow), vence);
+    assert_eq!(t.arbiter.claim_deadline(&escrow), Some(vence));
+    assert_eq!(t.arbiter.try_resolve_expired(&escrow), Err(Ok(AErr::ClaimDeadlineNotReached)));
+
+    t.set_time(vence);
+    let s = t.arbiter.resolve_expired(&escrow);
+    assert_eq!((s.buyer_amount, s.seller_amount), (AMOUNT, 0));
+    assert_eq!(t.bal(&escrow), 0);
+    assert_eq!(t.bal(&t.seller), 0);
+    terceros_en_cero(&t);
 }

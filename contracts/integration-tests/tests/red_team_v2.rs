@@ -333,6 +333,7 @@ fn contratos_no_actualizables_y_sin_rutas_peligrosas() {
     );
     assert_eq!(
         pub_fns(arbiter),
-        ["__constructor", "config", "quote", "refund_unshipped", "resolve", "set_admin"]
+        ["__constructor", "claim_deadline", "config", "quote", "refund_unshipped", "resolve",
+         "resolve_expired", "set_admin", "start_claim"]
     );
 }

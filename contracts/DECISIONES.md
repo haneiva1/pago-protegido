@@ -191,6 +191,13 @@ Todo lo de SPEC §3 existe con los mismos nombres y argumentos. Lo nuevo es adit
 
 Las instancias huérfanas de esas corridas (un escrow sin inicializar en la corrida 1, y un escrow A completo más un escrow B inicializado en la corrida 2) no tienen fondos o ya se liberaron.
 
+**D-17. Plazo máximo del reclamo (H-13, 22-nov; entra con el próximo despliegue).**
+- **Plazo fijo de 7 días** (`CLAIM_SECS` en `pp_arbiter`), no un parámetro: no cambia el árbol de auth de `fund` ni el tipo `Purchase`, así que la app y los bindings siguen igual hasta que se use.
+- **Cuenta desde que se abre el reclamo.** El escrow de TW no guarda cuándo se abrió la disputa, así que el árbitro guarda su propia marca (`ClaimOpenedAt`). `pp_guardian.dispute` llama `start_claim` en la misma invocación. `start_claim` no consulta al guardián: si lo hiciera, habría reentrada (guardián → árbitro → guardián) y Soroban la rechaza.
+- **Disputa abierta directo en TW (TW-1):** el guardián no se entera, así que cualquiera puede llamar `start_claim`, sin firma. Solo funciona con el escrow en disputa y no mueve un plazo que ya corre, así que nadie puede acortar el plazo de un reclamo: como mucho lo inicia más tarde.
+- **Desenlace por defecto:** `resolve_expired`, sin firma, reusa `load` (las mismas validaciones y las mismas dos direcciones que `resolve`) y elige solo entre dos repartos: 100% al comprador si `shipped_at` está vacío, 100% al vendedor si no. El "enviado" escrito directo en TW no cuenta, igual que en `refund_unshipped` (TW-3).
+- **El revisor no pierde nada:** `resolve` sigue igual antes y después del plazo. El primero que resuelve cierra el escrow (TW pone `resolved`) y todo lo demás falla con `NotInDispute`.
+
 ## Hallazgos sobre Trustless Work (no se modificó su código)
 
 **H-1. En la v1 de TW, `dispute_escrow` no revisa `flags.released`.** En la v1 del escrow que usamos (commit `f0b706e`), un escrow ya liberado se puede marcar en disputa sin mover fondos; la v2 de Trustless Work ya lo impide, y `pp_guardian` también lo bloquea (#21).

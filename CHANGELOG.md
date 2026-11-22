@@ -2,6 +2,12 @@
 
 Todo corre en **Stellar testnet**. Las fechas son de 2026.
 
+## 2026-11-22 — H-13: el reclamo tiene plazo
+
+- **Plazo máximo del reclamo** ([PR #39](https://github.com/haneiva1/pago-protegido/pull/39)): `pp_arbiter` le da 7 días al revisor para decidir un reclamo (`CLAIM_SECS`), contados desde que se abre: `pp_guardian.dispute` hace correr el plazo (`start_claim`). Pasado el plazo, cualquiera llama `resolve_expired`: todo al comprador si no hay envío registrado, todo al vendedor si lo hay, nunca a un tercero. Si el revisor decide antes, nada cambia. Cierra H-13 en código; entra a testnet con el próximo despliegue de contratos (no se desplegó nada).
+- **53 tests de contratos:** 6 nuevos de H-13 y el invariante [I6] en las secuencias aleatorias.
+- **`verify-wasm.sh`** compila por defecto el commit del código desplegado (`f0a2701`), porque `main` ya trae H-13.
+
 ## 2026-11-21 — Plazos, privacidad, evidencia firmada y CI
 
 - **Plazos** ([PR #12](https://github.com/haneiva1/pago-protegido/pull/12)): el vendedor puede registrar el envío con un reclamo abierto, la liberación por plazo llega sola (el barrido también libera) y la app rechaza un reclamo fuera de plazo.

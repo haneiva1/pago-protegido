@@ -5,8 +5,15 @@
 # compara su sha256 con las filas de DEPLOYED.md. También revisa que
 # wasm/escrow.wasm tenga el hash del escrow de Trustless Work.
 #
+# Por defecto compila el código DESPLEGADO hoy: el commit `DESPLEGADO` (el
+# último que cambió los contratos antes de H-13), extraído con `git archive`.
+# El código de `main` ya incluye H-13 y entra con el próximo despliegue; hasta
+# entonces su hash no es el de DEPLOYED.md.
+#
 # Uso (desde cualquier carpeta):
-#   bash contracts/scripts/verify-wasm.sh
+#   bash contracts/scripts/verify-wasm.sh          # el commit desplegado
+#   bash contracts/scripts/verify-wasm.sh <commit> # otro commit
+#   bash contracts/scripts/verify-wasm.sh .        # el árbol de trabajo
 #
 # Sale con 0 si todo coincide, con 1 si algún hash difiere y con 2 si falta
 # una herramienta o no se pudo compilar. No usa la red de Stellar.
@@ -21,6 +28,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # .../contracts
 DEPLOYED="$ROOT/DEPLOYED.md"
+# Código de los WASM v2 de DEPLOYED.md.
+DESPLEGADO="f0a2701bab2b53850a81cdc4e7b70f31137f2518"
+REF="${1:-$DESPLEGADO}"
 CLI_ESPERADO="30.0.1"
 RUST_ESPERADO="$(sed -n 's/^channel *= *"\([^"]*\)".*/\1/p' "$ROOT/rust-toolchain.toml")"
 
@@ -64,10 +74,23 @@ fi
 SALIDA="$(mktemp -d "${TMPDIR:-/tmp}/verify-wasm.XXXXXX")"
 trap 'rm -rf "$SALIDA"' EXIT
 
+if [ "$REF" = "." ]; then
+  CODIGO="$ROOT"
+  echo "Código: el árbol de trabajo ($ROOT)"
+else
+  git -C "$ROOT" rev-parse --verify --quiet "$REF^{commit}" >/dev/null \
+    || falla "no encuentro el commit $REF (¿clon superficial? git fetch --unshallow)"
+  mkdir -p "$SALIDA/codigo"
+  git -C "$ROOT/.." archive "$REF" contracts | tar -x -C "$SALIDA/codigo" \
+    || falla "no pude extraer contracts/ del commit $REF"
+  CODIGO="$SALIDA/codigo/contracts"
+  echo "Código: commit $(git -C "$ROOT" rev-parse --short "$REF^{commit}") (extraído con git archive)"
+fi
+
 echo "Compilando pp_guardian y pp_arbiter (stellar contract build --locked)…"
 for c in pp_guardian pp_arbiter; do
   # RUSTFLAGS del entorno pisaría los flags del CLI y cambiaría el WASM.
-  if ! (cd "$ROOT" && env -u RUSTFLAGS -u CARGO_ENCODED_RUSTFLAGS \
+  if ! (cd "$CODIGO" && env -u RUSTFLAGS -u CARGO_ENCODED_RUSTFLAGS \
         stellar contract build --locked --package "$c" --out-dir "$SALIDA") \
         >"$SALIDA/build-$c.log" 2>&1; then
     cat "$SALIDA/build-$c.log" >&2
@@ -101,7 +124,7 @@ comparar escrow-tw   "$ROOT/wasm/escrow.wasm"   "$ESP_ESCROW"
 echo
 
 if [ "$DIFERENTES" -eq 0 ]; then
-  echo "Todo coincide: los WASM desplegados (DEPLOYED.md) salen de este código."
+  echo "Todo coincide: los WASM desplegados (DEPLOYED.md) salen de ese código."
   exit 0
 fi
 echo "Hay $DIFERENTES hash(es) diferente(s)." >&2
