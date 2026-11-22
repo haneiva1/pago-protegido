@@ -126,7 +126,7 @@ const inspectSecs = (o: OrderRow) => o.inspect_secs ?? o.window_secs ?? (o.deliv
 export const DEMO_WINDOW_SECS = 120;
 /** Margen sobre la hora del ledger antes de actuar por un plazo vencido. */
 const CHAIN_MARGIN_MS = 10_000;
-/** Modo demo (PP_DEMO=1): "Pagar al vendedor" se habilita 1 minuto después del envío. */
+/** Modo demo (PP_DEMO=1): "Pagar al vendedor" se habilita 10 segundos después del envío (pedido de Hans, 22-nov-2026; solo demo). */
 export const demoTimers = () => process.env.PP_DEMO === "1";
 /** /probar (PP_PROBAR=1, apagado por defecto): la demo pública con dos celulares. */
 export const probarActivo = () => process.env.PP_PROBAR === "1";
@@ -137,7 +137,7 @@ export const probarActivo = () => process.env.PP_PROBAR === "1";
  * Con PP_PROBAR=1, los links de demo (plazos de 2 minutos) también usan la espera de demo, aunque falte PP_DEMO.
  */
 export function confirmDelay(o: OrderRow): { ms: number; label: string } {
-  if (demoTimers() || (probarActivo() && o.window_secs === DEMO_WINDOW_SECS)) return { ms: 60_000, label: "1 minuto (modo demo)" };
+  if (demoTimers() || (probarActivo() && o.window_secs === DEMO_WINDOW_SECS)) return { ms: 10_000, label: "10 segundos (modo demo)" };
   return esperaParaConfirmar(sellers.get(o.seller_pubkey)?.city, o.dest_city);
 }
 

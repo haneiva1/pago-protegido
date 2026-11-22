@@ -563,7 +563,7 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
                 comprador.
               </li>
               <li>
-                El comprador puede pagar al vendedor {minutos(plazos.confirmarSegundos)} después del envío. En una compra real son 2 horas en la misma
+                El comprador puede pagar al vendedor {plazos.confirmarSegundos < 60 ? `${plazos.confirmarSegundos} segundos` : minutos(plazos.confirmarSegundos)} después del envío. En una compra real son 2 horas en la misma
                 ciudad y 24 horas entre ciudades.
               </li>
               <li>Si el comprador no hace nada, {minutos(plazos.despachoSegundos)} después del envío cualquiera puede liberar el pago al vendedor.</li>

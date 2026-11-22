@@ -93,7 +93,7 @@ export interface PedidoChat {
   envio?: string | null;
   /** Lo que recibió la tienda al liberar ("Bs 450,04"). */
   recibido?: string | null;
-  /** Lo que dice la API sobre la espera para pagar a la tienda ("1 minuto (modo demo)"). */
+  /** Lo que dice la API sobre la espera para pagar a la tienda ("10 segundos (modo demo)"). */
   confirmDelay?: string | null;
   url: string;
   imagen: string;
