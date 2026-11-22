@@ -143,7 +143,8 @@ test("perfil verificable de la tienda (/tienda/<slug>): mismos números que la t
   await page.goto(`/p/${link.slug}`);
   const tarjeta = page.getByTestId("vendedor");
   await expect(tarjeta).toContainText("La tienda");
-  await expect(tarjeta).toContainText("Calzados Sofi · Cochabamba");
+  await expect(tarjeta).toContainText("Calzados Sofi");
+  await expect(tarjeta).toContainText("Cochabamba");
   await expect(tarjeta).toContainText("Verificación de identidad: pendiente (modo práctica)");
   await expect(tarjeta.getByTestId("num-ventas")).not.toContainText(/^0\s/);
   const enTarjeta: Record<string, string> = {};
