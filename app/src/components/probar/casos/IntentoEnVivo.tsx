@@ -16,8 +16,11 @@ type Estado =
   | { fase: "preparando" }
   | { fase: "listo" }
   | { fase: "enviando" }
-  | { fase: "rechazado"; d: Desvio }
+  | { fase: "rechazado"; d: Resultado }
   | { fase: "error"; mensaje: string };
+
+/** El rechazo: con `hash` si la orden llegó a la red (/api/probar/intento); sin él, si hubo que caer en la simulación. */
+type Resultado = Desvio & { hash?: string | null; ledger?: number | null };
 
 /** La flecha del intruso: de su cuenta, abajo, hacia el borde inferior del contrato. */
 const INTENTO = "M 80 70 L 80 43";
@@ -71,10 +74,17 @@ export function IntentoEnVivo({ activo = true }: { activo?: boolean }) {
     setEnColaVisible(false);
     setEstado({ fase: "enviando" });
     try {
-      const d = await api<Omit<Desvio, "at">>("/api/probar/desvio", { slug: p.slug });
-      setEstado({ fase: "rechazado", d: { ...d, at: Date.now() } });
-    } catch (e) {
-      setEstado({ fase: "error", mensaje: (e as Error).message });
+      // La orden real, enviada a la red: si la rechaza, queda en un ledger con su hash.
+      const r = await api<{ rejected: boolean; hash: string; code: number | null; ledger: number | null; escrowId: string | null }>("/api/probar/intento", { slug: p.slug });
+      setEstado({ fase: "rechazado", d: { rejected: r.rejected, by: "contrato", detail: "", code: r.code ?? undefined, escrowId: r.escrowId, hash: r.hash, ledger: r.ledger, at: Date.now() } });
+    } catch {
+      // Si la red no recibió la orden, la misma orden simulada: el rechazo se ve igual, pero sin hash.
+      try {
+        const d = await api<Omit<Desvio, "at">>("/api/probar/desvio", { slug: p.slug });
+        setEstado({ fase: "rechazado", d: { ...d, at: Date.now() } });
+      } catch (e) {
+        setEstado({ fase: "error", mensaje: (e as Error).message });
+      }
     }
   }
 
@@ -120,6 +130,15 @@ export function IntentoEnVivo({ activo = true }: { activo?: boolean }) {
         )}
       </Escena>
 
+      {estado.fase === "rechazado" && estado.d.hash && (
+        <p key={`tx-${estado.d.at}`} className={`${s.texto} -mt-2 text-center text-sm`}>
+          <a href={explorer.tx(estado.d.hash)} target="_blank" rel="noreferrer" className="enlace inline-flex items-center gap-1 font-medium" data-testid="intento-link-tx">
+            Ver la orden rechazada en la red
+            <IconoExterno className="h-3.5 w-3.5" />
+          </a>
+        </p>
+      )}
+
       <div className="flex flex-col items-center gap-2">
         <button
           type="button"
@@ -151,7 +170,11 @@ export function IntentoEnVivo({ activo = true }: { activo?: boolean }) {
               Respuesta de la red: <code className="rounded-chip bg-error-50 px-1.5 py-0.5 font-mono text-error-700" data-testid="intento-codigo">{codigo}</code>
             </p>
           )}
-          <p>La orden se probó en la red y no pasó: no se movió nada y la plata sigue adentro.</p>
+          <p data-testid="intento-que-paso">
+            {estado.d.hash
+              ? "La orden llegó a la red y la red la rechazó: no se movió nada y la plata sigue adentro."
+              : "La orden se probó en la red y no pasó: no se movió nada y la plata sigue adentro."}
+          </p>
           {escrowId && (
             <a href={explorer.contract(escrowId)} target="_blank" rel="noreferrer" className="enlace inline-flex items-center gap-1" data-testid="intento-link-contrato">
               Ver el contrato de este pedido en la red

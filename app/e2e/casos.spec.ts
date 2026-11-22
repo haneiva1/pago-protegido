@@ -97,6 +97,16 @@ test("/probar · caso en vivo: prepara un pedido con plata adentro, manda la ord
   await expect(page.getByTestId("intento-sello")).toHaveText("Rechazado por la red", { timeout: 5 * 60_000 });
   await expect(page.getByTestId("intento-escena")).toContainText(/\d+,\d{2}/);
   await expect(page.getByTestId("intento-codigo")).toContainText(/Error\(Contract, #\d+\)/);
+  // El link va a la transacción real: la orden llegó a un ledger y la red la rechazó (FAILED), no solo una simulación.
+  const tx = page.getByTestId("intento-link-tx");
+  await expect(tx).toHaveText(/Ver la orden rechazada en la red/);
+  const href = (await tx.getAttribute("href"))!;
+  expect(href).toMatch(/stellar\.expert\/explorer\/testnet\/tx\/[0-9a-f]{64}$/);
+  const rpc = await page.request.post("https://soroban-testnet.stellar.org", {
+    data: { jsonrpc: "2.0", id: 1, method: "getTransaction", params: { hash: href.split("/tx/")[1] } },
+  });
+  expect((await rpc.json()).result.status).toBe("FAILED");
+  await expect(page.getByTestId("intento-que-paso")).toContainText("La orden llegó a la red y la red la rechazó");
   await expect(page.getByTestId("intento-link-contrato")).toHaveAttribute("href", /stellar\.expert\/explorer\/testnet\/contract\/C[A-Z2-7]{55}$/);
   await expect(page.getByTestId("intento-link-pago")).toHaveAttribute("href", /stellar\.expert\/explorer\/testnet\/tx\/[0-9a-f]{64}$/);
   await revisarPalabras(page);
