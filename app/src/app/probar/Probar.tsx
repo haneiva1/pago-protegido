@@ -79,6 +79,8 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
   const [sub, setSub] = useState<string | null>(null);
   // El bloqueo se ve 2 s en el celular del comprador antes de pasar la escena a la tienda.
   const [bloqueoVisto, setBloqueoVisto] = useState(false);
+  // Precalentar: las dos cuentas de prueba (tienda y comprador) se crean y activan en segundo plano apenas carga la demo.
+  const [precalentando, setPrecalentando] = useState<null | number>(null);
   const escenario = useRef<HTMLDivElement>(null);
   const wallet = useRef<typeof import("@/lib/wallet") | null>(null);
   const status = registro?.pedido?.status ?? null;
@@ -124,6 +126,58 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
     }, POLL_MS);
     return () => clearInterval(t);
   }, [listo, cargar, marco]);
+
+  // Precalentar: las dos cuentas de prueba (tienda y comprador) se crean y activan en segundo plano apenas carga la demo,
+  // así "Crear mi cuenta" solo guarda la tienda y el pago no espera la activación del comprador.
+  useEffect(() => {
+    if (!listo) return;
+    let vivo = true;
+    const t0 = Date.now();
+    setPrecalentando(0);
+    const tic = setInterval(() => {
+      if (vivo) setPrecalentando(Math.round((Date.now() - t0) / 1000));
+    }, 1000);
+    (async () => {
+      try {
+        wallet.current ??= await import("@/lib/wallet");
+        const w = wallet.current;
+        await Promise.all([w.activateWallet(w.getWallet("vendedor")), w.activateWallet(w.getWallet("comprador"))]);
+      } catch {
+        // Si falla, cada chat activa su cuenta al momento de usarla, como antes.
+      } finally {
+        clearInterval(tic);
+        if (vivo) setPrecalentando(null);
+      }
+    })();
+    return () => {
+      vivo = false;
+      clearInterval(tic);
+    };
+  }, [listo, marco]);
+
+  useEffect(() => {
+    if (!listo) return;
+    let vivo = true;
+    const t0 = Date.now();
+    setPrecalentando(0);
+    const tic = setInterval(() => vivo && setPrecalentando(Math.round((Date.now() - t0) / 1000)), 1000);
+    (async () => {
+      try {
+        wallet.current ??= await import("@/lib/wallet");
+        const w = wallet.current;
+        await Promise.all([w.activateWallet(w.getWallet("vendedor")), w.activateWallet(w.getWallet("comprador"))]);
+      } catch {
+        // Si falla, cada chat activa la suya al momento de usarla (como antes).
+      } finally {
+        clearInterval(tic);
+        if (vivo) setPrecalentando(null);
+      }
+    })();
+    return () => {
+      vivo = false;
+      clearInterval(tic);
+    };
+  }, [listo, marco]);
 
   // Marca la página para el CSS del sitio (en /probar se esconde el "Crear mi link" del encabezado).
   useEffect(() => {
@@ -319,6 +373,12 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
             <p data-testid="ahora" className="text-sm text-tinta-600 lg:text-base">
               {paso.linea}
             </p>
+            {precalentando !== null && (
+              <span className="inline-flex items-center gap-1.5 text-sm text-tinta-500" data-testid="precalentando">
+                <Spinner className="h-3.5 w-3.5" />
+                Preparando la demo… <span className="num">{precalentando} s</span>
+              </span>
+            )}
             {mostrarEstafa && (
               <button className="btn-danger btn-sm hidden lg:inline-flex" onClick={desviar} disabled={desviando} data-testid="desviar">
                 {desviando ? <Spinner className="h-4 w-4" /> : <IconoBloqueado className="h-4 w-4" />}

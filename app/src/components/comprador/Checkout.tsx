@@ -136,7 +136,7 @@ export function ComoFunciona() {
 }
 
 /** Botón de pagar fijo abajo: siempre a la vista, con el total. */
-export function BarraPagar({ total, onPagar, disabled }: { total: string; onPagar: () => void; disabled?: boolean }) {
+export function BarraPagar({ total, onPagar, disabled, label }: { total: string; onPagar: () => void; disabled?: boolean; label?: string }) {
   return (
     <div
       className="fixed inset-x-0 bottom-0 z-30 border-t border-tinta-200 bg-white px-4 pt-3 shadow-[0_-8px_24px_-16px_rgb(10_42_27/0.25)]"
@@ -146,7 +146,7 @@ export function BarraPagar({ total, onPagar, disabled }: { total: string; onPaga
       <div className="mx-auto max-w-md">
         <button type="button" className="btn-primary w-full py-4 text-lg" onClick={onPagar} disabled={disabled}>
           <IconoCandado className="h-5 w-5" />
-          Pagar {total} con QR
+          {label ?? `Pagar ${total} con QR`}
         </button>
         <p className="mt-2 text-center text-sm text-tinta-600">La tienda cobra recién cuando confirmes que te llegó.</p>
       </div>
