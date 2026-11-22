@@ -39,7 +39,7 @@ No son entrevistas. Revisamos páginas públicas de tiendas de celulares y elect
 - **Lo que ya existe:** Correos de Bolivia ofrece «puerta a puerta por cobrar» por Bs 2,50 adicionales (sep-2026), y hay couriers con cobro contra entrega.
 - **Lo que no sabemos:** si los vendedores honestos pierden ventas por desconfianza. No encontramos ninguna fuente pública. Es lo que preguntan las entrevistas.
 
-Las URL y la tabla completa están en el registro del equipo.
+Las URL, la tabla completa y la verificación están en [OBSERVACION-PUBLICA.md](OBSERVACION-PUBLICA.md).
 
 ## Registro
 
