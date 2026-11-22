@@ -29,6 +29,8 @@ async function revisarPalabras(page: Page) {
 async function irACasos(page: Page) {
   await page.waitForLoadState("networkidle").catch(() => {});
   await page.getByTestId("casos").evaluate((el) => el.scrollIntoView({ block: "start" }));
+  // El caso en vivo arranca cuando alguien llega a la sección: el puntero pasa por ella.
+  await page.getByTestId("casos").getByRole("heading", { level: 2 }).hover();
 }
 
 async function capturaCasos(page: Page, nombre: string) {
@@ -77,7 +79,10 @@ test("/probar · caso en vivo: prepara un pedido con plata adentro, manda la ord
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
   const page = await ctx.newPage();
   await page.goto("/probar");
-  const casos = page.getByTestId("casos");
+  // Solo tenerla en pantalla no la arranca (un chequeo automático o la demo de arriba no compiten con ella).
+  await page.getByTestId("casos").evaluate((el) => el.scrollIntoView({ block: "start" }));
+  await page.waitForTimeout(2500);
+  await expect(page.getByTestId("intento-preparando")).toHaveCount(0);
   await irACasos(page);
   const boton = page.getByTestId("intentar-llevarsela");
   await expect(boton).toBeVisible();
@@ -86,11 +91,11 @@ test("/probar · caso en vivo: prepara un pedido con plata adentro, manda la ord
     await irACasos(page);
     await expect(page.getByTestId("intento-preparando")).toBeVisible({ timeout: 3_000 });
   }).toPass({ timeout: 45_000 });
-  await expect(boton).toBeEnabled({ timeout: 5 * 60_000 });
-  await expect(page.getByTestId("intento-escena")).toContainText(/\d+,\d{2}/);
-
+  // Un toque mientras se prepara queda en cola: la orden sale sola apenas haya plata adentro.
   await boton.click();
-  await expect(page.getByTestId("intento-sello")).toHaveText("Rechazado por la red", { timeout: 60_000 });
+  await expect(page.getByTestId("intento-preparando")).toContainText("Sale apenas haya plata adentro");
+  await expect(page.getByTestId("intento-sello")).toHaveText("Rechazado por la red", { timeout: 5 * 60_000 });
+  await expect(page.getByTestId("intento-escena")).toContainText(/\d+,\d{2}/);
   await expect(page.getByTestId("intento-codigo")).toContainText(/Error\(Contract, #\d+\)/);
   await expect(page.getByTestId("intento-link-contrato")).toHaveAttribute("href", /stellar\.expert\/explorer\/testnet\/contract\/C[A-Z2-7]{55}$/);
   await expect(page.getByTestId("intento-link-pago")).toHaveAttribute("href", /stellar\.expert\/explorer\/testnet\/tx\/[0-9a-f]{64}$/);

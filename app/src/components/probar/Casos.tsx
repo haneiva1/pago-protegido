@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ComponentType } from "react";
+import { useRef, useState, type ComponentType } from "react";
 import { IconoAlerta, IconoBloqueado, IconoReloj, IconoVolver } from "@/components/iconos";
 import { LlegaMal, NoConfirma, NoEnvia } from "./casos/Animados";
 import { IntentoEnVivo } from "./casos/IntentoEnVivo";
@@ -19,23 +19,17 @@ const CASOS: { id: string; titulo: string; Icono: ComponentType<{ className?: st
 
 export function Casos({ className = "" }: { className?: string }) {
   const [elegido, setElegido] = useState(CASOS[0].id);
-  // El caso en vivo prepara su pedido recién cuando la sección se ve: no compite con el arranque de la demo de arriba.
+  // El caso en vivo prepara su pedido recién cuando alguien llega a la sección (el puntero o el dedo pasan por ella, o la
+  // recorre con el teclado): no compite con la demo de arriba ni con un chequeo automático que solo la tiene en pantalla.
   const [visto, setVisto] = useState(false);
   const ref = useRef<HTMLElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || visto) return;
-    if (typeof IntersectionObserver === "undefined") return setVisto(true);
-    const io = new IntersectionObserver((e) => e.some((x) => x.isIntersecting) && setVisto(true), { rootMargin: "120px" });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [visto]);
+  const llegar = () => setVisto(true);
 
   const caso = CASOS.find((c) => c.id === elegido) ?? CASOS[0];
   const Panel = caso.Panel;
 
   return (
-    <section ref={ref} id="casos" data-testid="casos" className={`scroll-mt-24 ${className}`} aria-labelledby="casos-titulo">
+    <section ref={ref} onPointerEnter={llegar} onTouchStart={llegar} onFocusCapture={llegar} id="casos" data-testid="casos" className={`scroll-mt-24 ${className}`} aria-labelledby="casos-titulo">
       <div className="text-center">
         <h2 id="casos-titulo" className="text-2xl lg:text-3xl">
           ¿Y si algo sale mal?

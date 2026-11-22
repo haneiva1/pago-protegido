@@ -29,7 +29,10 @@ const INTENTO = "M 80 70 L 80 43";
 export function IntentoEnVivo({ activo = true }: { activo?: boolean }) {
   const [pedido, setPedido] = useState<PedidoConPlata | null>(null);
   const [estado, setEstado] = useState<Estado>({ fase: "buscando" });
+  const [enColaVisible, setEnColaVisible] = useState(false);
   const vivo = useRef(true);
+  // Un toque mientras se prepara el pedido queda en cola: la orden sale apenas haya plata adentro.
+  const enCola = useRef(false);
 
   useEffect(() => {
     if (!activo) return;
@@ -45,7 +48,12 @@ export function IntentoEnVivo({ activo = true }: { activo?: boolean }) {
         if (!vivo.current) return;
         setPedido(p);
         setEstado({ fase: "listo" });
+        if (enCola.current) {
+          enCola.current = false;
+          void intentar(p);
+        }
       } catch {
+        setEnColaVisible(false);
         if (vivo.current) setEstado({ fase: "error", mensaje: "No pudimos preparar el pedido de prueba. Vuelve a abrir este caso en un momento." });
       }
     })();
@@ -54,11 +62,16 @@ export function IntentoEnVivo({ activo = true }: { activo?: boolean }) {
     };
   }, [activo]);
 
-  async function intentar() {
-    if (!pedido) return;
+  async function intentar(p: PedidoConPlata | null = pedido) {
+    if (!p) {
+      enCola.current = true;
+      setEnColaVisible(true);
+      return;
+    }
+    setEnColaVisible(false);
     setEstado({ fase: "enviando" });
     try {
-      const d = await api<Omit<Desvio, "at">>("/api/probar/desvio", { slug: pedido.slug });
+      const d = await api<Omit<Desvio, "at">>("/api/probar/desvio", { slug: p.slug });
       setEstado({ fase: "rechazado", d: { ...d, at: Date.now() } });
     } catch (e) {
       setEstado({ fase: "error", mensaje: (e as Error).message });
@@ -111,16 +124,16 @@ export function IntentoEnVivo({ activo = true }: { activo?: boolean }) {
         <button
           type="button"
           className={`${s.tocable} btn-danger w-full max-w-sm`}
-          onClick={intentar}
-          disabled={!pedido || estado.fase === "enviando" || estado.fase === "preparando" || estado.fase === "buscando"}
+          onClick={() => void intentar()}
+          disabled={estado.fase === "enviando" || enColaVisible}
           data-testid="intentar-llevarsela"
         >
-          {estado.fase === "enviando" || estado.fase === "preparando" || estado.fase === "buscando" ? <Spinner /> : <IconoBloqueado className="h-5 w-5" />}
+          {estado.fase === "enviando" || enColaVisible ? <Spinner /> : <IconoBloqueado className="h-5 w-5" />}
           {estado.fase === "rechazado" ? "Intentar otra vez" : "Intentar llevársela"}
         </button>
-        {estado.fase === "preparando" && (
-          <p className={`${s.texto} text-sm text-tinta-600`} data-testid="intento-preparando">
-            Preparando un pedido con plata adentro, en la red de prueba…
+        {(estado.fase === "preparando" || enColaVisible) && (
+          <p className={`${s.texto} text-center text-sm text-tinta-600`} data-testid="intento-preparando">
+            {enColaVisible ? "Sale apenas haya plata adentro: estamos preparando un pedido en la red de prueba…" : "Preparando un pedido con plata adentro, en la red de prueba…"}
           </p>
         )}
         {estado.fase === "error" && <p className="caja-aviso text-sm">{estado.mensaje}</p>}
