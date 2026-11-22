@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { IconoBillete, IconoBloqueado, IconoBolsa, IconoCerrar, IconoCheck, IconoChevronAbajo, IconoInfo, IconoReiniciar, IconoReloj, IconoTienda, IconoUsuario } from "@/components/iconos";
 import { Casos } from "@/components/probar/Casos";
+import { CheckTrazo } from "@/components/probar/CheckTrazo";
 import { ComoFunciona3 } from "@/components/probar/ComoFunciona3";
 import { ConstruidoLinea } from "@/components/probar/Construido";
 import { Intro } from "@/components/probar/Intro";
@@ -61,6 +62,29 @@ function escalaPara(escenario: HTMLElement): number {
  * y un solo botón que resalta por paso. Todo lo demás (registro en la red, plazos, por qué simulado, lo construido) va en
  * el cajón "Ver detalles".
  */
+type Punto = { x: number; y: number };
+/** La plata en viaje: de (x, y) a (x1, y1), relativos al escenario. */
+type Viaje = { fase: "al-centro" | "a-tienda"; x: number; y: number; x1: number; y1: number; n: number };
+
+/** Los puntos del viaje de la plata, relativos al escenario: el celular del comprador, el centro (donde espera) y la tienda. En celular, las pestañas. */
+function puntosPlata(esc: HTMLElement): { comprador: Punto; centro: Punto; tienda: Punto } | null {
+  const lg = window.matchMedia("(min-width: 1024px)").matches;
+  const q = (id: string) => esc.querySelector<HTMLElement>(`[data-testid="${id}"]`);
+  const v = q(lg ? "marco-vendedor" : "tab-vendedor");
+  const c = q(lg ? "marco-comprador" : "tab-comprador");
+  if (!v || !c) return null;
+  const base = esc.getBoundingClientRect();
+  const rv = v.getBoundingClientRect();
+  const rc = c.getBoundingClientRect();
+  if (!rv.width || !rc.width) return null;
+  const y = rv.top - base.top + rv.height * (lg ? 0.3 : 0.5);
+  return {
+    tienda: { x: rv.left - base.left + rv.width / 2, y },
+    comprador: { x: rc.left - base.left + rc.width / 2, y },
+    centro: { x: (rv.right + rc.left) / 2 - base.left, y },
+  };
+}
+
 export default function Probar({ plazos }: { plazos: Plazos }) {
   const [listo, setListo] = useState(false);
   const [bloqueo, setBloqueo] = useState<string | null>(null);
@@ -88,6 +112,9 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
   // El slug vigente, para que el pedido del chat ("estafa" por el canal) no lea un cierre viejo de `registro`.
   const slugRef = useRef<string | null>(null);
   slugRef.current = registro?.pedido?.slug ?? null;
+  // La plata viajando: del comprador al centro al pagar, del centro a la tienda al cobrar; y dónde espera mientras tanto.
+  const [viaje, setViaje] = useState<Viaje | null>(null);
+  const [centro, setCentro] = useState<Punto | null>(null);
   // Sube con "Empezar de nuevo": una consulta que salió antes no puede traer de vuelta el pedido anterior.
   const generacion = useRef(0);
 
@@ -245,12 +272,24 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
     const antes = prevStatus.current;
     prevStatus.current = status;
     if (antes === null && status === null) return;
+    if (antes !== null && escenario.current) {
+      const p = puntosPlata(escenario.current);
+      if (p && status === "pagado") setViaje({ fase: "al-centro", ...p.comprador, x1: p.centro.x, y1: p.centro.y, n: Date.now() });
+      if (p && status === "liberado" && hayPlataGuardada(antes)) setViaje({ fase: "a-tienda", ...p.centro, x1: p.tienda.x, y1: p.tienda.y, n: Date.now() });
+    }
     const turno: RolProbar | null = status === "enviado" ? "comprador" : status === "pagado" || status === "liberado" ? "vendedor" : null;
     if (turno) {
       setTab(turno);
       setAviso(turno);
     }
   }, [status]);
+  // Dónde espera la plata (entre los dos): se recalcula con la escala, la pestaña y el tamaño de la ventana.
+  useEffect(() => {
+    const calc = () => setCentro(escenario.current ? (puntosPlata(escenario.current)?.centro ?? null) : null);
+    calc();
+    window.addEventListener("resize", calc);
+    return () => window.removeEventListener("resize", calc);
+  }, [listo, escala, altoMovil, tab, status]);
   useEffect(() => {
     if (window.matchMedia("(min-width: 1024px)").matches) return;
     document.querySelector<HTMLElement>('[role="tablist"]')?.scrollIntoView({ block: "start", behavior: "smooth" });
@@ -273,6 +312,7 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
     guardarSesion();
     generacion.current += 1;
     prevStatus.current = null;
+    setViaje(null);
     setRegistro(null);
     setDesvios([]);
     setBloqueoVisto(false);
@@ -361,7 +401,7 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
                     estado === "ahora" ? "bg-monte text-sal" : estado === "hecho" ? "bg-exito-100 text-musgo" : "bg-tinta-100 text-tinta-500"
                   }`}
                 >
-                  {estado === "hecho" ? <IconoCheck className="h-4 w-4" /> : <Icono className="h-4 w-4" />}
+                  {estado === "hecho" ? <CheckTrazo className="h-4 w-4" /> : <Icono className="h-4 w-4" />}
                   <span className="num">{p.n}</span>
                   <span className={estado === "ahora" ? "inline" : "hidden sm:inline"}>{p.nombre}</span>
                 </span>
@@ -372,10 +412,10 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
         </ol>
         {listo && (
           <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 lg:px-2">
-            <h2 data-testid="titulo-etapa" className="text-2xl leading-tight" data-paso={paso.n}>
+            <h2 key={paso.titulo} data-testid="titulo-etapa" className="text-2xl leading-tight animate-[fundido_240ms_var(--ease-suave)_both]" data-paso={paso.n}>
               {paso.titulo}
             </h2>
-            <p data-testid="ahora" className="text-sm text-tinta-600 lg:text-base">
+            <p key={paso.linea} data-testid="ahora" className="text-sm text-tinta-600 animate-[fundido_240ms_var(--ease-suave)_both] lg:text-base">
               {paso.linea}
             </p>
             {precalentando !== null && (sub === "hoja-cuenta" || sub === "creando") && (
@@ -397,7 +437,31 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
       {listo && (
         <>
           {/* El escenario: los dos iPhone; el que no toca, atenuado. En celular, uno a la vez, en pestañas. */}
-          <div ref={escenario} className="flex flex-col gap-3 lg:col-start-2 lg:row-start-2 lg:grid lg:grid-cols-[auto_auto] lg:items-start lg:justify-center lg:gap-16" style={{ "--alto-movil": `${altoMovil}px` } as React.CSSProperties}>
+          <div ref={escenario} className="relative flex flex-col gap-3 lg:col-start-2 lg:row-start-2 lg:grid lg:grid-cols-[auto_auto] lg:items-start lg:justify-center lg:gap-16" style={{ "--alto-movil": `${altoMovil}px` } as React.CSSProperties}>
+            {/* La plata: viaja del comprador al centro al pagar, espera ahí, y va del centro a la tienda al cobrar. */}
+            {registro?.pedido && (viaje || (hayPlataGuardada(status) && centro)) && (
+              <div
+                key={viaje?.n ?? "espera"}
+                aria-hidden
+                data-plata={viaje ? viaje.fase : "espera"}
+                className={`pointer-events-none absolute left-0 top-0 z-20 ${
+                  viaje ? (viaje.fase === "al-centro" ? "animate-[viaje-plata_1100ms_var(--ease-suave)_both]" : "animate-[viaje-plata-fin_1100ms_var(--ease-suave)_both]") : ""
+                }`}
+                style={
+                  viaje
+                    ? ({ "--x0": `${viaje.x}px`, "--y0": `${viaje.y}px`, "--x1": `${viaje.x1}px`, "--y1": `${viaje.y1}px` } as React.CSSProperties)
+                    : centro
+                      ? { transform: `translate(${centro.x}px, ${centro.y}px)` }
+                      : undefined
+                }
+                onAnimationEnd={() => setViaje(null)}
+              >
+                <span className="flex -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 rounded-full bg-monte p-2 text-xs font-semibold text-sal shadow-alzada lg:px-2.5 lg:py-1">
+                  <IconoBillete className="h-4 w-4" />
+                  <span className="num hidden lg:inline">{registro.pedido.total}</span>
+                </span>
+              </div>
+            )}
             <div role="tablist" aria-label="Celulares" className="order-2 grid scroll-mt-16 grid-cols-2 gap-1 rounded-control bg-tinta-200/60 p-1 lg:hidden">
               {(["vendedor", "comprador"] as const).map((r) => (
                 <button
@@ -420,7 +484,7 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
               ))}
             {/* En celular, el paso actual bajo las pestañas: una sola línea compacta. */}
             <div className="order-2 space-y-2 lg:hidden" data-testid="paso-compacto">
-              <p className="text-sm leading-tight">
+              <p key={`${paso.titulo}|${paso.corta}`} className="text-sm leading-tight animate-[fundido_240ms_var(--ease-suave)_both]">
                 <strong className="block text-monte">{paso.titulo}</strong>
                 <span className="block text-tinta-600">{paso.corta}</span>
               </p>
@@ -437,7 +501,12 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
           </div>
 
           {/* Lo que acaba de pasar, en 6 palabras o menos, y por qué la demo es simulada. */}
-          <p data-testid="recien" className="text-center text-2xl lg:col-span-2 lg:text-3xl">
+          <p
+            key={HECHO[status ?? (hayTienda ? "tienda" : "")] ?? ""}
+            data-testid="recien"
+            className="flex items-center justify-center gap-2 text-center text-2xl animate-[fundido_240ms_var(--ease-suave)_both] lg:col-span-2 lg:text-3xl"
+          >
+            {status === "liberado" && <CheckTrazo circulo className="h-7 w-7 shrink-0 text-musgo lg:h-8 lg:w-8" />}
             {HECHO[status ?? (hayTienda ? "tienda" : "")] ?? ""}
           </p>
           <p className="mx-auto flex max-w-3xl items-start justify-center gap-2 text-sm leading-snug text-tinta-600 lg:col-span-2" data-testid="por-que-simulado">

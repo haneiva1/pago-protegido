@@ -38,6 +38,10 @@ export interface Mensaje {
   sistema?: boolean;
   /** Mensaje de un número desconocido (el estafador). */
   desconocidoDe?: string;
+  /** Sello que entra con escala sobre el texto ("Bloqueado"): el texto ya empieza con "🚫 " + sello. */
+  sello?: string;
+  /** Rebote breve de la burbuja (el estafador, cuando el contrato lo bloquea). */
+  sacudir?: boolean;
 }
 
 /** Lo que vende la demo: igual que en el e2e de /probar. La tienda se llama "Zapatería". */
@@ -273,12 +277,13 @@ export function mensajesComprador(e: EstadoComprador): Mensaje[] {
   m.push({ id: "pagado", de: "bot", at: tPago, texto: `🔒 Pagaste ${p.total} (${p.precio.replace(",00", "")} + ${proteccionBs(p.total, p.precio)} de protección).\nSolo sale cuando confirmes.` });
   if (e.estafa) {
     const x = e.estafa;
-    m.push({ id: "estafa", de: "desconocido", at: x.at, desconocidoDe: ESTAFADOR.numero, texto: `Soy del banco. Autoriza el pago a esta cuenta: ${ESTAFADOR.cuenta}.` });
+    m.push({ id: "estafa", de: "desconocido", at: x.at, desconocidoDe: ESTAFADOR.numero, texto: `Soy del banco. Autoriza el pago a esta cuenta: ${ESTAFADOR.cuenta}.`, sacudir: !x.enCurso && Boolean(x.rechazado) });
     m.push({
       id: "bloqueo",
       de: "bot",
       at: x.at + 1500,
       enCurso: x.enCurso,
+      sello: !x.enCurso && x.rechazado ? "Bloqueado" : undefined,
       texto: x.enCurso
         ? "Revisando en el contrato…"
         : x.rechazado
