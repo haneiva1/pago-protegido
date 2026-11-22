@@ -29,7 +29,7 @@ test("vista previa del link en WhatsApp: Open Graph por pedido, en la landing y 
   const m = metas(await (await request.get(`/p/${link.slug}`, { headers: WHATSAPP })).text());
   expect(m["og:title"]).toBe("Zapatillas Nike talla 40 · Bs 450,00 | Trato");
   expect(m["og:description"]).toContain("Tienda Sofi te envió un link de pago protegido");
-  expect(m["og:description"]).toContain("Tu plata queda guardada hasta que confirmes que te llegó");
+  expect(m["og:description"]).toContain("La plata espera entre los dos hasta que confirmes que te llegó");
   expect(m["og:site_name"]).toBe("Trato");
   expect(m["twitter:card"]).toBe("summary_large_image");
   expect(m["og:image"]).toMatch(new RegExp(`^http://localhost:\\d+/p/${link.slug}/opengraph-image`));
@@ -44,7 +44,7 @@ test("vista previa del link en WhatsApp: Open Graph por pedido, en la landing y 
   // Landing: imagen genérica de la marca.
   const home = metas(await (await request.get("/", { headers: WHATSAPP })).text());
   expect(home["og:title"]).toContain("Trato");
-  expect(home["og:description"]).toContain("plata queda guardada");
+  expect(home["og:description"]).toContain("plata espera entre los dos");
   expect(home["twitter:card"]).toBe("summary_large_image");
   expect(home["og:image"]).toMatch(/^http:\/\/localhost:\d+\/opengraph-image/);
   const himg = await request.get(home["og:image"]);

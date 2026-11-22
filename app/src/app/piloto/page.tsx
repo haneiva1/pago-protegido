@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { IconoCheckCirculo } from "@/components/iconos";
 import { ErrorBox, Spinner } from "@/components/ui";
 import { CIUDADES } from "@/lib/format";
 import { api } from "@/lib/wallet";
@@ -30,9 +31,12 @@ export default function Piloto() {
 
   if (done)
     return (
-      <div className="card mx-auto max-w-md space-y-3 text-center" data-testid="piloto-listo">
-        <h1 className="text-2xl font-bold">¡Estás en la lista! 🙌</h1>
-        <p className="text-slate-600">Te escribimos por WhatsApp para empezar el piloto. Si quieres, crea tu tienda ahora: quedará marcada como vendedor del piloto.</p>
+      <div className="card mx-auto max-w-md space-y-4 text-center animate-aparecer sm:p-8" data-testid="piloto-listo">
+        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-exito-100 text-musgo" aria-hidden>
+          <IconoCheckCirculo className="h-7 w-7" />
+        </span>
+        <h1 className="text-2xl sm:text-3xl">¡Estás en la lista!</h1>
+        <p className="text-tinta-600">Te escribimos por WhatsApp para empezar el piloto. Si quieres, crea tu tienda ahora: quedará marcada como vendedor del piloto.</p>
         <Link className="btn-primary w-full" href={`/vender?piloto=${done.id}&wa=${done.whatsapp}`}>
           Crear mi tienda ahora
         </Link>
@@ -49,12 +53,16 @@ export default function Piloto() {
   );
 
   return (
-    <div className="mx-auto max-w-md space-y-4">
-      <h1 className="text-2xl font-bold">Piloto con vendedores reales</h1>
-      <p className="text-slate-600">
-        Buscamos tiendas de celulares y electrónica que vendan a otras ciudades por encomienda (tickets de Bs 1.000 a 7.000). Anótate y te acompañamos en tus primeras ventas protegidas.
-      </p>
-      <form className="card space-y-3" onSubmit={submit} data-testid="form-piloto">
+    <div className="mx-auto max-w-md space-y-5 pt-2">
+      <header>
+        <p className="eyebrow">Para tiendas</p>
+        <h1 className="mt-2 text-3xl">Piloto con vendedores reales</h1>
+        <p className="mt-3 text-tinta-600">
+          Buscamos tiendas de celulares y electrónica que vendan a otras ciudades por encomienda (tickets de Bs 1.000 a 7.000). Anótate y te acompañamos en tus
+          primeras ventas protegidas.
+        </p>
+      </header>
+      <form className="card space-y-4 sm:p-6" onSubmit={submit} data-testid="form-piloto">
         {field("name", "Tu nombre", "Nombre y apellido")}
         {field("store", "Nombre de la tienda", "Ej.: Tienda Sofi")}
         <div>
@@ -72,8 +80,8 @@ export default function Piloto() {
         {field("shipsTo", "¿A qué ciudades envías?", "Ej.: La Paz, Cochabamba, Santa Cruz")}
         {field("avgTicket", "Ticket promedio (Bs)", "Ej.: 450", { inputMode: "decimal" })}
         {field("whatsapp", "WhatsApp", "Ej.: 591 71234567", { inputMode: "tel" })}
-        <label className="flex items-start gap-2 text-sm text-slate-700">
-          <input type="checkbox" className="mt-1" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+        <label className="flex items-start gap-2.5 text-sm text-tinta-700">
+          <input type="checkbox" className="mt-0.5 h-4 w-4 accent-musgo" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
           <span>Acepto que Trato guarde estos datos y me escriba por WhatsApp sobre el piloto.</span>
         </label>
         <ErrorBox error={error} />

@@ -1,12 +1,12 @@
 import { ImageResponse } from "next/og";
-import { BRAND, OG_SIZE, ShieldLogo, TAGLINE } from "@/lib/og";
+import { BRAND, FUENTE, LogoOg, OG_SIZE, TAGLINE } from "@/lib/og";
 import { ogFonts } from "@/lib/og-fonts";
 
 export const alt = "Trato: vende a otras ciudades sin que desconfíen de ti";
 export const size = OG_SIZE;
 export const contentType = "image/png";
 
-/** Imagen genérica de la marca (landing y páginas sin imagen propia). */
+/** Imagen genérica de la marca (inicio y páginas sin imagen propia): Monte, logo y la promesa. */
 export default async function Image() {
   return new ImageResponse(
     (
@@ -18,22 +18,24 @@ export default async function Image() {
           flexDirection: "column",
           justifyContent: "space-between",
           padding: "64px 72px",
-          background: `linear-gradient(135deg, ${BRAND.deep} 0%, ${BRAND.ink} 100%)`,
-          color: "#fff",
-          fontFamily: "Inter",
+          background: BRAND.monte,
+          color: BRAND.sal,
+          fontFamily: FUENTE.sans,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
-          <ShieldLogo size={104} />
-          <div style={{ display: "flex", fontSize: 64, fontWeight: 800, letterSpacing: -1 }}>Trato</div>
+        <LogoOg sobre="oscuro" height={56} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+          <div style={{ display: "flex", fontFamily: FUENTE.display, fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1.5, maxWidth: 1000 }}>
+            Vende a otras ciudades sin que desconfíen de ti.
+          </div>
+          <div style={{ display: "flex", fontSize: 32, lineHeight: 1.3, color: "rgba(245,247,241,0.75)", maxWidth: 980 }}>{TAGLINE}.</div>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          <div style={{ display: "flex", fontSize: 58, fontWeight: 800, lineHeight: 1.1, maxWidth: 980 }}>Vende a otras ciudades sin que desconfíen de ti.</div>
-          <div style={{ display: "flex", fontSize: 32, color: BRAND.mint }}>{TAGLINE}.</div>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 24, color: "rgba(255,255,255,.7)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 24, color: "rgba(245,247,241,0.6)" }}>
           <div style={{ display: "flex" }}>Pago protegido para ventas por redes · Bolivia</div>
-          <div style={{ display: "flex" }}>Escrow en Stellar · Trustless Work</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", width: 10, height: 10, borderRadius: 5, background: BRAND.yungas }} />
+            Modo práctica
+          </div>
         </div>
       </div>
     ),

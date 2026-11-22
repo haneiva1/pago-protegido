@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
+import { Nudo } from "@/components/iconos";
 import { ListaOperaciones, NumerosTienda } from "@/components/Kpis";
 import { explorer } from "@/lib/format";
 import { desdeTexto, fmtDuracion, fmtHora, fmtProporcion, nf } from "@/lib/kpi-format";
@@ -48,42 +49,44 @@ export default async function Tienda({ params }: { params: Promise<{ slug: strin
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <section className="card space-y-4" data-testid="perfil-tienda">
+      {/* Cabecera en Monte: el perfil es la cara pública de la tienda, con el Nudo y el sello en Yungas. */}
+      <section className="panel-oscuro space-y-5 !p-5 sm:!p-7" data-testid="perfil-tienda" data-oscuro="">
         <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 flex-none items-center justify-center rounded-full bg-brand-600 text-xl font-bold text-monte">{initials}</div>
+          <div className="flex h-14 w-14 flex-none items-center justify-center rounded-full bg-yungas font-display text-xl text-monte sm:h-16 sm:w-16 sm:text-2xl">{initials}</div>
           <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold" data-testid="perfil-nombre">
+            <h1 className="text-2xl leading-tight text-sal sm:text-3xl" data-testid="perfil-nombre">
               {p.store_name}
             </h1>
-            <p className="text-sm text-slate-600">
+            <p className="mt-1 text-sm text-sal/70">
               {p.city ? `${p.city} · ` : ""}
               {desdeTexto(k, p.tienda_desde)}
             </p>
           </div>
         </div>
-        <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-sm font-semibold text-brand-800 ring-1 ring-brand-200" data-testid="sello">
-          🛡️ Vende con Trato
+        <span className="inline-flex items-center gap-2 rounded-full bg-yungas px-3 py-1.5 text-sm font-semibold text-monte" data-testid="sello">
+          <Nudo className="h-3.5 w-3.5" />
+          Vende con Trato
         </span>
         <NumerosTienda k={k} />
-        <ul className="space-y-0.5 text-sm text-slate-600">
+        <ul className="space-y-1 text-sm text-sal/80">
           <li data-testid="verificacion">Verificación de identidad: pendiente (modo práctica)</li>
           <li>
             {p.pilot
               ? "Tienda del piloto con vendedores reales."
               : "Datos de práctica en la red de prueba: esta tienda es de las pruebas del equipo, no del piloto."}
           </li>
-          <li className="text-xs text-slate-500" data-testid="perfil-actualizado">
+          <li className="text-xs text-sal/60" data-testid="perfil-actualizado">
             Calculado con el registro público de cada compra · actualizado: {fmtHora(p.actualizado)}
             {p.error ? " (no se pudo consultar la red ahora; se muestran los últimos datos guardados)" : ""}
           </li>
         </ul>
       </section>
 
-      <section className="card space-y-2">
-        <h2 className="font-bold">Historial verificable</h2>
-        <p className="text-sm text-slate-600">
+      <section className="card space-y-3 sm:p-6">
+        <h2 className="text-xl">Historial verificable</h2>
+        <p className="text-sm text-tinta-600">
           Las últimas compras de esta tienda, cada una con su link al registro público.{" "}
-          <a className="underline" href={explorer.account(p.cuenta)} target="_blank" rel="noreferrer">
+          <a className="enlace" href={explorer.account(p.cuenta)} target="_blank" rel="noreferrer">
             Ver la cuenta de la tienda en el registro público
           </a>
           .
@@ -91,9 +94,9 @@ export default async function Tienda({ params }: { params: Promise<{ slug: strin
         <ListaOperaciones compras={p.registro} fx={p.fx} />
       </section>
 
-      <p className="text-center text-xs text-slate-500">
+      <p className="text-center text-xs text-tinta-500">
         Este perfil no muestra el teléfono ni la dirección de la tienda. ·{" "}
-        <Link className="underline" href="/metricas">
+        <Link className="enlace" href="/metricas">
           Métricas de Trato
         </Link>
       </p>

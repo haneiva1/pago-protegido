@@ -8,7 +8,7 @@ import { SCRIPT_MARCO } from "@/lib/probar";
 import "./globals.css";
 
 const OG_TITLE = "Trato: vende a otras ciudades sin que desconfíen de ti";
-const OG_DESC = "Pago contra confirmación de entrega: tu cliente paga por adelantado y su plata queda guardada hasta que recibe. También entre ciudades.";
+const OG_DESC = "Pago contra confirmación de entrega: tu cliente paga por adelantado y su plata espera entre los dos hasta que recibe. También entre ciudades.";
 
 /** WhatsApp y las redes necesitan URLs absolutas: se arman con el host del request (sirve también detrás de un túnel). */
 export async function generateMetadata(): Promise<Metadata> {
