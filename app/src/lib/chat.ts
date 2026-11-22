@@ -125,8 +125,14 @@ export interface EstadoVendedor {
   estafaHecha?: boolean;
   /** El intento del estafador está en curso (se ve en el chat del comprador). */
   estafaEnCurso?: boolean;
+  /** La red de prueba está lenta: se está reintentando (nunca se muestra el error crudo). */
+  lento?: boolean;
+  /** Falló tres veces: se ofrece "Reintentar". */
+  fallo?: "cuenta" | "link" | "envio" | null;
   host: string;
 }
+
+const LENTO = "La red de prueba está lenta, un momento…";
 
 /** "Bs 6,75": lo que paga el comprador de más (protección) a partir de los dos montos en texto. */
 export function proteccionBs(total: string, precio: string): string {
@@ -158,7 +164,8 @@ export function mensajesVendedor(e: EstadoVendedor): Mensaje[] {
         botones: e.alta.creando ? undefined : [{ id: "crear-cuenta", texto: "Crear mi cuenta", principal: true }],
       });
     }
-    if (e.alta.creando) m.push({ id: "creando", de: "bot", at: seg(t0, 6), enCurso: true, texto: "Creando tu cuenta. Unos 10 segundos." });
+    if (e.fallo === "cuenta") m.push({ id: "fallo-cuenta", de: "bot", at: seg(t0, 6), texto: "No pude crear tu cuenta ahora. Toca Reintentar.", botones: [{ id: "reintentar-cuenta", texto: "Reintentar", principal: true }] });
+    else if (e.alta.creando) m.push({ id: "creando", de: "bot", at: seg(t0, 6), enCurso: true, texto: e.lento ? LENTO : "Creando tu cuenta. Unos 10 segundos." });
     return m;
   }
   const tA = e.pedido ? e.pedido.created_at - 20_000 : seg(t0, 20);
@@ -169,9 +176,13 @@ export function mensajesVendedor(e: EstadoVendedor): Mensaje[] {
     texto: `Listo, ${e.tienda}. ¿Qué vendes hoy?`,
     botones: e.pedido || e.creandoLink ? undefined : [{ id: "vender", texto: "Vender Zapatillas Nike Bs 450", principal: true }],
   });
+  if (e.fallo === "link" && !e.pedido) {
+    m.push({ id: "fallo-link", de: "bot", at: e.ahora, texto: "No pude crear tu link ahora. Toca Reintentar.", botones: [{ id: "reintentar-link", texto: "Reintentar", principal: true }] });
+    return m;
+  }
   if (e.creandoLink && !e.pedido) {
     m.push({ id: "yo-vendo", de: "yo", at: e.ahora, texto: DEMO.vendo });
-    m.push({ id: "creando-link", de: "bot", at: e.ahora, enCurso: true, texto: "Creando tu link de pago…" });
+    m.push({ id: "creando-link", de: "bot", at: e.ahora, enCurso: true, texto: e.lento ? LENTO : "Creando tu link de pago…" });
     return m;
   }
   const p = e.pedido;
@@ -203,7 +214,8 @@ export function mensajesVendedor(e: EstadoVendedor): Mensaje[] {
   if (p.status === "pagado" && e.estafaHecha)
     m.push({ id: "despacha", de: "bot", at: tPago + 1000, texto: "Despacha y toca Ya lo envié.", botones: e.enviando ? undefined : [{ id: "enviado", texto: "Ya lo envié", principal: true }] });
   if (p.status === "pagado") {
-    if (e.enviando) m.push({ id: "enviando", de: "bot", at: e.ahora, enCurso: true, texto: "Registrando el envío (Trans Copacabana · SRV-2026-118734). Unos 10 segundos." });
+    if (e.fallo === "envio") m.push({ id: "fallo-envio", de: "bot", at: e.ahora, texto: "No pude registrar el envío ahora. Toca Reintentar.", botones: [{ id: "reintentar-envio", texto: "Reintentar", principal: true }] });
+    else if (e.enviando) m.push({ id: "enviando", de: "bot", at: e.ahora, enCurso: true, texto: e.lento ? LENTO : "Registrando el envío (Trans Copacabana · SRV-2026-118734). Unos 10 segundos." });
     return m;
   }
   if (p.status === "devuelto") {
@@ -238,6 +250,8 @@ export interface EstadoComprador {
   reenviado: boolean;
   estafa: Estafa | null;
   confirmando: boolean;
+  lento?: boolean;
+  fallo?: "cobro" | null;
   host: string;
 }
 
@@ -293,9 +307,10 @@ export function mensajesComprador(e: EstadoComprador): Mensaje[] {
         : undefined,
   });
   if (p.status === "enviado") {
-    if (e.confirmando) {
+    if (e.fallo === "cobro") m.push({ id: "fallo-cobro", de: "bot", at: e.ahora, texto: `No pude pagar a ${e.tienda} ahora. Toca Reintentar.`, botones: [{ id: "reintentar-cobro", texto: "Reintentar", principal: true }] });
+    else if (e.confirmando) {
       m.push({ id: "yo-me-llego", de: "yo", at: e.ahora, texto: "Sí, me llegó y está bien" });
-      m.push({ id: "pagando", de: "bot", at: e.ahora, enCurso: true, texto: `Pagando a ${e.tienda}. Unos 10 segundos.` });
+      m.push({ id: "pagando", de: "bot", at: e.ahora, enCurso: true, texto: e.lento ? LENTO : `Pagando a ${e.tienda}. Unos 10 segundos.` });
     }
     return m;
   }

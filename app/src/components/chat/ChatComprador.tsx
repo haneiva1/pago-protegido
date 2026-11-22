@@ -8,7 +8,7 @@ import { mensajesComprador, type Estafa } from "@/lib/chat";
 import { errorDelContrato } from "@/lib/probar";
 import type { PreparedTx } from "@/lib/wallet/types";
 import { Chat } from "./Chat";
-import { canal, sesion, useAhora, useMarco, usePedidoChat } from "./pedido";
+import { canal, conReintentos, sesion, useAhora, useMarco, usePedidoChat } from "./pedido";
 
 interface Desvio {
   rejected: boolean;
@@ -33,6 +33,8 @@ export function ChatComprador({ slugInicial = null }: { slugInicial?: string | n
   const [overlay, setOverlay] = useState(false);
   const [hoja, setHoja] = useState<null | "pregunta">(null);
   const [confirmando, setConfirmando] = useState(false);
+  const [lento, setLento] = useState(false);
+  const [fallo, setFallo] = useState<"cobro" | null>(null);
   const [estafa, setEstafa] = useState<Estafa | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -119,6 +121,8 @@ export function ChatComprador({ slugInicial = null }: { slugInicial?: string | n
     if (!slug) return;
     setHoja(null);
     setConfirmando(true);
+    setFallo(null);
+    setLento(false);
     setOcupado(true);
     setError(null);
     progreso.reset();
@@ -127,13 +131,17 @@ export function ChatComprador({ slugInicial = null }: { slugInicial?: string | n
       const wal = w.getWallet("comprador");
       const signer = wal.publicKey();
       if (!signer) throw new Error("Este celular no tiene la cuenta que pagó este pedido");
-      const prepared = await api<PreparedTx>(`/api/orders/${slug}/action`, { action: "confirm", signer });
-      await w.signAndSubmit(wal, prepared, progreso.push);
+      await conReintentos(async () => {
+        const prepared = await api<PreparedTx>(`/api/orders/${slug}/action`, { action: "confirm", signer });
+        await w.signAndSubmit(wal, prepared, progreso.push);
+      }, () => setLento(true));
       await recargar();
       canal()?.postMessage({ tipo: "actualiza" });
-    } catch (e) {
-      setError((e as Error).message);
+    } catch {
+      // Nunca el error crudo de la red: el bot ofrece "Reintentar".
+      setFallo("cobro");
     } finally {
+      setLento(false);
       setConfirmando(false);
       setOcupado(false);
     }
@@ -142,7 +150,7 @@ export function ChatComprador({ slugInicial = null }: { slugInicial?: string | n
   function onBoton(id: string) {
     setError(null);
     if (id === "pagar" || id === "problema") setOverlay(true);
-    else if (id === "me-llego") void confirmar();
+    else if (id === "me-llego" || id === "reintentar-cobro") void confirmar();
   }
 
   const mensajes = mensajesComprador({
@@ -152,6 +160,8 @@ export function ChatComprador({ slugInicial = null }: { slugInicial?: string | n
     reenviado,
     estafa,
     confirmando,
+    lento,
+    fallo,
     host: typeof window !== "undefined" ? window.location.host : "",
   });
 

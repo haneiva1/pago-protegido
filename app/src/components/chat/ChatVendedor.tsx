@@ -11,7 +11,7 @@ import type { PreparedTx } from "@/lib/wallet/types";
 /** Datos del envío de la demo (los mismos del e2e): la tienda no escribe nada. */
 const ENVIO = { company: "Trans Copacabana (encomiendas)", tracking: "SRV-2026-118734", weight: "1,2", city: "La Paz" };
 import { Chat, TocaAqui } from "./Chat";
-import { canal, sesion, useAhora, useMarco, usePedidoChat } from "./pedido";
+import { canal, conReintentos, sesion, useAhora, useMarco, usePedidoChat } from "./pedido";
 
 interface Registro {
   tienda: { nombre: string; pubkey: string } | null;
@@ -40,6 +40,8 @@ export function ChatVendedor() {
   const [ocupado, setOcupado] = useState(false);
   const [estafaHecha, setEstafaHecha] = useState(false);
   const [estafaEnCurso, setEstafaEnCurso] = useState(false);
+  const [lento, setLento] = useState(false);
+  const [fallo, setFallo] = useState<"cuenta" | "link" | "envio" | null>(null);
   const [enviando, setEnviando] = useState(false);
   const progreso = useProgress();
   const wallet = useRef<typeof import("@/lib/wallet") | null>(null);
@@ -92,11 +94,18 @@ export function ChatVendedor() {
     if (ya) setReenviado(true);
   }, [slug, pedido?.status]);
 
-  async function crearCuenta(e: React.FormEvent) {
+  function crearCuenta(e: React.FormEvent) {
     e.preventDefault();
     if (nombre.trim().length < 2 || !ciudad) return setError("Escribe el nombre de tu tienda y elige tu ciudad");
     setHoja(null);
+    void crearCuentaReal();
+  }
+
+  /** Crea y activa la cuenta y guarda la tienda, reintentando si la red de prueba falla; nunca muestra el error crudo. */
+  async function crearCuentaReal() {
     setAlta({ hola: true, creando: true });
+    setFallo(null);
+    setLento(false);
     sub("creando");
     setOcupado(true);
     setError(null);
@@ -105,18 +114,19 @@ export function ChatVendedor() {
       const w = await cargarWallet();
       const wal = w.getWallet("vendedor");
       const pubkey = await wal.connect();
-      await w.activateWallet(wal, progreso.push);
+      await conReintentos(() => w.activateWallet(wal, progreso.push), () => setLento(true));
       progreso.push("Guardando tu tienda");
-      await apiFirmada(wal, "/api/sellers", { pubkey, storeName: nombre.trim(), whatsapp: DEMO.whatsapp, city: ciudad, pilotId: null });
+      await conReintentos(() => apiFirmada(wal, "/api/sellers", { pubkey, storeName: nombre.trim(), whatsapp: DEMO.whatsapp, city: ciudad, pilotId: null }), () => setLento(true));
       progreso.finish("Guardando tu tienda");
       setPk(pubkey);
       setTienda(nombre.trim());
       sub(null);
-    } catch (err) {
-      setError((err as Error).message);
+    } catch {
+      setFallo("cuenta");
       setAlta({ hola: true, creando: false });
       sub("hola");
     } finally {
+      setLento(false);
       setOcupado(false);
     }
   }
@@ -125,22 +135,25 @@ export function ChatVendedor() {
     if (!pk) return;
     setOcupado(true);
     setCreandoLink(true);
+    setFallo(null);
+    setLento(false);
     sub("creando-link");
     setError(null);
     try {
       const w = await cargarWallet();
-      const o = await apiFirmada<{ slug: string }>(w.getWallet("vendedor"), "/api/links", {
+      const o = await conReintentos(() => apiFirmada<{ slug: string }>(w.getWallet("vendedor"), "/api/links", {
         sellerPubkey: pk,
         product: DEMO.producto,
         priceBs: DEMO.precioBs,
         deliveryDays: DEMO.dias,
         category: DEMO.categoria,
         feePayer: "comprador",
-      });
+      }), () => setLento(true));
       setSlug(o.slug);
-    } catch (e) {
-      setError((e as Error).message);
+    } catch {
+      setFallo("link");
     } finally {
+      setLento(false);
       sub(null);
       setCreandoLink(false);
       setOcupado(false);
@@ -159,18 +172,23 @@ export function ChatVendedor() {
     if (!pk || !slug) return;
     setOcupado(true);
     setEnviando(true);
+    setFallo(null);
+    setLento(false);
     setError(null);
     progreso.reset();
     try {
       const w = await cargarWallet();
       const body = { action: "ship", signer: pk, company: ENVIO.company, tracking: ENVIO.tracking, weight: ENVIO.weight, city: ENVIO.city, imei: "", photo: "" };
-      const prepared = await api<PreparedTx>(`/api/orders/${slug}/action`, body);
-      await w.signAndSubmit(w.getWallet("vendedor"), prepared, progreso.push);
+      await conReintentos(async () => {
+        const prepared = await api<PreparedTx>(`/api/orders/${slug}/action`, body);
+        await w.signAndSubmit(w.getWallet("vendedor"), prepared, progreso.push);
+      }, () => setLento(true));
       await recargar();
       canal()?.postMessage({ tipo: "actualiza" });
-    } catch (e) {
-      setError((e as Error).message);
+    } catch {
+      setFallo("envio");
     } finally {
+      setLento(false);
       setEnviando(false);
       setOcupado(false);
     }
@@ -187,7 +205,9 @@ export function ChatVendedor() {
     }
     else if (id === "vender") void crearLink();
     else if (id === "mandar") mandar();
-    else if (id === "enviado") void registrarEnvio();
+    else if (id === "enviado" || id === "reintentar-envio") void registrarEnvio();
+    else if (id === "reintentar-cuenta") void crearCuentaReal();
+    else if (id === "reintentar-link") void crearLink();
     else if (id === "estafa") {
       // /probar hace la simulación real contra el contrato y la cuenta en el chat del comprador.
       setEstafaEnCurso(true);
@@ -206,6 +226,8 @@ export function ChatVendedor() {
     enviando,
     estafaHecha,
     estafaEnCurso,
+    lento,
+    fallo,
     host: typeof window !== "undefined" ? window.location.host : "",
   });
 
