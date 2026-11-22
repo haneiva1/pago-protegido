@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Countdown, ShipDeadline } from "@/components/Guardian";
 import { Breakdown, SplitView, TxList } from "@/components/OrderBits";
 import { CopyButton, ErrorBox, Spinner, StatusBadge } from "@/components/ui";
-import { IconoAlerta, IconoBalanza, IconoBillete, IconoCamion, IconoCandado, IconoCelular, IconoCheckCirculo, IconoChevronDerecha, IconoInfo, IconoUsuario, IconoVolver } from "@/components/iconos";
+import { IconoAlerta, IconoBalanza, IconoBillete, IconoCamion, IconoCandado, IconoCelular, IconoCheckCirculo, IconoChevronAbajo, IconoChevronDerecha, IconoInfo, IconoMas, IconoUsuario, IconoVolver } from "@/components/iconos";
 import { Stat } from "@/components/Kpis";
 import { Compartir } from "@/components/vendedor/Compartir";
 import { EnvioForm } from "@/components/vendedor/EnvioForm";
@@ -16,7 +16,7 @@ import { Pendientes } from "@/components/vendedor/Pendientes";
 import { fmtDuracion, fmtProporcion, nf as nfKpi, plural } from "@/lib/kpi-format";
 import { WhatsAppBox } from "@/components/WhatsAppBox";
 import { fmtFlete } from "@/lib/comprador";
-import { DOLLAR_NOTE, explorer, fmtBs, fmtBsUnits, fmtDate, fmtKg } from "@/lib/format";
+import { explorer, fmtBs, fmtBsUnits, fmtDate, fmtKg, fmtWhatsApp } from "@/lib/format";
 import type { InfoData, SellerData, SellerOrder } from "@/lib/types";
 import { apiFirmada } from "@/lib/api-firmada";
 import { duplicarLink, ventasEnCurso, type LinkRapido as DatosLink } from "@/lib/vendedor";
@@ -106,6 +106,8 @@ export default function Panel() {
   // vendedor, sin los pedidos en reclamo, que van aparte).
   const { enCurso, enReclamo } = ventasEnCurso(orders);
   const saldo = fmtBsUnits(data.balance, fx);
+  const haySaldo = Number(data.balance) > 0;
+  const hayVentas = data.kpis.pagadas_al_vendedor > 0;
 
   function irAlPedido(slug: string) {
     document.querySelector(`[data-testid="pedido-${slug}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -114,6 +116,7 @@ export default function Panel() {
   }
 
   function duplicar(o: SellerOrder) {
+    setCreated(null);
     setPlantilla({ ...duplicarLink(o), code: o.code ?? null });
     setFormKey((k) => k + 1);
     setTimeout(() => {
@@ -130,8 +133,10 @@ export default function Panel() {
           <h1 className="mt-1 text-3xl" data-testid="tienda">
             {seller.store_name}
           </h1>
-          <p className="mt-1 text-base text-tinta-600">
-            {seller.city ? `${seller.city} · ` : ""}WhatsApp {seller.whatsapp} · {plural(seller.completedSales, "venta protegida", "ventas protegidas")}
+          <p className="mt-1 text-sm text-tinta-600">
+            {seller.city ? `${seller.city} · ` : ""}
+            {fmtWhatsApp(seller.whatsapp)}
+            {seller.completedSales > 0 ? ` · ${plural(seller.completedSales, "venta protegida", "ventas protegidas")}` : ""}
           </p>
           <p className="mt-2 text-sm">
             <a className="enlace" href={explorer.account(seller.pubkey)} target="_blank" rel="noreferrer">
@@ -141,7 +146,7 @@ export default function Panel() {
         </div>
         <div className="sm:w-80 sm:flex-none sm:text-right">
           <p className="eyebrow">Saldo cobrado</p>
-          <p className="mt-1 font-display text-5xl leading-none tracking-tight num" data-testid="saldo">
+          <p className={`mt-1 tracking-tight num ${haySaldo ? "font-display text-5xl leading-none" : "text-lg font-semibold text-tinta-700"}`} data-testid="saldo">
             {saldo}
           </p>
           {enCurso.cantidad > 0 && (
@@ -156,10 +161,14 @@ export default function Panel() {
               decida el revisor.
             </p>
           )}
-          <button type="button" className="btn-secondary btn-sm mt-4 w-full sm:w-auto" aria-expanded={banco} onClick={() => setBanco((b) => !b)}>
-            <IconoBillete className="h-4 w-4" />
-            Pasar a mi banco
-          </button>
+          {haySaldo ? (
+            <button type="button" className="btn-secondary btn-sm mt-4 w-full sm:w-auto" aria-expanded={banco} onClick={() => setBanco((b) => !b)}>
+              <IconoBillete className="h-4 w-4" />
+              Pasar a mi banco
+            </button>
+          ) : (
+            <p className="mt-1 text-sm text-tinta-500">Sin saldo por cobrar todavía.</p>
+          )}
         </div>
       </section>
 
@@ -173,8 +182,45 @@ export default function Panel() {
         </span>
       </p>
 
+      {created && (
+        <section className="space-y-4 animate-aparecer" data-testid="link-creado">
+          <div className="rounded-card border border-tinta-200 bg-white p-5 sm:p-6">
+            <p className="flex items-center gap-2 text-lg font-semibold">
+              <IconoCheckCirculo className="h-6 w-6 flex-none text-musgo" />
+              Link listo
+            </p>
+            <p className="mt-1 max-w-[48ch] text-base text-tinta-600">Mándaselo a tu cliente. Cuando pague, la plata espera entre los dos hasta que confirme que recibió.</p>
+            <code data-testid="link-url" className="mt-4 block truncate rounded-control bg-tinta-50 px-3.5 py-3 font-mono text-sm text-monte">
+              {linkUrl(created)}
+            </code>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {orders.some((x) => x.slug === created) && (
+                <Compartir text={textoLink(orders.find((x) => x.slug === created)!, seller.store_name)} label="Compartir" className="btn-primary" testId="compartir-link" />
+              )}
+              <CopyButton text={linkUrl(created)} label="Copiar link" className="btn-secondary" testId="copiar-link" />
+            </div>
+          </div>
+          {(() => {
+            const o = orders.find((x) => x.slug === created);
+            return o ? <WhatsAppBox title="Mensaje para tu cliente" text={textoLink(o, seller.store_name)} /> : null;
+          })()}
+          <button
+            type="button"
+            className="btn-secondary btn-sm"
+            onClick={() => {
+              setCreated(null);
+              setTimeout(() => document.getElementById("crear-link")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+            }}
+          >
+            <IconoMas className="h-4 w-4" />
+            Crear otro link
+          </button>
+        </section>
+      )}
+
       <Pendientes pedidos={orders} onIr={irAlPedido} />
 
+      {!created && (
       <LinkRapido
         key={formKey}
         sellerPubkey={seller.pubkey}
@@ -188,34 +234,10 @@ export default function Panel() {
           load(seller.pubkey);
         }}
       />
-
-      {created && (
-        <section className="space-y-4 animate-aparecer" data-testid="link-creado">
-          <div className="panel-acento space-y-4 !p-5 sm:!p-6">
-            <h2 className="flex items-center gap-2 text-2xl">
-              <IconoCheckCirculo className="h-7 w-7 flex-none" />
-              ¡Tu link está listo!
-            </h2>
-            <p className="max-w-[40ch] text-base text-monte/80">Mándaselo a tu cliente. Cuando pague, la plata espera entre los dos hasta que confirme que recibió.</p>
-            <code data-testid="link-url" className="block truncate rounded-control bg-white/90 px-3.5 py-3 text-base text-monte">
-              {linkUrl(created)}
-            </code>
-            <div className="grid grid-cols-2 gap-2">
-              <CopyButton text={linkUrl(created)} label="Copiar link" className="btn-oscuro" testId="copiar-link" />
-              {orders.some((x) => x.slug === created) && (
-                <Compartir text={textoLink(orders.find((x) => x.slug === created)!, seller.store_name)} label="Compartir" className="btn-oscuro" testId="compartir-link" />
-              )}
-            </div>
-          </div>
-          {(() => {
-            const o = orders.find((x) => x.slug === created);
-            return o ? <WhatsAppBox title="Mensaje para tu cliente" text={textoLink(o, seller.store_name)} /> : null;
-          })()}
-        </section>
       )}
 
       <section className="space-y-2">
-        <h2 className="text-2xl">Pedidos</h2>
+        <h2 className="text-lg">Pedidos</h2>
         {orders.length === 0 && (
           <div className="flex flex-col items-center gap-2 border-t border-tinta-200 py-10 text-center">
             <IconoBillete className="h-8 w-8 text-tinta-300" />
@@ -238,9 +260,12 @@ export default function Panel() {
         ))}
       </section>
 
-      <section className="space-y-4 border-t border-tinta-200 pt-6" data-testid="kpis-vendedor">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-2xl">Tus números</h2>
+      <details className="group border-t border-tinta-200 pt-5" data-testid="kpis-vendedor" open={hayVentas}>
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-lg font-semibold [&::-webkit-details-marker]:hidden">
+          Tus números
+          <IconoChevronAbajo className="h-5 w-5 flex-none text-tinta-500 transition-transform duration-200 group-open:rotate-180" />
+        </summary>
+        <div className="mt-3 flex flex-wrap items-baseline justify-between gap-2">
           {seller.slug && (
             <Link href={`/tienda/${seller.slug}`} className="inline-flex items-center gap-1 text-sm font-semibold text-musgo" data-testid="link-mi-perfil">
               Ver y compartir mi perfil público
@@ -248,7 +273,8 @@ export default function Panel() {
             </Link>
           )}
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        {!hayVentas && <p className="mt-2 text-sm text-tinta-600">Aparecen con tu primera venta protegida.</p>}
+        <div className={`mt-3 grid grid-cols-3 gap-2 ${hayVentas ? "" : "hidden"}`}>
           <Stat
             testId="kpi-ventas"
             value={nfKpi(data.kpis.pagadas_al_vendedor)}
@@ -268,12 +294,12 @@ export default function Panel() {
             sub={data.kpis.cobro_muestras ? "mediana desde el pago" : "todavía sin cobros"}
           />
         </div>
-        <p className="text-sm text-tinta-600">Calculados con el registro público de tus ventas: son los mismos que ven tus clientes en tu perfil.</p>
-      </section>
+        {hayVentas && <p className="mt-3 text-sm text-tinta-600">Calculados con el registro público de tus ventas: son los mismos que ven tus clientes en tu perfil.</p>}
+      </details>
 
       {seller.slug && <Insignia slug={seller.slug} storeName={seller.store_name} kpis={data.kpis} />}
 
-      <p className="text-center text-sm text-tinta-500">Modo práctica: no se mueve dinero real. {DOLLAR_NOTE}</p>
+      <p className="text-center text-sm text-tinta-500">Modo práctica: no se mueve dinero real.</p>
     </div>
   );
 }
@@ -328,13 +354,14 @@ function OrderCard({
         <div className="min-w-0">
           <p className="eyebrow">{o.code}</p>
           <h3 className="truncate text-lg">{o.product}</h3>
-          <p className="text-sm text-tinta-600">
-            {fmtBs(o.price_bs_cents)} · {o.fee_payer === "comprador" ? "protección la paga el comprador" : "protección la regalas tú"} · {fmtDate(o.created_at)}
+          <p className="text-sm text-tinta-600 num">
+            {fmtBs(o.price_bs_cents)} · {fmtDate(o.created_at)}
+            {o.fee_payer === "vendedor" ? " · protección regalada" : ""}
           </p>
         </div>
         <div className="flex flex-none flex-col items-end gap-1.5">
           <StatusBadge status={o.status} />
-          <button type="button" className="text-xs font-semibold text-musgo underline decoration-exito-200 underline-offset-2" onClick={onDuplicar} data-testid="duplicar">
+          <button type="button" className="text-sm font-medium text-musgo" onClick={onDuplicar} data-testid="duplicar">
             Duplicar
           </button>
         </div>

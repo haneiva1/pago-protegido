@@ -21,7 +21,7 @@ export function Pendientes({ pedidos, onIr }: { pedidos: PedidoPendiente[]; onIr
   return (
     <section className="space-y-2" data-testid="pendientes">
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-2xl">Pendientes de hoy</h2>
+        <h2 className="text-lg">Pendientes de hoy</h2>
         {lista.length > 0 && <span className="chip-aviso num">{lista.length}</span>}
       </div>
       {lista.length === 0 ? (

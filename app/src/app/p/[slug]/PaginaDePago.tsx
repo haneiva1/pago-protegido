@@ -18,7 +18,7 @@ import { Seguimiento, useRecogido } from "@/components/comprador/Seguimiento";
 import { TarjetaVendedor } from "@/components/comprador/Vendedor";
 import { ApiError, api } from "@/lib/api";
 import { NO_CARGO_CUENTA, cargaUnaVez } from "@/lib/comprador";
-import { DOLLAR_NOTE, MOTIVO_PRESION, fmtBs, fmtBsUnits } from "@/lib/format";
+import { MOTIVO_PRESION, fmtBs, fmtBsUnits } from "@/lib/format";
 import type { OrderView } from "@/lib/types";
 import { apiFirmada } from "@/lib/api-firmada";
 import type { PreparedTx } from "@/lib/wallet";
@@ -174,7 +174,8 @@ export default function PaginaDePago() {
     return (
       <div className="mx-auto max-w-md space-y-8 pb-32">
         <AvisoNavegadorInterno />
-        <Producto v={v} compacto={qrOpen} />
+        {!qrOpen && <Producto v={v} />}
+        {!qrOpen && !busy && !takenByOther && <Proteccion v={v} />}
         {takenByOther ? (
           <p className="rounded-card bg-tinta-50 p-4 text-center text-base text-tinta-700" data-testid="tomado">
             Este link ya lo está pagando otra persona.
@@ -187,7 +188,6 @@ export default function PaginaDePago() {
         {!qrOpen && (
           <>
             <DosSalidas v={v} />
-            <Proteccion v={v} />
             <ComoFunciona />
             <TarjetaVendedor v={v} />
           </>
@@ -285,7 +285,6 @@ export default function PaginaDePago() {
       {isBuyer && o.status === "en_disputa" && <WhatsAppBox title="Avísale al vendedor" text={waText("disputa", d)} phone={v.seller.whatsapp} />}
       {o.status === "resuelto" && <WhatsAppBox title="Compartir la decisión" text={waText("resuelto", d)} phone={v.seller.whatsapp} />}
 
-      <Producto v={v} compacto />
       <TarjetaVendedor v={v} />
       <RegistroPedido v={v} />
       <Antifraude code={o.code} host={host} />
@@ -297,7 +296,7 @@ export default function PaginaDePago() {
 function ModoPractica() {
   return (
     <p className="text-center text-sm text-tinta-500" data-testid="modo-practica">
-      Modo práctica: no se mueve dinero real. {DOLLAR_NOTE}
+      Modo práctica: no se mueve dinero real.
     </p>
   );
 }

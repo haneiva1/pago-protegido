@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { EvidenciaInput } from "@/components/EvidenciaInput";
 import { EsperaEnCurso } from "@/components/comprador/Espera";
+import { Select } from "@/components/comprador/Campos";
 import { ErrorBox, Spinner, useProgress } from "@/components/ui";
 import { CIUDADES, EMPRESAS } from "@/lib/format";
 import type { SellerOrder } from "@/lib/types";
@@ -51,12 +52,12 @@ export function EnvioForm({ o, sellerPubkey, prefill, onDone }: { o: SellerOrder
           <label className="label" htmlFor={id("company")}>
             Empresa de envío
           </label>
-          <select id={id("company")} className="input" value={f.company} onChange={set("company")} required>
+          <Select id={id("company")} value={f.company} onChange={set("company")} required>
             <option value="">Elige…</option>
             {EMPRESAS.map((c) => (
               <option key={c}>{c}</option>
             ))}
-          </select>
+          </Select>
         </div>
         <div>
           <label className="label" htmlFor={id("tracking")}>
@@ -74,12 +75,12 @@ export function EnvioForm({ o, sellerPubkey, prefill, onDone }: { o: SellerOrder
           <label className="label" htmlFor={id("city")}>
             Ciudad de destino
           </label>
-          <select id={id("city")} className="input" value={f.city} onChange={set("city")} required>
+          <Select id={id("city")} value={f.city} onChange={set("city")} required>
             <option value="">Elige…</option>
             {CIUDADES.map((c) => (
               <option key={c}>{c}</option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
       <div className="space-y-3 border-t border-tinta-200 pt-3" data-testid="fotos-envio">

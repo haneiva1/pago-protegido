@@ -41,7 +41,12 @@ export function ConfirmarPago({
           <p className="text-sm text-tinta-600">{v.confirmDelay} después del envío, para que alcances a recibir y revisar el producto.</p>
         </div>
       )}
-      <button className="btn-primary w-full py-4 text-lg" disabled={!canConfirm || busy} onClick={onPagar}>
+      <button
+        className={canConfirm ? "btn-primary w-full py-4 text-lg" : "btn w-full bg-tinta-200 py-4 text-lg text-tinta-700"}
+        style={canConfirm ? undefined : { opacity: 1 }}
+        disabled={!canConfirm || busy}
+        onClick={onPagar}
+      >
         {busy ? <Spinner /> : null} Pagar al vendedor (irreversible)
       </button>
       <p className="text-center text-sm font-medium text-tinta-600">Después ya no puedes reclamar.</p>

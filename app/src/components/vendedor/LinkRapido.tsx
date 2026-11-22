@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { IconoChevronAbajo, IconoCopiar } from "@/components/iconos";
+import { Select } from "@/components/comprador/Campos";
 import { ErrorBox, Spinner } from "@/components/ui";
 import { CATEGORIAS, PROTECCION, linkAmounts, unitsToNumber } from "@/lib/format";
 import { LINK_VACIO, type LinkRapido as Datos, type TipoFlete } from "@/lib/vendedor";
@@ -105,13 +106,13 @@ export function LinkRapido({
           <label className="label" htmlFor="days">
             Días para despachar
           </label>
-          <select id="days" className="input" value={f.deliveryDays} onChange={set("deliveryDays")}>
+          <Select id="days" value={f.deliveryDays} onChange={set("deliveryDays")}>
             {Array.from({ length: 15 }, (_, i) => i + 1).map((d) => (
               <option key={d} value={d}>
                 {d} {d === 1 ? "día" : "días"}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
       <fieldset className="space-y-2" data-testid="flete-vendedor">
@@ -173,11 +174,11 @@ export function LinkRapido({
             <label className="label" htmlFor="category">
               Categoría <span className="font-normal text-tinta-500">(si es celular, al despachar se pide el IMEI)</span>
             </label>
-            <select id="category" className="input" value={f.category} onChange={set("category")}>
+            <Select id="category" value={f.category} onChange={set("category")}>
               {CATEGORIAS.map((c) => (
                 <option key={c}>{c}</option>
               ))}
-            </select>
+            </Select>
           </div>
           <div>
             <label className="label" htmlFor="description">

@@ -22,18 +22,23 @@ export function Breakdown({ money, fx, feePayer, platformBps = 200 }: { money: M
   const b = money.breakdown;
   const prot = BigInt(b.platform) + BigInt(b.tw);
   return (
-    <dl data-testid="desglose" className="grid grid-cols-2 gap-2 text-center">
-      <div className="rounded-card bg-exito-50 p-4">
-        <dt className="text-xs text-musgo">Vendedor recibió</dt>
-        <dd className="mt-1 font-display text-lg text-monte num">{fmtBsUnits(b.seller, fx)}</dd>
+    <dl data-testid="desglose" className="divide-y divide-tinta-200/80 text-base">
+      <div className="flex justify-between gap-3 py-2.5">
+        <dt className="text-tinta-600">Vendedor recibió</dt>
+        <dd className="font-semibold num">{fmtBsUnits(b.seller, fx)}</dd>
       </div>
-      <div className="rounded-card bg-tinta-50 p-4">
-        <dt className="text-xs text-tinta-600">Protección{feePayer === "comprador" ? " (la pagó el comprador)" : ` (${String(platformBps / 100).replace(".", ",")}% + 0,3%)`}</dt>
-        <dd className="mt-1 text-lg font-semibold num">{fmtBsUnits(prot, fx)}</dd>
+      <div className="flex justify-between gap-3 py-2.5">
+        <dt className="text-tinta-600">Protección{feePayer === "comprador" ? " (la pagó el comprador)" : ` (${String(platformBps / 100).replace(".", ",")}% + 0,3%)`}</dt>
+        <dd className="num">{fmtBsUnits(prot, fx)}</dd>
       </div>
-      <p className="col-span-2 text-xs text-tinta-500">
-        Plataforma {fmtBsUnits(b.platform, fx)} · Trustless Work (0,3%) {fmtBsUnits(b.tw, fx)}. Montos calculados igual que el contrato.
-      </p>
+      <div className="flex justify-between gap-3 py-2 text-sm">
+        <dt className="text-tinta-500">Plataforma</dt>
+        <dd className="text-tinta-600 num">{fmtBsUnits(b.platform, fx)}</dd>
+      </div>
+      <div className="flex justify-between gap-3 py-2 text-sm">
+        <dt className="text-tinta-500">Red (0,3 %)</dt>
+        <dd className="text-tinta-600 num">{fmtBsUnits(b.tw, fx)}</dd>
+      </div>
     </dl>
   );
 }
@@ -124,7 +129,7 @@ export function Timeline({ order, txs }: { order: PublicOrder; txs: TxRow[] }) {
   } else {
     items.push({ key: "liberado", title: "Se pagó al vendedor", when: order.released_at, done: order.status === "liberado", tx: tx("liberacion") });
   }
-  const dot = (done: boolean, tone?: string) => (done ? (tone === "aviso" ? "bg-aviso-600" : tone === "info" ? "bg-info-600" : "bg-yungas") : "bg-tinta-200");
+  const dot = (done: boolean, tone?: string) => (done ? (tone === "aviso" ? "bg-aviso-600" : tone === "info" ? "bg-info-600" : "bg-musgo") : "bg-tinta-200");
   return (
     <ol data-testid="linea-de-tiempo" className="relative space-y-5 border-l-2 border-tinta-200 pl-6">
       {items.map((it) => (
@@ -133,7 +138,7 @@ export function Timeline({ order, txs }: { order: PublicOrder; txs: TxRow[] }) {
           <p className={`font-medium ${it.done ? "text-monte" : "text-tinta-500"}`}>{it.title}</p>
           {it.done && it.when ? <p className="text-xs text-tinta-500 num">{fmtDate(it.when)}</p> : null}
           {it.detail && it.done ? <p className="mt-0.5 text-sm text-tinta-600">{it.detail}</p> : null}
-          {it.tx ? <TxLink hash={it.tx.hash} /> : null}
+          {it.tx ? <TxLink hash={it.tx.hash} label="Ver en el registro" /> : null}
         </li>
       ))}
     </ol>

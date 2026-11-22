@@ -48,7 +48,7 @@ export function EstadoPedido({ v }: { v: OrderView }) {
   const map: Record<string, { t: string; d: string; tono: Tono }> = {
     pagado: { t: "Tu pago está guardado", d: "El vendedor ve que pagaste, pero no puede cobrar hasta que confirmes.", tono: "acento" },
     enviado: { t: "Tu pedido está en camino", d: "Tu pago sigue guardado. Cuando te llegue, revísalo y recién ahí paga al vendedor.", tono: "acento" },
-    liberado: { t: "Se pagó al vendedor", d: "Confirmaste que lo recibiste bien. ¡Gracias por comprar con Trato!", tono: "oscuro" },
+    liberado: { t: "Se pagó al vendedor", d: "Confirmaste que lo recibiste bien. Gracias por comprar con Trato.", tono: "oscuro" },
     en_disputa: { t: "Reclamo abierto", d: "La plata quedó congelada en el contrato. Un revisor va a ver el caso.", tono: "aviso" },
     resuelto: { t: "Reclamo resuelto", d: "El revisor repartió la plata entre comprador y vendedor.", tono: "oscuro" },
     devuelto: { t: "Te devolvimos tu pago", d: "El vendedor no despachó a tiempo, así que el contrato te devolvió la plata.", tono: "suave" },
@@ -71,7 +71,7 @@ export function EstadoPedido({ v }: { v: OrderView }) {
       <p className={`text-xs font-semibold uppercase tracking-[0.08em] ${s.eyebrow}`}>
         {o.code} · {o.product}
       </p>
-      <div className="mt-2 flex items-center gap-3">
+      <div className="mt-3 space-y-3">
         {icono}
         <h1 className="text-3xl leading-tight">{m.t}</h1>
       </div>
@@ -89,9 +89,9 @@ export function Antifraude({ code, host }: { code: string | null; host: string }
         <p className="text-base font-semibold text-monte">Señales de confianza</p>
         <p>Si un QR de Trato está a nombre de una persona, es estafa.</p>
         <p>
-          Verifica este link en{" "}
+          Comprueba este link en{" "}
           <a className="enlace" href={`/verificar?codigo=${code ?? ""}`}>
-            {host}/verificar
+            Verificar un link
           </a>{" "}
           con el código <strong>{code}</strong>.
         </p>

@@ -75,6 +75,9 @@ async function crearLink(
     await page.goto("/panel?demo=1");
     await page.getByLabel(/Plazo corto de demo/).check();
   }
+  // Con un link recién creado el formulario queda plegado detrás de "Crear otro link".
+  const otro = page.getByRole("button", { name: "Crear otro link" });
+  if (await otro.isVisible().catch(() => false)) await otro.click();
   // Link rápido (M9): producto, precio, días para despachar y flete en una pantalla; lo demás en "Más detalles".
   await page.getByLabel("Producto").fill(p.producto);
   await page.getByLabel("Precio en Bs").fill(String(p.precio));
@@ -230,9 +233,10 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
     telefono: "70011223",
     flete: "por_pagar",
     antes: async (p) => {
-      await expect(p.getByTestId("vendedor")).toContainText("Vendedor: Tienda Sofi · Santa Cruz");
-      await expect(p.getByTestId("reputacion")).toContainText("Tienda Sofi · Santa Cruz");
-      await expect(p.getByTestId("reputacion")).toContainText("Tienda nueva · igual tu plata espera entre los dos");
+      await expect(p.getByTestId("vendedor")).toContainText("La tienda");
+      await expect(p.getByTestId("vendedor")).toContainText("Tienda Sofi");
+      await expect(p.getByTestId("vendedor")).toContainText("Santa Cruz · Tienda nueva · igual tu plata espera entre los dos");
+      await expect(p.getByTestId("reputacion")).toContainText("Vendido por Tienda Sofi · Santa Cruz");
       await expect(p.getByTestId("vendedor")).toContainText("Tienda nueva");
       await expect(p.getByTestId("vendedor")).toContainText("Verificación de identidad: pendiente");
       await expect(p.getByTestId("proteccion")).toContainText("Bs 6,75");

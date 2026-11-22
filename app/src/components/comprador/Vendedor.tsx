@@ -4,6 +4,7 @@ import { IconoChevronDerecha, IconoWhatsApp } from "@/components/iconos";
 import { NumerosTienda } from "@/components/Kpis";
 import { desdeTexto, fmtProporcion, plural } from "@/lib/kpi-format";
 import type { Kpis, OrderView } from "@/lib/types";
+import { fmtWhatsApp } from "@/lib/format";
 import { waLink } from "@/lib/whatsapp";
 
 const iniciales = (nombre: string) =>
@@ -43,6 +44,17 @@ export function Reputacion({ v }: { v: OrderView }) {
   );
 }
 
+/** Primer pantallazo: quién vende, en una línea gris; la ficha completa va más abajo (una sola vez). */
+export function VendidoPor({ v }: { v: OrderView }) {
+  const s = v.seller;
+  return (
+    <p className="text-sm text-tinta-600" data-testid="reputacion">
+      Vendido por <span className="font-medium text-monte">{s.store_name}</span>
+      {s.city ? ` · ${s.city}` : ""}
+    </p>
+  );
+}
+
 /** Tarjeta completa del vendedor: los mismos números del perfil público /tienda/<slug>, calculados con el registro público. */
 export function TarjetaVendedor({ v }: { v: OrderView }) {
   const s = v.seller;
@@ -50,14 +62,14 @@ export function TarjetaVendedor({ v }: { v: OrderView }) {
   return (
     <section className="space-y-4 border-t border-tinta-200 pt-5" data-testid="vendedor">
       <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-yungas font-semibold text-monte">{iniciales(s.store_name)}</div>
+        <div className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-tinta-100 font-semibold text-monte">{iniciales(s.store_name)}</div>
         <div className="min-w-0 flex-1">
           <p className="eyebrow">La tienda</p>
-          <p className="text-lg font-semibold leading-tight">
-            {s.store_name}
-            {s.city ? <span className="font-normal text-tinta-500"> · {s.city}</span> : null}
+          <p className="text-lg font-semibold leading-tight">{s.store_name}</p>
+          <p className="text-sm text-tinta-600">
+            {s.city ? `${s.city} · ` : ""}
+            {reputacionTexto(k)}
           </p>
-          <p className="text-sm text-tinta-600">{reputacionTexto(k)}</p>
         </div>
         <a className="btn-secondary btn-sm flex-none" href={waLink("Hola, te escribo por tu link de pago de Trato", s.whatsapp)} target="_blank" rel="noreferrer">
           <IconoWhatsApp className="h-4 w-4 text-musgo" />
@@ -68,7 +80,7 @@ export function TarjetaVendedor({ v }: { v: OrderView }) {
       <ul className="space-y-0.5 text-sm text-tinta-600">
         <li>{desdeTexto(k, s.since)}</li>
         <li>Verificación de identidad: pendiente (modo práctica)</li>
-        <li>WhatsApp {s.whatsapp}</li>
+        <li>WhatsApp {fmtWhatsApp(s.whatsapp)}</li>
       </ul>
       {s.slug && (
         <a className="inline-flex items-center gap-1 text-sm font-semibold text-musgo" href={`/tienda/${s.slug}`} data-testid="link-perfil-tienda">

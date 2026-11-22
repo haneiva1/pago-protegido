@@ -53,9 +53,9 @@ export function Seguimiento({
   if (o.status !== "pagado" && o.status !== "enviado" && o.status !== "liberado") return null;
   const pasos = [
     { t: "Pagado", ok: Boolean(o.funded_at) },
-    { t: "Despachado", ok: Boolean(o.shipped_at) },
-    { t: "En tus manos", ok: recogido || o.status === "liberado" },
-    { t: "Pagado a la tienda", ok: o.status === "liberado" },
+    { t: "Enviado", ok: Boolean(o.shipped_at) },
+    { t: "Recibido", ok: recogido || o.status === "liberado" },
+    { t: "Cobrado", ok: o.status === "liberado" },
   ];
   const actual = pasos.findIndex((p) => !p.ok);
   const enPersona = o.ship_company === "Entrega en persona";
@@ -69,14 +69,14 @@ export function Seguimiento({
         <span aria-hidden className="absolute left-[12.5%] right-[12.5%] top-3.5 h-0.5 bg-tinta-200" />
         <span
           aria-hidden
-          className="absolute left-[12.5%] top-3.5 h-0.5 bg-yungas transition-[width] duration-500"
+          className="absolute left-[12.5%] top-3.5 h-0.5 bg-musgo transition-[width] duration-500"
           style={{ width: `${Math.max(0, (actual < 0 ? 3 : actual - 1)) * 25}%` }}
         />
         {pasos.map((p, i) => (
           <li key={p.t} className="relative flex flex-col items-center gap-1.5" data-testid={`paso-${i + 1}`} data-hecho={p.ok ? "si" : "no"}>
             <span
               className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold num ${
-                p.ok ? "bg-yungas text-monte" : i === actual ? "bg-white text-musgo ring-2 ring-musgo" : "bg-tinta-100 text-tinta-500 ring-1 ring-tinta-200"
+                p.ok ? "bg-musgo text-sal" : i === actual ? "bg-yungas text-monte" : "bg-tinta-100 text-tinta-500 ring-1 ring-tinta-200"
               }`}
             >
               {p.ok ? <IconoCheck className="h-3.5 w-3.5" strokeWidth={2.5} /> : i + 1}
