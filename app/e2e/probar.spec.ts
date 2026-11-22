@@ -128,7 +128,7 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   // Desde /probar el link usa los plazos de demo (2 minutos), aunque el panel no tenga ?demo=1.
   const vista = await (await page.request.get(`/api/orders/${slug}`)).json();
   expect(vista.order.window_secs).toBe(120);
-  expect(vista.confirmDelay).toBe("1 minuto (modo demo)");
+  expect(vista.confirmDelay).toBe("10 segundos (modo demo)");
 
   const link = page.getByTestId("paso-registro-link");
   await expect(link).toHaveAttribute("data-hecho", "si", { timeout: 30_000 });

@@ -29,7 +29,7 @@ export function limitar(req: Request, tipo: LimiteTipo) {
 
 /** Los plazos de demo que usa /probar (DECISIONES 77 y 63). */
 export function plazosProbar() {
-  return { despachoSegundos: DEMO_WINDOW_SECS, confirmarSegundos: 60, demoTimers: demoTimers() };
+  return { despachoSegundos: DEMO_WINDOW_SECS, confirmarSegundos: 10, demoTimers: demoTimers() };
 }
 
 /** Prueba nueva (al entrar o con "Empezar de nuevo"): cuenta para el límite por IP. */
