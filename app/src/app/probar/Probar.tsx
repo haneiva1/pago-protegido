@@ -182,6 +182,11 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
             se mueve dinero real.
           </p>
         </div>
+        <button className="btn-secondary btn-sm shrink-0" onClick={empezarDeNuevo} disabled={reiniciando} data-testid="empezar-de-nuevo">
+          {reiniciando ? <Spinner className="h-4 w-4" /> : <IconoReiniciar className="h-4 w-4" />}
+          <span className="hidden sm:inline">Empezar de nuevo</span>
+          <span className="sm:hidden">De nuevo</span>
+        </button>
       </header>
 
       {bloqueo && (
