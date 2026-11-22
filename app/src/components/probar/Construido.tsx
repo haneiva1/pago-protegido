@@ -1,4 +1,5 @@
 import { IconoExterno } from "@/components/iconos";
+import { Resumen, legible } from "@/components/probar/Resumen";
 
 /** Lo que ya está construido: evidencia sobria con links, para el cierre de /probar. Datos del README; nada inventado. */
 const PUNTOS: { texto: string; links: { label: string; href: string }[] }[] = [
@@ -70,13 +71,6 @@ export function Construido({ resumen }: { resumen: { transacciones: number; dura
   );
 }
 
-function legible(ms: number): string {
-  const s = Math.max(0, Math.round(ms / 1000));
-  if (s < 60) return `${s} s`;
-  const m = Math.floor(s / 60);
-  return s % 60 ? `${m} min ${s % 60} s` : `${m} min`;
-}
-
 /** La misma evidencia como una línea de links para el pie de /probar (con el resumen de esta prueba cuando termina). */
 export function ConstruidoLinea({ resumen }: { resumen: { transacciones: number; duracionMs: number } | null }) {
   const links = PUNTOS.flatMap((p) => p.links);
@@ -89,11 +83,7 @@ export function ConstruidoLinea({ resumen }: { resumen: { transacciones: number;
           <IconoExterno className="h-3 w-3" />
         </a>
       ))}
-      {resumen && (
-        <span data-testid="construido-resumen" className="num">
-          · esta prueba: {resumen.transacciones} transacciones públicas en {legible(resumen.duracionMs)}
-        </span>
-      )}
+      {resumen && <Resumen resumen={resumen} />}
     </p>
   );
 }
