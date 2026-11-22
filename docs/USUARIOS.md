@@ -1,6 +1,6 @@
 # Usuarios: entrevistas y pilotos
 
-Esta plantilla sirve para registrar cada conversación con vendedores (y compradores) y cada piloto. Antes de Trato, Hans ya hizo entre 12 y 15 entrevistas en persona con comercios de La Paz (mar–jun 2026), resumidas abajo; las entrevistas de Trato (con esta plantilla y el formulario `/piloto`, ver el [CHANGELOG](../CHANGELOG.md)) son el siguiente paso. La sección "Pilotos" se usa desde el plan de 30 días, cuando arrancan los 20 pilotos ([README](../README.md#plan-de-30-días)).
+Esta plantilla sirve para registrar cada conversación con vendedores (y compradores) y cada piloto. Antes de Trato, Hans ya hizo 15 entrevistas en persona con comercios de La Paz (mar–jun 2026), resumidas abajo; las entrevistas de Trato (con esta plantilla y el formulario `/piloto`, ver el [CHANGELOG](../CHANGELOG.md)) son el siguiente paso. La sección "Pilotos" se usa desde el plan de 30 días, cuando arrancan los 20 pilotos ([README](../README.md#plan-de-30-días)).
 
 **Segmento inicial:** vendedores de celulares y electrónica de Bs 1.000 a 7.000 que envían por encomienda a otras ciudades.
 
@@ -37,13 +37,13 @@ No son entrevistas. Revisamos páginas públicas de tiendas de celulares y elect
 - **Estafas al comprador:** la prensa documenta en 2024–2026 ventas falsas de celulares con adelanto por QR y «envíos a todo el país» en Santa Cruz, La Paz, Cochabamba, Sucre y Oruro (Red Uno, El País, Bolivia Verifica).
 - **Comprobantes falsos al vendedor:** hay casos en Cochabamba, Santa Cruz y La Paz, en ventas dentro de la misma ciudad.
 - **Lo que ya existe:** Correos de Bolivia ofrece «puerta a puerta por cobrar» por Bs 2,50 adicionales (sep-2026), y hay couriers con cobro contra entrega.
-- **Lo que no sabemos:** si los vendedores honestos pierden ventas por desconfianza. No encontramos ninguna fuente pública. Es lo que preguntan las entrevistas.
+- **Lo que las fuentes públicas no muestran:** si los vendedores honestos pierden ventas por desconfianza. Eso lo vimos en persona: la mayoría de los 15 comercios entrevistados no vende si no cobra antes (abajo).
 
 Las URL, la tabla completa y la verificación están en [OBSERVACION-PUBLICA.md](OBSERVACION-PUBLICA.md).
 
 ## Entrevistas en persona previas (mar–jun 2026)
 
-Hans visitó en persona entre 12 y 15 comercios de La Paz (ropa, tecnología y alimentos, varios en San Miguel). Son anteriores a Trato y no siguieron esta plantilla; no hay filas individuales en el registro.
+Hans visitó en persona 15 comercios de La Paz (ropa, tecnología y alimentos, varios en San Miguel), entre marzo y junio de 2026. Son anteriores a Trato y sobre el mismo problema: cobrarle a alguien que no te conoce. Por eso no están en el registro de abajo, que es el de Trato.
 
 Lo que más se repitió:
 
