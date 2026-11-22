@@ -2,6 +2,17 @@
 
 Todo corre en **Stellar testnet**. Las fechas son de 2026.
 
+## 2026-11-21 — Plazos, privacidad, evidencia firmada y CI
+
+- **Plazos** ([PR #12](https://github.com/haneiva1/pago-protegido/pull/12)): el vendedor puede registrar el envío con un reclamo abierto, la liberación por plazo llega sola (el barrido también libera) y la app rechaza un reclamo fuera de plazo.
+- **Privacidad del pedido:** la vista pública no trae la evidencia y el escrow no lleva el link.
+- **Indexador:** quinta regla (el escrow lo creó Trato), comprobada con datos públicos de la red. Una falta de dato deja la compra pendiente, no descartada.
+- **Revisor:** bajo Bs 300, sin video del desempaque la regla no da por ganador al vendedor.
+- **Evidencia firmada** ([PR #13](https://github.com/haneiva1/pago-protegido/pull/13)): solo el comprador o el vendedor suben evidencia, con la firma de su cuenta.
+- **CI de GitHub Actions** en cada cambio: 47 tests de contratos, 191 del bot y 171 de la app (107 unitarios y 64 de la API).
+- **Pruebas de punta a punta con pagos:** no se volvieron a correr después de estos cambios. La última corrida, 12 de 12, es del 20-nov.
+- **Documentación de la entrega 2:** el README sin marcadores, con el avance al 21-nov, lo que todavía depende de nosotros (H-11 a H-13 en [docs/SEGURIDAD.md](docs/SEGURIDAD.md)), quién sería el sujeto regulado y cuánto queda por pedido; el contra entrega entre ciudades corregido en [docs/PROBLEMA.md](docs/PROBLEMA.md); la regla de lectura de las entrevistas y una encuesta previa en [docs/USUARIOS.md](docs/USUARIOS.md).
+
 ## 2026-11-20 — Trato: la noche del 20-nov, integrada
 
 Las ramas de la noche entraron juntas en `noche/integracion`. Ningún contrato cambió y no se redesplegó nada.
@@ -43,7 +54,7 @@ Las ramas de la noche entraron juntas en `noche/integracion`. Ningún contrato c
   - la reputación entra entera en celular: sale el link "Ver tienda" de esa línea, porque la tarjeta del vendedor ya lo tiene;
   - el panel del vendedor muestra el teléfono de quien recoge y el flete.
 - **Documentación:** el README queda con los cinco criterios, el avance y el plan de 30 días v2; el detalle técnico pasa a [docs/TECNICO.md](docs/TECNICO.md) y el problema, con 24 casos públicos y sus fuentes, a [docs/PROBLEMA.md](docs/PROBLEMA.md).
-- **Pruebas:** contratos, 47 tests; bot, 191 unitarios y 4 e2e; app, 12 de 12 pruebas de punta a punta contra testnet, 6 de ellas con pagos reales (caso feliz, presión 70/30, celular con IMEI, devolución automática, bot y `/probar`).
+- **Pruebas:** contratos, 47 tests; bot, 191 unitarios y 4 e2e; app, 12 de 12 pruebas de punta a punta contra testnet, 6 de ellas con pagos en testnet, con plata de prueba (caso feliz, presión 70/30, celular con IMEI, devolución automática, bot y `/probar`).
 
 ## Entrega 1 (19-nov)
 
@@ -58,6 +69,8 @@ Entrega 1 en Atlas. Todo corre en Stellar testnet. Desde esta entrega, Pago Prot
 - **Una sola tarifa:** la protección la paga el comprador, 1,5% (mínimo Bs 5, tope Bs 50); si el vendedor la regala, se le descuenta 2,3% (2% de la plataforma y 0,3% de Trustless Work). En devoluciones y disputas, Trustless Work descuenta las comisiones ([README, Tarifa](README.md#tarifa)).
 - **Documentación para el jurado:** links a los contratos, llaves del servidor y riesgos de la llave del comprador, hallazgos sobre Trustless Work (TW-1 a TW-5 y H-1: en la v1 del escrow que usamos, commit `f0b706e`, un escrow ya liberado se puede marcar en disputa sin mover fondos; la v2 de Trustless Work ya lo impide, y `pp_guardian` también lo bloquea, #21), evidencia "afirmación → comando → resultado → link", mapa del código, qué es real y qué es simulado, dos caminos para probarlo y tipo de cambio de las métricas. Decisiones en [DECISIONES.md](DECISIONES.md).
 - **Validación de esta semana:** entrevistas a vendedores y formulario de lista de espera (`/piloto`), no pilotos.
+
+> Estas fechas son las del 19-nov. Desde el 20-nov rigen las del [plan de 30 días](README.md#plan-de-30-días): lo que depende de terceros (la carta de una ETF, la rampa en su sandbox y el mainnet) ya no tiene fecha comprometida.
 
 **Pendiente, con fecha** (fechas del [plan de 30 días](README.md#plan-de-30-días); las revisamos en la próxima entrega):
 

@@ -7,7 +7,7 @@
 3. cuando el comprador toca **"Pagar al vendedor"**, el vendedor cobra al instante;
 4. en un reclamo, el revisor reparte, y el contrato **rechaza** mandar la plata a otra cuenta.
 
-> **Video y capturas de la demo v2:** `[link al video]` (copia local: [`../demo/v2/pago-protegido-demo-v2.mp4`](../demo/v2/pago-protegido-demo-v2.mp4), 1:18, grabado con el nombre anterior) y capturas clave en [`../demo/v2/`](../demo/v2/). Demo publicada: `[link a la demo]`.
+> **Video y capturas de la demo v3:** [`../demo/v3/trato-demo-v3.mp4`](../demo/v3/trato-demo-v3.mp4) (2:47, sin narrar, con subtítulos; descarga de 4,7 MB) y capturas clave en [`../demo/v3/`](../demo/v3/). Demo publicada desde el 21-nov, en testnet y con un despliegue paralelo de los contratos: [`/probar`](https://app-production-d0fc8f63.up.railway.app/probar).
 
 Las cifras de este guion son las que verifica el e2e de la app (`app/e2e/pago-protegido.spec.ts`), con el tipo de cambio de la demo (11,70 Bs por USD; ver [TECNICO, Tipo de cambio](TECNICO.md#tipo-de-cambio)). El e2e completo (`npm run test:e2e` en `app/`) pasó 10/10 contra testnet el 20-nov-2026, ya con el nombre Trato. Las capturas están en [`../app/e2e/capturas/`](../app/e2e/capturas/), generadas por ese e2e contra testnet, y en [`../bot/docs/simulador.png`](../bot/docs/simulador.png).
 
@@ -62,7 +62,7 @@ Las cifras de este guion son las que verifica el e2e de la app (`app/e2e/pago-pr
 
 **Si sobra tiempo o preguntan por la liberación por plazo:**
 1. Entra a `/panel?demo=1`, crea un link con "Plazo corto de demo" (2 minutos), págalo y márcalo como enviado (`40`–`42`).
-2. Cuando aparezca "Liberar ahora (plazo vencido)" (`43`), tócalo: llama a `pp_guardian.auto_release`, sin firmas. El resultado se ve en `44` y `45`.
+2. Cuando aparezca "Liberar ahora (plazo vencido)" (`43`), tócalo: llama a `pp_guardian.auto_release`, que no pide la autorización de nadie. El resultado se ve en `44` y `45`.
 3. Hoy esa liberación y la devolución por falta de envío las dispara la app cuando alguien abre el pedido; el proceso automático está en el plan de 30 días (semana 2).
 
 ### Frases de apoyo, por si preguntan
@@ -94,7 +94,7 @@ Ordenado de menos a más grave:
      ```
 
    - Son de una corrida real del e2e contra testnet, y cada "Ver en Stellar" corresponde a una transacción real.
-4. **Sin internet en la sala: el video grabado.** [`demo/v2/pago-protegido-demo-v2.mp4`](../demo/v2/pago-protegido-demo-v2.mp4) (1:18, con el nombre anterior), copia local en la laptop. Link para compartir: `[link al video]`.
+4. **Sin internet en la sala: el video grabado.** [`demo/v3/trato-demo-v3.mp4`](../demo/v3/trato-demo-v3.mp4) (2:47, sin narrar, con subtítulos), copia local en la laptop.
 5. **El bot, sin red:** `cd bot && npm run sim:demo` corre el simulador con una app de mentira, todo local, en http://localhost:3030.
 6. **Prueba de seguridad sin red:**
 

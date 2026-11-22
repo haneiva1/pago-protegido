@@ -104,7 +104,7 @@ En la v1 del escrow que usamos (commit `f0b706e`), un escrow ya liberado se pued
 soroban-sdk 28 no tiene API para leer el WASM de otro contrato. Un contrato falso podría imitar `get_escrow` con los roles correctos para que el comprador lo fondee.
 
 - **Mitigaciones:**
-  - el comprador firma el árbol de auth `fund → fund_escrow → transfer`, que muestra a qué contrato van los fondos;
+  - la firma del comprador cubre el árbol de auth `fund → fund_escrow → transfer`, así que en la red queda a qué contrato fueron los fondos. **Hoy la app no le muestra ese árbol al comprador** (ver H-11);
   - **la app debe verificar por RPC** que la instancia ejecuta el WASM `1b367bc8…196660` (`getLedgerEntries` de la instancia → `executable.wasm_hash`) antes de pedir la firma.
 - **Lo que hace hoy la app:** antes de pedir la firma del pago, baja el WASM de la instancia por RPC, compara su sha256 con `1b367bc8…196660` y revisa los roles. Si algo no coincide, muestra "Pago bloqueado" y no arma la transacción (ver TW-4 en §4b).
 - **Alternativa para mainnet:** un `pp_factory` propio que despliegue el WASM fijo y registre las instancias legítimas para que el guardián las consulte. Desplegar con `tw_new_single_release_escrow` no alcanza solo, porque esa función despliega el hash que reciba (TW-4).
@@ -139,6 +139,35 @@ H-9 y H-10 los encontró el jurado técnico del consejo (20-nov) con una prueba 
 - **Impacto:** la promesa "se libera sola" depende de que alguien llame `auto_release` a tiempo. La plata no se pierde: el árbitro solo puede repartir entre comprador y vendedor. Pero el vendedor cobra más tarde.
 - **Mitigación sin cambiar contratos:** `auto_release` no pide firma, así que cualquiera puede llamarlo; hoy lo dispara la app cuando alguien abre el pedido. Falta el worker de plazos que lo llame apenas vence `release_at` (mejora 2 del jurado). Lo hace Joaquín y no es parte de este cambio.
 - **Arreglo en v3:** `dispute` solo se acepta hasta `release_at` más un período de gracia. Pasado ese límite, solo queda `auto_release`. Va en el mismo redespliegue que la co-firma de `platform` (H-9) y `set_admin` en dos pasos (abajo). Como los contratos no son actualizables, v3 tendrá IDs nuevos, igual que pasó de v1 a v2.
+
+### H-11: la cuenta del navegador firma lo que arma el servidor, sin mostrarlo
+
+**Estado: conocido.** Arreglo en dos pasos: inspección en el navegador y, antes de mainnet, una billetera que muestre la transacción.
+
+`signAndSubmit` (`app/src/lib/wallet/index.ts`) le pasa a la billetera el XDR que devolvió el servidor, y la billetera local lo firma sin decodificarlo. La verificación del escrow (H-2, TW-4) corre en el servidor. Frente a un servidor comprometido, el comprador no tiene cómo saber qué firma.
+
+- **Qué limita el daño hoy:** la cuenta del comprador recibe el monto exacto del pedido segundos antes de firmar el pago; después de una devolución tiene además lo devuelto. En testnet es plata de prueba.
+- **Paso 1 (pendiente):** que el navegador compruebe, antes de firmar, que la transacción es una de las cinco llamadas a `pp_guardian`, sobre el escrow del pedido y por el monto que muestra la pantalla. Protege de una transacción alterada, no de un servidor que sirva otro código.
+- **Paso 2 (pendiente, E2):** cuenta recuperable para el comprador (Pollar o passkey), que muestra y firma fuera de la página.
+
+### H-12: las llaves de la plataforma y del revisor viven en el mismo servidor
+
+**Estado: conocido.** Arreglo sin tocar contratos: multifirma 2 de 3 en la cuenta del revisor y sacar su llave del servidor web.
+
+Con `PLATAFORMA_SECRET` se puede abrir un reclamo en cualquier escrow con fondos (TW-1). Con `ARBITRO_SECRET` se resuelve. Quien robe el archivo de entorno puede repartir cualquier escrow abierto entre su comprador y su vendedor.
+
+- **Lo que no puede:** mandar la plata a una tercera cuenta. `pp_arbiter.resolve` solo recibe un porcentaje y paga al comprador registrado y al vendedor (test `resolve_nunca_paga_a_terceros`; desvíos d9, d11 y d12 del flujo v2).
+- **Lo que sí puede:** ganar plata si él mismo es comprador o vendedor de un pedido, y dañar a las dos partes de cualquier otro.
+- **Arreglo:** el multifirma de la sección «Riesgo: perder la llave `arbitro`», y que las resoluciones se firmen fuera del servidor que atiende la web.
+
+### H-13: un reclamo no tiene desenlace por defecto
+
+**Estado: conocido. Arreglo previsto en la v3 de los contratos.**
+
+Con el envío registrado y un reclamo abierto, la única salida es `pp_arbiter.resolve`, que pide la firma del revisor. Si el revisor no decide, la plata queda en el escrow: no la puede cobrar nadie, tampoco un tercero.
+
+- **Mitigación sin cambiar contratos:** el multifirma 2 de 3, para que la falta de una persona no bloquee, y un plazo interno de respuesta medido en el panel del revisor.
+- **Arreglo en v3:** un plazo máximo para el revisor, firmado por el comprador al pagar. Pasado ese plazo, cualquiera ejecuta el desenlace por defecto, que se define antes de escribir la v3.
 
 ### Riesgo: perder la llave `arbitro`
 
