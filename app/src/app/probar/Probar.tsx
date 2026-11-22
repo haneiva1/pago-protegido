@@ -31,12 +31,13 @@ function guardarSesion() {
   } catch {}
 }
 
-/** Escala del iPhone para que entre en lo que queda de pantalla; nunca menos de 0,7 para que el chat siga legible. */
+/** Escala del iPhone según la altura que queda bajo la cabecera: en escritorio entran completos (bisel e indicador de inicio incluidos). */
 function escalaPara(escenario: HTMLElement): number {
   const lg = window.matchMedia("(min-width: 1024px)").matches;
   const top = escenario.getBoundingClientRect().top + window.scrollY;
   const porAlto = (window.innerHeight - top - 16 - IPHONE_ETIQUETA) / IPHONE_ALTO;
-  const e = lg ? Math.min(1, Math.max(0.7, porAlto)) : Math.min((escenario.clientWidth - 8) / IPHONE_ANCHO, porAlto >= 0.72 ? porAlto : 1);
+  // En escritorio manda el alto, sin piso: los dos iPhone tienen que entrar completos sin desplazar la página.
+  const e = lg ? Math.min(1, Math.max(0.45, porAlto)) : Math.min((escenario.clientWidth - 8) / IPHONE_ANCHO, porAlto >= 0.72 ? porAlto : 1);
   return Math.round(Math.min(1, e) * 1000) / 1000;
 }
 
@@ -193,11 +194,12 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
   const mostrarEstafa = hayPlataGuardada(status) && status === "pagado" && desvios.length === 0;
 
   return (
-    <div data-probar-ancho className="space-y-4" data-testid="probar">
+    <div data-probar-ancho className="space-y-3" data-testid="probar">
       <h1 className="sr-only">Prueba Trato de punta a punta</h1>
 
       {/* Arriba: los 4 pasos con ícono, el actual resaltado; a la derecha, "Ver detalles" y "Empezar de nuevo". */}
-      <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+      {/* Una sola franja: los 4 pasos, el título del paso (≤ 6 palabras) con su línea (≤ 10) y los dos controles. */}
+      <header className="grid grid-cols-1 items-center gap-x-6 gap-y-2 lg:grid-cols-[auto_minmax(0,1fr)_auto]">
         <ol aria-label={`Paso ${paso.n} de 4`} className="flex items-center gap-1 sm:gap-2" data-testid="pasos">
           {PASOS_DEMO.map((p, i) => {
             const Icono = ICONOS[i];
@@ -218,7 +220,23 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
             );
           })}
         </ol>
-        <div className="flex shrink-0 items-center gap-2">
+        {listo && (
+          <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 lg:px-2">
+            <h2 data-testid="titulo-etapa" className="text-2xl leading-tight lg:text-3xl" data-paso={paso.n}>
+              {paso.titulo}
+            </h2>
+            <p data-testid="ahora" className="text-sm text-tinta-600 lg:text-base">
+              {paso.linea}
+            </p>
+            {mostrarEstafa && (
+              <button className="btn-danger btn-sm" onClick={desviar} disabled={desviando} data-testid="desviar">
+                {desviando ? <Spinner className="h-4 w-4" /> : <IconoBloqueado className="h-4 w-4" />}
+                Alguien intenta robar la plata
+              </button>
+            )}
+          </div>
+        )}
+        <div className="flex shrink-0 items-center gap-2 lg:col-start-3">
           <button className="btn-secondary btn-sm" onClick={() => setCajon(true)} data-testid="ver-detalles" aria-expanded={cajon}>
             <IconoInfo className="h-4 w-4" />
             Ver detalles
@@ -239,24 +257,6 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
 
       {listo && (
         <>
-          {/* El título del paso (≤ 6 palabras) y una línea (≤ 10 palabras). Nada más. */}
-          <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
-            <div>
-              <h2 data-testid="titulo-etapa" className="text-3xl lg:text-4xl" data-paso={paso.n}>
-                {paso.titulo}
-              </h2>
-              <p data-testid="ahora" className="mt-1 text-base text-tinta-600">
-                {paso.linea}
-              </p>
-            </div>
-            {mostrarEstafa && (
-              <button className="btn-danger shrink-0 py-3.5 text-base" onClick={desviar} disabled={desviando} data-testid="desviar">
-                {desviando ? <Spinner /> : <IconoBloqueado className="h-5 w-5" />}
-                Alguien intenta robar la plata
-              </button>
-            )}
-          </div>
-
           {/* El escenario: los dos iPhone; el que no toca, atenuado. En celular, uno a la vez, en pestañas. */}
           <div ref={escenario} className="flex flex-col gap-3 lg:grid lg:grid-cols-[auto_auto] lg:items-start lg:justify-center lg:gap-16">
             <div role="tablist" aria-label="Celulares" className="order-2 grid grid-cols-2 gap-1 rounded-control bg-tinta-200/60 p-1 lg:hidden">
