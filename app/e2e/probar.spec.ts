@@ -250,12 +250,26 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   const cuentas = await page.evaluate(() => ["pp.probar.vendedor", "pp.probar.comprador", "pp.billetera.vendedor", "pp.billetera.comprador"].map((k) => localStorage.getItem(k) !== null));
   expect(cuentas).toEqual([true, true, false, false]);
 
-  // Empezar de nuevo: cuentas nuevas, chats y registro limpios.
+  // Empezar de nuevo: borra las dos cuentas de prueba, limpia chats y registro, y el precalentado crea cuentas NUEVAS
+  // (distintas de las anteriores) en segundo plano; mientras se crean pueden estar en null, nunca ser las viejas.
+  const claves = () => page.evaluate(() => [localStorage.getItem("pp.probar.vendedor"), localStorage.getItem("pp.probar.comprador")]);
+  const antes = await claves();
+  expect(antes[0]).toBeTruthy();
+  expect(antes[1]).toBeTruthy();
   await page.getByTestId("empezar-de-nuevo").click();
   await expect(comprador.getByTestId("esperando-link")).toBeVisible({ timeout: 30_000 });
   await expect(toca(vendedor, "hola")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("registro")).toContainText("Todavía no hay movimientos");
-  expect(await page.evaluate(() => [localStorage.getItem("pp.probar.vendedor"), localStorage.getItem("pp.probar.comprador")])).toEqual([null, null]);
+  let despues: (string | null)[] = [null, null];
+  for (let i = 0; i < 90; i++) {
+    despues = await claves();
+    expect(despues[0], "Empezar de nuevo no debe reutilizar la cuenta anterior de la tienda").not.toBe(antes[0]);
+    expect(despues[1], "Empezar de nuevo no debe reutilizar la cuenta anterior del comprador").not.toBe(antes[1]);
+    if (despues[0] && despues[1]) break;
+    await page.waitForTimeout(1000);
+  }
+  expect(despues[0], "el precalentado crea una cuenta nueva para la tienda").toBeTruthy();
+  expect(despues[1], "el precalentado crea una cuenta nueva para el comprador").toBeTruthy();
 
   // Ninguna clave del equipo (ni ninguna otra) llegó al navegador en las respuestas del servidor.
   await Promise.all(lecturas);
