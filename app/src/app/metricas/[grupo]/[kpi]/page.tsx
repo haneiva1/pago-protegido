@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { IconoChevronDerecha } from "@/components/iconos";
 import { ListaOperaciones } from "@/components/Kpis";
 import { fmtDuracion, fmtHora, nf } from "@/lib/kpi-format";
 import { KPI_DETALLE, comprasDeGrupo, isGrupo, isKpi, metricasSnapshot } from "@/lib/server/kpis";
@@ -24,25 +25,24 @@ export default async function Detalle({ params }: { params: Promise<{ grupo: str
         ? `despachó ${fmtDuracion(secs(c.funded_at, c.shipped_at))} después del pago`
         : null;
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
-      <p className="text-sm">
-        <Link className="underline" href="/metricas">
-          ← Métricas en vivo
-        </Link>
-      </p>
+    <div className="mx-auto max-w-3xl space-y-6">
+      <Link className="inline-flex items-center gap-0.5 text-sm font-medium text-musgo hover:underline" href="/metricas">
+        <IconoChevronDerecha className="h-4 w-4 rotate-180" />
+        Métricas en vivo
+      </Link>
       <header>
-        <p className="text-xs font-semibold uppercase tracking-wide text-brand-700" data-testid="grupo-detalle">
+        <p className="eyebrow" data-testid="grupo-detalle">
           {grupo === "piloto" ? "Piloto con vendedores reales" : "Pruebas del equipo en testnet"}
         </p>
-        <h1 className="text-2xl font-bold">{meta.titulo}</h1>
-        <p className="mt-1 text-slate-600">{meta.explica}</p>
-        <p className="mt-1 text-xs text-slate-500" data-testid="total-detalle">
+        <h1 className="mt-2 text-2xl sm:text-3xl">{meta.titulo}</h1>
+        <p className="mt-2 text-tinta-600">{meta.explica}</p>
+        <p className="mt-2 text-xs text-tinta-500 num" data-testid="total-detalle">
           {nf(list.length)} {list.length === 1 ? "compra" : "compras"} · actualizado: {fmtHora(m.actualizado)}
         </p>
       </header>
-      <section className="card">
+      <section className="card !py-2 sm:!px-6">
         <ListaOperaciones compras={list.slice(0, 200)} fx={m.fx} extra={extra} />
-        {list.length > 200 && <p className="mt-2 text-xs text-slate-500">Se muestran las 200 más recientes. El resto está en /api/metricas.</p>}
+        {list.length > 200 && <p className="py-3 text-xs text-tinta-500">Se muestran las 200 más recientes. El resto está en /api/metricas.</p>}
       </section>
     </div>
   );

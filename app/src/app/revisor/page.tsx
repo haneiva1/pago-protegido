@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { SplitView, TxList } from "@/components/OrderBits";
+import { IconoBalanza } from "@/components/iconos";
 import { ErrorBox, ExplorerLink, Spinner, StatusBadge, TxLink } from "@/components/ui";
 import { EvidenciaPartes, PlazosReclamo, ReglaAplicada } from "@/components/revisor/ReglaYEvidencia";
 import { MOTIVOS, explorer, fmtBs, fmtBsUnits, fmtDate, fmtPct, fmtUsd, shortAddr, splitPreview } from "@/lib/format";
@@ -10,7 +11,7 @@ import { api } from "@/lib/wallet";
 
 const KEY = "pp.revisor.clave";
 
-const KIND: Record<string, string> = { envio: "📦 Envío (vendedor)", reclamo: "⚠️ Reclamo", respuesta: "💬 Respuesta del vendedor" };
+const KIND: Record<string, string> = { envio: "Envío (vendedor)", reclamo: "Reclamo", respuesta: "Respuesta del vendedor" };
 
 /** Panel del revisor (antes "árbitro"). Las rutas de la API siguen en /api/arbitro. */
 export default function Revisor() {
@@ -47,16 +48,20 @@ export default function Revisor() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <header>
-        <h1 className="text-2xl font-bold">Panel del revisor</h1>
-        <div className="mt-3 rounded-2xl border border-violet-200 bg-violet-50 p-4 text-violet-900" data-testid="texto-fijo">
-          <p className="font-semibold">⚖️ El revisor solo puede repartir entre comprador y vendedor. El contrato no permite otro destino.</p>
-          <p className="mt-1 text-xs text-violet-800">
-            Criterios, en orden: sin prueba de envío gana el comprador → entrega no registrada o dirección distinta a la del link, gana el comprador →
-            entrega registrada y sin video de desempaque (desde Bs 300), gana el vendedor → peso que no coincide, gana el comprador → distinto o dañado: primero vuelve el
-            producto y después el reembolso → reparto parcial solo con acuerdo de las partes o daño parcial probado.
+        <p className="eyebrow">Reclamos</p>
+        <h1 className="mt-2 text-3xl">Panel del revisor</h1>
+        <div className="panel-oscuro mt-4 !p-5" data-oscuro data-testid="texto-fijo">
+          <p className="flex items-start gap-2.5 font-semibold">
+            <IconoBalanza className="mt-0.5 h-5 w-5 shrink-0 text-yungas" />
+            <span>El revisor solo puede repartir entre comprador y vendedor. El contrato no permite otro destino.</span>
+          </p>
+          <p className="mt-2 text-xs text-sal/70">
+            Criterios, en orden: sin prueba de envío gana el comprador; entrega no registrada o dirección distinta a la del link, gana el comprador; entrega
+            registrada y sin video de desempaque (desde Bs 300), gana el vendedor; peso que no coincide, gana el comprador; distinto o dañado: primero vuelve el
+            producto y después el reembolso; reparto parcial solo con acuerdo de las partes o daño parcial probado.
           </p>
           {data?.mode === "direct" && (
-            <p className="mt-1 text-xs text-violet-800">Modo directo (temporal): esta regla la aplica el servidor, que solo arma repartos entre comprador y vendedor.</p>
+            <p className="mt-1 text-xs text-sal/70">Modo directo (temporal): esta regla la aplica el servidor, que solo arma repartos entre comprador y vendedor.</p>
           )}
         </div>
       </header>
@@ -82,7 +87,7 @@ export default function Revisor() {
       ) : (
         <>
           <section className="space-y-4">
-            <h2 className="text-lg font-bold">Reclamos abiertos ({data.open.length})</h2>
+            <h2 className="text-xl">Reclamos abiertos ({data.open.length})</h2>
             {data.open.length === 0 && <p className="card muted">No hay reclamos abiertos.</p>}
             {data.open.map((d) => (
               <DisputeCard key={d.slug} d={d} arbKey={key} onDone={() => load(key)} />
@@ -90,16 +95,16 @@ export default function Revisor() {
           </section>
           {data.resolved.length > 0 && (
             <section className="space-y-3">
-              <h2 className="text-lg font-bold">Resueltos recientemente</h2>
+              <h2 className="text-xl">Resueltos recientemente</h2>
               {data.resolved.map((r) => (
                 <article key={r.slug} className="card space-y-3">
                   <div className="flex items-center justify-between gap-2">
-                    <h3 className="font-semibold">
+                    <h3 className="text-base">
                       {r.code} · {r.product}
                     </h3>
                     <StatusBadge status={r.status} />
                   </div>
-                  {r.resolution_reason && <p className="text-sm text-slate-600">Motivo del fallo: {r.resolution_reason}</p>}
+                  {r.resolution_reason && <p className="text-sm text-tinta-600">Motivo del fallo: {r.resolution_reason}</p>}
                   <SplitView money={r} buyerBps={r.buyer_bps} fx={r.fx} />
                   {r.txs
                     .filter((t) => t.kind === "resolucion")
@@ -117,19 +122,19 @@ export default function Revisor() {
 }
 
 function EvidenceHistory({ items }: { items: EvidenceRow[] }) {
-  if (!items.length) return <p className="text-xs text-slate-500">Sin evidencia registrada.</p>;
+  if (!items.length) return <p className="text-xs text-tinta-500">Sin evidencia registrada.</p>;
   return (
     <ol className="space-y-1.5" data-testid="historial-evidencia">
       {items.map((e) => {
         const data = JSON.parse(e.data_json) as Record<string, string>;
         const links = ["photo", "video"].filter((k) => data[k]);
         return (
-          <li key={e.id} className="rounded-lg bg-white p-2 text-xs ring-1 ring-slate-200">
-            <span className="font-semibold">{KIND[e.kind] ?? e.kind}</span> · <span className="text-slate-500">{fmtDate(e.created_at)}</span>
-            <p className="mt-0.5 text-slate-700">{e.summary}</p>
-            {data.evidence && <p className="break-all font-mono text-[11px] text-slate-500">on-chain: {data.evidence}</p>}
+          <li key={e.id} className="rounded-chip bg-white p-2.5 text-xs ring-1 ring-tinta-200">
+            <span className="font-semibold">{KIND[e.kind] ?? e.kind}</span> · <span className="text-tinta-500">{fmtDate(e.created_at)}</span>
+            <p className="mt-0.5 text-tinta-700">{e.summary}</p>
+            {data.evidence && <p className="break-all font-mono text-[11px] text-tinta-500">en el contrato: {data.evidence}</p>}
             {links.map((k) => (
-              <a key={k} className="mr-2 underline" href={data[k]} target="_blank" rel="noreferrer">
+              <a key={k} className="enlace mr-2" href={data[k]} target="_blank" rel="noreferrer">
                 {k === "photo" ? "Ver foto" : "Ver video"}
               </a>
             ))}
@@ -212,7 +217,7 @@ function DisputeCard({ d, arbKey, onDone }: { d: DisputeItem; arbKey: string; on
     <article className="card space-y-5" data-testid={`disputa-${d.slug}`}>
       <header className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-lg font-semibold">
+          <h3 className="text-lg">
             {d.code} · {d.product}
           </h3>
           <p className="muted">
@@ -220,7 +225,7 @@ function DisputeCard({ d, arbKey, onDone }: { d: DisputeItem; arbKey: string; on
             reclamo del {d.dispute_by} el {fmtDate(d.disputed_at)}
           </p>
           {d.seller && d.seller.pressure_reports > 0 && (
-            <p className="mt-1 text-xs font-semibold text-rose-700">⚠️ Este vendedor tiene {d.seller.pressure_reports} reporte(s) de presión para confirmar.</p>
+            <p className="mt-1 text-xs font-semibold text-error-700">Este vendedor tiene {d.seller.pressure_reports} reporte(s) de presión para confirmar.</p>
           )}
         </div>
         <StatusBadge status={d.status} />
@@ -230,38 +235,38 @@ function DisputeCard({ d, arbKey, onDone }: { d: DisputeItem; arbKey: string; on
       <PlazosReclamo d={d} ahora={ahora} />
 
       <div className="grid gap-3 md:grid-cols-2">
-        <div className="rounded-xl bg-amber-50 p-4 text-sm ring-1 ring-amber-100">
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">Comprador</p>
+        <div className="rounded-card bg-tinta-50 p-4 text-sm ring-1 ring-tinta-200/60">
+          <p className="text-xs font-semibold uppercase tracking-wide text-tinta-600">Comprador</p>
           <p className="mt-1 font-semibold">{d.dispute_reason}</p>
-          {d.dispute_text ? <p className="mt-1 text-slate-700">“{d.dispute_text}”</p> : <p className="mt-1 text-slate-400">Sin detalle</p>}
+          {d.dispute_text ? <p className="mt-1 text-tinta-700">“{d.dispute_text}”</p> : <p className="mt-1 text-tinta-500">Sin detalle</p>}
           {d.dispute_video && (
-            <a className="mt-1 mr-2 inline-block text-amber-800 underline" href={d.dispute_video} target="_blank" rel="noreferrer">
+            <a className="enlace mt-1 mr-2 inline-block" href={d.dispute_video} target="_blank" rel="noreferrer">
               Ver video del desempaque
             </a>
           )}
           {d.dispute_photo && (
-            <a className="mt-1 inline-block text-amber-800 underline" href={d.dispute_photo} target="_blank" rel="noreferrer">
+            <a className="enlace mt-1 inline-block" href={d.dispute_photo} target="_blank" rel="noreferrer">
               Ver foto
             </a>
           )}
-          <p className="mt-2 text-xs text-slate-600">
+          <p className="mt-2 text-xs text-tinta-600">
             Entrega pedida: {d.recipient_name} · {d.dest_city}
             {d.pref_agency ? ` · ${d.pref_agency}` : ""} (hash {d.delivery_hash ?? "-"})
           </p>
           {d.buyer_pubkey && (
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-tinta-500">
               Cuenta: <ExplorerLink href={explorer.account(d.buyer_pubkey)}>{shortAddr(d.buyer_pubkey)}</ExplorerLink>
             </p>
           )}
         </div>
-        <div className="rounded-xl bg-sky-50 p-4 text-sm ring-1 ring-sky-100">
-          <p className="text-xs font-semibold uppercase tracking-wide text-sky-800">Vendedor</p>
+        <div className="rounded-card bg-tinta-50 p-4 text-sm ring-1 ring-tinta-200/60">
+          <p className="text-xs font-semibold uppercase tracking-wide text-tinta-600">Vendedor</p>
           <p className="mt-1">
             Envío: <strong>{[d.ship_company, d.ship_tracking && `guía ${d.ship_tracking}`, d.ship_weight && `${String(d.ship_weight).replace(".", ",")} kg`, d.ship_city && `a ${d.ship_city}`].filter(Boolean).join(" · ") || "no registró envío"}</strong>
           </p>
           {d.ship_imei && <p className="mt-1 text-xs">IMEI declarado: {d.ship_imei}</p>}
-          {d.seller_reply ? <p className="mt-1 text-slate-700">“{d.seller_reply}”</p> : <p className="mt-1 text-slate-400">Todavía no envió su versión</p>}
-          <p className="mt-2 text-xs text-slate-500">
+          {d.seller_reply ? <p className="mt-1 text-tinta-700">“{d.seller_reply}”</p> : <p className="mt-1 text-tinta-500">Todavía no envió su versión</p>}
+          <p className="mt-2 text-xs text-tinta-500">
             Cuenta: <ExplorerLink href={explorer.account(d.seller_pubkey)}>{shortAddr(d.seller_pubkey)}</ExplorerLink>
           </p>
         </div>
@@ -269,15 +274,15 @@ function DisputeCard({ d, arbKey, onDone }: { d: DisputeItem; arbKey: string; on
 
       <EvidenciaPartes d={d} />
 
-      <div className="rounded-xl bg-slate-50 p-4 text-sm">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-600">Historial de la evidencia</p>
+      <div className="rounded-card bg-tinta-50 p-4 text-sm ring-1 ring-tinta-200/60">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-tinta-600">Historial de la evidencia</p>
         <EvidenceHistory items={d.evidence} />
       </div>
 
-      <div className="rounded-xl bg-slate-50 p-4 text-sm" data-testid="estado-onchain">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Estado en el contrato</p>
+      <div className="rounded-card bg-tinta-50 p-4 text-sm ring-1 ring-tinta-200/60" data-testid="estado-onchain">
+        <p className="text-xs font-semibold uppercase tracking-wide text-tinta-600">Estado en el contrato</p>
         {d.onchain ? (
-          <ul className="mt-1 space-y-0.5 text-slate-700">
+          <ul className="mt-1 space-y-0.5 text-tinta-700">
             <li>
               Saldo: <strong>{fmtBsUnits(d.onchain.balance, d.fx)}</strong> ({fmtUsd(d.onchain.balance)} USD de prueba)
             </li>
@@ -292,7 +297,7 @@ function DisputeCard({ d, arbKey, onDone }: { d: DisputeItem; arbKey: string; on
             {d.onchain.roles && <li>Revisor designado: {shortAddr(d.onchain.roles.dispute_resolver)}</li>}
           </ul>
         ) : (
-          <p className="text-slate-500">No se pudo leer el contrato.</p>
+          <p className="text-tinta-500">No se pudo leer el contrato.</p>
         )}
         {d.escrow_id && (
           <p className="mt-1 text-xs">
@@ -315,7 +320,7 @@ function DisputeCard({ d, arbKey, onDone }: { d: DisputeItem; arbKey: string; on
         </div>
         <label className="label flex items-center justify-between" htmlFor={`pct-${d.slug}`}>
           <span>% para el comprador</span>
-          <span className="text-lg font-bold text-violet-800" data-testid="pct">
+          <span className="font-display text-lg text-monte num" data-testid="pct">
             {pct == null ? "elige" : fmtPct(pct)}
           </span>
         </label>
@@ -332,15 +337,15 @@ function DisputeCard({ d, arbKey, onDone }: { d: DisputeItem; arbKey: string; on
         />
         {prev ? (
           <div className="grid grid-cols-2 gap-2 text-center text-sm" data-testid="vista-previa">
-            <div className="rounded-xl bg-violet-50 p-3">
-              <p className="text-xs text-violet-800">Comprador recibe ({fmtPct(pct ?? 0)})</p>
-              <p className="text-xl font-bold text-violet-900">{fmtBsUnits(prev.buyer, d.fx)}</p>
+            <div className="rounded-card bg-exito-50 p-3 ring-1 ring-exito-200/70">
+              <p className="text-xs text-tinta-600">Comprador recibe ({fmtPct(pct ?? 0)})</p>
+              <p className="font-display text-xl text-monte num">{fmtBsUnits(prev.buyer, d.fx)}</p>
             </div>
-            <div className="rounded-xl bg-violet-50 p-3">
-              <p className="text-xs text-violet-800">Vendedor recibe ({fmtPct(100 - (pct ?? 0))})</p>
-              <p className="text-xl font-bold text-violet-900">{fmtBsUnits(prev.seller, d.fx)}</p>
+            <div className="rounded-card bg-exito-50 p-3 ring-1 ring-exito-200/70">
+              <p className="text-xs text-tinta-600">Vendedor recibe ({fmtPct(100 - (pct ?? 0))})</p>
+              <p className="font-display text-xl text-monte num">{fmtBsUnits(prev.seller, d.fx)}</p>
             </div>
-            <p className="col-span-2 text-xs text-slate-500">
+            <p className="col-span-2 text-xs text-tinta-500">
               Netos. Comisiones descontadas por el contrato: plataforma {fmtBsUnits(prev.platform, d.fx)} · Trustless Work {fmtBsUnits(prev.tw, d.fx)}.{" "}
               <span data-testid="fuente-vista-previa">
                 {fresh ? `Vista previa: ${fresh.source === "pp_arbiter.quote" ? "pp_arbiter.quote (simulación, sin firma)" : "calculada en el servidor"}` : "Calculando…"}
@@ -348,16 +353,16 @@ function DisputeCard({ d, arbKey, onDone }: { d: DisputeItem; arbKey: string; on
             </p>
           </div>
         ) : (
-          <p className="rounded-xl bg-slate-50 p-3 text-center text-sm text-slate-500" data-testid="sin-reparto">
+          <p className="rounded-card bg-tinta-50 p-3 text-center text-sm text-tinta-500" data-testid="sin-reparto">
             Mueve el control para elegir el reparto. No hay valor por defecto.
           </p>
         )}
       </div>
 
       {probe && (
-        <div className={`rounded-xl p-4 text-sm ${probe.rejected ? "bg-rose-50 text-rose-900 ring-1 ring-rose-200" : "bg-amber-50 text-amber-900"}`} data-testid="resultado-desvio">
+        <div className={`rounded-card p-4 text-sm ring-1 ${probe.rejected ? "bg-error-50 text-error-700 ring-error-200" : "bg-aviso-50 text-aviso-700 ring-aviso-200"}`} data-testid="resultado-desvio">
           <p className="font-semibold">
-            {probe.rejected ? `🚫 Rechazado por el ${probe.by}` : "Atención"}: intento de mandar toda la plata a otra cuenta ({shortAddr(probe.foreign)})
+            {probe.rejected ? `Rechazado por el ${probe.by}` : "Atención"}: intento de mandar toda la plata a otra cuenta ({shortAddr(probe.foreign)})
           </p>
           {probe.call && <p className="mt-1 font-mono text-xs">{probe.call}</p>}
           {probe.raw && (
@@ -376,7 +381,7 @@ function DisputeCard({ d, arbKey, onDone }: { d: DisputeItem; arbKey: string; on
         <button className="btn-secondary sm:flex-1" onClick={probar} disabled={busy !== null}>
           {busy === "probar" ? <Spinner /> : null} Probar: mandar la plata a otra cuenta
         </button>
-        <button className="btn sm:flex-1 bg-violet-600 text-white hover:bg-violet-700" onClick={resolver} disabled={busy !== null || pct == null || !reason}>
+        <button className="btn-oscuro sm:flex-1" onClick={resolver} disabled={busy !== null || pct == null || !reason}>
           {busy === "resolver" ? <Spinner /> : null} Resolver
         </button>
       </div>

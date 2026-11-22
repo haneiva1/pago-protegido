@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { sha256Hex } from "@/components/EvidenciaInput";
 import { huellaPropia } from "@/lib/evidencia";
+import { IconoDocumento } from "@/components/iconos";
 import { fmtDate } from "@/lib/format";
 import {
   CRITERIOS,
@@ -21,21 +22,21 @@ import type { DisputeItem } from "@/lib/types";
 export function ReglaAplicada({ d, ahora }: { d: DisputeItem; ahora: number }) {
   const r = reglaDelReclamo(d, ahora);
   return (
-    <div className="rounded-xl border-2 border-violet-300 bg-white p-4 text-sm" data-testid="regla-aplica">
-      <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">Regla que aplica · motivo: {d.dispute_reason}</p>
-      <p className="mt-1 font-semibold text-violet-950">{r.titulo}</p>
-      <p className="mt-1 text-slate-700">{r.detalle}</p>
-      <p className="mt-1 font-semibold text-violet-900" data-testid="regla-gana">
+    <div className="rounded-card border-2 border-monte bg-white p-4 text-sm" data-testid="regla-aplica">
+      <p className="text-xs font-semibold uppercase tracking-wide text-musgo">Regla que aplica · motivo: {d.dispute_reason}</p>
+      <p className="mt-1 font-semibold text-monte">{r.titulo}</p>
+      <p className="mt-1 text-tinta-700">{r.detalle}</p>
+      <p className="mt-1 font-semibold text-monte" data-testid="regla-gana">
         {r.gana ? `Según la política, gana el ${r.gana}.` : "Comprueba eso antes de decidir el reparto."}
       </p>
-      <ol className="mt-3 list-decimal space-y-0.5 pl-5 text-xs text-slate-500">
+      <ol className="mt-3 list-decimal space-y-0.5 pl-5 text-xs text-tinta-500">
         {CRITERIOS.map((c, i) => (
-          <li key={c} className={i === r.criterio || (r.criterio === 3 && i === 4) ? "font-semibold text-violet-900" : ""}>
+          <li key={c} className={i === r.criterio || (r.criterio === 3 && i === 4) ? "font-semibold text-monte" : ""}>
             {c}
           </li>
         ))}
       </ol>
-      <p className="mt-1 text-xs text-slate-500">{REPARTO_PARCIAL}</p>
+      <p className="mt-1 text-xs text-tinta-500">{REPARTO_PARCIAL}</p>
     </div>
   );
 }
@@ -49,10 +50,10 @@ export function PlazosReclamo({ d, ahora }: { d: DisputeItem; ahora: number }) {
       {plazos.map((p) => (
         <li
           key={p.clave}
-          className={`rounded-lg p-2.5 ring-1 ${p.hecho ? "bg-brand-50 text-brand-900 ring-brand-100" : p.vencido ? "bg-rose-50 text-rose-900 ring-rose-200" : "bg-white text-slate-700 ring-slate-200"}`}
+          className={`rounded-chip p-2.5 ring-1 ${p.hecho ? "bg-exito-50 text-monte ring-exito-200" : p.vencido ? "bg-error-50 text-error-700 ring-error-200" : "bg-white text-tinta-700 ring-tinta-200"}`}
         >
           <p className="font-semibold">
-            {p.hecho ? "✓ " : p.vencido ? "⏰ " : ""}
+            {p.hecho ? "✓ " : ""}
             {p.texto}
           </p>
           <p>
@@ -96,7 +97,7 @@ function ArchivoVerificado({ a, d }: { a: Archivo; d: DisputeItem }) {
   const envio = huella && a.parte === "vendedor" ? huellaEnElEnvio(huella, d) : null;
   const otros = huella ? pedidosConLaMismaHuella(huella, d.huellas_en_otros) : [];
   return (
-    <li className="flex gap-3 rounded-lg bg-white p-2 ring-1 ring-slate-200" data-testid="archivo-evidencia">
+    <li className="flex gap-3 rounded-chip bg-white p-2 ring-1 ring-tinta-200" data-testid="archivo-evidencia">
       <a href={src} target="_blank" rel="noreferrer" className="flex-none" aria-label={`Abrir ${a.etiqueta}`}>
         {huella ? (
           a.tipo === "foto" ? (
@@ -106,26 +107,28 @@ function ArchivoVerificado({ a, d }: { a: Archivo; d: DisputeItem }) {
             <video src={src} muted preload="metadata" className="h-16 w-16 rounded-lg object-cover" data-testid="miniatura" />
           )
         ) : (
-          <span className="flex h-16 w-16 items-center justify-center rounded-lg bg-slate-100 text-2xl">{a.tipo === "foto" ? "🖼️" : "🎬"}</span>
+          <span className="flex h-16 w-16 items-center justify-center rounded-chip bg-tinta-100 text-tinta-400">
+            <IconoDocumento className="h-7 w-7" />
+          </span>
         )}
       </a>
       <div className="min-w-0 flex-1 text-xs">
-        <p className="font-semibold text-slate-800">{a.etiqueta}</p>
+        <p className="font-semibold text-monte">{a.etiqueta}</p>
         {huella ? (
           <>
             {estado === "coincide" && (
-              <p className="font-semibold text-brand-700" data-testid="sin-cambios">
+              <p className="font-semibold text-musgo" data-testid="sin-cambios">
                 {TEXTO_HUELLA.sinCambios}
               </p>
             )}
-            {estado === "no-coincide" && <p className="font-semibold text-rose-700">{TEXTO_HUELLA.cambio}</p>}
-            {estado === "verificando" && <p className="text-slate-500">Comprobando la huella…</p>}
-            {estado === "error" && <p className="text-amber-800">No se pudo descargar para comprobarla</p>}
-            <p className="truncate font-mono text-slate-500" title={huella}>
+            {estado === "no-coincide" && <p className="font-semibold text-error-700">{TEXTO_HUELLA.cambio}</p>}
+            {estado === "verificando" && <p className="text-tinta-500">Comprobando la huella…</p>}
+            {estado === "error" && <p className="text-aviso-700">No se pudo descargar para comprobarla</p>}
+            <p className="truncate font-mono text-tinta-500" title={huella}>
               SHA-256 {corta(huella)}
             </p>
             {envio && (
-              <p className={envio.esta ? "text-slate-600" : "font-semibold text-rose-700"} data-testid="huella-en-envio">
+              <p className={envio.esta ? "text-tinta-600" : "font-semibold text-error-700"} data-testid="huella-en-envio">
                 {envio.fuente === "contrato"
                   ? envio.esta
                     ? TEXTO_HUELLA.enContrato
@@ -136,15 +139,15 @@ function ArchivoVerificado({ a, d }: { a: Archivo; d: DisputeItem }) {
               </p>
             )}
             {otros.length > 0 && (
-              <p className="font-semibold text-amber-800" data-testid="huella-repetida">
-                ⚠ El mismo archivo aparece en otro pedido ({otros.join(", ")}): puede ser una foto reutilizada.
+              <p className="font-semibold text-aviso-700" data-testid="huella-repetida">
+                El mismo archivo aparece en otro pedido ({otros.join(", ")}): puede ser una foto reutilizada.
               </p>
             )}
           </>
         ) : (
-          <p className="text-slate-600">
+          <p className="text-tinta-600">
             Link externo, sin huella: no se puede comprobar.{" "}
-            <a className="underline" href={a.url} target="_blank" rel="noreferrer">
+            <a className="enlace" href={a.url} target="_blank" rel="noreferrer">
               Abrir
             </a>
           </p>
@@ -158,7 +161,7 @@ function ArchivoVerificado({ a, d }: { a: Archivo; d: DisputeItem }) {
 export function EvidenciaPartes({ d }: { d: DisputeItem }) {
   const e = evidenciaDeLasPartes(d.evidence);
   const lado = (titulo: string, lista: Archivo[], tono: string) => (
-    <div className={`space-y-2 rounded-xl p-3 ring-1 ${tono}`}>
+    <div className={`space-y-2 rounded-card p-3 ring-1 ${tono}`}>
       <p className="text-xs font-semibold uppercase tracking-wide">{titulo}</p>
       {lista.length ? (
         <ul className="space-y-2">
@@ -167,14 +170,14 @@ export function EvidenciaPartes({ d }: { d: DisputeItem }) {
           ))}
         </ul>
       ) : (
-        <p className="text-xs text-slate-500">Sin fotos ni videos.</p>
+        <p className="text-xs text-tinta-500">Sin fotos ni videos.</p>
       )}
     </div>
   );
   return (
     <div className="grid gap-3 md:grid-cols-2" data-testid="evidencia-partes">
-      {lado("Fotos y videos del comprador", e.comprador, "bg-amber-50/60 text-amber-900 ring-amber-100")}
-      {lado("Fotos del vendedor", e.vendedor, "bg-sky-50/60 text-sky-900 ring-sky-100")}
+      {lado("Fotos y videos del comprador", e.comprador, "bg-tinta-50 text-tinta-700 ring-tinta-200/60")}
+      {lado("Fotos del vendedor", e.vendedor, "bg-tinta-50 text-tinta-700 ring-tinta-200/60")}
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { IconoBuscar, IconoCheckCirculo } from "@/components/iconos";
 import { ErrorBox, ExplorerLink, Spinner } from "@/components/ui";
 import { explorer } from "@/lib/format";
 import { api } from "@/lib/wallet";
@@ -47,12 +48,24 @@ export default function Verificar() {
     }
   }, []);
 
+  const filas: [string, string][] = r
+    ? [
+        ["Tienda", r.city ? `${r.store} · ${r.city}` : r.store],
+        ["Producto", `${r.product} · ${r.price}`],
+        ["Monto a pagar", r.total],
+        ["Estado", r.statusLabel],
+      ]
+    : [];
+
   return (
-    <div className="mx-auto max-w-md space-y-4">
-      <h1 className="text-2xl font-bold">Verificar un link de pago</h1>
-      <p className="text-slate-600">Escribe el código del pedido (por ejemplo PP-7KM4Q9TX). Si los datos no coinciden con lo que te mandaron, no pagues.</p>
+    <div className="mx-auto max-w-md space-y-5 pt-2">
+      <header>
+        <p className="eyebrow">Antes de pagar</p>
+        <h1 className="mt-2 text-3xl">Verificar un link de pago</h1>
+        <p className="mt-3 text-tinta-600">Escribe el código del pedido (por ejemplo PP-7KM4Q9TX). Si los datos no coinciden con lo que te mandaron, no pagues.</p>
+      </header>
       <form
-        className="card flex gap-2"
+        className="card flex gap-2 !p-3"
         onSubmit={(e) => {
           e.preventDefault();
           check(code);
@@ -61,31 +74,30 @@ export default function Verificar() {
         <label className="sr-only" htmlFor="codigo">
           Código del pedido
         </label>
-        <input id="codigo" className="input" value={code} onChange={(e) => setCode(e.target.value)} placeholder="PP-7KM4Q9TX" />
-        <button className="btn-primary" disabled={busy}>
-          {busy ? <Spinner /> : "Verificar"}
+        <input id="codigo" className="input font-mono uppercase placeholder:normal-case" value={code} onChange={(e) => setCode(e.target.value)} placeholder="PP-7KM4Q9TX" autoComplete="off" />
+        <button className="btn-primary shrink-0" disabled={busy}>
+          {busy ? <Spinner /> : <IconoBuscar className="h-5 w-5" />}
+          Verificar
         </button>
       </form>
       <ErrorBox error={error} />
       {r && (
-        <section className="card space-y-2" data-testid="resultado-verificar">
-          <p className="text-sm font-semibold text-brand-700">✔ Link auténtico de Trato · {r.code}</p>
-          <p>
-            Tienda: <strong>{r.store}</strong>
-            {r.city ? ` · ${r.city}` : ""}
+        <section className="card space-y-4 animate-aparecer" data-testid="resultado-verificar">
+          <p className="flex items-center gap-2 text-sm font-semibold text-exito-700">
+            <IconoCheckCirculo className="h-5 w-5 shrink-0" />
+            Link auténtico de Trato · <span className="num">{r.code}</span>
           </p>
-          <p>
-            Producto: <strong>{r.product}</strong> · {r.price}
-          </p>
-          <p>
-            Monto a pagar: <strong>{r.total}</strong>
-          </p>
-          <p>
-            Estado: <strong>{r.statusLabel}</strong>
-          </p>
-          <div className="flex flex-wrap gap-3 pt-1 text-sm">
+          <dl className="divide-y divide-tinta-100 text-sm">
+            {filas.map(([k, v]) => (
+              <div key={k} className="flex items-baseline justify-between gap-4 py-2">
+                <dt className="shrink-0 text-tinta-500">{k}</dt>
+                <dd className="text-right font-semibold text-monte">{v}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="flex flex-wrap items-center gap-3 text-sm">
             {r.slug && (
-              <Link className="font-medium text-brand-700 underline" href={`/p/${r.slug}`}>
+              <Link className="btn-oscuro btn-sm" href={`/p/${r.slug}`}>
                 Abrir el link auténtico
               </Link>
             )}
@@ -93,7 +105,7 @@ export default function Verificar() {
           </div>
         </section>
       )}
-      <p className="text-xs text-slate-500">Si un QR de Trato está a nombre de una persona, es estafa.</p>
+      <p className="text-xs text-tinta-500">Si un QR de Trato está a nombre de una persona, es estafa.</p>
     </div>
   );
 }

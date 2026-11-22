@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { IconoCandado, IconoCheckCirculo } from "@/components/iconos";
+import { TratoSimbolo } from "@/components/TratoLogo";
 
 const PASOS = [
   { n: "1", t: "Creas tu link", d: "Producto, precio en Bs y días de entrega. Listo en menos de 30 segundos." },
@@ -15,18 +17,17 @@ const BENEFICIOS = [
 
 export default function Home() {
   return (
-    <div className="space-y-14">
-      <section className="grid items-center gap-10 pt-2 md:grid-cols-[1.15fr_1fr] md:pt-8">
+    <div className="space-y-16 sm:space-y-24">
+      {/* Portada: una promesa, una acción. */}
+      <section className="grid items-center gap-10 pt-4 md:grid-cols-[1.1fr_1fr] md:gap-12 md:pt-12">
         <div>
-          <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-800 ring-1 ring-brand-200">
-            Celulares y electrónica entre ciudades · Bs 1.000 a 7.000
-          </span>
-          <h1 className="mt-4 text-4xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-5xl">Vende a otras ciudades sin que desconfíen de ti</h1>
-          <p className="mt-4 max-w-xl text-lg text-slate-600">El contra entrega no cruza departamentos. Trato sí.</p>
-          <p className="mt-2 max-w-xl text-slate-600">
-            Tu cliente paga por adelantado y su plata queda guardada hasta que le llega el pedido. Tú despachas sabiendo que ya pagó.
+          <p className="eyebrow">Celulares y electrónica entre ciudades · Bs 1.000 a 7.000</p>
+          <h1 className="mt-4 text-4xl leading-[1.05] sm:text-5xl lg:text-[3.5rem]">Vende a otras ciudades sin que desconfíen de ti</h1>
+          <p className="mt-5 max-w-xl text-lg font-medium text-tinta-700">El contra entrega no cruza departamentos. Trato sí.</p>
+          <p className="mt-2 max-w-xl text-tinta-600">
+            Tu cliente paga por adelantado y su plata espera entre los dos hasta que le llega el pedido. Tú despachas sabiendo que ya pagó.
           </p>
-          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link href="/vender" className="btn-primary px-6 text-lg">
               Crear mi link
             </Link>
@@ -34,77 +35,106 @@ export default function Home() {
               Cómo funciona
             </Link>
           </div>
-          <p className="mt-4 text-xs text-slate-500">
+          <p className="mt-6 max-w-xl text-sm text-tinta-500">
             La protección la paga el comprador (1,5%, mín. Bs 5, máx. Bs 50) o la regalas tú (2,3% de tu venta). ¿Quieres probarlo con tus ventas?{" "}
-            <Link href="/piloto" className="underline">
+            <Link href="/piloto" className="enlace">
               Únete al piloto
             </Link>
             .
           </p>
-          <p className="mt-2 text-xs text-slate-500">
-            <Link href="/metricas" className="font-semibold text-brand-700 underline" data-testid="link-metricas">
+          <p className="mt-2 max-w-xl text-sm text-tinta-500">
+            <Link href="/metricas" className="enlace" data-testid="link-metricas">
               Métricas en vivo
             </Link>
             : compras protegidas, reclamos y tiempos de cobro, con el registro público de cada compra.
           </p>
         </div>
 
+        {/* Maqueta de lo que ve el comprador. Es un ejemplo y lo dice. */}
         <div className="mx-auto w-full max-w-sm">
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-3 shadow-xl shadow-slate-200/70">
-            <div className="rounded-[1.5rem] bg-slate-50 p-4">
+          <div className="rounded-panel bg-monte p-2.5 shadow-celular">
+            <div className="rounded-[1.1rem] bg-sal p-4">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">Compra protegida · PP-4821</p>
-                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-700" data-testid="ejemplo">
+                <p className="eyebrow">Compra protegida · PP-4821</p>
+                <span className="chip-neutro" data-testid="ejemplo">
                   Ejemplo
                 </span>
               </div>
-              <div className="mt-3 rounded-2xl bg-white p-4 ring-1 ring-slate-200">
-                <p className="text-sm text-slate-500">Celular Samsung Galaxy A35</p>
-                <p className="mt-1 text-3xl font-bold">Bs 2.500</p>
-                <p className="text-xs text-slate-500">Vendedor: Tienda Sofi · Santa Cruz · 128 ventas protegidas, 2 reclamos</p>
-                <div className="mt-4 rounded-xl bg-brand-50 p-3 text-xs text-brand-900">🔒 Tu plata no llega al vendedor hasta que recibas tu pedido.</div>
-                <div className="mt-4 rounded-xl bg-brand-600 py-3 text-center text-sm font-semibold text-monte">Pagar Bs 2.537,50 con QR</div>
+              <div className="card mt-3 space-y-3 !p-4">
+                <div>
+                  <p className="text-sm text-tinta-600">Celular Samsung Galaxy A35</p>
+                  <p className="mt-1 font-display text-3xl leading-none tracking-tight text-monte num">Bs 2.500</p>
+                  <p className="mt-2 text-xs text-tinta-500">Tienda Sofi · Santa Cruz · 128 ventas protegidas, 2 reclamos</p>
+                </div>
+                <div className="panel-suave flex items-start gap-2.5 !p-3 text-xs">
+                  <IconoCandado className="mt-px h-4 w-4 shrink-0 text-musgo" />
+                  <span>
+                    <span className="font-semibold">Tu plata espera entre los dos.</span> Llega a la tienda cuando confirmes que recibiste.
+                  </span>
+                </div>
+                <div className="btn-primary w-full text-sm" aria-hidden>
+                  Pagar Bs 2.537,50 con QR
+                </div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section>
-        <h2 className="text-2xl font-bold tracking-tight">Así de simple</h2>
-        <div className="mt-5 grid gap-4 md:grid-cols-3">
+      {/* Tres pasos, sin tarjetas: número, título, una línea. */}
+      <section aria-labelledby="asi-de-simple">
+        <h2 id="asi-de-simple" className="text-2xl sm:text-3xl">
+          Así de simple
+        </h2>
+        <ol className="mt-8 grid gap-8 md:grid-cols-3 md:gap-6">
           {PASOS.map((p) => (
-            <div key={p.n} className="card">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-monte">{p.n}</span>
-              <h3 className="mt-3 font-semibold">{p.t}</h3>
-              <p className="mt-1 text-sm text-slate-600">{p.d}</p>
-            </div>
+            <li key={p.n} className="border-t border-tinta-200 pt-5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-monte font-display text-base text-sal">{p.n}</span>
+              <h3 className="mt-4 text-lg">{p.t}</h3>
+              <p className="mt-1.5 text-tinta-600">{p.d}</p>
+            </li>
           ))}
-        </div>
+        </ol>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {BENEFICIOS.map((b) => (
-          <div key={b.t} className="rounded-2xl bg-slate-900 p-5 text-white">
-            <h3 className="font-semibold">{b.t}</h3>
-            <p className="mt-1 text-sm text-slate-300">{b.d}</p>
+      {/* Lo que importa, en Monte. */}
+      <section className="panel-oscuro !p-6 sm:!p-10" data-oscuro aria-labelledby="por-que">
+        <div className="flex items-start justify-between gap-6">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-yungas">Por qué funciona</p>
+            <h2 id="por-que" className="mt-2 max-w-2xl text-2xl text-sal sm:text-3xl">
+              La plata espera entre los dos. Nadie más la toca.
+            </h2>
           </div>
-        ))}
+          <TratoSimbolo className="hidden h-12 w-12 shrink-0 text-yungas sm:block" />
+        </div>
+        <ul className="mt-8 grid gap-x-10 gap-y-7 sm:grid-cols-2">
+          {BENEFICIOS.map((b) => (
+            <li key={b.t} className="flex items-start gap-3">
+              <IconoCheckCirculo className="mt-0.5 h-5 w-5 shrink-0 text-yungas" />
+              <div>
+                <h3 className="font-sans text-base font-semibold tracking-normal text-sal">{b.t}</h3>
+                <p className="mt-1 text-sm text-sal/70">{b.d}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
       </section>
 
-      <section className="card flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+      {/* Cierre: la firma de la marca, una vez. */}
+      <section className="panel-acento flex flex-col items-start justify-between gap-6 !p-6 sm:!p-10 md:flex-row md:items-center">
         <div>
-          <h2 className="text-xl font-bold">Tu primer link en menos de un minuto</h2>
-          <p className="text-sm text-slate-600">Nombre de tu tienda, tu ciudad y tu WhatsApp. Tu cuenta de cobro se crea sola.</p>
-          <p className="mt-1 text-sm text-slate-600">
+          <h2 className="text-2xl sm:text-3xl">Tu primer link en menos de un minuto</h2>
+          <p className="mt-2 max-w-xl text-monte/80">Nombre de tu tienda, tu ciudad y tu WhatsApp. Tu cuenta de cobro se crea sola.</p>
+          <p className="mt-1 text-sm text-monte/80">
             ¿Eres comprador?{" "}
-            <Link href="/pedir" className="underline">
+            <Link href="/pedir" className="font-semibold underline underline-offset-2">
               Pide compra protegida
             </Link>{" "}
             al vendedor.
           </p>
         </div>
-        <Link href="/vender" className="btn-primary px-6">
+        <Link href="/vender" className="btn-oscuro shrink-0 px-6 text-lg">
           Crear mi link
         </Link>
       </section>

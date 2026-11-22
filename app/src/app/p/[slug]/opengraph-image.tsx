@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import { fmtBs, fmtUsd } from "@/lib/format";
-import { BRAND, OG_SIZE, ShieldLogo, TAGLINE } from "@/lib/og";
+import { BRAND, FUENTE, LogoOg, NudoIcono, OG_SIZE, TAGLINE, iniciales } from "@/lib/og";
 import { ogFonts } from "@/lib/og-fonts";
 import { orders, sellers } from "@/lib/server/db";
 
@@ -10,7 +10,7 @@ export const contentType = "image/png";
 
 /**
  * Tarjeta que ve el comprador cuando el vendedor pega el link en WhatsApp: producto, precio en Bs,
- * tienda, el escudo "Trato · pago protegido" y la promesa. Solo datos públicos del link.
+ * tienda, el logo de Trato y la promesa. Solo datos públicos del link.
  */
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -20,16 +20,11 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   const price = o ? fmtBs(o.price_bs_cents) : "";
   const usd = o ? `aprox. ${fmtUsd(o.amount_units)} USD de prueba` : "";
   const store = s?.store_name ?? "Trato";
-  const initials = store
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .join("");
 
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: BRAND.sal, color: BRAND.ink, fontFamily: "Inter" }}>
-        <div style={{ display: "flex", flex: 1, flexDirection: "column", justifyContent: "space-between", padding: "52px 64px 40px" }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: BRAND.sal, color: BRAND.monte, fontFamily: FUENTE.sans }}>
+        <div style={{ display: "flex", flex: 1, flexDirection: "column", justifyContent: "space-between", padding: "52px 64px 44px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
               <div
@@ -38,43 +33,44 @@ export default async function Image({ params }: { params: Promise<{ slug: string
                   width: 72,
                   height: 72,
                   borderRadius: 36,
-                  background: BRAND.green,
-                  color: BRAND.deep,
+                  background: BRAND.monte,
+                  color: BRAND.sal,
                   alignItems: "center",
                   justifyContent: "center",
+                  fontFamily: FUENTE.display,
                   fontSize: 30,
                   fontWeight: 800,
                 }}
               >
-                {initials}
+                {iniciales(store)}
               </div>
               <div style={{ display: "flex", flexDirection: "column" }}>
-                <div style={{ display: "flex", fontSize: 34, fontWeight: 700 }}>{store}</div>
-                <div style={{ display: "flex", fontSize: 22, color: "#64748b" }}>te envió un link de pago</div>
+                <div style={{ display: "flex", fontSize: 34, fontWeight: 600 }}>{store}</div>
+                <div style={{ display: "flex", fontSize: 22, color: BRAND.tinta }}>te envió un link de pago</div>
               </div>
+            </div>
+            <LogoOg sobre="claro" height={44} />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", fontSize: 22, fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", color: BRAND.musgo, marginBottom: 6 }}>
+              {o?.code ? `Compra protegida · ${o.code}` : "Compra protegida"}
             </div>
             <div
               style={{
                 display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "10px 22px 10px 14px",
-                borderRadius: 999,
-                background: BRAND.mint,
-                color: BRAND.deep,
-                fontSize: 28,
+                fontFamily: FUENTE.display,
+                fontSize: product.length > 34 ? 50 : 62,
                 fontWeight: 800,
+                lineHeight: 1.08,
+                letterSpacing: -1,
+                maxWidth: 1060,
               }}
             >
-              <ShieldLogo size={46} />
-              Trato · pago protegido
+              {product}
             </div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <div style={{ display: "flex", fontSize: product.length > 34 ? 52 : 64, fontWeight: 800, lineHeight: 1.1, maxWidth: 1060 }}>{product}</div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 22 }}>
-              <div style={{ display: "flex", fontSize: 92, fontWeight: 900, letterSpacing: -2 }}>{price}</div>
-              <div style={{ display: "flex", fontSize: 28, color: "#64748b" }}>{usd}</div>
+              <div style={{ display: "flex", fontFamily: FUENTE.display, fontSize: 96, fontWeight: 800, letterSpacing: -3 }}>{price}</div>
+              <div style={{ display: "flex", fontSize: 26, color: BRAND.tinta }}>{usd}</div>
             </div>
           </div>
         </div>
@@ -84,16 +80,14 @@ export default async function Image({ params }: { params: Promise<{ slug: string
             alignItems: "center",
             gap: 20,
             padding: "26px 64px",
-            background: BRAND.green,
-            color: BRAND.deep,
-            fontSize: 34,
-            fontWeight: 700,
+            background: BRAND.monte,
+            color: BRAND.sal,
+            fontSize: 32,
+            fontWeight: 600,
           }}
         >
-          <div style={{ display: "flex", width: 60, height: 60, borderRadius: 30, background: "#fff", alignItems: "center", justifyContent: "center" }}>
-            <ShieldLogo size={44} />
-          </div>
-          {TAGLINE}
+          <NudoIcono size={56} />
+          {TAGLINE}.
         </div>
       </div>
     ),

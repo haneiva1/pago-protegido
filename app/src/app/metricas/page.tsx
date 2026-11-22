@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { IconoChevronDerecha } from "@/components/iconos";
 import { GraficoDiario } from "@/components/Kpis";
 import { explorer, fmtUsd } from "@/lib/format";
 import { fmtDuracion, fmtHora, fmtProporcion, nf, plural } from "@/lib/kpi-format";
@@ -13,13 +14,16 @@ export const metadata = {
 
 function KpiTile({ href, label, value, sub, testId }: { href: string; label: string; value: string; sub?: string; testId: string }) {
   return (
-    <Link href={href} className="card !p-4 block transition hover:ring-2 hover:ring-brand-200" data-testid={testId}>
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 text-3xl font-extrabold tracking-tight text-slate-900" data-testid="valor">
+    <Link href={href} className="card group flex flex-col !p-4 transition-[box-shadow,border-color] duration-150 hover:border-tinta-300 hover:shadow-alzada" data-testid={testId}>
+      <p className="text-xs font-medium uppercase tracking-wide text-tinta-500">{label}</p>
+      <p className="mt-2 font-display text-3xl leading-none tracking-tight text-monte num" data-testid="valor">
         {value}
       </p>
-      {sub && <p className="mt-1 text-xs text-slate-500">{sub}</p>}
-      <p className="mt-2 text-xs font-medium text-brand-700">Ver las operaciones que lo forman →</p>
+      {sub && <p className="mt-2 text-xs text-tinta-500">{sub}</p>}
+      <p className="mt-auto flex items-center gap-0.5 pt-3 text-xs font-medium text-musgo">
+        Ver las operaciones que lo forman
+        <IconoChevronDerecha className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5" />
+      </p>
     </Link>
   );
 }
@@ -28,20 +32,20 @@ function GrupoSection({ grupo, g, titulo, nota }: { grupo: Grupo; g: GrupoMetric
   const k = g.kpis;
   const base = `/metricas/${grupo}`;
   return (
-    <section className="space-y-3" data-testid={`grupo-${grupo}`}>
+    <section className="space-y-4" data-testid={`grupo-${grupo}`}>
       <div>
-        <h2 className="text-xl font-bold" data-testid={`titulo-${grupo}`}>
+        <h2 className="text-xl sm:text-2xl" data-testid={`titulo-${grupo}`}>
           {titulo}
         </h2>
-        <p className="text-sm text-slate-600">{nota}</p>
+        <p className="mt-1 text-sm text-tinta-600">{nota}</p>
       </div>
       {k.compras === 0 ? (
-        <div className="card text-sm text-slate-600" data-testid={`vacio-${grupo}`}>
+        <div className="rounded-card border border-dashed border-tinta-300 px-5 py-6 text-sm text-tinta-600" data-testid={`vacio-${grupo}`}>
           Todavía no hay compras en este grupo.{" "}
           {grupo === "piloto" && (
             <>
               Se cuentan aparte de las pruebas del equipo.{" "}
-              <Link className="underline" href="/piloto">
+              <Link className="enlace" href="/piloto">
                 Únete al piloto
               </Link>
             </>
@@ -99,20 +103,21 @@ function GrupoSection({ grupo, g, titulo, nota }: { grupo: Grupo; g: GrupoMetric
 export default async function Metricas() {
   const m = await metricasSnapshot();
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
-      <header>
-        <h1 className="text-3xl font-bold tracking-tight">Métricas en vivo</h1>
-        <p className="mt-2 max-w-3xl text-slate-600">
-          Cada número sale del registro público de las compras protegidas (red de prueba), no de una base de datos privada. Toca un número para ver
-          las operaciones que lo forman, cada una con su link al registro público.
+    <div className="mx-auto max-w-5xl space-y-12">
+      <header className="pt-2">
+        <p className="eyebrow">Registro público</p>
+        <h1 className="mt-2 text-3xl sm:text-4xl">Métricas en vivo</h1>
+        <p className="mt-4 max-w-3xl text-lg text-tinta-600">
+          Cada número sale del registro público de las compras protegidas (red de prueba), no de una base de datos privada. Toca un número para ver las
+          operaciones que lo forman, cada una con su link al registro público.
         </p>
-        <p className="mt-2 text-xs text-slate-500" data-testid="actualizado">
-          Actualizado: {fmtHora(m.actualizado)} (hora de Bolivia) · {nf(m.eventos)} eventos hasta el bloque {nf(m.hasta_ledger)} · se recalcula cada 30
-          segundos
+        <p className="mt-3 text-xs text-tinta-500 num" data-testid="actualizado">
+          Actualizado: {fmtHora(m.actualizado)} (hora de Bolivia) · {nf(m.eventos)} eventos hasta el bloque {nf(m.hasta_ledger)} · se recalcula cada 30 segundos
         </p>
         {m.error && (
-          <p className="mt-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900" data-testid="aviso-red">
-            {m.error} {m.actualizado ? `Se muestran los últimos datos guardados, del ${fmtHora(m.actualizado)}.` : "Todavía no hay datos guardados: vuelve a intentar en un momento."}
+          <p className="caja-aviso mt-3 max-w-3xl" data-testid="aviso-red" title={m.error}>
+            No se pudo consultar la red ahora.{" "}
+            {m.actualizado ? `Se muestran los últimos datos guardados, del ${fmtHora(m.actualizado)}.` : "Todavía no hay datos guardados: vuelve a intentarlo en un momento."}
           </p>
         )}
       </header>
@@ -130,21 +135,21 @@ export default async function Metricas() {
         nota="Compras hechas por el equipo y por las pruebas automáticas, con reclamos y devoluciones forzados a propósito para probar cada camino."
       />
 
-      <p className="text-center text-sm text-slate-500">
+      <p className="border-t border-tinta-200 pt-6 text-center text-sm text-tinta-500">
         Registro público de los contratos:{" "}
-        <a className="underline" href={explorer.contract(m.contratos.guardian)} target="_blank" rel="noreferrer">
+        <a className="enlace" href={explorer.contract(m.contratos.guardian)} target="_blank" rel="noreferrer">
           pp_guardian
         </a>{" "}
         y{" "}
-        <a className="underline" href={explorer.contract(m.contratos.arbiter)} target="_blank" rel="noreferrer">
+        <a className="enlace" href={explorer.contract(m.contratos.arbiter)} target="_blank" rel="noreferrer">
           pp_arbiter
         </a>{" "}
         ·{" "}
-        <Link className="underline" href="/transparencia">
+        <Link className="enlace" href="/transparencia">
           Transparencia
         </Link>{" "}
         ·{" "}
-        <a className="underline" href="/api/metricas">
+        <a className="enlace" href="/api/metricas">
           Datos en JSON
         </a>
       </p>
