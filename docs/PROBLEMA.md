@@ -1,6 +1,6 @@
 # El problema que resuelve Trato: evidencia pública
 
-Recopilación del 20-nov-2026, hecha con fuentes públicas. Cada dato lleva su link. Las entrevistas con vendedores y compradores están en [USUARIOS.md](USUARIOS.md).
+Recopilación del 20-nov-2026, hecha con fuentes públicas; el contra entrega entre ciudades (sección 3) se corrigió el 21-nov. Cada dato lleva su link. Las entrevistas con vendedores y compradores están en [USUARIOS.md](USUARIOS.md).
 
 Algunas palabras que Trato no usa en su interfaz (custodia, cripto) aparecen acá porque son citas textuales de las fuentes.
 
@@ -13,7 +13,7 @@ Lo que no pudimos confirmar está marcado con "[sin confirmar]".
 3. **Hay un caso emblema del segmento.** Un falso vendedor de iPhone 13 en Marketplace cobró entre Bs 2.000 y 2.300 a por lo menos 6 compradores de Santa Cruz, La Paz y Cochabamba, y les mandaba videos falsos del paquete ([Red Uno, oct-2025](https://www.reduno.com.bo/noticias/reo-engano-a-mas-de-seis-personas-con-falsas-ventas-de-celulares-en-facebook-20251022132012)). Encontramos 24 casos con fuente: 4 son de electrónica y 1 de celulares.
 4. **El problema tiene dos lados.** ASFI advierte sobre "la falsificación de comprobantes digitales, que pueden ser manipulados para aparentar que un pago ha sido realizado" ([ASFI](https://asfi.gob.bo/sites/default/files/2025-07/El%20uso%20del%20QR%20ha%20dinamizado%20el%20sistema%20de%20pagos%20en%20Bolivia.pdf)). La Policía pide "no confiar únicamente en capturas de pantalla como prueba de una transacción" ([Correo del Sur](https://correodelsur.com/seguridad/20260707/sucre-policia-alerta-aumento-de-estafas-en-las-redes-sociales.html)).
 5. **Contra entrega, competidores y bancos.**
-   - Contra entrega: no encontramos ninguna oferta pública de cobro contra entrega entre departamentos para vendedores chicos. El único servicio de este tipo que encontramos (Fufills) funciona por contrato y volumen, y solo en 5 ciudades.
+   - Contra entrega: existe oferta pública (el courier BC Plus, con cobro contra entrega, y el «puerta a puerta por cobrar» de Correos de Bolivia), pero no confirmamos si le llega a un vendedor chico que envía a otro departamento. Fufills funciona por contrato y volumen, en 5 ciudades (sección 3).
    - Competidores: según su ficha en la App Store, Likida es una app de subastas, y la ficha no dice que retenga el pago.
    - Bancos: FIE, Unión, BISA y BCP ya operan con USDT, gracias a la R.D. 082/2024 del BCB.
 
@@ -121,9 +121,15 @@ La fecha de cada fila es la de publicación de la nota. Si la nota da la fecha d
 
 ## 3. ¿Existe el contra entrega entre ciudades para vendedores chicos?
 
-**Veredicto: ni confirmado ni desmentido.** Con fuentes públicas no encontramos ninguna empresa de encomiendas, courier o flota que ofrezca cobro contra entrega a otro departamento para un vendedor chico. La frase actual se puede defender si se dice así: "no encontramos ninguna oferta pública de cobro contra entrega entre departamentos para vendedores chicos". Para afirmarlo sin reservas faltan las tres llamadas a agencias que ya están en el plan.
+**Veredicto: existe oferta pública; no confirmamos si llega al vendedor chico entre departamentos.**
 
-Lo que sí encontramos:
+- **BC Plus** ofrece a tiendas online «recogida, almacenamiento y entregas con cobro contra entrega (COD)» y dice que su red «conecta los 9 departamentos del país» ([sitio](http://www.bcpluscourier.com/), leído el 21-nov-2026). No publica tarifas ni aclara si el cobro contra entrega funciona entre ciudades.
+- **Correos de Bolivia** lanzó «Delivery Express» para paquetes de hasta 2 kg: puerta a puerta por Bs 20 y «puerta a puerta por cobrar» por Bs 20 más Bs 2,50 ([ABI, 7-sep-2026](https://abi.bo/correos-de-bolivia-habilita-tres-modalidades-de-delivery-express-para-envios-de-comercio-electronico/)). La nota no aclara si «por cobrar» incluye el valor del producto ni si funciona entre departamentos.
+- **Fufills** sigue siendo lo que ya describíamos: por contrato y volumen, en 5 ciudades.
+
+Trato no compite contra «nada»: compite contra alternativas conocidas y en bolivianos. Su diferencia posible es que no obliga a usar un courier concreto: sirve con la encomienda que el vendedor ya usa y deja un registro público. Si eso le importa a un vendedor, lo dirán las entrevistas. Falta preguntar en una ventanilla de Correos y a BC Plus qué cobran exactamente.
+
+El detalle de lo que ya teníamos el 20-nov:
 
 - **Fufills** ofrece fulfillment con cobro contra entrega en Bolivia ([entrega](https://fufills.com/en/cod-fulfillment/bolivia/shipping), [liquidación](https://fufills.com/en/cod-fulfillment/bolivia/remittance)).
   - Cobertura publicada: 5 ciudades (La Paz, Santa Cruz, Cochabamba, El Alto y Sucre).
@@ -136,7 +142,7 @@ Lo que sí encontramos:
   - Un vendedor de La Paz cuenta: "Como ya no hay correos, no nos queda más remedio que coordinar la entrega en un lugar convenido común" ([Urgente.bo, 30-ene-2026](https://www.urgente.bo/noticia/facebook-marketplace-en-bolivia-un-reto-pendiente-para-los-proximos-alcaldes)).
   - "Las compras se hacen a través de las redes, pero las entregas son casi siempre en persona." Como no hay "un servicio de correo confiable o courrier", los envíos se hacen por encomienda en flotas interprovinciales ([El Deber, 4-feb-2025](https://eldeber.com.bo/educacion-y-sociedad/regionalizado-y-enfocado-en-el-precio-cual-es-el-perfil-del-consumidor-boliviano_502484/)).
   - El Deber también menciona "la limitada cobertura de empresas de mensajería". Nombra los "pagos contra entrega" como un medio de pago, sin dar datos ([El Deber, 2-abr-2025](https://eldeber.com.bo/educacion-y-sociedad/e-commerce-en-bolivia-una-tendencia-en-expansion-y-consolidacion_508970/)).
-- **Correos de Bolivia (AGBC):** el único comunicado que encontramos, sin fecha y sobre la reapertura de las encomiendas nacionales, no menciona el contra entrega ([UPAEP](https://www.upaep.int/get_file/3HShMJz7NAu5OjdBErE~MYRteppF3PbZSEPVV6bps7BtPRZ6h2ur2mcSCI1BqaWyJJ7EhVAFPkOSs4gFcyKZWkoO7hoYhpphV458Jkg1xECEjHGyQP_I8BfWPVzFFnKu)).
+- **Correos de Bolivia (AGBC):** el comunicado que habíamos encontrado el 20-nov, sin fecha y sobre la reapertura de las encomiendas nacionales, no menciona el contra entrega ([UPAEP](https://www.upaep.int/get_file/3HShMJz7NAu5OjdBErE~MYRteppF3PbZSEPVV6bps7BtPRZ6h2ur2mcSCI1BqaWyJJ7EhVAFPkOSs4gFcyKZWkoO7hoYhpphV458Jkg1xECEjHGyQP_I8BfWPVzFFnKu)).
 - **[sin confirmar]** Falta saber si las flotas cobran en destino el valor del producto, o solo el flete, y si ofrecen giros. Hay que preguntarlo en las llamadas.
 
 ## 4. Competidores locales
