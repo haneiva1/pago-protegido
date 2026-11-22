@@ -5,7 +5,7 @@
 - la plata queda bloqueada en contratos de Stellar hasta que confirma que recibió;
 - si el vendedor no despacha, la plata vuelve sola.
 
-**[Pruébalo en el navegador]([URL]/probar)** · **[Video de 3 minutos]([link])** · **[Contratos en testnet](#evidencia-on-chain)** · **[Verifícalo en tu máquina](#pruébalo)**
+**[Pruébalo en el navegador](https://app-production-d0fc8f63.up.railway.app/probar)** · **[Video de 3 minutos]([link])** · **[Contratos en testnet](#evidencia-on-chain)** · **[Verifícalo en tu máquina](#pruébalo)**
 
 > Trato antes se llamaba Pago Protegido. El repo, los contratos (`pp_guardian`, `pp_arbiter`) y los códigos de pedido `PP-` conservan ese nombre.
 
@@ -14,7 +14,7 @@
 | Criterio | Qué hay | Dónde verlo |
 |---|---|---|
 | **Problema y usuario** | Bolivia hizo 892 millones de pagos con QR en 2025 (BCB), pero con un desconocido de otra ciudad alguien tiene que confiar primero. En Tarija, 74 de las 91 denuncias por estafa de 2026 empezaron en redes; un falso vendedor de iPhone cobró por adelantado a 6 compradores de 3 departamentos. Y al vendedor tampoco le sirve una captura: ASFI advierte sobre comprobantes falsificados. Usuario inicial: vendedores de celulares y electrónica que envían por encomienda a otra ciudad. Validación: [N] entrevistas | [docs/PROBLEMA.md](docs/PROBLEMA.md) (24 casos públicos con fuente) · [docs/USUARIOS.md](docs/USUARIOS.md) |
-| **Producto funcionando** | Flujo completo en Stellar testnet: link → QR → plata bloqueada → envío con foto → confirmación, liberación por plazo o devolución. 12 de 12 pruebas de punta a punta contra testnet, 6 de ellas con pagos reales | [`/probar`]([URL]/probar) · [video]([link]) · [capturas](app/e2e/capturas/) |
+| **Producto funcionando** | Flujo completo en Stellar testnet: link → QR → plata bloqueada → envío con foto → confirmación, liberación por plazo o devolución. 12 de 12 pruebas de punta a punta contra testnet, 6 de ellas con pagos reales | [`/probar`](https://app-production-d0fc8f63.up.railway.app/probar) · [video]([link]) · [capturas](app/e2e/capturas/) |
 | **Uso de Stellar** | Dos contratos Soroban propios en los roles que mueven la plata del escrow de Trustless Work. *Fee bump*, Pollar, verificación del WASM antes de firmar y reputación calculada solo con compras verificadas. 47 tests contra el WASM real, incluidas secuencias aleatorias de operaciones; 9 desvíos rechazados en testnet; los hashes de los contratos se reproducen con `contracts/scripts/verify-wasm.sh` | [Evidencia](#evidencia-on-chain) · [docs/SEGURIDAD.md](docs/SEGURIDAD.md) |
 | **Plan de 30 días** | Tres entregables que dependen solo del equipo y se verifican desde afuera, con una métrica norte y un punto de decisión en la semana 2 | [Plan](#plan-de-30-días) |
 | **Equipo y compromiso** | El avance entre entregas, cambio por cambio y con links | [Avance](#avance) |
@@ -42,7 +42,9 @@
 
 ## Pruébalo
 
-**En el navegador (2 minutos):** en [`/probar`]([URL]/probar), el vendedor y el comprador aparecen lado a lado. Cada paso muestra su transacción en stellar.expert, incluido un intento de desvío que el contrato rechaza.
+**En el navegador (2 minutos):** en [`/probar`](https://app-production-d0fc8f63.up.railway.app/probar), el vendedor y el comprador aparecen lado a lado. Cada paso muestra su transacción en stellar.expert, incluido un intento de desvío que el contrato rechaza.
+
+La demo corre en Stellar testnet (plata de prueba) con el commit `5400e4c`. Usa un despliegue paralelo de `pp_guardian`, `pp_arbiter` y LABUSD, creado el 21-nov para la demo: no son los contratos de [Evidencia on-chain](#evidencia-on-chain), aunque el código es el mismo. Por eso en la demo `/metricas` y `/transparencia` aparecen sin datos.
 
 **En tu máquina, sin claves.** Requisitos: Rust y cargo, Node 22 o más, y Chromium para Playwright.
 
