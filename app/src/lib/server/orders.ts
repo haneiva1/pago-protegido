@@ -803,8 +803,60 @@ export async function refundUnshipped(slug: string) {
   });
 }
 
+/** Lo que hizo una pasada por los pedidos con un plazo vencido (sin slugs: el endpoint es público). */
+export type ResumenPlazos = { devueltos: number; liberados: number; errores: number; quedan: number };
+
 let lastSweep = 0;
-let barrido: Promise<void> | null = null;
+let barrido: Promise<ResumenPlazos | Error> | null = null;
+
+/**
+ * Devuelve los pedidos con el despacho vencido y libera los que vencieron la revisión, como mucho `tope` por pasada.
+ * Reutiliza refundUnshipped y autoRelease: cada una revalida el pedido bajo su candado, así que repetir es inocuo.
+ */
+async function barrerVencidos(tope: number): Promise<ResumenPlazos> {
+  const r: ResumenPlazos = { devueltos: 0, liberados: 0, errores: 0, quedan: 0 };
+  await intentosVencidosAlDia();
+  const corte = Date.now() - CHAIN_MARGIN_MS;
+  // "Se libera sola": si el comprador no confirmó ni reclamó, al vencer la revisión se le paga al vendedor.
+  // Con un reclamo abierto en la red, autoRelease no lo intenta (decide el revisor).
+  const vencidos = [
+    ...orders.overdueUnshipped(corte).map((o) => ({ slug: o.slug, devolver: true })),
+    ...orders.overdueShipped(corte).map((o) => ({ slug: o.slug, devolver: false })),
+  ];
+  r.quedan = Math.max(0, vencidos.length - tope);
+  for (const { slug, devolver } of vencidos.slice(0, tope)) {
+    try {
+      if (devolver) {
+        if (!(await refundUnshipped(slug)).already) r.devueltos++;
+      } else {
+        await autoRelease(slug);
+        r.liberados++;
+      }
+    } catch (e) {
+      r.errores++;
+      console.error(`[${devolver ? "devolución" : "liberación"}] ${slug}: ${(e as Error).message}`);
+    }
+  }
+  await reintentarReintegros(); // H-4: solo con PP_DEVOLUCION_COMPLETA=1
+  return r;
+}
+
+/** Corre una pasada y la deja en `barrido` mientras dura; los errores se devuelven, no se tiran. */
+function correrBarrido(tope: number): Promise<ResumenPlazos | Error> {
+  lastSweep = Date.now();
+  return (barrido = (async () => {
+    try {
+      return await barrerVencidos(tope);
+    } catch (e) {
+      // Lo llaman las páginas con `void sweepOverdue()`: un error acá (base ocupada, disco lleno) no puede tirar el proceso.
+      console.error(`[barrido] ${(e as Error).message}`);
+      return e as Error;
+    } finally {
+      barrido = null;
+    }
+  })());
+}
+
 /**
  * Pone al día con la red los intentos de pago vencidos y devuelve los pedidos con el despacho vencido. Corre cuando
  * alguien consulta (páginas, panel, feed del bot), como mucho cada 15 s y sin bloquear la respuesta (DECISIONES 79).
@@ -812,28 +864,32 @@ let barrido: Promise<void> | null = null;
  */
 export function sweepOverdue(force = false): Promise<void> {
   if (cfg().mode !== "guardian") return Promise.resolve();
-  if (barrido) return barrido;
+  if (barrido) return barrido.then(() => undefined);
   if (!force && Date.now() - lastSweep < 15_000) return Promise.resolve();
-  lastSweep = Date.now();
-  return (barrido = (async () => {
-    try {
-      await intentosVencidosAlDia();
-      for (const o of orders.overdueUnshipped(Date.now() - CHAIN_MARGIN_MS)) {
-        await refundUnshipped(o.slug).catch((e) => console.error(`[devolución] ${o.slug}: ${(e as Error).message}`));
-      }
-      // "Se libera sola": si el comprador no confirmó ni reclamó, al vencer la revisión se le paga al vendedor.
-      // Con un reclamo abierto en la red, autoRelease no lo intenta (decide el revisor).
-      for (const o of orders.overdueShipped(Date.now() - CHAIN_MARGIN_MS)) {
-        await autoRelease(o.slug).catch((e) => console.error(`[liberación] ${o.slug}: ${(e as Error).message}`));
-      }
-      await reintentarReintegros(); // H-4: solo con PP_DEVOLUCION_COMPLETA=1
-    } catch (e) {
-      // Lo llaman las páginas con `void sweepOverdue()`: un error acá (base ocupada, disco lleno) no puede tirar el proceso.
-      console.error(`[barrido] ${(e as Error).message}`);
-    } finally {
-      barrido = null;
-    }
-  })());
+  return correrBarrido(Infinity).then(() => undefined);
+}
+
+/** Pedidos que procesa como mucho una llamada a POST /api/plazos/procesar. */
+export const PLAZOS_TOPE = 20;
+/** Enfriamiento del endpoint: si lo llaman antes, responde `{ omitido: true }` sin tocar la red. */
+export const PLAZOS_ENFRIAMIENTO_MS = 60_000;
+let ultimoProceso = 0;
+
+/**
+ * POST /api/plazos/procesar (cron de GitHub cada 5 minutos, .github/workflows/plazos.yml): la misma pasada de
+ * sweepOverdue, con tope y enfriamiento, para que liberar y devolver no dependa de que alguien abra la app.
+ * Es pública: solo hace lo que los contratos ya permiten a cualquiera (auto_release, refund_unshipped).
+ */
+export async function procesarPlazos(): Promise<({ omitido: true; reintentarEnSegundos: number } | ({ omitido: false } & ResumenPlazos))> {
+  if (cfg().mode !== "guardian") throw new AppError("Los plazos automáticos solo corren en modo guardián", 409);
+  const espera = ultimoProceso + PLAZOS_ENFRIAMIENTO_MS - Date.now();
+  if (espera > 0) return { omitido: true, reintentarEnSegundos: Math.ceil(espera / 1000) };
+  ultimoProceso = Date.now();
+  // Si una visita ya disparó una pasada, se espera a que termine: lo que hizo no se repite (cada pedido cambió de estado).
+  if (barrido) await barrido;
+  const r = await correrBarrido(PLAZOS_TOPE);
+  if (r instanceof Error) throw r;
+  return { omitido: false, ...r };
 }
 
 // ---------- Revisor ----------
