@@ -43,21 +43,30 @@ export interface PpEvent {
 
 const toJson = (v: unknown) => JSON.stringify(v ?? null, (_k, x) => (typeof x === "bigint" ? x.toString() : x));
 
-/** Trae los eventos nuevos (con un candado y como mucho una vez cada 15 s). */
-export async function ingestEvents(force = false): Promise<{ added: number; latestLedger: number }> {
-  return withLock("ingest-events", async () => {
-    const lastRun = Number(kv.get("events:last_run") ?? 0);
-    if (!force && Date.now() - lastRun < 15_000) return { added: 0, latestLedger: Number(kv.get("events:latest") ?? 0) };
-    // El par actual (compras nuevas) y todos los anteriores (historial): docs/METRICAS.md los lee todos.
-    const ids = [...new Set(paresIndexador().flatMap((p) => [p.guardian, p.arbiter]))];
-    const filters: rpc.Api.EventFilter[] = [{ type: "contract", contractIds: ids }];
-    const s = server();
-    const insert = db().prepare(
-      `INSERT OR IGNORE INTO pp_events (id, kind, escrow, ledger, closed_at, tx_hash, data_json) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    );
-    let cursor = kv.get(CURSOR_KEY);
-    let added = 0;
-    let latest = 0;
+/** El RPC público acepta como máximo 5 contratos por filtro de eventos. */
+export const MAX_CONTRATOS_POR_FILTRO = 5;
+
+/** Parte la lista en tandas que el RPC acepta. */
+export function enTandas<T>(items: readonly T[], n = MAX_CONTRATOS_POR_FILTRO): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += n) out.push(items.slice(i, i + n));
+  return out;
+}
+
+/** Lee los eventos de los contratos en tandas (cada una con su cursor) y guarda los nuevos; los repetidos se ignoran. */
+export async function ingestEventsDe(ids: string[]): Promise<{ added: number; latest: number }> {
+  const s = server();
+  const insert = db().prepare(
+    `INSERT OR IGNORE INTO pp_events (id, kind, escrow, ledger, closed_at, tx_hash, data_json) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  );
+  let added = 0;
+  let latest = 0;
+  const tandas = enTandas(ids);
+  for (const [i, tanda] of tandas.entries()) {
+    const filters: rpc.Api.EventFilter[] = [{ type: "contract", contractIds: tanda }];
+    // Con una sola tanda se conserva el cursor de siempre; con varias, uno por tanda.
+    const key = tandas.length === 1 ? CURSOR_KEY : `${CURSOR_KEY}:${i}:${tanda.map((c) => c.slice(-4)).join("")}`;
+    let cursor = kv.get(key);
     for (let page = 0; page < 100; page++) {
       let res: rpc.Api.GetEventsResponse;
       try {
@@ -83,10 +92,22 @@ export async function ingestEvents(force = false): Promise<{ added: number; late
       }
       if (res.cursor) {
         cursor = res.cursor;
-        kv.set(CURSOR_KEY, cursor);
+        kv.set(key, cursor);
       }
       if (res.events.length < PAGE) break;
     }
+  }
+  return { added, latest };
+}
+
+/** Trae los eventos nuevos (con un candado y como mucho una vez cada 15 s). */
+export async function ingestEvents(force = false): Promise<{ added: number; latestLedger: number }> {
+  return withLock("ingest-events", async () => {
+    const lastRun = Number(kv.get("events:last_run") ?? 0);
+    if (!force && Date.now() - lastRun < 15_000) return { added: 0, latestLedger: Number(kv.get("events:latest") ?? 0) };
+    // El par actual (compras nuevas) y todos los anteriores (historial): docs/METRICAS.md los lee todos.
+    const ids = [...new Set(paresIndexador().flatMap((p) => [p.guardian, p.arbiter]))];
+    const { added, latest } = await ingestEventsDe(ids);
     kv.set("events:last_run", String(Date.now()));
     kv.set("events:latest", String(latest));
     await verificarPendientes().catch((e) => console.error("[indexador] no se pudo verificar:", (e as Error).message));

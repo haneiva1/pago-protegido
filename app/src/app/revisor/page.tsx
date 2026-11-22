@@ -257,7 +257,7 @@ function DisputeCard({ d, arbKey, onDone }: { d: DisputeItem; arbKey: string; on
         <div className="rounded-xl bg-sky-50 p-4 text-sm ring-1 ring-sky-100">
           <p className="text-xs font-semibold uppercase tracking-wide text-sky-800">Vendedor</p>
           <p className="mt-1">
-            Envío: <strong>{[d.ship_company, d.ship_tracking && `guía ${d.ship_tracking}`, d.ship_weight && `${d.ship_weight} kg`, d.ship_city && `a ${d.ship_city}`].filter(Boolean).join(" · ") || "no registró envío"}</strong>
+            Envío: <strong>{[d.ship_company, d.ship_tracking && `guía ${d.ship_tracking}`, d.ship_weight && `${String(d.ship_weight).replace(".", ",")} kg`, d.ship_city && `a ${d.ship_city}`].filter(Boolean).join(" · ") || "no registró envío"}</strong>
           </p>
           {d.ship_imei && <p className="mt-1 text-xs">IMEI declarado: {d.ship_imei}</p>}
           {d.seller_reply ? <p className="mt-1 text-slate-700">“{d.seller_reply}”</p> : <p className="mt-1 text-slate-400">Todavía no envió su versión</p>}

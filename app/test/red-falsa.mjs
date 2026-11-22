@@ -101,6 +101,10 @@ export function redFalsa() {
       return { status: "healthy", oldestLedger: 1, latestLedger: 100 };
     },
     async getEvents(req) {
+      // Como el RPC público: máximo 5 contratos por filtro.
+      req.filters.forEach((f, i) => {
+        if ((f.contractIds?.length ?? 0) > 5) throw new Error(`filter ${i + 1} invalid: maximum 5 contract IDs per filter`);
+      });
       filtros.push(req.filters);
       return { events: eventos, latestLedger: 100, cursor: "fin" };
     },

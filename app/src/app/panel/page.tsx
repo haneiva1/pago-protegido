@@ -350,7 +350,7 @@ function OrderCard({
       {o.status === "enviado" && (
         <>
           <p className="text-sm text-slate-600">
-            📦 Enviado: <strong>{[o.ship_company, o.ship_tracking && `guía ${o.ship_tracking}`, o.ship_weight && `${o.ship_weight} kg`].filter(Boolean).join(" · ")}</strong>. Cuando
+            📦 Enviado: <strong>{[o.ship_company, o.ship_tracking && `guía ${o.ship_tracking}`, o.ship_weight && `${String(o.ship_weight).replace(".", ",")} kg`].filter(Boolean).join(" · ")}</strong>. Cuando
             tu cliente confirme, se te paga{o.deadline ? `; si no dice nada, el ${fmtDate(o.deadline)}` : ""}.
           </p>
           <WhatsAppBox title="Avísale a tu cliente" text={waText("enviado", d)} />

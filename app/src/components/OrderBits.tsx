@@ -92,7 +92,7 @@ const ICON: Record<string, string> = {
 export function Timeline({ order, txs }: { order: PublicOrder; txs: TxRow[] }) {
   const items: { key: string; title: string; when?: number | null; detail?: string; done: boolean; tone?: string; tx?: TxRow }[] = [];
   const tx = (kind: string) => txs.filter((t) => t.kind === kind).at(-1);
-  const envio = [order.ship_company, order.ship_tracking && `guía ${order.ship_tracking}`, order.ship_weight && `${order.ship_weight} kg`]
+  const envio = [order.ship_company, order.ship_tracking && `guía ${order.ship_tracking}`, order.ship_weight && `${String(order.ship_weight).replace(".", ",")} kg`]
     .filter(Boolean)
     .join(" · ");
   items.push({ key: "pago", title: "Pagaste: tu pago quedó guardado", when: order.funded_at, done: Boolean(order.funded_at), tx: tx("fondeo") });
