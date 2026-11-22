@@ -1,0 +1,24 @@
+# Plazos automáticos sin visitas: cada 5 minutos le pide a la app en Railway que libere los pedidos con la revisión
+# vencida y devuelva los que no se despacharon a tiempo (POST /api/plazos/procesar, tope de 20 por llamada,
+# enfriamiento de 60 s). El endpoint es público y no usa claves: solo hace lo que los contratos permiten a cualquiera.
+name: Plazos
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: plazos
+  cancel-in-progress: false
+
+jobs:
+  procesar:
+    name: Procesar plazos vencidos
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: POST /api/plazos/procesar
+        run: curl -fsS --max-time 120 -X POST https://app-production-dc7d8d8b.up.railway.app/api/plazos/procesar
