@@ -91,8 +91,6 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Prueba Trato de punta a punta");
   await expect(page.getByTestId("titulo-etapa")).toHaveText("1. La Zapatería se registra");
   await expect(page.getByTestId("ahora")).toHaveText("Escribe Hola y toca Crear mi cuenta");
-  // El botón del estafador aparece recién con la plata en el contrato.
-  await expect(page.getByTestId("desviar")).toHaveCount(0);
   await expect(page.getByTestId("dos-salidas")).toHaveText("Dos salidas, nunca una tercera.");
   // El registro y los plazos viven en el cajón "Ver en la red".
   await page.getByTestId("ver-detalles").click();
@@ -106,6 +104,8 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   // Los dos iPhone: el chat de la tienda y el del comprador, sin el encabezado ni el pie del sitio (modo embebido).
   const vendedor = page.frameLocator('iframe[name="vendedor"]');
   const comprador = page.frameLocator('iframe[name="comprador"]');
+  // El botón del estafador vive en el chat de la Zapatería y aparece recién con la plata en el contrato.
+  await expect(toca(vendedor, "estafa")).toHaveCount(0);
   await expect(vendedor.getByTestId("chat-vendedor")).toBeVisible();
   await expect(vendedor.locator("header[data-chrome]")).toBeHidden();
   await expect(vendedor.locator("footer[data-chrome]")).toBeHidden();
@@ -186,8 +186,8 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
 
   // 3. Un estafador lo intenta: simulación real contra el contrato, rechazada con el error del contrato, en rojo de marca,
   // y contada en el chat del comprador como un mensaje de un número desconocido que Trato bloquea.
-  await expect(page.getByTestId("desviar")).toBeEnabled({ timeout: 30_000 });
-  await page.getByTestId("desviar").click();
+  await expect(toca(vendedor, "estafa")).toBeVisible({ timeout: 30_000 });
+  await clic(toca(vendedor, "estafa"));
   const error = page.getByTestId("desvio-error");
   await expect(error).toHaveText("Error(Contract, #12)", CHAIN);
   await expect(error).toHaveClass(/text-error-700/);
@@ -217,8 +217,9 @@ test("/probar: dos chats de WhatsApp simulados, la plata entre los dos, el estaf
   const meLlego = toca(comprador, "me-llego");
   await expect(meLlego).toBeVisible({ timeout: 60_000 });
   await expect(meLlego).toBeEnabled({ timeout: 150_000 });
+  // Un solo toque: el botón ya es la confirmación ("Sí, me llegó y está bien").
+  await expect(meLlego).toHaveText("Sí, me llegó y está bien");
   await clic(meLlego);
-  await clic(comprador.getByTestId("chat-hoja").getByRole("button", { name: "Sí, lo tengo y está bien" }));
   await expect(comprador.getByTestId("chat-liberado")).toContainText("Pagaste a Zapatería", CHAIN);
   const cobro = page.getByTestId("paso-registro-cobro");
   await expect(cobro).toHaveAttribute("data-hecho", "si", { timeout: 30_000 });

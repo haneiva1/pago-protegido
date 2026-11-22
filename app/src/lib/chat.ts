@@ -12,6 +12,8 @@ export interface Boton {
   texto: string;
   /** La única acción posible en este momento: grande y en Yungas. */
   principal?: boolean;
+  /** Acción de riesgo (el estafador): botón rojo, también con "Toca aquí". */
+  peligro?: boolean;
   deshabilitado?: boolean;
 }
 
@@ -121,6 +123,8 @@ export interface EstadoVendedor {
   enviando: boolean;
   /** El estafador ya fue bloqueado: recién ahí la tienda puede marcar el envío (un solo botón por momento). */
   estafaHecha?: boolean;
+  /** El intento del estafador está en curso (se ve en el chat del comprador). */
+  estafaEnCurso?: boolean;
   host: string;
 }
 
@@ -194,6 +198,8 @@ export function mensajesVendedor(e: EstadoVendedor): Mensaje[] {
     at: tPago,
     texto: `💸 Tu cliente pagó ${p.total} (${p.precio.replace(",00", "")} + ${proteccionBs(p.total, p.precio)} de protección).`,
   });
+  if (p.status === "pagado" && !e.estafaHecha && !e.estafaEnCurso)
+    m.push({ id: "estafa-aviso", de: "bot", at: tPago + 1000, texto: "Mientras tanto, mira qué pasa si alguien intenta robar la plata.", botones: [{ id: "estafa", texto: "Alguien intenta robar la plata", peligro: true }] });
   if (p.status === "pagado" && e.estafaHecha)
     m.push({ id: "despacha", de: "bot", at: tPago + 1000, texto: "Despacha y toca Ya lo envié.", botones: e.enviando ? undefined : [{ id: "enviado", texto: "Ya lo envié", principal: true }] });
   if (p.status === "pagado") {
@@ -281,20 +287,20 @@ export function mensajesComprador(e: EstadoComprador): Mensaje[] {
     botones:
       p.status === "enviado" && !e.confirmando
         ? [
-            { id: "me-llego", texto: puede || p.confirm_after == null ? "Sí, me llegó" : `Sí, me llegó · ${cuentaAtras(p.confirm_after, e.ahora)}`, principal: true, deshabilitado: !puede },
+            { id: "me-llego", texto: puede || p.confirm_after == null ? "Sí, me llegó y está bien" : `Sí, me llegó y está bien · ${cuentaAtras(p.confirm_after, e.ahora)}`, principal: true, deshabilitado: !puede },
             { id: "problema", texto: "Tengo un problema" },
           ]
         : undefined,
   });
   if (p.status === "enviado") {
     if (e.confirmando) {
-      m.push({ id: "yo-me-llego", de: "yo", at: e.ahora, texto: "Sí, me llegó" });
+      m.push({ id: "yo-me-llego", de: "yo", at: e.ahora, texto: "Sí, me llegó y está bien" });
       m.push({ id: "pagando", de: "bot", at: e.ahora, enCurso: true, texto: `Pagando a ${e.tienda}. Unos 10 segundos.` });
     }
     return m;
   }
   if (p.status === "liberado") {
-    m.push({ id: "yo-me-llego", de: "yo", at: (p.released_at ?? e.ahora) - 8000, texto: "Sí, me llegó" });
+    m.push({ id: "yo-me-llego", de: "yo", at: (p.released_at ?? e.ahora) - 8000, texto: "Sí, me llegó y está bien" });
     m.push({ id: "liberado", de: "bot", at: p.released_at ?? e.ahora, texto: `✅ Pagaste a ${e.tienda}. Gracias por comprar con Trato.` });
   } else if (p.status === "en_disputa") m.push({ id: "disputa", de: "bot", at: e.ahora, texto: "⚠️ Abriste un reclamo. Decide un revisor." });
   else if (p.status === "resuelto") m.push({ id: "resuelto", de: "bot", at: p.released_at ?? e.ahora, texto: "⚖️ El revisor repartió la plata entre los dos." });
