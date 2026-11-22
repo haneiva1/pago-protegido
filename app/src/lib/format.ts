@@ -126,6 +126,13 @@ export const MOTIVOS_CON_VIDEO = ["Llegó vacío o con otro producto", "Dañado 
 
 export type FeePayer = "comprador" | "vendedor";
 export const PROTECCION = { pct: 1.5, minBs: 5, maxBs: 50 };
+/** "59171234567" → "+591 7123-4567"; otros formatos se devuelven tal cual. */
+export function fmtWhatsApp(n: string | null | undefined): string {
+  const d = (n ?? "").replace(/\D/g, "");
+  if (d.length === 11 && d.startsWith("591")) return `+591 ${d.slice(3, 7)}-${d.slice(7)}`;
+  return n ?? "";
+}
+
 export const DOLLAR_NOTE = "Se guarda en dólares digitales (en producción, USDC, 1 a 1 con el dólar; en esta práctica, dólares de prueba).";
 
 /**

@@ -62,8 +62,8 @@ export function CompraEnEsteNavegador() {
   const [ayuda, setAyuda] = useState(false);
   if (!n) return null;
   return (
-    <section className="card space-y-2 text-sm" data-testid="compra-en-este-navegador">
-      <h2 className="flex items-center gap-2 font-sans text-base font-semibold">
+    <section className="space-y-2 border-t border-tinta-200 pt-5 text-base" data-testid="compra-en-este-navegador">
+      <h2 className="flex items-center gap-2 font-sans text-lg font-semibold">
         <IconoMarcador className="h-5 w-5 flex-none text-musgo" />
         Tu compra quedó en este navegador
       </h2>
@@ -78,7 +78,7 @@ export function CompraEnEsteNavegador() {
         <CopyButton text={n.url} label="Copiar link" className="btn-secondary btn-sm" />
       </div>
       {ayuda && (
-        <p className="rounded-control bg-tinta-50 p-3 text-xs text-tinta-700" data-testid="ayuda-inicio">
+        <p className="text-sm text-tinta-700" data-testid="ayuda-inicio">
           {n.app
             ? `Dentro de ${n.app} no se puede agregar a inicio: guarda el link (Copiar link) en un chat contigo mismo y ábrelo siempre desde ${n.app}.`
             : n.plat === "ios"
@@ -108,7 +108,7 @@ export function OtroNavegador({ v }: { v: OrderView }) {
           : "Si nadie reclama, se le paga a la tienda cuando termine la revisión."
         : "Hay un reclamo abierto: la plata está congelada hasta que decida el revisor.";
   return (
-    <section className="card space-y-2 text-sm" data-testid="otro-navegador">
+    <section className="space-y-2 rounded-card bg-tinta-50 p-4 text-base" data-testid="otro-navegador">
       <h2 className="flex items-center gap-2 text-lg">
         <IconoUsuario className="h-5 w-5 flex-none text-musgo" />
         ¿Pagaste tú este pedido?
@@ -134,7 +134,7 @@ export function OtroNavegador({ v }: { v: OrderView }) {
           </a>
         )}
       </div>
-      <p className="text-xs text-tinta-500">
+      <p className="text-sm text-tinta-600">
         ¿Eres la tienda?{" "}
         <a className="enlace" href="/panel">
           Gestiona este pedido desde tu panel

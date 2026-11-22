@@ -38,7 +38,7 @@ export function ShipDeadline({ shipDeadline, status, role }: { shipDeadline: num
   if (!shipDeadline || status !== "pagado") return null;
   const left = shipDeadline - now;
   return (
-    <div data-testid="plazo-despacho" className="space-y-1 rounded-control bg-tinta-50 p-3 text-sm text-tinta-700 ring-1 ring-tinta-200">
+    <div data-testid="plazo-despacho" className="space-y-1 text-base text-tinta-700">
       <p className="flex items-start gap-2">
         <IconoCamion className="mt-0.5 h-5 w-5 flex-none text-musgo" />
         {left > 0 ? (
@@ -52,7 +52,7 @@ export function ShipDeadline({ shipDeadline, status, role }: { shipDeadline: num
           </span>
         )}
       </p>
-      <p className="pl-7 text-xs text-tinta-500">
+      <p className="pl-7 text-sm text-tinta-600">
         {role === "vendedor"
           ? "Si no registras el envío a tiempo, el pago vuelve automáticamente al comprador."
           : "Si no lo despacha a tiempo, te devolvemos el pago automáticamente."}
@@ -114,7 +114,7 @@ export function Countdown({
   }
 
   return (
-    <div data-testid="plazo" className="space-y-2 rounded-control bg-tinta-50 p-3 text-sm text-tinta-700 ring-1 ring-tinta-200">
+    <div data-testid="plazo" className="space-y-2 text-base text-tinta-700">
       <p className="flex items-start gap-2">
         <IconoReloj className="mt-0.5 h-5 w-5 flex-none text-musgo" />
         {expired ? (
@@ -174,7 +174,7 @@ export function PublicRecord({
   const id = v?.escrowId ?? escrowId;
   if (!id) return null;
   return (
-    <div data-testid="registro-publico" className="flex gap-3 rounded-card border border-exito-200 bg-exito-50 p-3.5 text-sm text-monte">
+    <div data-testid="registro-publico" className="flex gap-3 text-base text-monte">
       <IconoCandado className="mt-0.5 h-5 w-5 flex-none text-musgo" />
       <div className="min-w-0 flex-1 space-y-1">
         <p className="font-semibold">{textoRegistroPublico(status, role)}</p>

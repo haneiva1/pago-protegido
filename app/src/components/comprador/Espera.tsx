@@ -8,15 +8,15 @@ import { Progress, Spinner, type ProgressStep } from "@/components/ui";
  */
 export function EsperaEnCurso({ titulo, nota, steps, testId }: { titulo: string; nota: string; steps: ProgressStep[]; testId?: string }) {
   return (
-    <section className="card space-y-3 animate-aparecer" data-testid={testId ?? "espera"} aria-live="polite">
+    <section className="space-y-3 rounded-card bg-tinta-50 p-4 animate-aparecer" data-testid={testId ?? "espera"} aria-live="polite">
       <div className="flex items-center gap-2 text-musgo">
         <Spinner className="h-5 w-5" />
-        <h2 className="font-sans text-base font-semibold text-monte">{titulo}</h2>
+        <h2 className="font-sans text-lg font-semibold text-monte">{titulo}</h2>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-tinta-100" aria-hidden>
         <div className="h-full w-1/3 rounded-full bg-yungas animate-barra" />
       </div>
-      <p className="text-sm text-tinta-600">{nota}</p>
+      <p className="text-base text-tinta-600">{nota}</p>
       <Progress steps={steps} />
     </section>
   );

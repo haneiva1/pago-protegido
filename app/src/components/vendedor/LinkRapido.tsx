@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { IconoChevronAbajo, IconoCopiar } from "@/components/iconos";
+import { Select } from "@/components/comprador/Campos";
 import { ErrorBox, Spinner } from "@/components/ui";
 import { CATEGORIAS, PROTECCION, linkAmounts, unitsToNumber } from "@/lib/format";
 import { LINK_VACIO, type LinkRapido as Datos, type TipoFlete } from "@/lib/vendedor";
@@ -79,8 +80,8 @@ export function LinkRapido({
   return (
     <form onSubmit={submit} className="card space-y-4 scroll-mt-20 sm:p-6" data-testid="crear-link" id="crear-link">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-xl">{title}</h2>
-        <span className="text-xs text-tinta-500">Listo en 30 segundos</span>
+        <h2 className="text-2xl">{title}</h2>
+        <span className="text-sm text-tinta-500">Listo en 30 segundos</span>
       </div>
       {plantilla && (
         <p className="caja-exito flex items-start gap-2" data-testid="duplicado">
@@ -105,13 +106,13 @@ export function LinkRapido({
           <label className="label" htmlFor="days">
             Días para despachar
           </label>
-          <select id="days" className="input" value={f.deliveryDays} onChange={set("deliveryDays")}>
+          <Select id="days" value={f.deliveryDays} onChange={set("deliveryDays")}>
             {Array.from({ length: 15 }, (_, i) => i + 1).map((d) => (
               <option key={d} value={d}>
                 {d} {d === 1 ? "día" : "días"}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
       <fieldset className="space-y-2" data-testid="flete-vendedor">
@@ -157,14 +158,14 @@ export function LinkRapido({
           </span>
         </label>
         {preview && (
-          <p className="rounded-control bg-tinta-50 p-3 text-sm text-tinta-700" data-testid="vista-previa-link">
+          <p className="text-base text-tinta-700" data-testid="vista-previa-link">
             Tu cliente paga <strong className="num">Bs {nf(buyerPays)}</strong> y tú recibes <strong className="num">Bs {nf(sellerGets)}</strong>
             {f.feePayer === "vendedor" ? " (descontados 2% de plataforma y 0,3% de Trustless Work)" : ""}.
           </p>
         )}
       </fieldset>
-      <details className="group rounded-control border border-tinta-200 p-3" open={masDetalles} data-testid="mas-detalles">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-tinta-700 [&::-webkit-details-marker]:hidden">
+      <details className="group border-t border-tinta-200 pt-3" open={masDetalles} data-testid="mas-detalles">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-base font-semibold text-tinta-700 [&::-webkit-details-marker]:hidden">
           Más detalles (opcional): categoría, descripción y foto
           <IconoChevronAbajo className="h-5 w-5 flex-none text-tinta-500 transition-transform duration-200 group-open:rotate-180" />
         </summary>
@@ -173,11 +174,11 @@ export function LinkRapido({
             <label className="label" htmlFor="category">
               Categoría <span className="font-normal text-tinta-500">(si es celular, al despachar se pide el IMEI)</span>
             </label>
-            <select id="category" className="input" value={f.category} onChange={set("category")}>
+            <Select id="category" value={f.category} onChange={set("category")}>
               {CATEGORIAS.map((c) => (
                 <option key={c}>{c}</option>
               ))}
-            </select>
+            </Select>
           </div>
           <div>
             <label className="label" htmlFor="description">

@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { Spinner } from "@/components/ui";
 import { fmtBsUnits, unitsToNumber } from "@/lib/format";
 import type { OrderView } from "@/lib/types";
-import { Candado } from "./Estado";
 
 /** Entidad a cuyo nombre sale el QR en producción. Sin configurar, se dice "Trato" (el QR de práctica). */
 const ENTIDAD_QR = process.env.NEXT_PUBLIC_QR_ENTIDAD?.trim() || "Trato";
@@ -59,10 +58,10 @@ export function PagoQr({ v, busy, onPay }: { v: OrderView; busy: boolean; onPay:
   }
 
   return (
-    <section className="card space-y-4 animate-aparecer" data-testid="qr">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg">Paga con el QR desde tu banco</h2>
-        <span className="chip-aviso flex-none">Simulado</span>
+    <section className="space-y-5 animate-aparecer" data-testid="qr">
+      <div className="space-y-1.5">
+        <p className="eyebrow">Compra protegida · {o.code}</p>
+        <h2 className="text-2xl">Paga con el QR desde tu banco</h2>
       </div>
       <div className="flex flex-col items-center gap-2">
         {qr ? (
@@ -71,35 +70,35 @@ export function PagoQr({ v, busy, onPay }: { v: OrderView; busy: boolean; onPay:
         ) : (
           <div className="h-52 w-52 animate-pulse rounded-card bg-tinta-100" />
         )}
-        <p className="text-center text-xs text-tinta-500" data-testid="qr-entidad">
-          QR de ejemplo a nombre de {ENTIDAD_QR}, nunca de una persona · {o.code}
+        <p className="text-center text-sm text-tinta-600" data-testid="qr-entidad">
+          QR de ejemplo a nombre de {ENTIDAD_QR}, nunca de una persona
         </p>
       </div>
-      <p className="text-center font-display text-3xl tracking-tight num">{fmtBsUnits(o.amount_units, o.fx)}</p>
+      <div className="space-y-1 text-center">
+        <p className="font-display text-5xl leading-none tracking-tight num">{fmtBsUnits(o.amount_units, o.fx)}</p>
+        <p className="text-sm text-tinta-600">{o.product}</p>
+      </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <button type="button" className="btn-secondary btn-sm" onClick={guardar} disabled={!qr}>
+        <button type="button" className="btn-ghost btn-sm" onClick={guardar} disabled={!qr}>
           Guardar QR
         </button>
-        <button type="button" className="btn-secondary btn-sm" onClick={compartir} disabled={!qr}>
+        <button type="button" className="btn-ghost btn-sm" onClick={compartir} disabled={!qr}>
           Compartir QR
         </button>
       </div>
-      {aviso && <p className="text-center text-xs text-tinta-600">{aviso}</p>}
+      {aviso && <p className="text-center text-sm text-tinta-600">{aviso}</p>}
 
-      <ol className="space-y-2 rounded-control bg-tinta-50 p-3 text-sm" data-testid="pasos-qr">
+      <ol className="space-y-2.5 border-t border-tinta-200 pt-4 text-base" data-testid="pasos-qr">
         {PASOS.map((p, i) => (
           <li key={p} className="flex gap-2.5">
-            <span className="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-yungas text-[11px] font-semibold text-monte num">{i + 1}</span>
+            <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full text-xs font-semibold text-monte ring-1 ring-monte/30 num">{i + 1}</span>
             <span className="text-tinta-700">{p}</span>
           </li>
         ))}
       </ol>
 
-      <div className="flex items-center justify-center gap-2 text-sm font-medium text-tinta-700" data-testid="esperando-pago" aria-live="polite">
-        <span className={busy ? "text-musgo" : "text-tinta-500"}>
-          <Candado cerrado={busy} className="h-5 w-5" />
-        </span>
+      <div className="flex items-center justify-center gap-2 text-base font-medium text-tinta-700" data-testid="esperando-pago" aria-live="polite">
         {busy ? (
           "Guardando tu pago…"
         ) : (
@@ -110,7 +109,7 @@ export function PagoQr({ v, busy, onPay }: { v: OrderView; busy: boolean; onPay:
         )}
       </div>
 
-      <p className="caja-aviso text-xs" data-testid="rampa-simulada">
+      <p className="text-center text-sm text-tinta-600" data-testid="rampa-simulada">
         Pago simulado en la red de prueba. En producción lo hace una entidad certificada por ASFI.
       </p>
       <button className="btn-primary w-full" disabled={busy} onClick={onPay}>

@@ -28,24 +28,29 @@ export function ConfirmarPago({
   const restante = o.confirm_after ? Math.max(0, o.confirm_after - now) : 0;
   const pct = total && total > 0 ? ((total - restante) / total) * 100 : 0;
   return (
-    <section className="card space-y-3" data-testid="confirmar">
+    <section className="space-y-3" data-testid="confirmar">
       {!canConfirm && o.confirm_after && (
-        <div data-testid="espera-confirmar" className="rounded-control bg-tinta-50 p-3 ring-1 ring-tinta-200">
-          <p className="flex items-center gap-2 text-sm text-tinta-700">
+        <div data-testid="espera-confirmar" className="space-y-2">
+          <p className="flex items-center gap-2 text-base text-tinta-700">
             <IconoReloj className="h-5 w-5 flex-none text-musgo" />
             <span>
               Se habilita en <strong className="num">{fmtLeft(o.confirm_after - now)}</strong>
             </span>
           </p>
           {total ? <BarraAvance pct={pct} className="mt-2" /> : null}
-          <p className="mt-2 text-xs text-tinta-500">{v.confirmDelay} después del envío, para que alcances a recibir y revisar el producto.</p>
+          <p className="text-sm text-tinta-600">{v.confirmDelay} después del envío, para que alcances a recibir y revisar el producto.</p>
         </div>
       )}
-      <button className="btn-primary w-full py-4 text-lg" disabled={!canConfirm || busy} onClick={onPagar}>
+      <button
+        className={canConfirm ? "btn-primary w-full py-4 text-lg" : "btn w-full bg-tinta-200 py-4 text-lg text-tinta-700"}
+        style={canConfirm ? undefined : { opacity: 1 }}
+        disabled={!canConfirm || busy}
+        onClick={onPagar}
+      >
         {busy ? <Spinner /> : null} Pagar al vendedor (irreversible)
       </button>
-      <p className="text-center text-xs font-medium text-tinta-600">Después ya no puedes reclamar.</p>
-      <button className="btn-danger w-full" disabled={busy} onClick={onProblema}>
+      <p className="text-center text-sm font-medium text-tinta-600">Después ya no puedes reclamar.</p>
+      <button className="btn-ghost w-full text-error-700 hover:bg-error-50" disabled={busy} onClick={onProblema}>
         Tengo un problema
       </button>
     </section>
@@ -67,9 +72,9 @@ export function PreguntaConfirmar({
   const [presion, setPresion] = useState(false);
   if (presion)
     return (
-      <section className="card space-y-3 ring-2 ring-aviso-200 animate-aparecer" data-testid="confirmar-presion">
+      <section className="space-y-3 rounded-card bg-white p-5 shadow-alzada ring-1 ring-aviso-200 animate-aparecer" data-testid="confirmar-presion">
         <h2 className="text-lg leading-snug">¿La tienda te pide que le pagues antes de tener el producto?</h2>
-        <p className="text-sm text-tinta-700">
+        <p className="text-base text-tinta-700">
           Vamos a abrir un reclamo por presión para confirmar: la plata queda congelada y un revisor ve el caso. La tienda no cobra mientras tanto.
         </p>
         <button className="btn-oscuro w-full" disabled={busy} onClick={onPresion}>
@@ -81,7 +86,7 @@ export function PreguntaConfirmar({
       </section>
     );
   return (
-    <section className="card space-y-3 ring-2 ring-exito-200 animate-aparecer" data-testid="pregunta-confirmar">
+    <section className="space-y-3 rounded-card bg-white p-5 shadow-alzada animate-aparecer" data-testid="pregunta-confirmar">
       <h2 className="text-lg leading-snug">¿Tienes el producto en tus manos y lo revisaste?</h2>
       <button className="btn-primary w-full" disabled={busy} onClick={onSi}>
         {busy ? <Spinner /> : null} Sí, lo tengo y está bien
@@ -89,7 +94,7 @@ export function PreguntaConfirmar({
       <button className="btn-secondary w-full" disabled={busy} onClick={onTodaviaNo}>
         Todavía no
       </button>
-      <button className="btn-danger w-full" disabled={busy} onClick={() => setPresion(true)}>
+      <button className="btn-ghost w-full text-error-700 hover:bg-error-50" disabled={busy} onClick={() => setPresion(true)}>
         El vendedor me pide que confirme
       </button>
     </section>

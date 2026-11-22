@@ -1,5 +1,6 @@
 "use client";
 
+import { IconoChevronAbajo } from "@/components/iconos";
 import { CopyButton } from "@/components/ui";
 import { fmtDuracion, fmtProporcion, nf } from "@/lib/kpi-format";
 import type { Kpis } from "@/lib/types";
@@ -14,23 +15,26 @@ export function Insignia({ slug, storeName, kpis }: { slug: string; storeName: s
   const bio = `Vendo con Trato ✅ ${resumen} ${url}`;
 
   return (
-    <section className="card space-y-3 sm:p-6" data-testid="insignia">
-      <h2 className="text-xl">Insignia «Vendo con Trato» para tu bio</h2>
-      <p className="text-sm text-tinta-600">
+    <details className="group border-t border-tinta-200 pt-5" data-testid="insignia" open={kpis.pagadas_al_vendedor > 0}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-lg font-semibold [&::-webkit-details-marker]:hidden">
+        Insignia «Vendo con Trato» para tu bio
+        <IconoChevronAbajo className="h-5 w-5 flex-none text-tinta-500 transition-transform duration-200 group-open:rotate-180" />
+      </summary>
+      <p className="mt-3 text-sm text-tinta-600">
         Pega este link en la bio de tu Instagram o TikTok. Quien lo abra ve tus números y puede revisar cada compra en el registro público.
       </p>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={`/tienda/${slug}/insignia`} alt={`${storeName} vende con Trato`} width={1200} height={630} className="h-auto w-full rounded-card ring-1 ring-tinta-200" />
-      <p className="break-all rounded-control bg-tinta-50 p-3 font-mono text-sm ring-1 ring-tinta-200" data-testid="link-perfil">
+      <img src={`/tienda/${slug}/insignia`} alt={`${storeName} vende con Trato`} width={1200} height={630} className="mt-3 h-auto w-full rounded-card ring-1 ring-tinta-200" />
+      <p className="mt-3 truncate rounded-control bg-tinta-50 px-3.5 py-3 font-mono text-sm" data-testid="link-perfil">
         {url}
       </p>
-      <div className="flex flex-wrap gap-2">
-        <CopyButton text={url} label="Copiar link" testId="copiar-link-perfil" />
-        <CopyButton text={bio} label="Copiar texto para la bio" />
-        <a className="btn-secondary" href={`/tienda/${slug}/insignia`} download={`trato-${slug}.png`}>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <CopyButton text={url} label="Copiar link" className="btn-secondary btn-sm" testId="copiar-link-perfil" />
+        <CopyButton text={bio} label="Copiar texto para la bio" className="btn-secondary btn-sm" />
+        <a className="btn-secondary btn-sm" href={`/tienda/${slug}/insignia`} download={`trato-${slug}.png`}>
           Descargar imagen
         </a>
       </div>
-    </section>
+    </details>
   );
 }

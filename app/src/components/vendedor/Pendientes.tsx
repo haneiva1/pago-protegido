@@ -19,13 +19,13 @@ export function Pendientes({ pedidos, onIr }: { pedidos: PedidoPendiente[]; onIr
   const lista = pendientes(pedidos, ahora);
 
   return (
-    <section className="card space-y-2 sm:p-6" data-testid="pendientes">
+    <section className="space-y-2" data-testid="pendientes">
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-xl">Pendientes de hoy</h2>
+        <h2 className="text-lg">Pendientes de hoy</h2>
         {lista.length > 0 && <span className="chip-aviso num">{lista.length}</span>}
       </div>
       {lista.length === 0 ? (
-        <p className="flex items-center gap-2 text-sm text-tinta-600" data-testid="sin-pendientes">
+        <p className="flex items-center gap-2 text-base text-tinta-600" data-testid="sin-pendientes">
           <IconoCheckCirculo className="h-5 w-5 flex-none text-musgo" />
           Nada pendiente: no tienes pedidos por despachar ni reclamos por responder.
         </p>
@@ -51,7 +51,7 @@ export function Pendientes({ pedidos, onIr }: { pedidos: PedidoPendiente[]; onIr
                     <span className="block truncate font-semibold">
                       {p.tipo === "despachar" ? "Despachar" : "Responder el reclamo"}: {p.product}
                     </span>
-                    <span className={`block text-xs ${p.cuando === "vencido" ? "font-semibold text-error-700" : p.cuando === "hoy" ? "font-semibold text-aviso-700" : "text-tinta-500"}`}>
+                    <span className={`block text-sm ${p.cuando === "vencido" ? "font-semibold text-error-700" : p.cuando === "hoy" ? "font-semibold text-aviso-700" : "text-tinta-500"}`}>
                       {[p.code, plazo].filter(Boolean).join(" · ")}
                     </span>
                   </span>

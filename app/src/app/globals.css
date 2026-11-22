@@ -58,9 +58,40 @@
 
   --color-ink: #0a2a1b;
 
-  /* Letra: Funnel Display 800 solo para títulos; Funnel Sans 400-600 para todo lo demás (700 no está cargada: nunca font-bold en texto). */
+  /* Letra: Funnel Display 800 solo para títulos; Funnel Sans 400, 500 y 600 para todo lo demás (700 no está cargada: nunca font-bold en texto). */
   --font-sans: var(--font-funnel-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-display: var(--font-funnel-display), var(--font-funnel-sans), ui-sans-serif, system-ui, sans-serif;
+
+  /*
+   * Escala tipográfica única: 12 / 14 / 16 / 18 / 24 / 32 / 48 / 64 px (xs, sm, base, lg, 2xl, 3xl, 5xl, 6xl).
+   * `xl` y `4xl` no son tamaños del sistema: se pliegan a 18 y 32 para que lo escrito con ellos siga en la escala.
+   * Los títulos grandes llevan tracking negativo (-0.025em desde 24 px, -0.035em desde 48 px). 12 px solo para etiquetas y pies.
+   */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.625rem;
+  --text-xl: 1.125rem;
+  --text-xl--line-height: 1.625rem;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 1.875rem;
+  --text-2xl--letter-spacing: -0.025em;
+  --text-3xl: 2rem;
+  --text-3xl--line-height: 2.375rem;
+  --text-3xl--letter-spacing: -0.025em;
+  --text-4xl: 2rem;
+  --text-4xl--line-height: 2.375rem;
+  --text-4xl--letter-spacing: -0.025em;
+  --text-5xl: 3rem;
+  --text-5xl--line-height: 3.25rem;
+  --text-5xl--letter-spacing: -0.035em;
+  --text-6xl: 4rem;
+  --text-6xl--line-height: 4.25rem;
+  --text-6xl--letter-spacing: -0.035em;
 
   /* Radios: chip 8, control (botón e input) 12, tarjeta 16, panel 24. */
   --radius-chip: 0.5rem;
@@ -68,16 +99,18 @@
   --radius-card: 1rem;
   --radius-panel: 1.5rem;
 
-  /* Sombras: casi nada. La jerarquía la dan el color y el espacio, no la sombra. */
-  --shadow-card: 0 1px 2px rgb(10 42 27 / 0.05), 0 2px 8px -2px rgb(10 42 27 / 0.06);
-  --shadow-alzada: 0 12px 32px -16px rgb(10 42 27 / 0.25);
-  --shadow-celular: 0 28px 56px -28px rgb(10 42 27 / 0.4);
+  /* Sombras en capas, suaves. La jerarquía la dan el espacio y el color, no la sombra. */
+  --shadow-card: 0 1px 2px rgb(10 42 27 / 0.04), 0 4px 12px -4px rgb(10 42 27 / 0.08);
+  --shadow-alzada: 0 1px 2px rgb(10 42 27 / 0.05), 0 8px 24px -8px rgb(10 42 27 / 0.18), 0 24px 48px -24px rgb(10 42 27 / 0.25);
+  --shadow-celular: 0 2px 4px rgb(10 42 27 / 0.08), 0 16px 32px -12px rgb(10 42 27 / 0.25), 0 48px 80px -32px rgb(10 42 27 / 0.35);
 
   /* Movimiento sobrio. */
   --ease-suave: cubic-bezier(0.2, 0.8, 0.2, 1);
   --animate-aparecer: aparecer 240ms var(--ease-suave) both;
   --animate-latido: latido 1.6s ease-in-out infinite;
   --animate-barra: barra 1.4s var(--ease-suave) infinite;
+  /* La plata viajando por una línea, de derecha a izquierda (del comprador al contrato; del contrato a la tienda), una sola vez. */
+  --animate-viaje: viaje 1.2s var(--ease-suave) both;
 
   @keyframes aparecer {
     from {
@@ -106,6 +139,22 @@
       transform: translateX(250%);
     }
   }
+  @keyframes viaje {
+    0% {
+      left: calc(100% - 0.625rem);
+      opacity: 0;
+    }
+    15% {
+      opacity: 1;
+    }
+    85% {
+      opacity: 1;
+    }
+    100% {
+      left: 0;
+      opacity: 0;
+    }
+  }
 }
 
 :root {
@@ -128,7 +177,7 @@ h2,
 h3 {
   font-family: var(--font-display);
   font-weight: 800;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
 h1,
@@ -184,9 +233,23 @@ textarea.input:focus-visible {
 
 /* ---------- Superficies ---------- */
 
-/* Tarjeta: blanco sobre Sal, borde fino y sombra mínima. Para formularios y bloques de contenido. */
+/* Tarjeta: blanco sobre Sal, borde fino y sombra mínima. Solo para formularios. El contenido va en secciones, sin caja. */
 @utility card {
   @apply rounded-card border border-tinta-200/80 bg-white p-5 shadow-card;
+}
+
+/* Sección: sin borde ni fondo. El título, el aire y el espacio separan; una línea fina (`divisor`) cuando hace falta. */
+@utility seccion {
+  @apply space-y-4;
+}
+
+@utility divisor {
+  @apply border-t border-tinta-200/70;
+}
+
+/* Texto corrido: líneas de 60 a 75 caracteres. */
+@utility prosa {
+  max-width: 65ch;
 }
 
 /* Panel oscuro (Monte, texto Sal): para lo que importa de verdad, como el registro en vivo o un dato clave. */
@@ -201,7 +264,7 @@ textarea.input:focus-visible {
 
 /* Panel suave (verde claro): notas de confianza y estados de éxito. */
 @utility panel-suave {
-  @apply rounded-card border border-exito-200/70 bg-exito-50 p-4 text-monte;
+  @apply rounded-card bg-exito-50 p-4 text-monte;
 }
 
 /* ---------- Botones ---------- */
@@ -229,7 +292,7 @@ textarea.input:focus-visible {
 }
 
 @utility btn-danger {
-  @apply btn border border-error-200 bg-error-50 text-error-700 hover:bg-error-100 active:bg-error-200;
+  @apply btn bg-error-50 text-error-700 hover:bg-error-100 active:bg-error-200;
 }
 
 @utility btn-sm {
@@ -246,8 +309,9 @@ textarea.input:focus-visible {
   @apply mb-1.5 block text-sm font-medium text-tinta-700;
 }
 
+/* Texto secundario: tinta-600 como mínimo. tinta-500 solo en pies de 12-14 px. */
 @utility muted {
-  @apply text-sm text-tinta-500;
+  @apply text-sm text-tinta-600;
 }
 
 /* Antetítulo: pequeño, en mayúsculas, Musgo. */
@@ -264,44 +328,44 @@ textarea.input:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- Chips y cajas de estado ---------- */
+/* ---------- Chips y cajas de estado (sin borde: el fondo alcanza) ---------- */
 
 @utility chip {
-  @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset;
+  @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold;
 }
 @utility chip-neutro {
-  @apply chip bg-tinta-100 text-tinta-700 ring-tinta-200;
+  @apply chip bg-tinta-100 text-tinta-700;
 }
 @utility chip-exito {
-  @apply chip bg-exito-50 text-exito-700 ring-exito-200;
+  @apply chip bg-exito-100 text-exito-700;
 }
 @utility chip-info {
-  @apply chip bg-info-50 text-info-700 ring-info-200;
+  @apply chip bg-info-100 text-info-700;
 }
 @utility chip-aviso {
-  @apply chip bg-aviso-50 text-aviso-700 ring-aviso-200;
+  @apply chip bg-aviso-100 text-aviso-700;
 }
 @utility chip-error {
-  @apply chip bg-error-50 text-error-700 ring-error-200;
+  @apply chip bg-error-100 text-error-700;
 }
 @utility chip-oscuro {
-  @apply chip bg-monte text-sal ring-monte;
+  @apply chip bg-monte text-sal;
 }
 
 @utility caja {
-  @apply rounded-control border px-4 py-3 text-sm;
+  @apply rounded-control px-4 py-3 text-sm;
 }
 @utility caja-exito {
-  @apply caja border-exito-200 bg-exito-50 text-monte;
+  @apply caja bg-exito-50 text-monte;
 }
 @utility caja-info {
-  @apply caja border-info-200 bg-info-50 text-info-700;
+  @apply caja bg-info-50 text-info-700;
 }
 @utility caja-aviso {
-  @apply caja border-aviso-200 bg-aviso-50 text-aviso-700;
+  @apply caja bg-aviso-50 text-aviso-700;
 }
 @utility caja-error {
-  @apply caja border-error-200 bg-error-50 text-error-700;
+  @apply caja bg-error-50 text-error-700;
 }
 
 /* ---------- /probar ---------- */
