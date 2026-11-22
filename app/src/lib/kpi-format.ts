@@ -52,12 +52,3 @@ export const DESENLACE_LABEL: Record<Desenlace, string> = {
   en_reclamo: "Reclamo en revisión",
   en_curso: "En curso: el pago está bloqueado",
 };
-
-export const DESENLACE_CLS: Record<Desenlace, string> = {
-  confirmada: "bg-brand-50 text-brand-800 ring-brand-200",
-  plazo: "bg-brand-50 text-brand-800 ring-brand-200",
-  resuelta: "bg-violet-50 text-violet-800 ring-violet-200",
-  devuelta: "bg-violet-50 text-violet-800 ring-violet-200",
-  en_reclamo: "bg-amber-50 text-amber-800 ring-amber-200",
-  en_curso: "bg-sky-50 text-sky-800 ring-sky-200",
-};

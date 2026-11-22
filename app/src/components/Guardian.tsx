@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { IconoCamion, IconoCandado, IconoCheck, IconoCerrar, IconoExterno, IconoReloj } from "@/components/iconos";
 import { explorer, fmtDate, type OrderStatus } from "@/lib/format";
 import { textoRegistroPublico } from "@/lib/comprador";
 import type { Verification } from "@/lib/types";
@@ -37,18 +38,21 @@ export function ShipDeadline({ shipDeadline, status, role }: { shipDeadline: num
   if (!shipDeadline || status !== "pagado") return null;
   const left = shipDeadline - now;
   return (
-    <div data-testid="plazo-despacho" className="space-y-1 rounded-xl bg-slate-50 p-3 text-sm text-slate-700 ring-1 ring-slate-200">
-      {left > 0 ? (
-        <p>
-          📦 {role === "vendedor" ? "Despacha antes del" : "El vendedor tiene que despachar antes del"} <strong>{fmtDate(shipDeadline)}</strong>{" "}
-          <span className="text-xs text-slate-500 tabular-nums">(faltan {fmtLeft(left)})</span>
-        </p>
-      ) : (
-        <p>
-          📦 <strong>Venció el plazo de despacho</strong> ({fmtDate(shipDeadline)}). Estamos devolviendo el pago al comprador.
-        </p>
-      )}
-      <p className="text-xs text-slate-500">
+    <div data-testid="plazo-despacho" className="space-y-1 rounded-control bg-tinta-50 p-3 text-sm text-tinta-700 ring-1 ring-tinta-200">
+      <p className="flex items-start gap-2">
+        <IconoCamion className="mt-0.5 h-5 w-5 flex-none text-musgo" />
+        {left > 0 ? (
+          <span>
+            {role === "vendedor" ? "Despacha antes del" : "El vendedor tiene que despachar antes del"} <strong>{fmtDate(shipDeadline)}</strong>{" "}
+            <span className="text-xs text-tinta-500 num">(faltan {fmtLeft(left)})</span>
+          </span>
+        ) : (
+          <span>
+            <strong>Venció el plazo de despacho</strong> ({fmtDate(shipDeadline)}). Estamos devolviendo el pago al comprador.
+          </span>
+        )}
+      </p>
+      <p className="pl-7 text-xs text-tinta-500">
         {role === "vendedor"
           ? "Si no registras el envío a tiempo, el pago vuelve automáticamente al comprador."
           : "Si no lo despacha a tiempo, te devolvemos el pago automáticamente."}
@@ -110,27 +114,30 @@ export function Countdown({
   }
 
   return (
-    <div data-testid="plazo" className="space-y-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-700 ring-1 ring-slate-200">
-      {expired ? (
-        <p>
-          ⏱️ <strong>Plazo vencido</strong> ({fmtDate(deadline)}).
-        </p>
-      ) : (
-        <p>
-          ⏱️ Se libera sola en{" "}
-          <strong data-testid="cuenta-regresiva" className="tabular-nums">
-            {fmtLeft(left)}
-          </strong>{" "}
-          <span className="text-xs text-slate-500">({fmtDate(deadline)})</span>
-        </p>
-      )}
-      <p className="text-xs text-slate-500">
+    <div data-testid="plazo" className="space-y-2 rounded-control bg-tinta-50 p-3 text-sm text-tinta-700 ring-1 ring-tinta-200">
+      <p className="flex items-start gap-2">
+        <IconoReloj className="mt-0.5 h-5 w-5 flex-none text-musgo" />
+        {expired ? (
+          <span>
+            <strong>Plazo vencido</strong> <span className="text-xs text-tinta-500">({fmtDate(deadline)})</span>
+          </span>
+        ) : (
+          <span>
+            Se libera sola en{" "}
+            <strong data-testid="cuenta-regresiva" className="num">
+              {fmtLeft(left)}
+            </strong>{" "}
+            <span className="text-xs text-tinta-500">({fmtDate(deadline)})</span>
+          </span>
+        )}
+      </p>
+      <p className="pl-7 text-xs text-tinta-500">
         Si para entonces el comprador no paga ni reclama, se le paga al vendedor. El plazo corre desde que se registró el envío. Te avisamos un día antes.
         {mode === "direct" && " En modo directo la liberación automática no está activa."}
       </p>
       {Boolean(extended) && (
-        <p data-testid="extendido" className="text-xs font-medium text-slate-600">
-          ⏳ El comprador ya pidió más tiempo una vez.
+        <p data-testid="extendido" className="pl-7 text-xs font-medium text-tinta-600">
+          El comprador ya pidió más tiempo una vez.
         </p>
       )}
       {capabilities?.extend && role === "comprador" && !expired && !extended && onExtend && (
@@ -140,7 +147,7 @@ export function Countdown({
       )}
       {canRelease && (
         <button className="btn-primary w-full" disabled={busy} onClick={() => call(`/api/orders/${slug}/auto-release`)}>
-          {busy ? <Spinner /> : "⏱️"} Liberar ahora (plazo vencido)
+          {busy ? <Spinner /> : <IconoReloj className="h-5 w-5" />} Liberar ahora (plazo vencido)
         </button>
       )}
       <ErrorBox error={error} />
@@ -167,23 +174,28 @@ export function PublicRecord({
   const id = v?.escrowId ?? escrowId;
   if (!id) return null;
   return (
-    <div data-testid="registro-publico" className="rounded-xl bg-brand-50 p-3 text-sm text-brand-900 ring-1 ring-brand-200">
-      <p className="font-semibold">{textoRegistroPublico(status, role)}</p>
-      <a className="mt-1 inline-block text-xs font-medium underline" href={explorer.contract(id)} target="_blank" rel="noreferrer">
-        Ver registro público ↗
-      </a>
-      {v && (
-        <details className="mt-1 text-xs text-brand-800">
-          <summary className="cursor-pointer">{role === "comprador" ? "Qué se revisó antes de que pagaras" : "Qué se revisó antes del pago"}</summary>
-          <ul className="mt-1 space-y-0.5">
-            {v.checks.map((c) => (
-              <li key={c.label}>
-                {c.ok ? "✓" : "✗"} {c.label}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
+    <div data-testid="registro-publico" className="flex gap-3 rounded-card border border-exito-200 bg-exito-50 p-3.5 text-sm text-monte">
+      <IconoCandado className="mt-0.5 h-5 w-5 flex-none text-musgo" />
+      <div className="min-w-0 flex-1 space-y-1">
+        <p className="font-semibold">{textoRegistroPublico(status, role)}</p>
+        <a className="inline-flex items-center gap-1 text-xs font-medium text-musgo underline decoration-exito-200 underline-offset-2" href={explorer.contract(id)} target="_blank" rel="noreferrer">
+          Ver registro público
+          <IconoExterno className="h-3.5 w-3.5" />
+        </a>
+        {v && (
+          <details className="text-xs text-tinta-700">
+            <summary className="cursor-pointer">{role === "comprador" ? "Qué se revisó antes de que pagaras" : "Qué se revisó antes del pago"}</summary>
+            <ul className="mt-1.5 space-y-1">
+              {v.checks.map((c) => (
+                <li key={c.label} className="flex items-start gap-1.5">
+                  {c.ok ? <IconoCheck className="mt-0.5 h-3.5 w-3.5 flex-none text-musgo" /> : <IconoCerrar className="mt-0.5 h-3.5 w-3.5 flex-none text-error-600" />}
+                  <span>{c.label}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </div>
     </div>
   );
 }

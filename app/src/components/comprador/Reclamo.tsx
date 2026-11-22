@@ -37,7 +37,7 @@ export function Reclamo({
   if (!motivos.length) return null;
   return (
     <form
-      className="card space-y-4 ring-2 ring-amber-200"
+      className="card space-y-4 ring-2 ring-aviso-200 animate-aparecer"
       data-testid="reclamo"
       onSubmit={(e) => {
         e.preventDefault();
@@ -48,33 +48,36 @@ export function Reclamo({
       }}
     >
       <div>
-        <h2 className="text-lg font-bold">¿Qué pasó?</h2>
-        <p className="muted">Al enviar, la plata queda congelada y un revisor ve la evidencia de los dos lados. Arrepentirse no es motivo de reclamo.</p>
+        <h2 className="text-xl">¿Qué pasó?</h2>
+        <p className="muted mt-1">Al enviar, la plata queda congelada y un revisor ve la evidencia de los dos lados. Arrepentirse no es motivo de reclamo.</p>
       </div>
 
       <fieldset className="space-y-2" data-testid="motivos">
         <legend className="label">Motivo</legend>
         {motivos.map((m) => (
-          <label key={m} className={`flex cursor-pointer gap-3 rounded-xl p-3 ring-1 ${reason === m ? "bg-amber-50 ring-amber-300" : "bg-white ring-slate-200"}`}>
-            <input type="radio" name="motivo" value={m} checked={reason === m} onChange={() => setReason(m)} className="mt-1 accent-amber-600" />
+          <label
+            key={m}
+            className={`flex cursor-pointer gap-3 rounded-control border p-3 transition-colors duration-150 ${reason === m ? "border-monte bg-tinta-50" : "border-tinta-200 bg-white hover:bg-tinta-50"}`}
+          >
+            <input type="radio" name="motivo" value={m} checked={reason === m} onChange={() => setReason(m)} className="mt-1 accent-monte" />
             <span className="text-sm">
               <span className="block font-semibold">{m}</span>
-              <span className="text-slate-600">{DESCRIPCION_MOTIVO[m]}</span>
+              <span className="text-tinta-600">{DESCRIPCION_MOTIVO[m]}</span>
             </span>
           </label>
         ))}
       </fieldset>
 
       {reason === "No envió" && (
-        <p className="rounded-xl bg-brand-50 p-3 text-sm text-brand-900 ring-1 ring-brand-100" data-testid="no-envio-solo">
+        <p className="caja-exito" data-testid="no-envio-solo">
           Si la tienda no despacha {order.ship_deadline ? `hasta el ${fmtDate(order.ship_deadline)}` : "a tiempo"}, el pago vuelve a ti solo, sin reclamo. Reclama
           ahora solo si te dijo que no lo va a enviar.
         </p>
       )}
 
-      <div className="rounded-xl bg-slate-50 p-3 text-sm" data-testid="evidencia-pedida">
+      <div className="rounded-control bg-tinta-50 p-3 text-sm" data-testid="evidencia-pedida">
         <p className="font-semibold">Qué evidencia hace falta</p>
-        <ul className="mt-1 list-disc space-y-0.5 pl-5 text-slate-700">
+        <ul className="mt-1 list-disc space-y-0.5 pl-5 text-tinta-700">
           {ev.pasos.map((p) => (
             <li key={p}>{p}</li>
           ))}
@@ -102,7 +105,7 @@ export function Reclamo({
         />
       )}
 
-      <p className="text-xs text-slate-600" data-testid="plazos-reclamo">
+      <p className="text-xs text-tinta-600" data-testid="plazos-reclamo">
         <strong>Plazos:</strong> la tienda responde en 48 h, tú puedes sumar evidencia en 48 h y el revisor decide en 72 h. Mientras tanto, nadie puede mover la
         plata.
       </p>
@@ -111,12 +114,16 @@ export function Reclamo({
         <button type="button" className="btn-secondary" onClick={onCancel} disabled={busy}>
           Cancelar
         </button>
-        <button className="btn flex-1 bg-amber-500 text-white hover:bg-amber-600" disabled={busy}>
+        <button className="btn-oscuro flex-1" disabled={busy}>
           {busy ? <Spinner /> : null} Enviar reclamo
         </button>
       </div>
-      <p className="text-xs text-slate-500">
-        Política de reclamos completa en <a className="underline" href="/como-funciona#reclamos">Cómo funciona</a>.
+      <p className="text-xs text-tinta-500">
+        Política de reclamos completa en{" "}
+        <a className="enlace" href="/como-funciona#reclamos">
+          Cómo funciona
+        </a>
+        .
       </p>
     </form>
   );

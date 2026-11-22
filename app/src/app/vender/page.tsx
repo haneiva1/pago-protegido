@@ -2,7 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ErrorBox, Progress, Spinner, useProgress } from "@/components/ui";
+import { IconoCandado } from "@/components/iconos";
+import { EsperaEnCurso } from "@/components/comprador/Espera";
+import { ErrorBox } from "@/components/ui";
 import { CIUDADES } from "@/lib/format";
 import { apiFirmada } from "@/lib/api-firmada";
 import { WALLET_KIND, activateWallet, api, getWallet } from "@/lib/wallet";
@@ -18,7 +20,7 @@ export default function Vender() {
   const [pilotId, setPilotId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const progress = useProgress();
+  const [pasos, setPasos] = useState<{ label: string; hash?: string; done: boolean }[]>([]);
 
   useEffect(() => {
     const qs = new URLSearchParams(window.location.search);
@@ -34,19 +36,27 @@ export default function Vender() {
     if (pk) api(`/api/sellers/${pk}`).then(() => router.replace("/panel")).catch(() => {});
   }, [router]);
 
+  const paso = (label: string, done: boolean) =>
+    setPasos((prev) => {
+      const i = prev.findIndex((p) => p.label === label);
+      if (i >= 0) return prev.map((p, j) => (j === i ? { ...p, done } : p));
+      return [...prev, { label, done }];
+    });
+
   async function crearCuenta() {
     setBusy(true);
     setError(null);
+    setPasos([]);
     try {
       const wallet = getWallet("vendedor");
       const L = WALLET_KIND === "pollar" ? "Ingresando con tu cuenta" : "Creando tu cuenta de cobro en este dispositivo";
-      progress.push(L);
+      paso(L, false);
       const pubkey = await wallet.connect();
       await activateWallet(wallet);
-      progress.finish(L);
-      progress.push("Guardando tu tienda");
+      paso(L, true);
+      paso("Guardando tu tienda", false);
       await apiFirmada(wallet, "/api/sellers", { pubkey, storeName: store, whatsapp, city, pilotId });
-      progress.finish("Guardando tu tienda");
+      paso("Guardando tu tienda", true);
       router.push("/panel?primer=1");
     } catch (e) {
       setError((e as Error).message);
@@ -65,24 +75,26 @@ export default function Vender() {
 
   return (
     <div className="mx-auto max-w-md">
-      <ol className="mb-6 flex items-center gap-2" aria-label="Pasos">
+      <ol className="mb-6 grid grid-cols-3 gap-2" aria-label="Pasos">
         {PASOS.map((p, i) => (
-          <li key={p} className="flex flex-1 flex-col gap-1.5">
-            <span className={`h-1.5 rounded-full ${i <= step ? "bg-brand-600" : "bg-slate-200"}`} />
-            <span className={`text-xs ${i === step ? "font-semibold text-slate-900" : "text-slate-500"}`}>
+          <li key={p} className="flex flex-col gap-2">
+            <span className={`h-1.5 rounded-full transition-colors duration-300 ${i <= step ? "bg-yungas" : "bg-tinta-200"}`} />
+            <span className={`text-xs ${i === step ? "font-semibold text-monte" : "text-tinta-500"}`} aria-current={i === step ? "step" : undefined}>
               {i + 1}. {p}
             </span>
           </li>
         ))}
       </ol>
 
-      {pilotId && <p className="mb-4 rounded-xl bg-brand-50 p-3 text-sm text-brand-900">Vienes del piloto: tu tienda queda marcada como vendedor del piloto.</p>}
+      {pilotId && <p className="caja-exito mb-4">Vienes del piloto: tu tienda queda marcada como vendedor del piloto.</p>}
 
-      <div className="card">
+      <div className="card space-y-5 sm:p-6">
         {step === 0 && (
           <form onSubmit={next} className="space-y-4">
-            <h1 className="text-2xl font-bold">¿Cómo se llama tu tienda?</h1>
-            <p className="muted">Es el nombre que verán tus clientes al pagar.</p>
+            <div>
+              <h1 className="text-2xl sm:text-3xl">¿Cómo se llama tu tienda?</h1>
+              <p className="muted mt-1">Es el nombre que verán tus clientes al pagar.</p>
+            </div>
             <div>
               <label className="label" htmlFor="store">
                 Nombre de la tienda
@@ -107,8 +119,10 @@ export default function Vender() {
 
         {step === 1 && (
           <form onSubmit={next} className="space-y-4">
-            <h1 className="text-2xl font-bold">Tu WhatsApp</h1>
-            <p className="muted">Para que tus clientes te escriban y para armar los mensajes listos para enviar.</p>
+            <div>
+              <h1 className="text-2xl sm:text-3xl">Tu WhatsApp</h1>
+              <p className="muted mt-1">Para que tus clientes te escriban y para armar los mensajes listos para enviar.</p>
+            </div>
             <div>
               <label className="label" htmlFor="wa">
                 Número de WhatsApp
@@ -127,33 +141,38 @@ export default function Vender() {
 
         {step === 2 && (
           <div className="space-y-4">
-            <h1 className="text-2xl font-bold">Tu cuenta de cobro</h1>
-            {WALLET_KIND === "pollar" ? (
-              <p className="text-slate-600">
-                Aquí recibes lo que vendes. Ingresa con Google o tu correo y la cuenta se crea sola. Las comisiones de red las pagamos nosotros.
+            <div>
+              <h1 className="text-2xl sm:text-3xl">Tu cuenta de cobro</h1>
+              <p className="mt-1 text-sm text-tinta-600">
+                {WALLET_KIND === "pollar"
+                  ? "Aquí recibes lo que vendes. Ingresa con Google o tu correo y la cuenta se crea sola. Las comisiones de red las pagamos nosotros."
+                  : "Aquí recibes lo que vendes. Se crea sola en este dispositivo y solo tú puedes usarla: nosotros no podemos mover tu plata. Las comisiones de red las pagamos nosotros."}
               </p>
-            ) : (
-              <p className="text-slate-600">
-                Aquí recibes lo que vendes. Se crea sola en este dispositivo y solo tú puedes usarla: nosotros no podemos mover tu plata. Las comisiones de red
-                las pagamos nosotros.
-              </p>
+            </div>
+            <ul className="space-y-2 rounded-control bg-tinta-50 p-3 text-sm text-tinta-700">
+              <li className="flex items-start gap-2">
+                <IconoCandado className="mt-0.5 h-4 w-4 flex-none text-musgo" />
+                <span>
+                  <strong>{store || "Tu tienda"}</strong>
+                  {city ? ` · ${city}` : ""} · WhatsApp {whatsapp || "—"}
+                </span>
+              </li>
+              <li className="pl-6 text-xs text-tinta-500">Modo práctica: no se mueve dinero real.</li>
+            </ul>
+            {busy && (
+              <EsperaEnCurso
+                titulo="Creando tu cuenta de cobro"
+                nota="Suele tardar unos 10 segundos: se crea y se activa tu cuenta en la red de prueba, y después se guarda tu tienda."
+                steps={pasos}
+                testId="espera-cuenta"
+              />
             )}
-            <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800">Modo práctica: no se mueve dinero real.</p>
-            <Progress steps={progress.steps} />
             <ErrorBox error={error} />
             <button className="btn-primary w-full" onClick={crearCuenta} disabled={busy}>
-              {busy ? (
-                <>
-                  <Spinner /> Creando tu cuenta…
-                </>
-              ) : WALLET_KIND === "pollar" ? (
-                "Ingresar con Google o correo y continuar"
-              ) : (
-                "Crear mi cuenta de cobro y continuar"
-              )}
+              {busy ? "Creando tu cuenta…" : WALLET_KIND === "pollar" ? "Ingresar con Google o correo y continuar" : "Crear mi cuenta de cobro y continuar"}
             </button>
             {!busy && (
-              <button type="button" className="w-full text-sm text-slate-500 underline" onClick={() => setStep(1)}>
+              <button type="button" className="btn-ghost btn-sm w-full" onClick={() => setStep(1)}>
                 Atrás
               </button>
             )}

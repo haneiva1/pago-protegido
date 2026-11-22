@@ -3,11 +3,13 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { PublicRecord, useNow } from "@/components/Guardian";
+import { IconoAlerta, IconoCelular } from "@/components/iconos";
 import { ErrorBox, Progress, useProgress } from "@/components/ui";
 import { WhatsAppBox } from "@/components/WhatsAppBox";
 import { AvisoNavegadorInterno, CompraEnEsteNavegador, OtroNavegador } from "@/components/comprador/AccesoCompra";
 import { BarraPagar, ComoFunciona, DosSalidas, HojaEntrega, Producto, Proteccion, type DatosEntrega } from "@/components/comprador/Checkout";
 import { ConfirmarPago, PreguntaConfirmar } from "@/components/comprador/Confirmar";
+import { EsperaEnCurso } from "@/components/comprador/Espera";
 import { Antifraude, Esqueleto, EstadoPedido, LinkNoEncontrado } from "@/components/comprador/Estado";
 import { PagoQr } from "@/components/comprador/PagoQr";
 import { Reclamo } from "@/components/comprador/Reclamo";
@@ -31,6 +33,9 @@ const cargarWallet = cargaUnaVez(() =>
   }),
 );
 
+/** Qué espera está corriendo, para explicarla: el pago (varias transacciones) o una acción del pedido. */
+type Espera = "pago" | "accion" | null;
+
 export default function PaginaDePago() {
   const { slug } = useParams<{ slug: string }>();
   const [v, setV] = useState<OrderView | null>(null);
@@ -39,6 +44,7 @@ export default function PaginaDePago() {
   const [me, setMe] = useState<string | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [espera, setEspera] = useState<Espera>(null);
   const [hoja, setHoja] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [problem, setProblem] = useState(false);
@@ -76,7 +82,14 @@ export default function PaginaDePago() {
   const cerrarHoja = useCallback(() => setHoja(false), []);
 
   if (noExiste) return <LinkNoEncontrado />;
-  if (!v) return error ? <div className="mx-auto max-w-md"><ErrorBox error={error} /></div> : <Esqueleto />;
+  if (!v)
+    return error ? (
+      <div className="mx-auto max-w-md">
+        <ErrorBox error={error} />
+      </div>
+    ) : (
+      <Esqueleto />
+    );
 
   const o = v.order;
   const url = typeof window === "undefined" ? "" : window.location.href.split("?")[0];
@@ -94,8 +107,9 @@ export default function PaginaDePago() {
     amount: v.breakdown ? fmtBsUnits(v.breakdown.seller, o.fx) : undefined,
   };
 
-  async function run(fn: () => Promise<void>) {
+  async function run(tipo: Exclude<Espera, null>, fn: () => Promise<void>) {
     setBusy(true);
+    setEspera(tipo);
     setError(null);
     progress.reset();
     try {
@@ -106,11 +120,12 @@ export default function PaginaDePago() {
       await load();
     } finally {
       setBusy(false);
+      setEspera(null);
     }
   }
 
   const pagar = (datos: DatosEntrega) =>
-    run(async () => {
+    run("pago", async () => {
       // El comprador no ve ningún login: la cuenta se crea sola e invisible en este dispositivo.
       const { activateWallet, getWallet, signAndSubmit } = await cargarWallet();
       const wallet = getWallet("comprador");
@@ -129,7 +144,7 @@ export default function PaginaDePago() {
     });
 
   const accion = (action: "confirm" | "dispute" | "extend", extra: Record<string, string> = {}) =>
-    run(async () => {
+    run("accion", async () => {
       const { getWallet, signAndSubmit } = await cargarWallet();
       const wallet = getWallet("comprador");
       // "Necesito más tiempo" tiene su propia ruta (pp_guardian v2 `extend`, una sola vez).
@@ -140,19 +155,34 @@ export default function PaginaDePago() {
       setAsk(false);
     });
 
+  // La espera explicada: el pago encadena varias transacciones (unos 30 s); una acción del pedido, una sola.
+  const esperando =
+    busy && espera === "pago" ? (
+      <EsperaEnCurso
+        titulo="Guardando tu pago"
+        nota="Suele tardar unos 30 segundos: se crea el contrato de este pedido y tu pago queda guardado ahí. No cierres esta página."
+        steps={progress.steps}
+        testId="espera-pago"
+      />
+    ) : busy && espera === "accion" ? (
+      <EsperaEnCurso titulo="Enviando tu confirmación" nota="Unos segundos: la firma de tu cuenta queda en el registro público." steps={progress.steps} testId="espera-accion" />
+    ) : (
+      <Progress steps={progress.steps} />
+    );
+
   if (o.status === "esperando_pago") {
     return (
-      <div className="mx-auto max-w-md space-y-4 pb-28">
+      <div className="mx-auto max-w-md space-y-4 pb-32">
         <AvisoNavegadorInterno />
         <Producto v={v} compacto={qrOpen} />
         {takenByOther ? (
-          <p className="card text-center text-sm text-slate-600" data-testid="tomado">
+          <p className="card text-center text-sm text-tinta-600" data-testid="tomado">
             Este link ya lo está pagando otra persona.
           </p>
         ) : qrOpen || busy ? (
           <PagoQr v={v} busy={busy} onPay={() => delivery && pagar(delivery)} />
         ) : null}
-        <Progress steps={progress.steps} />
+        {esperando}
         <ErrorBox error={error} />
         {!qrOpen && (
           <>
@@ -194,11 +224,14 @@ export default function PaginaDePago() {
       <EstadoPedido v={v} />
       {me !== undefined && !isBuyer && <OtroNavegador v={v} />}
       <ErrorBox error={error} />
-      <Progress steps={progress.steps} />
+      {esperando}
       {pressure && (
-        <div data-testid="aviso-presion" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-          <p className="font-semibold">⚠️ Nunca pagues al vendedor porque te lo pide.</p>
-          <p className="mt-1">Abrimos un reclamo por presión para confirmar y le avisamos al revisor. Tu plata sigue guardada en el contrato.</p>
+        <div data-testid="aviso-presion" className="flex gap-3 rounded-card border border-aviso-200 bg-aviso-50 p-4 text-sm text-aviso-700">
+          <IconoAlerta className="mt-0.5 h-5 w-5 flex-none" />
+          <div>
+            <p className="font-semibold">Nunca pagues al vendedor porque te lo pide.</p>
+            <p className="mt-1">Abrimos un reclamo por presión para confirmar y le avisamos al revisor. Tu plata sigue guardada en el contrato.</p>
+          </div>
         </div>
       )}
       <Seguimiento v={v} esComprador={isBuyer} recogido={recogido} busy={busy} onRecogido={marcarRecogido} onNoLlego={() => accion("extend")} />
@@ -206,16 +239,19 @@ export default function PaginaDePago() {
       {isBuyer && (o.status === "pagado" || o.status === "enviado" || o.status === "en_disputa") && <CompraEnEsteNavegador />}
 
       {o.ship_imei && (o.status === "enviado" || o.status === "en_disputa") && (
-        <div data-testid="imei" className="card space-y-1 text-sm">
-          <p className="font-semibold">
-            📱 IMEI declarado por el vendedor: <span className="font-mono">{o.ship_imei}</span>
-          </p>
-          <p className="text-slate-600">Marca *#06# en el equipo y compara. Si no coincide, no pagues y abre un reclamo.</p>
+        <div data-testid="imei" className="card flex gap-3 text-sm">
+          <IconoCelular className="mt-0.5 h-5 w-5 flex-none text-musgo" />
+          <div className="space-y-1">
+            <p className="font-semibold">
+              IMEI declarado por el vendedor: <span className="font-mono">{o.ship_imei}</span>
+            </p>
+            <p className="text-tinta-600">Marca *#06# en el equipo y compara. Si no coincide, no pagues y abre un reclamo.</p>
+          </div>
         </div>
       )}
 
       {isBuyer && o.status === "pagado" && !problem && (
-        <div className="card space-y-2 text-sm text-slate-600">
+        <div className="card space-y-3 text-sm text-tinta-600">
           <p>Podrás pagar al vendedor cuando registre el envío y lo tengas en tus manos.</p>
           <button className="btn-danger w-full" disabled={busy} onClick={() => setProblem(true)}>
             Tengo un problema
@@ -260,7 +296,7 @@ export default function PaginaDePago() {
 
 function ModoPractica() {
   return (
-    <p className="text-center text-xs text-slate-500" data-testid="modo-practica">
+    <p className="text-center text-xs text-tinta-500" data-testid="modo-practica">
       Modo práctica: no se mueve dinero real. {DOLLAR_NOTE}
     </p>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { IconoAlerta, IconoCamion, IconoCheckCirculo, IconoChevronDerecha } from "@/components/iconos";
 import { pendientes, type PedidoPendiente } from "@/lib/vendedor";
 
 const TZ = "America/La_Paz";
@@ -18,17 +19,18 @@ export function Pendientes({ pedidos, onIr }: { pedidos: PedidoPendiente[]; onIr
   const lista = pendientes(pedidos, ahora);
 
   return (
-    <section className="card space-y-2" data-testid="pendientes">
+    <section className="card space-y-2 sm:p-6" data-testid="pendientes">
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-lg font-bold">Pendientes de hoy</h2>
-        {lista.length > 0 && <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-900">{lista.length}</span>}
+        <h2 className="text-xl">Pendientes de hoy</h2>
+        {lista.length > 0 && <span className="chip-aviso num">{lista.length}</span>}
       </div>
       {lista.length === 0 ? (
-        <p className="muted" data-testid="sin-pendientes">
-          Nada pendiente: no tienes pedidos por despachar ni reclamos por responder. 🙌
+        <p className="flex items-center gap-2 text-sm text-tinta-600" data-testid="sin-pendientes">
+          <IconoCheckCirculo className="h-5 w-5 flex-none text-musgo" />
+          Nada pendiente: no tienes pedidos por despachar ni reclamos por responder.
         </p>
       ) : (
-        <ul className="divide-y divide-slate-100">
+        <ul className="divide-y divide-tinta-100">
           {lista.map((p) => {
             const plazo =
               p.vence == null
@@ -38,23 +40,22 @@ export function Pendientes({ pedidos, onIr }: { pedidos: PedidoPendiente[]; onIr
                   : p.cuando === "hoy"
                     ? `hasta hoy a las ${hora(p.vence)}`
                     : `hasta el ${diaHora(p.vence)}`;
+            const Icono = p.tipo === "despachar" ? IconoCamion : IconoAlerta;
             return (
               <li key={`${p.tipo}-${p.slug}`} data-testid={`pendiente-${p.slug}`}>
-                <button type="button" onClick={() => onIr(p.slug)} className="flex w-full items-center gap-3 py-2.5 text-left">
-                  <span className="text-xl" aria-hidden>
-                    {p.tipo === "despachar" ? "📦" : "⚠️"}
+                <button type="button" onClick={() => onIr(p.slug)} className="flex w-full items-center gap-3 rounded-control py-2.5 text-left transition-colors duration-150 hover:bg-tinta-50">
+                  <span className={`flex h-9 w-9 flex-none items-center justify-center rounded-full ${p.tipo === "despachar" ? "bg-exito-50 text-musgo" : "bg-aviso-50 text-aviso-700"}`}>
+                    <Icono className="h-5 w-5" />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-semibold">
                       {p.tipo === "despachar" ? "Despachar" : "Responder el reclamo"}: {p.product}
                     </span>
-                    <span className={`block text-xs ${p.cuando === "vencido" ? "font-semibold text-rose-700" : p.cuando === "hoy" ? "font-semibold text-amber-800" : "text-slate-500"}`}>
+                    <span className={`block text-xs ${p.cuando === "vencido" ? "font-semibold text-error-700" : p.cuando === "hoy" ? "font-semibold text-aviso-700" : "text-tinta-500"}`}>
                       {[p.code, plazo].filter(Boolean).join(" · ")}
                     </span>
                   </span>
-                  <span className="text-slate-400" aria-hidden>
-                    →
-                  </span>
+                  <IconoChevronDerecha className="h-5 w-5 flex-none text-tinta-400" />
                 </button>
               </li>
             );

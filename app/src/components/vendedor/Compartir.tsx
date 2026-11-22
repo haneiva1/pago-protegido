@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { IconoExterno, IconoWhatsApp } from "@/components/iconos";
 import { waLink } from "@/lib/whatsapp";
 
 /**
@@ -14,7 +15,8 @@ export function Compartir({ text, label = "Compartir", className = "btn-primary"
   if (!nativo)
     return (
       <a href={waLink(text)} target="_blank" rel="noreferrer" className={className} data-testid={testId}>
-        📤 {label}
+        <IconoWhatsApp className="h-5 w-5" />
+        {label}
       </a>
     );
   return (
@@ -27,7 +29,8 @@ export function Compartir({ text, label = "Compartir", className = "btn-primary"
         navigator.share({ text }).catch(() => {});
       }}
     >
-      📤 {label}
+      <IconoExterno className="h-5 w-5" />
+      {label}
     </button>
   );
 }

@@ -2,7 +2,24 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { LIMITES, Limitador, ipDe, minutosDe } from "../src/lib/probar-limite.ts";
-import { PASOS, enProbar, errorDelContrato, filasRegistro, hayPlataGuardada, probarStorageKey, siguientePaso } from "../src/lib/probar.ts";
+import {
+  ETAPAS,
+  PASOS,
+  PASOS_PAGO,
+  cuentaRegresiva,
+  duracion,
+  enProbar,
+  errorDelContrato,
+  etapaActual,
+  etapas,
+  filasRegistro,
+  hayPlataGuardada,
+  probarStorageKey,
+  progresoPago,
+  resumenRed,
+  siguientePaso,
+  turnoDe,
+} from "../src/lib/probar.ts";
 
 const PROHIBIDAS = [/garant[ií]a/i, /\bseguro\b/i, /custodia/i, /arbitraje/i, /árbitro/i, /100\s?%/, /cripto/i, /\btoken/i, /\bwallet\b/i, /\bllaves?\b/i, /blockchain/i];
 
@@ -96,5 +113,74 @@ test("textos de /probar sin palabras prohibidas", () => {
       "V",
     ).map((f) => f.texto),
   ];
+  for (const t of textos) for (const re of PROHIBIDAS) assert.doesNotMatch(t, re, `${re} en "${t}"`);
+});
+
+test("la historia en 5 etapas: una sola 'ahora', el desvío se puede saltar y la devolución salta el envío", () => {
+  const ids = ETAPAS.map((e) => e.id);
+  assert.deepEqual(ids, ["link", "pago", "desvio", "envio", "cobro"]);
+  const sinNada = etapas({ pedido: false, status: null, desvios: 0, envio: false });
+  assert.equal(sinNada.link, "ahora");
+  assert.deepEqual(etapaActual(sinNada), { numero: 1, terminada: false });
+  const esperando = etapas({ pedido: true, status: "esperando_pago", desvios: 0, envio: false });
+  assert.deepEqual([esperando.link, esperando.pago, esperando.desvio], ["hecha", "ahora", "pendiente"]);
+  const pagado = etapas({ pedido: true, status: "pagado", desvios: 0, envio: false });
+  assert.deepEqual([pagado.pago, pagado.desvio, pagado.envio], ["hecha", "ahora", "pendiente"], "con la plata adentro toca intentar el desvío");
+  const desviado = etapas({ pedido: true, status: "pagado", desvios: 1, envio: false });
+  assert.deepEqual([desviado.desvio, desviado.envio], ["hecha", "ahora"]);
+  const enviadoSinDesvio = etapas({ pedido: true, status: "enviado", desvios: 0, envio: true });
+  assert.deepEqual([enviadoSinDesvio.desvio, enviadoSinDesvio.envio, enviadoSinDesvio.cobro], ["omitida", "hecha", "ahora"]);
+  assert.deepEqual(etapaActual(enviadoSinDesvio), { numero: 5, terminada: false });
+  const liberado = etapas({ pedido: true, status: "liberado", desvios: 1, envio: true });
+  assert.ok(Object.values(liberado).every((v) => v === "hecha"));
+  assert.deepEqual(etapaActual(liberado), { numero: 5, terminada: true });
+  const devuelto = etapas({ pedido: true, status: "devuelto", desvios: 0, envio: false });
+  assert.deepEqual([devuelto.pago, devuelto.desvio, devuelto.envio, devuelto.cobro], ["hecha", "omitida", "omitida", "omitida"]);
+  for (const e of [sinNada, esperando, pagado, desviado, enviadoSinDesvio, liberado, devuelto]) assert.ok(Object.values(e).filter((v) => v === "ahora").length <= 1);
+});
+
+test("a quién le toca: el vendedor crea y despacha, el comprador paga y confirma", () => {
+  assert.equal(turnoDe({ tienda: false, status: null }), "vendedor");
+  assert.equal(turnoDe({ tienda: true, status: null }), "vendedor");
+  assert.equal(turnoDe({ tienda: true, status: "esperando_pago" }), "comprador");
+  assert.equal(turnoDe({ tienda: true, status: "pagado" }), "vendedor");
+  assert.equal(turnoDe({ tienda: true, status: "enviado" }), "comprador");
+  assert.equal(turnoDe({ tienda: true, status: "liberado" }), null);
+});
+
+test("esperas explicadas: avance del pago en 4 movimientos, cuenta regresiva y duración legibles", () => {
+  const filas = filasRegistro(
+    [
+      { kind: "trustline", actor: "GCOMPRADOR", hash: "b", created_at: 2 },
+      { kind: "rampa", actor: "rampa", hash: "c", created_at: 3 },
+    ],
+    "V",
+  );
+  assert.deepEqual(progresoPago([]), { hechos: 0, total: 4, haciendo: PASOS_PAGO[0].haciendo });
+  assert.deepEqual(progresoPago(filas), { hechos: 2, total: 4, haciendo: "Creando el contrato de este pedido" });
+  const todo = filasRegistro(
+    ["trustline", "rampa", "escrow", "fondeo"].map((kind, i) => ({ kind, actor: "GCOMPRADOR", hash: String(i), created_at: i })),
+    "V",
+  );
+  assert.deepEqual(progresoPago(todo), { hechos: 4, total: 4, haciendo: null });
+  assert.equal(cuentaRegresiva(61_000, 0), "1:01");
+  assert.equal(cuentaRegresiva(500, 0), "0:01");
+  assert.equal(cuentaRegresiva(0, 5_000), "0:00", "nunca negativa");
+  assert.equal(duracion(48_000), "48 s");
+  assert.equal(duracion(134_000), "2 min 14 s");
+  assert.equal(duracion(120_000), "2 min");
+  const r = resumenRed(
+    [
+      { kind: "trustline", paso: "link", texto: "", hash: "a", at: 1_000 },
+      { kind: "liberacion", paso: "cobro", texto: "", hash: "f", at: 90_000 },
+      { kind: "x", paso: "otro", texto: "", hash: null, at: 95_000 },
+    ],
+    0,
+  );
+  assert.deepEqual(r, { transacciones: 2, duracionMs: 90_000 });
+});
+
+test("textos nuevos de /probar sin palabras prohibidas", () => {
+  const textos = [...ETAPAS.map((e) => e.titulo), ...ETAPAS.map((e) => e.corto), ...PASOS_PAGO.map((p) => p.haciendo)];
   for (const t of textos) for (const re of PROHIBIDAS) assert.doesNotMatch(t, re, `${re} en "${t}"`);
 });

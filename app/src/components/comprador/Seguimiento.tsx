@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { IconoCheck } from "@/components/iconos";
 import { CopyButton, Spinner } from "@/components/ui";
 import { fmtDate } from "@/lib/format";
 import { fmtFlete } from "@/lib/comprador";
@@ -63,24 +64,31 @@ export function Seguimiento({
 
   return (
     <section className="card space-y-4" data-testid="seguimiento">
-      <ol className="grid grid-cols-4 gap-1 text-center text-[11px] font-medium" data-testid="pasos-seguimiento">
+      <ol className="relative grid grid-cols-4 gap-1 text-center text-[11px] font-medium" data-testid="pasos-seguimiento">
+        {/* La línea que une los pasos: completa hasta el último hecho. */}
+        <span aria-hidden className="absolute left-[12.5%] right-[12.5%] top-3.5 h-0.5 bg-tinta-200" />
+        <span
+          aria-hidden
+          className="absolute left-[12.5%] top-3.5 h-0.5 bg-yungas transition-[width] duration-500"
+          style={{ width: `${Math.max(0, (actual < 0 ? 3 : actual - 1)) * 25}%` }}
+        />
         {pasos.map((p, i) => (
-          <li key={p.t} className="flex flex-col items-center gap-1" data-testid={`paso-${i + 1}`} data-hecho={p.ok ? "si" : "no"}>
+          <li key={p.t} className="relative flex flex-col items-center gap-1.5" data-testid={`paso-${i + 1}`} data-hecho={p.ok ? "si" : "no"}>
             <span
-              className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
-                p.ok ? "bg-brand-600 text-monte" : i === actual ? "bg-white text-brand-700 ring-2 ring-brand-500" : "bg-slate-100 text-slate-400"
+              className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold num ${
+                p.ok ? "bg-yungas text-monte" : i === actual ? "bg-white text-musgo ring-2 ring-musgo" : "bg-tinta-100 text-tinta-500 ring-1 ring-tinta-200"
               }`}
             >
-              {p.ok ? "✓" : i + 1}
+              {p.ok ? <IconoCheck className="h-3.5 w-3.5" strokeWidth={2.5} /> : i + 1}
             </span>
-            <span className={p.ok || i === actual ? "text-slate-800" : "text-slate-400"}>{p.t}</span>
+            <span className={p.ok || i === actual ? "text-tinta-800" : "text-tinta-500"}>{p.t}</span>
           </li>
         ))}
       </ol>
 
       {esComprador && (
-        <div className="rounded-xl bg-slate-50 p-3 text-sm ring-1 ring-slate-200" data-testid="proximo-paso">
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">Tu próximo paso</p>
+        <div className="panel-suave !p-3 text-sm" data-testid="proximo-paso">
+          <p className="eyebrow">Tu próximo paso</p>
           {o.status === "pagado" && (
             <p className="mt-1">
               Espera el despacho. {v.seller.store_name} tiene hasta el <strong>{fmtDate(o.ship_deadline)}</strong>; si no despacha, el pago vuelve a ti solo.
@@ -96,22 +104,22 @@ export function Seguimiento({
                   {o.ship_tracking && <strong className="font-mono">{o.ship_tracking}</strong>}.
                 </p>
               )}
-              {flete && <p className="text-slate-600">{flete}.</p>}
+              {flete && <p className="text-tinta-600">{flete}.</p>}
               <div className="flex flex-wrap gap-2">
-                {o.ship_tracking && <CopyButton text={o.ship_tracking} label="Copiar guía" className="btn-secondary !py-2 text-sm" />}
-                <button type="button" className="btn-primary !py-2 text-sm" onClick={onRecogido} disabled={busy}>
+                {o.ship_tracking && <CopyButton text={o.ship_tracking} label="Copiar guía" className="btn-secondary btn-sm" />}
+                <button type="button" className="btn-oscuro btn-sm" onClick={onRecogido} disabled={busy}>
                   Ya lo recogí
                 </button>
                 {puedeExtender && (
-                  <button type="button" className="btn-secondary !py-2 text-sm" onClick={onNoLlego} disabled={busy}>
+                  <button type="button" className="btn-secondary btn-sm" onClick={onNoLlego} disabled={busy}>
                     {busy ? <Spinner /> : null} Todavía no llegó
                   </button>
                 )}
               </div>
               {puedeExtender ? (
-                <p className="text-xs text-slate-500">«Todavía no llegó» suma otra ventana de revisión, una sola vez. La tienda no cobra mientras tanto.</p>
+                <p className="text-xs text-tinta-500">«Todavía no llegó» suma otra ventana de revisión, una sola vez. La tienda no cobra mientras tanto.</p>
               ) : o.extended ? (
-                <p className="text-xs text-slate-500">Ya pediste más tiempo. Si no llega, abre un reclamo con el motivo «No llegó».</p>
+                <p className="text-xs text-tinta-500">Ya pediste más tiempo. Si no llega, abre un reclamo con el motivo «No llegó».</p>
               ) : null}
             </div>
           )}

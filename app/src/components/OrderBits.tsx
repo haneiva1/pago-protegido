@@ -1,6 +1,18 @@
 "use client";
 
-import { fmtBsUnits, fmtDate } from "@/lib/format";
+import type { ComponentType, SVGProps } from "react";
+import {
+  IconoAlerta,
+  IconoBalanza,
+  IconoBillete,
+  IconoCamion,
+  IconoCandado,
+  IconoCheckCirculo,
+  IconoDocumento,
+  IconoReloj,
+  IconoVolver,
+} from "@/components/iconos";
+import { fmtBsUnits, fmtDate, fmtKg } from "@/lib/format";
 import type { MoneyView, PublicOrder, ReintegroView, TxRow } from "@/lib/types";
 import { TxLink } from "./ui";
 
@@ -11,15 +23,15 @@ export function Breakdown({ money, fx, feePayer, platformBps = 200 }: { money: M
   const prot = BigInt(b.platform) + BigInt(b.tw);
   return (
     <dl data-testid="desglose" className="grid grid-cols-2 gap-2 text-center">
-      <div className="rounded-xl bg-brand-50 p-3 ring-1 ring-brand-100">
-        <dt className="text-xs text-brand-800">Vendedor recibió</dt>
-        <dd className="mt-1 text-lg font-bold text-brand-900">{fmtBsUnits(b.seller, fx)}</dd>
+      <div className="rounded-control bg-exito-50 p-3 ring-1 ring-exito-200">
+        <dt className="text-xs text-musgo">Vendedor recibió</dt>
+        <dd className="mt-1 font-display text-lg text-monte num">{fmtBsUnits(b.seller, fx)}</dd>
       </div>
-      <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
-        <dt className="text-xs text-slate-600">Protección{feePayer === "comprador" ? " (la pagó el comprador)" : ` (${(platformBps / 100).toLocaleString("es-BO")}% + 0,3%)`}</dt>
-        <dd className="mt-1 text-lg font-semibold">{fmtBsUnits(prot, fx)}</dd>
+      <div className="rounded-control bg-tinta-50 p-3 ring-1 ring-tinta-200">
+        <dt className="text-xs text-tinta-600">Protección{feePayer === "comprador" ? " (la pagó el comprador)" : ` (${String(platformBps / 100).replace(".", ",")}% + 0,3%)`}</dt>
+        <dd className="mt-1 text-lg font-semibold num">{fmtBsUnits(prot, fx)}</dd>
       </div>
-      <p className="col-span-2 text-xs text-slate-500">
+      <p className="col-span-2 text-xs text-tinta-500">
         Plataforma {fmtBsUnits(b.platform, fx)} · Trustless Work (0,3%) {fmtBsUnits(b.tw, fx)}. Montos calculados igual que el contrato.
       </p>
     </dl>
@@ -32,18 +44,18 @@ export function SplitView({ money, buyerBps, fx }: { money: MoneyView; buyerBps:
   const s = money.split;
   const b = buyerBps / 100;
   // Sin "100 %" en pantalla (lista de palabras prohibidas): en los extremos se dice con palabras.
-  const pct = (x: number) => (x === 100 ? "todo" : x === 0 ? "nada" : `${x.toLocaleString("es-BO")}%`);
+  const pct = (x: number) => (x === 100 ? "todo" : x === 0 ? "nada" : `${String(x).replace(".", ",")}%`);
   return (
     <dl data-testid="reparto" className="grid grid-cols-2 gap-2 text-center">
-      <div className="rounded-xl bg-violet-50 p-3 ring-1 ring-violet-100">
-        <dt className="text-xs text-violet-800">Comprador ({pct(b)})</dt>
-        <dd className="mt-1 text-lg font-bold text-violet-900">{fmtBsUnits(s.buyer, fx)}</dd>
+      <div className="rounded-control bg-info-50 p-3 ring-1 ring-info-200">
+        <dt className="text-xs text-info-700">Comprador ({pct(b)})</dt>
+        <dd className="mt-1 font-display text-lg text-info-700 num">{fmtBsUnits(s.buyer, fx)}</dd>
       </div>
-      <div className="rounded-xl bg-violet-50 p-3 ring-1 ring-violet-100">
-        <dt className="text-xs text-violet-800">Vendedor ({pct(100 - b)})</dt>
-        <dd className="mt-1 text-lg font-bold text-violet-900">{fmtBsUnits(s.seller, fx)}</dd>
+      <div className="rounded-control bg-info-50 p-3 ring-1 ring-info-200">
+        <dt className="text-xs text-info-700">Vendedor ({pct(100 - b)})</dt>
+        <dd className="mt-1 font-display text-lg text-info-700 num">{fmtBsUnits(s.seller, fx)}</dd>
       </div>
-      <p className="col-span-2 text-xs text-slate-500">
+      <p className="col-span-2 text-xs text-tinta-500">
         Netos. Comisiones descontadas por el contrato: plataforma {fmtBsUnits(s.platform, fx)} · Trustless Work {fmtBsUnits(s.tw, fx)}.
       </p>
       {money.reintegro && <Reintegro r={money.reintegro} fx={fx} />}
@@ -55,9 +67,9 @@ export function SplitView({ money, buyerBps, fx }: { money: MoneyView; buyerBps:
 function Reintegro({ r, fx }: { r: ReintegroView; fx: number }) {
   if (r.estado === "confirmado" && r.hash) {
     return (
-      <div data-testid="reintegro" className="col-span-2 space-y-1 rounded-xl bg-emerald-50 p-3 text-left ring-1 ring-emerald-100">
-        <p className="font-bold text-emerald-900">Te devolvimos todo lo que pagaste: {fmtBsUnits(r.pagado, fx)}</p>
-        <p className="text-xs text-emerald-900">
+      <div data-testid="reintegro" className="col-span-2 space-y-1 rounded-control bg-exito-50 p-3 text-left ring-1 ring-exito-200">
+        <p className="font-semibold text-monte">Te devolvimos todo lo que pagaste: {fmtBsUnits(r.pagado, fx)}</p>
+        <p className="text-xs text-tinta-700">
           El contrato te devolvió {fmtBsUnits(r.recibido, fx)} y Trato te transfirió las comisiones ({fmtBsUnits(r.monto, fx)}).
         </p>
         <p className="flex flex-wrap gap-x-4 gap-y-1">
@@ -68,31 +80,33 @@ function Reintegro({ r, fx }: { r: ReintegroView; fx: number }) {
     );
   }
   return (
-    <p data-testid="reintegro" className="col-span-2 rounded-xl bg-amber-50 p-3 text-left text-xs text-amber-900 ring-1 ring-amber-100">
+    <p data-testid="reintegro" className="caja-aviso col-span-2 text-left text-xs">
       Trato te va a transferir las comisiones ({fmtBsUnits(r.monto, fx)}) para que recibas todo lo que pagaste.
     </p>
   );
 }
 
-const ICON: Record<string, string> = {
-  rampa: "🏦",
-  escrow: "📄",
-  fondeo: "🔒",
-  envio: "📦",
-  aprobacion: "👍",
-  liberacion: "✅",
-  disputa: "⚠️",
-  resolucion: "⚖️",
-  extension: "⏳",
-  devolucion: "↩️",
-  reintegro: "💸",
+type Icono = ComponentType<SVGProps<SVGSVGElement> & { className?: string }>;
+
+const ICONO: Record<string, Icono> = {
+  rampa: IconoBillete,
+  escrow: IconoDocumento,
+  fondeo: IconoCandado,
+  envio: IconoCamion,
+  aprobacion: IconoCheckCirculo,
+  liberacion: IconoCheckCirculo,
+  disputa: IconoAlerta,
+  resolucion: IconoBalanza,
+  extension: IconoReloj,
+  devolucion: IconoVolver,
+  reintegro: IconoBillete,
 };
 
 /** Línea de tiempo del pedido, con "Ver registro público" en cada transacción. */
 export function Timeline({ order, txs }: { order: PublicOrder; txs: TxRow[] }) {
   const items: { key: string; title: string; when?: number | null; detail?: string; done: boolean; tone?: string; tx?: TxRow }[] = [];
   const tx = (kind: string) => txs.filter((t) => t.kind === kind).at(-1);
-  const envio = [order.ship_company, order.ship_tracking && `guía ${order.ship_tracking}`, order.ship_weight && `${String(order.ship_weight).replace(".", ",")} kg`]
+  const envio = [order.ship_company, order.ship_tracking && `guía ${order.ship_tracking}`, order.ship_weight && fmtKg(`${order.ship_weight} kg`)]
     .filter(Boolean)
     .join(" · ");
   items.push({ key: "pago", title: "Pagaste: tu pago quedó guardado", when: order.funded_at, done: Boolean(order.funded_at), tx: tx("fondeo") });
@@ -100,26 +114,25 @@ export function Timeline({ order, txs }: { order: PublicOrder; txs: TxRow[] }) {
     key: "envio",
     title: "El vendedor registró el envío",
     when: order.shipped_at,
-    detail: envio || order.shipped_evidence || undefined,
+    detail: envio || fmtKg(order.shipped_evidence) || undefined,
     done: Boolean(order.shipped_at),
     tx: tx("envio"),
   });
   if (order.status === "en_disputa" || order.status === "resuelto") {
-    items.push({ key: "disputa", title: "Reclamo abierto: la plata quedó congelada", when: order.disputed_at, detail: order.dispute_reason ?? undefined, done: true, tone: "amber", tx: tx("disputa") });
-    items.push({ key: "resuelto", title: "El revisor repartió la plata", when: order.resolved_at, done: order.status === "resuelto", tone: "violet", tx: tx("resolucion") });
+    items.push({ key: "disputa", title: "Reclamo abierto: la plata quedó congelada", when: order.disputed_at, detail: order.dispute_reason ?? undefined, done: true, tone: "aviso", tx: tx("disputa") });
+    items.push({ key: "resuelto", title: "El revisor repartió la plata", when: order.resolved_at, done: order.status === "resuelto", tone: "info", tx: tx("resolucion") });
   } else {
     items.push({ key: "liberado", title: "Se pagó al vendedor", when: order.released_at, done: order.status === "liberado", tx: tx("liberacion") });
   }
-  const dot = (done: boolean, tone?: string) =>
-    done ? (tone === "amber" ? "bg-amber-500" : tone === "violet" ? "bg-violet-600" : "bg-brand-600") : "bg-slate-300";
+  const dot = (done: boolean, tone?: string) => (done ? (tone === "aviso" ? "bg-aviso-600" : tone === "info" ? "bg-info-600" : "bg-yungas") : "bg-tinta-200");
   return (
-    <ol data-testid="linea-de-tiempo" className="relative space-y-5 border-l-2 border-slate-200 pl-6">
+    <ol data-testid="linea-de-tiempo" className="relative space-y-5 border-l-2 border-tinta-200 pl-6">
       {items.map((it) => (
         <li key={it.key} className="relative">
           <span className={`absolute -left-[31px] top-1 h-4 w-4 rounded-full ring-4 ring-white ${dot(it.done, it.tone)}`} />
-          <p className={`font-medium ${it.done ? "text-slate-900" : "text-slate-400"}`}>{it.title}</p>
-          {it.done && it.when ? <p className="text-xs text-slate-500">{fmtDate(it.when)}</p> : null}
-          {it.detail && it.done ? <p className="mt-0.5 text-sm text-slate-600">{it.detail}</p> : null}
+          <p className={`font-medium ${it.done ? "text-monte" : "text-tinta-500"}`}>{it.title}</p>
+          {it.done && it.when ? <p className="text-xs text-tinta-500 num">{fmtDate(it.when)}</p> : null}
+          {it.detail && it.done ? <p className="mt-0.5 text-sm text-tinta-600">{it.detail}</p> : null}
           {it.tx ? <TxLink hash={it.tx.hash} /> : null}
         </li>
       ))}
@@ -131,17 +144,22 @@ export function Timeline({ order, txs }: { order: PublicOrder; txs: TxRow[] }) {
 export function TxList({ txs }: { txs: TxRow[] }) {
   if (!txs.length) return null;
   return (
-    <ul className="divide-y divide-slate-100">
-      {txs.map((t) => (
-        <li key={t.id} className="flex items-start gap-3 py-2.5 text-sm">
-          <span aria-hidden>{ICON[t.kind] ?? "•"}</span>
-          <span className="flex-1">
-            <span className="block text-slate-800">{t.label}</span>
-            <span className="text-xs text-slate-500">{fmtDate(t.created_at)}</span>
-          </span>
-          <TxLink hash={t.hash} />
-        </li>
-      ))}
+    <ul className="divide-y divide-tinta-100">
+      {txs.map((t) => {
+        const I = ICONO[t.kind] ?? IconoDocumento;
+        return (
+          <li key={t.id} className="flex items-start gap-3 py-2.5 text-sm">
+            <span className="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-full bg-tinta-100 text-tinta-700">
+              <I className="h-4 w-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-tinta-800">{fmtKg(t.label)}</span>
+              <span className="text-xs text-tinta-500 num">{fmtDate(t.created_at)}</span>
+            </span>
+            <TxLink hash={t.hash} />
+          </li>
+        );
+      })}
     </ul>
   );
 }

@@ -59,62 +59,59 @@ export function PagoQr({ v, busy, onPay }: { v: OrderView; busy: boolean; onPay:
   }
 
   return (
-    <section className="card space-y-4" data-testid="qr">
-      <div className="flex items-center justify-between">
-        <h2 className="font-bold">Paga con el QR desde tu banco</h2>
-        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">SIMULADO</span>
+    <section className="card space-y-4 animate-aparecer" data-testid="qr">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg">Paga con el QR desde tu banco</h2>
+        <span className="chip-aviso flex-none">Simulado</span>
       </div>
       <div className="flex flex-col items-center gap-2">
         {qr ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={qr} alt={`QR de pago ${o.code}`} className="h-52 w-52 rounded-xl ring-1 ring-slate-200" data-testid="imagen-qr" />
+          <img src={qr} alt={`QR de pago ${o.code}`} className="h-52 w-52 rounded-card ring-1 ring-tinta-200" data-testid="imagen-qr" />
         ) : (
-          <div className="h-52 w-52 animate-pulse rounded-xl bg-slate-100" />
+          <div className="h-52 w-52 animate-pulse rounded-card bg-tinta-100" />
         )}
-        <p className="text-center text-xs text-slate-500" data-testid="qr-entidad">
+        <p className="text-center text-xs text-tinta-500" data-testid="qr-entidad">
           QR de ejemplo a nombre de {ENTIDAD_QR}, nunca de una persona · {o.code}
         </p>
       </div>
-      <p className="text-center text-2xl font-extrabold">{fmtBsUnits(o.amount_units, o.fx)}</p>
+      <p className="text-center font-display text-3xl tracking-tight num">{fmtBsUnits(o.amount_units, o.fx)}</p>
 
       <div className="grid grid-cols-2 gap-2">
-        <button type="button" className="btn-secondary !py-2.5 text-sm" onClick={guardar} disabled={!qr}>
-          ⬇️ Guardar QR
+        <button type="button" className="btn-secondary btn-sm" onClick={guardar} disabled={!qr}>
+          Guardar QR
         </button>
-        <button type="button" className="btn-secondary !py-2.5 text-sm" onClick={compartir} disabled={!qr}>
-          ↗️ Compartir QR
+        <button type="button" className="btn-secondary btn-sm" onClick={compartir} disabled={!qr}>
+          Compartir QR
         </button>
       </div>
-      {aviso && <p className="text-center text-xs text-slate-600">{aviso}</p>}
+      {aviso && <p className="text-center text-xs text-tinta-600">{aviso}</p>}
 
-      <ol className="space-y-1.5 rounded-xl bg-slate-50 p-3 text-sm" data-testid="pasos-qr">
+      <ol className="space-y-2 rounded-control bg-tinta-50 p-3 text-sm" data-testid="pasos-qr">
         {PASOS.map((p, i) => (
-          <li key={p} className="flex gap-2">
-            <span className="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-brand-600 text-[11px] font-bold text-monte">{i + 1}</span>
-            <span>{p}</span>
+          <li key={p} className="flex gap-2.5">
+            <span className="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-yungas text-[11px] font-semibold text-monte num">{i + 1}</span>
+            <span className="text-tinta-700">{p}</span>
           </li>
         ))}
       </ol>
 
-      <div className="flex items-center justify-center gap-2 text-sm font-medium text-slate-700" data-testid="esperando-pago" aria-live="polite">
-        <span className={busy ? "text-brand-700" : "text-slate-500"}>
+      <div className="flex items-center justify-center gap-2 text-sm font-medium text-tinta-700" data-testid="esperando-pago" aria-live="polite">
+        <span className={busy ? "text-musgo" : "text-tinta-500"}>
           <Candado cerrado={busy} className="h-5 w-5" />
         </span>
         {busy ? (
           "Guardando tu pago…"
         ) : (
           <>
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-400 opacity-75" />
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-brand-600" />
-            </span>
+            <span className="h-2.5 w-2.5 rounded-full bg-yungas animate-latido" aria-hidden />
             Esperando tu pago…
           </>
         )}
       </div>
 
-      <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900" data-testid="rampa-simulada">
-        Rampa simulada en testnet. En producción la hace una entidad certificada por ASFI.
+      <p className="caja-aviso text-xs" data-testid="rampa-simulada">
+        Pago simulado en la red de prueba. En producción lo hace una entidad certificada por ASFI.
       </p>
       <button className="btn-primary w-full" disabled={busy} onClick={onPay}>
         {busy ? (
