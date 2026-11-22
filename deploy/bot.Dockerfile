@@ -16,7 +16,7 @@ ENV NODE_ENV=production \
     BOT_STATE_FILE=/data/bot-state.json
 USER node
 EXPOSE 3040
-VOLUME ["/data"]
+# Sin VOLUME: Railway lo rechaza. El volumen se monta en /data desde la plataforma (o docker-compose).
 # Webhook de Meta en /webhook; /health responde "ok".
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3040)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
