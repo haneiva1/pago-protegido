@@ -387,7 +387,7 @@ function RegistroEnVivo({ registro, filas, desvios }: { registro: Registro | nul
               <p className="flex items-center gap-2 text-sm font-semibold">
                 <span
                   aria-hidden
-                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs ${hecho[paso.id] ? "bg-brand-600 text-white" : "bg-slate-200 text-slate-600"}`}
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs ${hecho[paso.id] ? "bg-brand-600 text-monte" : "bg-slate-200 text-slate-600"}`}
                 >
                   {hecho[paso.id] ? "✓" : i + 1}
                 </span>

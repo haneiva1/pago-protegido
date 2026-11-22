@@ -1,15 +1,14 @@
 // Piezas compartidas de las imágenes Open Graph (next/og, 1200x630). Sin dependencias de Node.
 
 export const OG_SIZE = { width: 1200, height: 630 };
-export const BRAND = { green: "#059669", dark: "#047857", deep: "#064e3b", ink: "#0f172a", mint: "#d1fae5" };
+export const BRAND = { green: "#50DE50", dark: "#0F6E3D", deep: "#0A2A1B", ink: "#0A2A1B", mint: "#D9F4D4", sal: "#F5F7F1" };
 
-/** El logo: escudo con check (mismo dibujo que src/app/icon.svg). */
+/** El ícono de la marca: el Nudo en Monte sobre Yungas (mismo dibujo que src/app/icon.png). */
 export function ShieldLogo({ size = 96 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 64 64">
-      <path d="M32 4 9 12.5v17.2C9 45 18.8 56.3 32 60c13.2-3.7 23-15 23-30.3V12.5L32 4Z" fill={BRAND.green} />
-      <path d="M32 4 9 12.5v17.2C9 45 18.8 56.3 32 60V4Z" fill={BRAND.dark} />
-      <path d="m21 32.5 7.6 7.6L43.5 25" fill="none" stroke="#fff" strokeWidth="5.6" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width={size} height={size} viewBox="0 0 152 152">
+      <rect width="152" height="152" rx="34" fill="#50DE50" />
+      <path transform="translate(35.19 38) scale(0.7037)" d="M0 0 L58 47.5 L116 0 V108 L58 60.5 L0 108 Z" fill="#0A2A1B" />
     </svg>
   );
 }

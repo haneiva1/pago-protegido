@@ -1,16 +1,24 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand-50: #ecfdf5;
-  --color-brand-100: #d1fae5;
-  --color-brand-200: #a7f3d0;
-  --color-brand-500: #10b981;
-  --color-brand-600: #059669;
-  --color-brand-700: #047857;
-  --color-brand-800: #065f46;
-  --color-brand-900: #064e3b;
-  --color-ink: #0f172a;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Marca final de Trato: Yungas #50DE50 (firma), Monte #0A2A1B (texto/oscuro), Sal #F5F7F1 (fondo claro), Musgo #0F6E3D (texto verde sobre claro). */
+  --color-yungas: #50de50;
+  --color-monte: #0a2a1b;
+  --color-sal: #f5f7f1;
+  --color-musgo: #0f6e3d;
+  /* Escala brand-*: los tonos 400-600 son Yungas (fondos, nunca texto sobre claro); 700+ son Musgo/Monte (texto). */
+  --color-brand-50: #eef9ea;
+  --color-brand-100: #d9f4d4;
+  --color-brand-200: #b4ecb0;
+  --color-brand-400: #50de50;
+  --color-brand-500: #50de50;
+  --color-brand-600: #50de50;
+  --color-brand-700: #0f6e3d;
+  --color-brand-800: #0c5a32;
+  --color-brand-900: #0a2a1b;
+  --color-ink: #0a2a1b;
+  --font-sans: var(--font-funnel-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-funnel-display), var(--font-funnel-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 :root {
@@ -19,7 +27,7 @@
 
 html,
 body {
-  background: #f6f7f9;
+  background: var(--color-sal);
   color: var(--color-ink);
 }
 
@@ -27,8 +35,15 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 800;
+}
+
 input[type="range"] {
-  accent-color: var(--color-brand-600);
+  accent-color: var(--color-yungas);
 }
 
 @utility card {
@@ -40,7 +55,7 @@ input[type="range"] {
 }
 
 @utility btn-primary {
-  @apply btn bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800;
+  @apply btn bg-yungas text-monte hover:brightness-95 active:brightness-90;
 }
 
 @utility btn-secondary {

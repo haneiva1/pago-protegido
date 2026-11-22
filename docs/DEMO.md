@@ -7,7 +7,7 @@
 3. cuando el comprador toca **"Pagar al vendedor"**, el vendedor cobra al instante;
 4. en un reclamo, el revisor reparte, y el contrato **rechaza** mandar la plata a otra cuenta.
 
-> **Video y capturas de la demo v3:** [`../demo/v3/trato-demo-v3.mp4`](../demo/v3/trato-demo-v3.mp4) (2:47, sin narrar, con subtítulos; descarga de 4,7 MB) y capturas clave en [`../demo/v3/`](../demo/v3/). Demo publicada: todavía no hay una URL pública (entregable E1 de la semana 1).
+> **Video y capturas de la demo v3:** [`../demo/v3/trato-demo-v3.mp4`](../demo/v3/trato-demo-v3.mp4) (2:47, sin narrar, con subtítulos; descarga de 4,7 MB) y capturas clave en [`../demo/v3/`](../demo/v3/). Demo publicada desde el 21-nov, en testnet y con un despliegue paralelo de los contratos: [`/probar`](https://app-production-d0fc8f63.up.railway.app/probar).
 
 Las cifras de este guion son las que verifica el e2e de la app (`app/e2e/pago-protegido.spec.ts`), con el tipo de cambio de la demo (11,70 Bs por USD; ver [TECNICO, Tipo de cambio](TECNICO.md#tipo-de-cambio)). El e2e completo (`npm run test:e2e` en `app/`) pasó 10/10 contra testnet el 20-nov-2026, ya con el nombre Trato. Las capturas están en [`../app/e2e/capturas/`](../app/e2e/capturas/), generadas por ese e2e contra testnet, y en [`../bot/docs/simulador.png`](../bot/docs/simulador.png).
 

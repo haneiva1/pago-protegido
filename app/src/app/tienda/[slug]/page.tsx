@@ -50,7 +50,7 @@ export default async function Tienda({ params }: { params: Promise<{ slug: strin
     <div className="mx-auto max-w-3xl space-y-5">
       <section className="card space-y-4" data-testid="perfil-tienda">
         <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 flex-none items-center justify-center rounded-full bg-brand-600 text-xl font-bold text-white">{initials}</div>
+          <div className="flex h-14 w-14 flex-none items-center justify-center rounded-full bg-brand-600 text-xl font-bold text-monte">{initials}</div>
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold" data-testid="perfil-nombre">
               {p.store_name}

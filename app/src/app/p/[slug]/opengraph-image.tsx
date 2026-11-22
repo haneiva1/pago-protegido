@@ -28,7 +28,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
 
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: "#f6f7f9", color: BRAND.ink, fontFamily: "Inter" }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: BRAND.sal, color: BRAND.ink, fontFamily: "Inter" }}>
         <div style={{ display: "flex", flex: 1, flexDirection: "column", justifyContent: "space-between", padding: "52px 64px 40px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
@@ -39,7 +39,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
                   height: 72,
                   borderRadius: 36,
                   background: BRAND.green,
-                  color: "#fff",
+                  color: BRAND.deep,
                   alignItems: "center",
                   justifyContent: "center",
                   fontSize: 30,
@@ -85,7 +85,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
             gap: 20,
             padding: "26px 64px",
             background: BRAND.green,
-            color: "#fff",
+            color: BRAND.deep,
             fontSize: 34,
             fontWeight: 700,
           }}

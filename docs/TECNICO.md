@@ -10,7 +10,7 @@ Este documento tiene el detalle técnico de Trato. El resumen para el jurado, el
 | **Escrow de Trustless Work** | una instancia por compra; ejemplo del caso feliz: [`CCS74JS3…YVA6U6E`](https://stellar.expert/explorer/testnet/contract/CCS74JS3QVAXAI2GCTOP5BEUP47FSB36HOYURDCRR2A5PK7B5YVA6U6E) |
 | **Dólar de prueba (LABUSD)** | [`CC65P6TQ…OGBD4S`](https://stellar.expert/explorer/testnet/contract/CC65P6TQQ646YDXVS3PM6YVZASXW6WM5B67YKI46JH4EG65LJPOGBD4S) |
 | **Video** | [video de la demo v3](../demo/v3/trato-demo-v3.mp4) (2:47, sin narrar; descarga de 4,7 MB; capturas clave en [demo/v3/](../demo/v3/)) |
-| **Demo** | sin URL pública todavía (E1, semana 1); en local: [Para el jurado](#para-el-jurado) |
+| **Demo** | [`/probar`](https://app-production-d0fc8f63.up.railway.app/probar), en testnet y con un despliegue paralelo de los contratos (21-nov); en local: [Para el jurado](#para-el-jurado) |
 
 El vendedor comparte un link. El comprador paga y la plata queda en un contrato (un escrow de Trustless Work) hasta que confirma que recibió. Si hay un problema, un revisor decide el reparto.
 
