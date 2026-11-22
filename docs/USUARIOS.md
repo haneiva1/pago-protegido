@@ -85,13 +85,13 @@ Entrevistas cortas en La Paz, en las que mostramos Trato después de preguntar c
 
 ### Detalle de cada entrevista
 
-**A · Compradora de ropa (La Paz, conocida del equipo).** Compra ropa por Marketplace y TikTok y paga por QR antes de que le entreguen. Con los vendedores que ya conoce no tiene problemas; el miedo es con los nuevos. Una vez pagó, no le entregaron el producto y el vendedor dejó de responder sus mensajes. Usaría una app que le dé la confianza de pagar sin miedo a perder su plata. Cree que la comisión se puede dividir a mitades, porque es pequeña. Le ayudaría un árbitro si el producto no llega o llega dañado, pero aclara que si llega dañado no le sirve pagar menos: prefiere devolverlo. Quiere probar la app.
+**A · Compradora de ropa (La Paz).** Compra ropa por Marketplace y TikTok y paga por QR antes de que le entreguen. Con los vendedores que ya conoce no tiene problemas; el miedo es con los nuevos. Una vez pagó, no le entregaron el producto y el vendedor dejó de responder sus mensajes. Usaría una app que le dé la confianza de pagar sin miedo a perder su plata. Cree que la comisión se puede dividir a mitades, porque es pequeña. Le ayudaría un árbitro si el producto no llega o llega dañado, pero aclara que si llega dañado no le sirve pagar menos: prefiere devolverlo. Quiere probar la app.
 
-**B · Particular que vende su celular (La Paz, conocido del equipo).** Vendió su celular por Marketplace unas 3 veces, sin problemas. No vende a otros departamentos: con un monto alto prefiere siempre cobrar contra entrega, y le daría miedo enviar el celular por algún transporte y que llegue dañado. Siempre se cita en lugares públicos para evitar robos o engaños. Usaría la app, pero prefiere que la comisión la pague el comprador, porque con un monto alto él saldría perdiendo. Quiere probar la app.
+**B · Particular que vende su celular (La Paz).** Vendió su celular por Marketplace unas 3 veces, sin problemas. No vende a otros departamentos: con un monto alto prefiere siempre cobrar contra entrega, y le daría miedo enviar el celular por algún transporte y que llegue dañado. Siempre se cita en lugares públicos para evitar robos o engaños. Usaría la app, pero prefiere que la comisión la pague el comprador, porque con un monto alto él saldría perdiendo. Quiere probar la app.
 
 **C · Particular que vende cosas que ya no usa (La Paz, familiar del equipo).** Vende por Marketplace y cobra contra entrega; a veces le depositan la mitad antes y la otra mitad a la entrega, pero la mayoría prefiere contra entrega. No vende a otras ciudades porque siempre prefiere cobrar contra entrega. Le pasó que dos personas querían pagar contra entrega y, cuando les propuso verse en un lugar público, se desanimaron; sospechó de ellas. Usaría la app para tener esa confianza y evitar gente engañosa. Sobre la comisión, dice que no habría problema porque es baja. Quiere probar la app.
 
-**D · Tienda de productos naturales (La Paz, de un conocido del equipo).** Vende a otros departamentos. En La Paz usa contra entrega; en pedidos por encargo pide 50 % de adelanto para que la persona no desaparezca. A otros departamentos, con montos bajos pide el depósito primero sin problema. Con montos altos hay gente que desconfía de depositar tanto: piden pagar solo el 50 % o pagar cuando el producto llega a la terminal. La tienda acepta el 50 % y descarta otros acuerdos: entiende que la gente sea escéptica, pero no puede aumentar el trabajo operativo. Pierde unas 3 ventas al mes por eso. Usaría la app para no perder esas ventas. Le atrae el árbitro para cuando un producto llega dañado. Le parece muy bien que todo sea por WhatsApp, porque ya lo usan. Cree que la comisión debería ser a mitades. Quiere probar la app.
+**D · Tienda de productos naturales (La Paz).** Vende a otros departamentos. En La Paz usa contra entrega; en pedidos por encargo pide 50 % de adelanto para que la persona no desaparezca. A otros departamentos, con montos bajos pide el depósito primero sin problema. Con montos altos hay gente que desconfía de depositar tanto: piden pagar solo el 50 % o pagar cuando el producto llega a la terminal. La tienda acepta el 50 % y descarta otros acuerdos: entiende que la gente sea escéptica, pero no puede aumentar el trabajo operativo. Pierde unas 3 ventas al mes por eso. Usaría la app para no perder esas ventas. Le atrae el árbitro para cuando un producto llega dañado. Le parece muy bien que todo sea por WhatsApp, porque ya lo usan. Cree que la comisión debería ser a mitades. Quiere probar la app.
 
 **E · Tienda de cuerinas y plantillas (La Paz).** Hace envíos a La Paz y a otros departamentos y siempre pide el depósito antes de enviar. Hay personas que quieren pagar solo el 50 %, y no lo acepta: pierde una venta al mes por eso, y otras dos ventas al mes se achican porque el cliente reduce la cantidad para que el monto no sea tan alto. Usaría la app siempre que la comisión la pague el comprador, porque es el comprador quien necesita la confianza. Quiere probar la app.
 
@@ -117,7 +117,7 @@ Entrevistas cortas en La Paz, en las que mostramos Trato después de preguntar c
 | Quieren probarlo | 8 de 9 |
 | Comisión | mitad y mitad 2 · comprador 2 · «da igual, es baja» 1 · no se preguntó 4 |
 
-Con la [regla de lectura](#regla-de-lectura-escrita-antes-de-la-primera-entrevista), con menos de 10 vendedores no concluimos: reportamos **5 de 8**, sin porcentaje. 6 de las 9 personas son conocidos, amigos o familiares del equipo.
+Con la [regla de lectura](#regla-de-lectura-escrita-antes-de-la-primera-entrevista), con menos de 10 vendedores no concluimos: reportamos **5 de 8**, sin porcentaje.
 
 ### Lo que se repite
 
@@ -158,12 +158,12 @@ Compradores en la calle (entre 15 y 20) y vendedores de zapatos, ropa y fundas d
 
 | Fecha | Tienda o persona | Ciudad | Cómo lo contactamos | Qué vende | ¿Vende a otras ciudades? | Ventas perdidas al mes | ¿Quién debería pagar? | Cita | ¿Piloto? |
 |---|---|---|---|---|---|---|---|---|---|
-| 2026-11-22 | A (compradora) | La Paz | conocido | compra ropa | — | — | mitad | — | quiere probar |
-| 2026-11-22 | B (particular) | La Paz | conocido | su celular | no | — (no vende fuera) | comprador | — | quiere probar |
-| 2026-11-22 | C (particular) | La Paz | conocido | cosas usadas | no | — (no vende fuera) | «da igual, es baja» | — | quiere probar |
-| 2026-11-22 | Tienda D | La Paz | conocido | productos naturales | sí | unas 3 (quieren pagar 50 %) | mitad | — | quiere probar |
+| 2026-11-22 | A (compradora) | La Paz | contacto directo | compra ropa | — | — | mitad | — | quiere probar |
+| 2026-11-22 | B (particular) | La Paz | contacto directo | su celular | no | — (no vende fuera) | comprador | — | quiere probar |
+| 2026-11-22 | C (particular) | La Paz | contacto directo | cosas usadas | no | — (no vende fuera) | «da igual, es baja» | — | quiere probar |
+| 2026-11-22 | Tienda D | La Paz | contacto directo | productos naturales | sí | unas 3 (quieren pagar 50 %) | mitad | — | quiere probar |
 | 2026-11-22 | Tienda E | La Paz | — | cuerinas y plantillas | sí | una (quieren pagar 50 %) | comprador | — | quiere probar |
-| 2026-11-22 | F (repostería) | La Paz | conocido | postres | — | — | — | — | quiere probar |
+| 2026-11-22 | F (repostería) | La Paz | contacto directo | postres | — | — | — | — | quiere probar |
 | 2026-11-21/22 | G (chocolates) | La Paz | — | chocolates | sí | «cerca de la mitad» (estimación propia) | — | — | se comprometió, cuando esté en WhatsApp |
 | 2026-11-21/22 | Tienda H | La Paz | tienda | ropa | a veces | sin cifra | — | — | reunión pendiente |
 | 2026-11-21/22 | I (revendedor) | La Paz | Marketplace | celulares y accesorios | casi nunca | cierra 3 o 4 de 30–50 consultas de otros departamentos | — | — | por definir |
