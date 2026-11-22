@@ -116,19 +116,19 @@ export default function Panel() {
             <ExplorerLink href={explorer.account(seller.pubkey)}>Ver registro público de tu cuenta</ExplorerLink>
           </p>
         </div>
-        <div className="rounded-2xl bg-brand-600 px-5 py-4 text-white">
-          <p className="text-xs text-brand-100">Saldo cobrado</p>
+        <div className="rounded-2xl bg-brand-600 px-5 py-4 text-monte">
+          <p className="text-xs text-brand-900/75">Saldo cobrado</p>
           <p className="text-3xl font-bold" data-testid="saldo">
             {saldo}
           </p>
           {enCurso.cantidad > 0 && (
-            <p className="mt-1 text-xs text-brand-100" data-testid="por-cobrar">
+            <p className="mt-1 text-xs text-brand-900/75" data-testid="por-cobrar">
               {enCurso.cantidad === 1 ? "Y 1 venta en curso" : `Y ${enCurso.cantidad} ventas en curso`} por {fmtBs(enCurso.netoBsCents)}, ya guardada
               {enCurso.cantidad === 1 ? "" : "s"} en el contrato: cobras cuando tu cliente confirma.
             </p>
           )}
           {enReclamo.cantidad > 0 && (
-            <p className="mt-1 text-xs text-brand-100" data-testid="en-reclamo">
+            <p className="mt-1 text-xs text-brand-900/75" data-testid="en-reclamo">
               {enReclamo.cantidad === 1 ? "1 venta en reclamo" : `${enReclamo.cantidad} ventas en reclamo`}: hasta {fmtBs(enReclamo.hastaBsCents)}, según lo que
               decida el revisor.
             </p>

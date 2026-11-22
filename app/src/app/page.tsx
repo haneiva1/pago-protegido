@@ -63,7 +63,7 @@ export default function Home() {
                 <p className="mt-1 text-3xl font-bold">Bs 2.500</p>
                 <p className="text-xs text-slate-500">Vendedor: Tienda Sofi · Santa Cruz · 128 ventas protegidas, 2 reclamos</p>
                 <div className="mt-4 rounded-xl bg-brand-50 p-3 text-xs text-brand-900">🔒 Tu plata no llega al vendedor hasta que recibas tu pedido.</div>
-                <div className="mt-4 rounded-xl bg-brand-600 py-3 text-center text-sm font-semibold text-white">Pagar Bs 2.537,50 con QR</div>
+                <div className="mt-4 rounded-xl bg-brand-600 py-3 text-center text-sm font-semibold text-monte">Pagar Bs 2.537,50 con QR</div>
               </div>
             </div>
           </div>
@@ -75,7 +75,7 @@ export default function Home() {
         <div className="mt-5 grid gap-4 md:grid-cols-3">
           {PASOS.map((p) => (
             <div key={p.n} className="card">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-white">{p.n}</span>
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-monte">{p.n}</span>
               <h3 className="mt-3 font-semibold">{p.t}</h3>
               <p className="mt-1 text-sm text-slate-600">{p.d}</p>
             </div>

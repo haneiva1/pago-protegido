@@ -68,7 +68,7 @@ export function Seguimiento({
           <li key={p.t} className="flex flex-col items-center gap-1" data-testid={`paso-${i + 1}`} data-hecho={p.ok ? "si" : "no"}>
             <span
               className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
-                p.ok ? "bg-brand-600 text-white" : i === actual ? "bg-white text-brand-700 ring-2 ring-brand-500" : "bg-slate-100 text-slate-400"
+                p.ok ? "bg-brand-600 text-monte" : i === actual ? "bg-white text-brand-700 ring-2 ring-brand-500" : "bg-slate-100 text-slate-400"
               }`}
             >
               {p.ok ? "✓" : i + 1}

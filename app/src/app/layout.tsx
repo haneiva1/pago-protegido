@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
+import { Funnel_Display, Funnel_Sans } from "next/font/google";
+import { TratoLogo } from "@/components/TratoLogo";
 import { WalletRuntime } from "@/components/WalletRuntime";
 import { SCRIPT_MARCO } from "@/lib/probar";
 import "./globals.css";
@@ -23,22 +25,15 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#059669" };
+const funnelDisplay = Funnel_Display({ subsets: ["latin"], weight: "800", variable: "--font-funnel-display", display: "swap" });
+const funnelSans = Funnel_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-funnel-sans", display: "swap" });
 
-function Shield() {
-  return (
-    <svg viewBox="0 0 64 64" className="h-7 w-7" aria-hidden>
-      <path d="M32 4 9 12.5v17.2C9 45 18.8 56.3 32 60c13.2-3.7 23-15 23-30.3V12.5L32 4Z" fill="#059669" />
-      <path d="M32 4 9 12.5v17.2C9 45 18.8 56.3 32 60V4Z" fill="#047857" />
-      <path d="m21 32.5 7.6 7.6L43.5 25" fill="none" stroke="#fff" strokeWidth="5.6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
+export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#0A2A1B" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     // data-marco lo pone SCRIPT_MARCO en el navegador (dentro de /probar): por eso el aviso de hidratación se ignora.
-    <html lang="es" suppressHydrationWarning>
+    <html lang="es" suppressHydrationWarning className={`${funnelDisplay.variable} ${funnelSans.variable}`}>
       <body className="min-h-screen">
         {/* Modo embebido de /probar: corre antes de pintar, así el encabezado nunca aparece dentro del marco. */}
         <script dangerouslySetInnerHTML={{ __html: SCRIPT_MARCO }} />
@@ -47,9 +42,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </div>
         <header data-chrome className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/90 backdrop-blur">
           <nav className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-            <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
-              <Shield />
-              Trato
+            <Link href="/" aria-label="Trato" className="flex items-center">
+              <TratoLogo sobre="claro" className="h-6 w-auto" />
             </Link>
             <div className="flex items-center gap-4 text-sm font-medium text-slate-600">
               <Link href="/como-funciona" className="hover:text-slate-900">

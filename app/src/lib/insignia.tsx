@@ -26,8 +26,8 @@ export async function insigniaImage(p: PerfilTienda | null) {
 
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: "#f6f7f9", color: BRAND.ink, fontFamily: "Inter" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "26px 64px", background: BRAND.green, color: "#fff", fontSize: 40, fontWeight: 800 }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: BRAND.sal, color: BRAND.ink, fontFamily: "Inter" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "26px 64px", background: BRAND.green, color: BRAND.deep, fontSize: 40, fontWeight: 800 }}>
           <div style={{ display: "flex", width: 64, height: 64, borderRadius: 32, background: "#fff", alignItems: "center", justifyContent: "center" }}>
             <ShieldLogo size={46} />
           </div>

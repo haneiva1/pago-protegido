@@ -98,7 +98,7 @@ export function Progress({ steps }: { steps: ProgressStep[] }) {
     <ol className="space-y-2" aria-live="polite">
       {steps.map((s, i) => (
         <li key={i} className="flex items-start gap-3 text-sm">
-          <span className={`mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full ${s.done ? "bg-brand-600 text-white" : "bg-slate-200 text-slate-600"}`}>
+          <span className={`mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full ${s.done ? "bg-brand-600 text-monte" : "bg-slate-200 text-slate-600"}`}>
             {s.done ? (
               <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" aria-hidden>
                 <path d="m5 10 3 3 7-7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />

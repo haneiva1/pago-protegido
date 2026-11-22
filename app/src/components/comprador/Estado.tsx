@@ -35,25 +35,25 @@ export function CandadoQueSeCierra({ className }: { className?: string }) {
 export function EstadoPedido({ v }: { v: OrderView }) {
   const o = v.order;
   const map = {
-    pagado: { t: "Tu pago está guardado", d: "El vendedor ve que pagaste, pero no puede cobrar hasta que confirmes.", c: "bg-brand-600" },
-    enviado: { t: "Tu pedido está en camino", d: "Tu pago sigue guardado. Cuando te llegue, revísalo y recién ahí paga al vendedor.", c: "bg-brand-600" },
-    liberado: { t: "Se pagó al vendedor", d: "Confirmaste que lo recibiste bien. ¡Gracias por comprar con Trato!", c: "bg-brand-700" },
-    en_disputa: { t: "Reclamo abierto", d: "La plata quedó congelada en el contrato. Un revisor va a ver el caso.", c: "bg-amber-500" },
-    resuelto: { t: "Reclamo resuelto", d: "El revisor repartió la plata entre comprador y vendedor.", c: "bg-violet-600" },
-    devuelto: { t: "Te devolvimos tu pago", d: "El vendedor no despachó a tiempo, así que el contrato te devolvió la plata.", c: "bg-rose-600" },
+    pagado: { t: "Tu pago está guardado", d: "El vendedor ve que pagaste, pero no puede cobrar hasta que confirmes.", c: "bg-brand-600 text-monte" },
+    enviado: { t: "Tu pedido está en camino", d: "Tu pago sigue guardado. Cuando te llegue, revísalo y recién ahí paga al vendedor.", c: "bg-brand-600 text-monte" },
+    liberado: { t: "Se pagó al vendedor", d: "Confirmaste que lo recibiste bien. ¡Gracias por comprar con Trato!", c: "bg-brand-700 text-white" },
+    en_disputa: { t: "Reclamo abierto", d: "La plata quedó congelada en el contrato. Un revisor va a ver el caso.", c: "bg-amber-500 text-white" },
+    resuelto: { t: "Reclamo resuelto", d: "El revisor repartió la plata entre comprador y vendedor.", c: "bg-violet-600 text-white" },
+    devuelto: { t: "Te devolvimos tu pago", d: "El vendedor no despachó a tiempo, así que el contrato te devolvió la plata.", c: "bg-rose-600 text-white" },
     esperando_pago: { t: "", d: "", c: "" },
   }[o.status];
   const guardado = o.status === "pagado" || o.status === "enviado" || o.status === "en_disputa";
   return (
-    <section className={`rounded-2xl p-5 text-white ${map.c}`} data-testid="estado-pedido">
-      <p className="text-xs uppercase tracking-wide text-white/80">
+    <section className={`rounded-2xl p-5 ${map.c}`} data-testid="estado-pedido">
+      <p className="text-xs uppercase tracking-wide opacity-80">
         {o.code} · {o.product}
       </p>
       <div className="mt-1 flex items-center gap-2">
         {guardado && <CandadoQueSeCierra className="h-7 w-7 flex-none" />}
         <h1 className="text-2xl font-bold">{map.t}</h1>
       </div>
-      <p className="mt-1 text-sm text-white/90">{map.d}</p>
+      <p className="mt-1 text-sm opacity-90">{map.d}</p>
       <p className="mt-3 text-3xl font-extrabold">{fmtBsUnits(o.amount_units, o.fx)}</p>
     </section>
   );

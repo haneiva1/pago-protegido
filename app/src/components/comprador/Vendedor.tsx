@@ -30,7 +30,7 @@ export function Reputacion({ v }: { v: OrderView }) {
   const s = v.seller;
   return (
     <div className="flex items-center gap-2.5 pt-2" data-testid="reputacion">
-      <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-white">{iniciales(s.store_name)}</span>
+      <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-monte">{iniciales(s.store_name)}</span>
       <div className="min-w-0 flex-1 text-sm leading-tight">
         <p className="truncate font-semibold text-slate-900">
           {s.store_name}
@@ -49,7 +49,7 @@ export function TarjetaVendedor({ v }: { v: OrderView }) {
   return (
     <section className="card space-y-3" data-testid="vendedor">
       <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-brand-600 font-bold text-white">{iniciales(s.store_name)}</div>
+        <div className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-brand-600 font-bold text-monte">{iniciales(s.store_name)}</div>
         <div className="min-w-0 flex-1">
           <p className="font-semibold">
             Vendedor: {s.store_name}

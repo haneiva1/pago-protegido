@@ -90,7 +90,7 @@ export function PagoQr({ v, busy, onPay }: { v: OrderView; busy: boolean; onPay:
       <ol className="space-y-1.5 rounded-xl bg-slate-50 p-3 text-sm" data-testid="pasos-qr">
         {PASOS.map((p, i) => (
           <li key={p} className="flex gap-2">
-            <span className="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-brand-600 text-[11px] font-bold text-white">{i + 1}</span>
+            <span className="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-brand-600 text-[11px] font-bold text-monte">{i + 1}</span>
             <span>{p}</span>
           </li>
         ))}
