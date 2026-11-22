@@ -20,17 +20,17 @@ export function PasarAMiBanco({ saldo, onCerrar }: { saldo: string; onCerrar: ()
       </p>
       <ol className="space-y-2 text-sm text-slate-700">
         <li className="flex gap-2">
-          <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-white">1</span>
+          <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-monte">1</span>
           <span>Pides pasar tu saldo cobrado a tu banco.</span>
         </li>
         <li className="flex gap-2">
-          <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-white">2</span>
+          <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-monte">2</span>
           <span>
             Una <strong>entidad autorizada</strong> te deposita en <strong>bolivianos</strong> en tu cuenta.
           </span>
         </li>
         <li className="flex gap-2">
-          <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-white">3</span>
+          <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-monte">3</span>
           <span>Ves el depósito en la app de tu banco, como cualquier transferencia.</span>
         </li>
       </ol>

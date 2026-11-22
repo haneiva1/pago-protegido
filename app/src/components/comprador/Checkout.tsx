@@ -114,7 +114,7 @@ export function ComoFunciona() {
       <ol className="mt-3 space-y-2">
         {pasos.map((s, i) => (
           <li key={s} className="flex gap-3">
-            <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-white">{i + 1}</span>
+            <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-monte">{i + 1}</span>
             <span>{s}</span>
           </li>
         ))}
