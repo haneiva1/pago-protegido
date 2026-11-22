@@ -60,6 +60,8 @@ Los PR #3 a #9 aparecen como «cerrados» porque se integraron juntos en el [PR 
 
 ¿Por qué simulado? Meta solo deja que un número de prueba le responda a 5 teléfonos hasta verificar la empresa. El bot real ya está hecho (carpeta `bot/`, 191 tests, API oficial de WhatsApp) y lo mostramos en vivo en la final.
 
+Cuando `/probar` dice que Trato funciona dentro de WhatsApp, describe cómo se usa el producto: la tienda y el comprador nunca salen del chat. En la demo, ese chat es una simulación con los textos del bot real (carpeta `bot/`), hasta que Meta verifique el número.
+
 La demo corre en Stellar testnet (plata de prueba), desplegada desde `main`. Usa un despliegue paralelo creado el 21-nov para la demo, con el mismo código que [Evidencia on-chain](#evidencia-on-chain): `pp_guardian` [`CB3OPNYKCSZXGCXRYBKIOB2Y6ZYV6ICNVETLQXHW2QCKWAQ5432AYTKP`](https://stellar.expert/explorer/testnet/contract/CB3OPNYKCSZXGCXRYBKIOB2Y6ZYV6ICNVETLQXHW2QCKWAQ5432AYTKP) y `pp_arbiter` [`CAS6VQ3Y6MMDOMZX7ALUIBMSB5QVKURNETZFK3YDK3WJT2XRNYZRGSOS`](https://stellar.expert/explorer/testnet/contract/CAS6VQ3Y6MMDOMZX7ALUIBMSB5QVKURNETZFK3YDK3WJT2XRNYZRGSOS). En [`/metricas`](https://app-production-dc7d8d8b.up.railway.app/metricas) cada compra de la demo aparece con su link a stellar.expert, contada aparte de las del piloto con vendedores reales, que arranca con el piloto medido, del 7 al 20-dic.
 
 **En tu máquina, sin claves.** Requisitos: Rust y cargo, Node 22 o más, y Chromium para Playwright.
