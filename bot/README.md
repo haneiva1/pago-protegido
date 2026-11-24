@@ -73,13 +73,15 @@ npx playwright install chromium   # solo la primera vez (la app usa la misma ver
 npm test                          # unitarios (Vitest) + e2e del simulador (Playwright)
 ```
 
-- **Unitarios (191):**
+- **Unitarios (241):**
   - Precios y frases bolivianas: "450bs", "Bs. 450", "Bs 1.200", "450 pesos", "Bs 250.-", "5 mil", tallas que no son precios, dólares.
   - Intenciones y flujos guiados.
   - Mensajes: nunca dicen "cripto" y respetan los límites de WhatsApp.
   - El bot contra la app de mentira por HTTP, con sus planes B.
   - El poller, con los avisos y el recordatorio.
   - El webhook de WhatsApp: verificación, firma, botones y reintentos.
+  - **El flujo real** (`test/whatsapp-real.test.ts`): el bot en su propio proceso, en modo WhatsApp, contra una API de Meta simulada por HTTP, en testnet y en mainnet, con y sin plantilla.
+  - La ventana de 24 horas, los errores de Meta y el estado guardado (`test/outbox.test.ts`).
   - Verificador (`test/links.test.ts`): dominios parecidos (guion, cero por o, l por i, tildes, cirílico, punycode, subdominios engañosos, punto final), acortadores, `usuario@`, slugs y rutas inválidos, links dentro de un mensaje reenviado.
   - Anti-fraude contra la app de mentira (`test/antifraude.test.ts`): auténtico/falso, pedido inexistente, app caída, reportes en archivo, botones del recordatorio, avisos al vendedor, anti-presión (también si el comprador deja su WhatsApp tarde), recordatorios 48/24/2 h, hitos antes del envío y modo demo en minutos.
   - Palabras prohibidas en todos los mensajes.
@@ -92,60 +94,11 @@ npm test                          # unitarios (Vitest) + e2e del simulador (Play
   - El comprador recibe el aviso anti-presión al pagar.
 - `npm run typecheck` revisa los tipos.
 
-## Conectar un número de prueba de WhatsApp Cloud API (15 minutos, para Hans)
+## WhatsApp real (número de prueba de Meta)
 
-La prueba es gratis y no usa ningún número tuyo: Meta te presta un número de prueba que puede escribir hasta a 5 números verificados.
+Paso a paso en [`../docs/WHATSAPP.md`](../docs/WHATSAPP.md): la app en Meta, el número de prueba y sus 5 teléfonos, los tokens, el webhook, el servicio en Railway, la ventana de 24 horas y una prueba de humo de 2 minutos.
 
-**Antes:** cuenta de Facebook, tu WhatsApp personal a mano y una forma de exponer el puerto 3040 a internet (`cloudflared` o `ngrok`).
-
-1. **Crea la app de Meta (3 min).**
-   - Entra a https://developers.facebook.com/apps y toca **Crear app**.
-   - Caso de uso: **"Conectar con clientes por WhatsApp"**.
-   - Elige o crea un portafolio comercial (business portfolio). Puede ser uno de prueba.
-2. **Copia las credenciales de prueba (2 min).** En el menú de la app: **WhatsApp → Configuración de la API** (API Setup).
-   - **Token de acceso temporal** → `WA_TOKEN`. Dura 24 h; para más tiempo, mira el paso 9.
-   - **Identificador del número de teléfono** (Phone number ID) → `WA_PHONE_NUMBER_ID`. No es el número, es un ID largo.
-   - En **"Para"** (To), agrega tu WhatsApp personal y confírmalo con el código que te llega por WhatsApp.
-3. **Configura el bot (1 min).**
-
-   ```bash
-   cp .env.example .env
-   # WA_TOKEN=…               (paso 2)
-   # WA_PHONE_NUMBER_ID=…     (paso 2)
-   # WA_VERIFY_TOKEN=…        inventa una palabra larga, p. ej. pp-bot-2026-hans
-   # PP_APP_URL=http://localhost:3000
-   ```
-
-4. **Levanta la app y el bot (2 min).**
-
-   ```bash
-   (cd ../app && npm run dev)     # otra terminal
-   npm start                      # webhook en http://localhost:3040/webhook
-   ```
-
-5. **Expón el webhook (1 min):** `cloudflared tunnel --url http://localhost:3040` (o `ngrok http 3040`). Copia la URL `https://…`.
-6. **Registra el webhook en Meta (2 min).** En **WhatsApp → Configuración** (Configuration) → Webhook → **Editar**:
-   - URL de devolución de llamada: `https://…tu túnel…/webhook`
-   - Token de verificación: el mismo `WA_VERIFY_TOKEN`
-   - **Verificar y guardar.** Meta llama `GET /webhook?hub.challenge=…` y el bot responde.
-   - En **Campos del webhook**, toca **Administrar** y suscríbete a **`messages`**.
-7. **Regístrate como vendedor (2 min).**
-   - Abre http://localhost:3000/vender y crea tu tienda con **tu WhatsApp personal** (el del paso 2).
-   - Mientras la app no tenga `GET /api/bot/sellers`, mándale al bot `vincular G…tu clave pública…` desde tu WhatsApp. Ver "Contra la app real".
-8. **Pruébalo (2 min).** Desde tu WhatsApp, escríbele `hola` al número de prueba y luego `vendo zapatillas nike 40 a 450 bs entrega 3 días`.
-   - Para abrir los links desde el celular, la app también tiene que ser accesible: otro túnel al 3000 y `PP_PUBLIC_URL=https://…` en `.env`.
-9. **Opcional:**
-   - **Firma de Meta:** copia **Configuración de la app → Básica → Clave secreta de la app** en `WA_APP_SECRET` y el bot exigirá `X-Hub-Signature-256`.
-   - **Token sin vencimiento:** Configuración del negocio → Usuarios del sistema → Generar token, con permisos `whatsapp_business_messaging` y `whatsapp_business_management`.
-
-Si algo no anda:
-
-| Síntoma | Causa y solución |
-|---|---|
-| "Verificar y guardar" falla | El túnel no apunta al 3040 o `WA_VERIFY_TOKEN` no coincide. Prueba `curl "https://…/webhook?hub.mode=subscribe&hub.verify_token=TU_TOKEN&hub.challenge=ok"`: tiene que responder `ok`. |
-| El bot recibe pero no contesta | Revisa la consola: `Graph API 401` es el token vencido; `131030` es que tu número no está en la lista "Para". |
-| No llegan mensajes al bot | Falta suscribirse a `messages` en "Campos del webhook". |
-| Los avisos no llegan después de un día | Ventana de 24 h de WhatsApp: escríbele algo al bot. En producción los avisos irán como plantillas aprobadas (DECISIONES 20). |
+`npm start` (o la imagen de `deploy/bot.Dockerfile`) arranca en modo WhatsApp. Si falta una variable, si la app no acepta la clave del bot o si corre en otra red que `STELLAR_NETWORK`, no arranca y dice qué pasó. Para probar desde tu computadora, expón el puerto 3040 con un túnel (`cloudflared tunnel --url http://localhost:3040`) y usa en `PP_PUBLIC_URL` la URL `https` de la app.
 
 ## Variables de entorno
 
@@ -156,10 +109,12 @@ Se leen de `.env` si existe (ver [`.env.example`](.env.example)). **Nunca commit
 | `PP_APP_URL` | `http://localhost:3000` | API de la app web |
 | `PP_PUBLIC_URL` | `PP_APP_URL` | URL de los links que ve la gente (túnel o dominio) |
 | `PP_BOT_KEY` | vacío | Clave compartida con la app para `/api/bot/*` (APP-ENDPOINTS.md §0) |
+| `STELLAR_NETWORK` | `testnet` | Red de la app de `PP_APP_URL`: `testnet` o `mainnet`. Cambia la moneda de los mensajes y se comprueba al arrancar |
 | `WA_TOKEN` | — | Token de la Graph API (`npm start`) |
 | `WA_PHONE_NUMBER_ID` | — | ID del número que envía (`npm start`) |
 | `WA_VERIFY_TOKEN` | — | Palabra para verificar el webhook (`npm start`) |
-| `WA_APP_SECRET` | vacío | Si está, se exige la firma `X-Hub-Signature-256` |
+| `WA_APP_SECRET` | — | Clave secreta de la app de Meta: se exige la firma `X-Hub-Signature-256` (`npm start`) |
+| `WA_TEMPLATE_AVISO` / `WA_TEMPLATE_LANG` | vacío / `es` | Plantilla aprobada para avisar fuera de las 24 horas. Vacía = los avisos esperan a que la persona escriba |
 | `WA_GRAPH_VERSION` | `v23.0` | Versión de la Graph API |
 | `PORT` | `3040` | Puerto del webhook |
 | `SIM_PORT` | `3030` | Puerto del simulador |
@@ -168,7 +123,7 @@ Se leen de `.env` si existe (ver [`.env.example`](.env.example)). **Nunca commit
 | `REMINDER_HOURS` | `48,24,2` | Horas antes de la liberación automática en que se recuerda al comprador |
 | `DEMO_MINUTES` | vacío | `1` = modo demo: las horas de los recordatorios (y los plazos de la app de mentira) se cuentan en minutos |
 | `REPORTS_FILE` | `data/reportes.jsonl` | Dónde se guardan los `reportar <link>`; `""` = solo en memoria |
-| `BOT_STATE_FILE` | `data/bot-state.json` | Avisos y recordatorios ya enviados, números vinculados y tiendas ya avisadas; `""` = solo en memoria |
+| `BOT_STATE_FILE` | `data/bot-state.json` | Avisos y recordatorios ya enviados, avisos que esperan, ventanas de 24 horas, números vinculados y tiendas ya avisadas; `""` = solo en memoria |
 | `SIM_SELLER_PHONE` / `SIM_BUYER_PHONE` | `59171234567` / `59176543210` | Números de los dos chats del simulador |
 
 ## Arquitectura
@@ -183,6 +138,8 @@ src/
   app/                 cliente de la app (rutas reales + propuestas) y sus tipos
   bot.ts               runtime: vendedor por teléfono → step → ejecuta el comando → respuestas
   notify/poller.ts     avisos por cambio de estado, anti-presión y recordatorios 48/24/2 h
+  notify/outbox.ts     ventana de 24 horas de WhatsApp: qué sale, qué espera y qué se reintenta
+  state.ts             estado en un archivo, por instancia de la app
   reports.ts           reportes de links (JSONL local)
   transports/
     whatsapp.ts        webhook (GET verificación, POST mensajes, firma) + envío por Graph API
