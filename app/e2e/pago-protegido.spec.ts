@@ -671,7 +671,7 @@ test("transparencia: pruebas del equipo (con reclamos forzados) y piloto aparte,
   await page.goto("/transparencia");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Transparencia");
   await expect(page.getByText("Estas cifras se calculan con datos públicos de la red Stellar (testnet). Cualquiera puede verificarlas.")).toBeVisible();
-  await expect(page.getByTestId("pruebas-equipo")).toHaveText("Pruebas del equipo en testnet (incluye reclamos forzados)");
+  await expect(page.getByTestId("pruebas-equipo")).toHaveText("Compras de prueba internas en testnet (incluye reclamos forzados)");
   await expect(page.getByTestId("piloto")).toContainText("Piloto con vendedores reales");
   await expect(page.getByTestId("como-terminaron")).toContainText("reclamos forzados");
   const compras = Number((await page.getByTestId("compras-protegidas").locator("p").nth(1).innerText()).replace(/\D/g, ""));

@@ -65,7 +65,7 @@ function Barras({ valores, max, cls, titulo, etiqueta }: { valores: number[]; ma
 }
 
 /** Gráfico simple por día (SVG sin dependencias): compras arriba y monto abajo, con el mismo eje de días. */
-export function GraficoDiario({ serie, testId }: { serie: DiaSerie[]; testId?: string }) {
+export function GraficoDiario({ serie, compras, monto, testId }: { serie: DiaSerie[]; compras: string; monto: string; testId?: string }) {
   const maxC = Math.max(1, ...serie.map((d) => d.compras));
   const maxM = Math.max(1, ...serie.map((d) => d.monto_bs));
   const conDatos = serie.filter((d) => d.compras > 0);
@@ -74,27 +74,27 @@ export function GraficoDiario({ serie, testId }: { serie: DiaSerie[]; testId?: s
       <h3 className="text-lg">Por día · {serie.length === 1 ? "último día" : `últimos ${serie.length} días`}</h3>
       <div>
         <div className="flex items-baseline justify-between text-xs text-tinta-500">
-          <span className="font-medium text-tinta-700">Compras protegidas</span>
+          <span className="font-medium text-tinta-700">{compras}</span>
           <span className="num">máx. {nf(maxC)} por día</span>
         </div>
         <Barras
           valores={serie.map((d) => d.compras)}
           max={maxC}
           cls="fill-yungas"
-          titulo="Compras protegidas por día"
+          titulo={`${compras} por día`}
           etiqueta={(i) => `${fmtDiaCorto(serie[i].dia)}: ${plural(serie[i].compras, "compra", "compras")}`}
         />
       </div>
       <div>
         <div className="flex items-baseline justify-between text-xs text-tinta-500">
-          <span className="font-medium text-tinta-700">Monto protegido (Bs)</span>
+          <span className="font-medium text-tinta-700">{monto} (Bs)</span>
           <span className="num">máx. Bs {nf(maxM)} por día</span>
         </div>
         <Barras
           valores={serie.map((d) => d.monto_bs)}
           max={maxM}
           cls="fill-monte"
-          titulo="Monto protegido por día"
+          titulo={`${monto} por día`}
           etiqueta={(i) => `${fmtDiaCorto(serie[i].dia)}: Bs ${nf(serie[i].monto_bs)}`}
         />
       </div>

@@ -1,8 +1,13 @@
-import type { Desenlace, Kpis } from "@/lib/types";
+import type { Desenlace, Grupo, Kpis } from "@/lib/types";
 
 /** Formatos de los KPIs (métricas, panel, perfil público y tarjeta del vendedor). Sin dependencias de servidor. */
 
 const TZ = "America/La_Paz";
+
+/** Las compras del equipo en testnet son pruebas, no tracción: donde se muestre su número, se llaman así. */
+export const COMPRAS_INTERNAS = "Compras de prueba internas en testnet";
+export const rotuloCompras = (grupo: Grupo) => (grupo === "equipo" ? COMPRAS_INTERNAS : "Compras protegidas");
+export const rotuloMonto = (grupo: Grupo) => (grupo === "equipo" ? "Monto de prueba" : "Monto protegido");
 
 export const nf = (n: number, d = 0) => n.toLocaleString("es-BO", { minimumFractionDigits: d, maximumFractionDigits: d });
 

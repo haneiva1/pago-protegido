@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { IconoAlerta, IconoBalanza, IconoCamion, IconoCandado, IconoCheckCirculo, IconoExterno, IconoInfo, IconoReloj, IconoVolver } from "@/components/iconos";
 import { explorer, fmtPct, fmtUsd, shortAddr, unitsToNumber } from "@/lib/format";
-import { plural } from "@/lib/kpi-format";
+import { COMPRAS_INTERNAS, plural, rotuloCompras, rotuloMonto } from "@/lib/kpi-format";
 import { sellers } from "@/lib/server/db";
 import { computeMetrics, ingestEvents, type Metrics, type PurchaseState } from "@/lib/server/metrics";
 
@@ -133,11 +133,11 @@ export default async function Transparencia() {
 
       <section className="space-y-4">
         <h2 className="text-xl sm:text-2xl" data-testid="pruebas-equipo">
-          Pruebas del equipo en testnet (incluye reclamos forzados)
+          {COMPRAS_INTERNAS} (incluye reclamos forzados)
         </h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Tile testId="compras-protegidas" label="Compras protegidas" value={nf(m.compras_protegidas)} sub={`${m.en_curso} en curso ahora`} />
-          <Tile label="Volumen protegido" value={`Bs ${nf(vol * m.tipo_cambio)}`} sub={`${fmtUsd(m.volumen_unidades)} USD de prueba`} />
+          <Tile testId="compras-protegidas" label={rotuloCompras("equipo")} value={nf(m.compras_protegidas)} sub={`${m.en_curso} en curso ahora`} />
+          <Tile label={rotuloMonto("equipo")} value={`Bs ${nf(vol * m.tipo_cambio)}`} sub={`${fmtUsd(m.volumen_unidades)} USD de prueba`} />
           <Tile
             testId="como-terminaron"
             label="Cómo terminaron"

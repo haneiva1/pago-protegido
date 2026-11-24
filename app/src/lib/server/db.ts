@@ -602,6 +602,11 @@ export const pilot = {
   linkSeller(id: string, pubkey: string) {
     db().prepare(`UPDATE pilot_waitlist SET seller_pubkey = ? WHERE id = ?`).run(pubkey, id);
   },
+  /** Cuántas tiendas se inscribieron: una por WhatsApp (los últimos 8 dígitos), aunque hayan llenado el formulario dos veces. */
+  tiendas(): number {
+    const sql = `SELECT COUNT(DISTINCT substr(replace(replace(whatsapp, ' ', ''), '+', ''), -8)) AS n FROM pilot_waitlist`;
+    return (db().prepare(sql).get() as { n: number }).n;
+  },
   all(): PilotRow[] {
     return db().prepare(`SELECT * FROM pilot_waitlist ORDER BY created_at ASC`).all() as PilotRow[];
   },

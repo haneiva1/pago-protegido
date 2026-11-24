@@ -5,7 +5,7 @@ import { cache } from "react";
 import { Nudo } from "@/components/iconos";
 import { ListaOperaciones, NumerosTienda } from "@/components/Kpis";
 import { explorer } from "@/lib/format";
-import { desdeTexto, fmtDuracion, fmtHora, fmtProporcion, nf } from "@/lib/kpi-format";
+import { COMPRAS_INTERNAS, desdeTexto, fmtDuracion, fmtHora, fmtProporcion, nf } from "@/lib/kpi-format";
 import { perfilTienda } from "@/lib/server/kpis";
 import type { PerfilTienda } from "@/lib/types";
 
@@ -73,7 +73,7 @@ export default async function Tienda({ params }: { params: Promise<{ slug: strin
           <li>
             {p.pilot
               ? "Tienda del piloto con vendedores reales."
-              : "Datos de práctica en la red de prueba: esta tienda es de las pruebas del equipo, no del piloto."}
+              : `${COMPRAS_INTERNAS}: esta tienda es de las pruebas del equipo, no del piloto.`}
           </li>
           <li className="text-xs text-sal/60" data-testid="perfil-actualizado">
             Calculado con el registro público de cada compra · actualizado: {fmtHora(p.actualizado)}

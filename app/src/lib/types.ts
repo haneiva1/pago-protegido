@@ -68,6 +68,8 @@ export interface GrupoMetricas {
 export interface MetricasSnapshot {
   equipo: GrupoMetricas;
   piloto: GrupoMetricas;
+  /** Inscripciones de /piloto: solo el número, sin datos de nadie. No son compras y no se suman con ninguna. */
+  tiendas_inscritas_piloto: number;
   /** Última lectura exitosa de la red (ms). Si el RPC falla, no se mueve. */
   actualizado: number | null;
   calculado: number;
