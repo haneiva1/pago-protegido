@@ -69,13 +69,19 @@ impl EscrowFalso {
     ) {
     }
     pub fn approve_milestone(_env: Env, _i: u32, _approver: Address) {}
+    #[cfg(not(feature = "tw-mainnet"))]
     pub fn release_funds(_env: Env, _release_signer: Address, _tw: Address) {}
+    #[cfg(feature = "tw-mainnet")]
+    pub fn release_funds(_env: Env, _release_signer: Address) {}
     pub fn dispute_escrow(env: Env, _signer: Address) {
         let mut e: Escrow = env.storage().instance().get(&Clave::Escrow).unwrap();
         e.flags.disputed = true;
         env.storage().instance().set(&Clave::Escrow, &e);
     }
+    #[cfg(not(feature = "tw-mainnet"))]
     pub fn resolve_dispute(_env: Env, _dr: Address, _tw: Address, _d: Map<Address, i128>) {}
+    #[cfg(feature = "tw-mainnet")]
+    pub fn resolve_dispute(_env: Env, _dr: Address, _d: Map<Address, i128>) {}
 }
 
 /// Despliega un escrow falso con los roles exactos del modo guardián y la

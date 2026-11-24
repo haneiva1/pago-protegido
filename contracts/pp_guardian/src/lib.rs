@@ -576,7 +576,12 @@ fn approve_all_and_release(env: &Env, client: &EscrowClient, data: &Escrow) -> R
             client.approve_milestone(&(i as u32), &me);
         }
     }
-    let tw_fee: Address = env.storage().instance().get(&DataKey::TwFee).unwrap();
-    client.release_funds(&me, &tw_fee);
+    #[cfg(not(feature = "tw-mainnet"))]
+    {
+        let tw_fee: Address = env.storage().instance().get(&DataKey::TwFee).unwrap();
+        client.release_funds(&me, &tw_fee);
+    }
+    #[cfg(feature = "tw-mainnet")]
+    client.release_funds(&me);
     Ok(())
 }
