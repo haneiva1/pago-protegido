@@ -10,6 +10,7 @@ import { AvisoNavegadorInterno, CompraEnEsteNavegador, OtroNavegador } from "@/c
 import { BarraPagar, ComoFunciona, DosSalidas, HojaEntrega, Producto, Proteccion, type DatosEntrega } from "@/components/comprador/Checkout";
 import { ConfirmarPago, PreguntaConfirmar } from "@/components/comprador/Confirmar";
 import { EsperaEnCurso } from "@/components/comprador/Espera";
+import { AvisosWhatsApp } from "@/components/comprador/AvisosWhatsApp";
 import { Antifraude, Esqueleto, EstadoPedido, LinkNoEncontrado } from "@/components/comprador/Estado";
 import { PagoQr } from "@/components/comprador/PagoQr";
 import { QrEscaneo } from "@/components/comprador/QrEscaneo";
@@ -266,6 +267,7 @@ export default function PaginaDePago() {
       <Seguimiento v={v} esComprador={isBuyer} recogido={recogido} busy={busy} onRecogido={marcarRecogido} onNoLlego={() => accion("extend")} />
       <PublicRecord v={o.verification} escrowId={o.escrow_id} status={o.status} role="comprador" />
       {isBuyer && (o.status === "pagado" || o.status === "enviado" || o.status === "en_disputa") && <CompraEnEsteNavegador />}
+      {isBuyer && (o.status === "pagado" || o.status === "enviado" || o.status === "en_disputa") && <AvisosWhatsApp code={o.code} />}
 
       {o.ship_imei && (o.status === "enviado" || o.status === "en_disputa") && (
         <div data-testid="imei" className="flex gap-3 text-base">

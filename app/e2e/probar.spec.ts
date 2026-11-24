@@ -95,7 +95,7 @@ test("/probar: dos chats de WhatsApp simulados, el pago con QR, la plata entre l
   // El registro y los plazos viven en el cajón "Ver en la red".
   await page.getByTestId("ver-detalles").click();
   await expect(page.getByTestId("cajon-red")).toHaveAttribute("data-abierto", "si");
-  await expect(page.getByTestId("dentro-de-whatsapp")).toContainText("Trato funciona dentro de WhatsApp");
+  await expect(page.getByTestId("dentro-de-whatsapp")).toContainText("El chat de esta página es una simulación. El bot real está listo para WhatsApp");
   await expect(page.getByTestId("plazos")).toContainText("2 minutos para registrar el envío");
   await expect(page.getByTestId("registro")).toContainText("Todavía no hay movimientos");
   await page.getByTestId("cerrar-cajon").click();

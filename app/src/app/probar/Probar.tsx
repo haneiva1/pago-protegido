@@ -491,7 +491,7 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
             <IconoInfo className="mt-0.5 h-4 w-4 shrink-0 text-tinta-500" />
             <span>
               ¿Por qué simulado? Meta solo deja que un número de prueba le responda a 5 teléfonos hasta verificar la empresa. El bot real ya está hecho
-              (carpeta bot/, 191 tests, API oficial de WhatsApp) y lo mostramos en vivo en la final.
+              (carpeta bot/, 241 tests, API oficial de WhatsApp) y lo mostramos en vivo en la final.
             </span>
           </p>
           <div className="lg:col-span-2">
@@ -519,7 +519,8 @@ export default function Probar({ plazos }: { plazos: Plazos }) {
           <div>
             <p className="text-base font-semibold">Ver detalles</p>
             <p className="text-sm text-tinta-600" data-testid="dentro-de-whatsapp">
-              Trato funciona dentro de WhatsApp: no hay que bajar ninguna app.
+              El chat de esta página es una simulación. El bot real está listo para WhatsApp con la API oficial de Meta y un número de prueba, que
+              habla con hasta 5 teléfonos. No hay que bajar ninguna app.
             </p>
           </div>
           <button type="button" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-tinta-600 hover:bg-tinta-100" onClick={() => setCajon(false)} aria-label="Cerrar" data-testid="cerrar-cajon">

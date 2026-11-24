@@ -21,6 +21,9 @@ COPY app/ ./
 # dentro de la imagen, sin tocar el repo.
 RUN grep -q 'output:' next.config.ts \
   || sed -i 's/const nextConfig: NextConfig = {/const nextConfig: NextConfig = {\n  output: "standalone",/' next.config.ts
+# Número del asistente de WhatsApp (docs/WHATSAPP.md). Vacío = la página del comprador no lo ofrece.
+ARG NEXT_PUBLIC_BOT_WHATSAPP=
+ENV NEXT_PUBLIC_BOT_WHATSAPP=$NEXT_PUBLIC_BOT_WHATSAPP
 ARG NEXT_PUBLIC_WALLET=local
 ARG NEXT_PUBLIC_POLLAR_PUBLISHABLE_KEY=
 ENV NEXT_PUBLIC_WALLET=$NEXT_PUBLIC_WALLET \
