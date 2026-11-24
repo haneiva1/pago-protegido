@@ -93,9 +93,9 @@ Cuatro cuentas tuyas. **Todas nuevas:** la app rechaza las llaves de testnet.
 
 | Identidad | Para qué | Trustline USDC | XLM a mandarle |
 |---|---|---|---:|
-| `trato-deployer` | sube los WASM y despliega los contratos. Después se puede vaciar | no | **48** |
-| `trato-arbitro` | admin de los dos contratos; firma los repartos del revisor | no | **3** |
-| `trato-plataforma` | crea los escrows, paga comisiones y reservas, cobra el 2 % | **sí, obligatoria** | **20** |
+| `trato-mn-deployer` | sube los WASM y despliega los contratos. Después se puede vaciar | no | **48** |
+| `trato-mn-arbitro` | admin de los dos contratos; firma los repartos del revisor | no | **3** |
+| `trato-mn-plataforma` | crea los escrows, paga comisiones y reservas, cobra el 2 % | **sí, obligatoria** | **20** |
 | tu cuenta de siempre | de donde salen los XLM y el USDC de la prueba | sí | — |
 
 **Total: 71 XLM.** Cálculo (tarifas leídas de mainnet el 24-nov; reserva base 0,5 XLM):
@@ -104,18 +104,18 @@ Cuatro cuentas tuyas. **Todas nuevas:** la app rechaza las llaves de testnet.
 |---|---:|---|
 | Subir `pp_guardian.wasm` (20.407 B, 120 días) | 23,1004041 | simulado en mainnet |
 | Subir `pp_arbiter.wasm` (13.846 B, 120 días) | 17,8803247 | simulado en mainnet |
-| Instanciar los dos contratos y `set_arbiter` | ≤ 0,70 | cota: no se puede simular hasta subir los WASM |
-| Reserva de `trato-deployer` (2 × 0,5) | 1,00 | base |
+| Instanciar los dos contratos y `set_arbiter` | ≤ 0,70 | cota: no se puede simular hasta subir los WASM. Escalando una instancia simulada en mainnet (104 B, 0,0209) a las nuestras (412 y 320 B), ≈ 0,17 |
+| Reserva de `trato-mn-deployer` (2 × 0,5) | 1,00 | base |
 | Colchón (la renta sube con el tamaño del estado de la red) | 5,32 | |
-| **`trato-deployer`** | **48,00** | |
+| **`trato-mn-deployer`** | **48,00** | |
 | Reserva (1,00) + `set_arbiter` y unos 10 repartos (≤ 0,20) + colchón | 3,00 | |
-| **`trato-arbitro`** | **3,00** | |
+| **`trato-mn-arbitro`** | **3,00** | |
 | Reserva con trustline (3 × 0,5) | 1,50 | base |
 | Fábrica de escrows, una sola vez | 0,03 | simulado: 0,0209 |
 | 6 personas × 1,5 | 9,00 | exacto |
 | 5 compras × 0,45 | 2,25 | ver abajo |
 | Colchón | 7,22 | |
-| **`trato-plataforma`** | **20,00** | |
+| **`trato-mn-plataforma`** | **20,00** | |
 
 Cada compra: crear el escrow 0,2433 (simulado con la fábrica oficial; en la red se ve entre 0,22 y 0,38), fondear ≤ 0,15, registrar el envío ≤ 0,02, confirmar ≤ 0,01 y dos retiros ≤ 0,03. Total **≈ 0,45 XLM**. Para otra cantidad: `1,53 + 1,5 × personas + 0,45 × compras + colchón`.
 
@@ -126,14 +126,18 @@ Antes de empezar, compara con la red: si la simulación del paso 4 pide más que
 stellar network add mainnet --rpc-url https://rpc.lightsail.network \
   --network-passphrase "Public Global Stellar Network ; September 2015"
 
-# Identidades nuevas, sin friendbot. Guarda un respaldo de cada una fuera de la computadora.
-for k in trato-deployer trato-arbitro trato-plataforma; do stellar keys generate $k; stellar keys address $k; done
+# Identidades nuevas, sin friendbot, en el llavero de macOS. Guarda un respaldo de cada una fuera de la computadora.
+for k in trato-mn-deployer trato-mn-arbitro trato-mn-plataforma; do stellar keys generate $k --secure-store; stellar keys address $k; done
 ```
+
+Con `--secure-store`, `stellar keys secret` no muestra la llave. Cómo respaldarla y cómo sacar la `S…` que pide Railway: [scripts/mainnet/README.md](../scripts/mainnet/README.md#sacar-una-llave-del-llavero).
+
+> **Con script.** Una vez fondeadas las cuentas, `bash scripts/mainnet/desplegar.sh` hace la trustline de abajo y toda la sección 4, con una confirmación antes de cada transacción; `--dry-run` simula sin firmar ni enviar. Los comandos sueltos quedan como referencia y para hacerlo a mano.
 
 Manda los XLM desde tu cuenta a las tres direcciones (verifícalas en stellar.expert) y abre la trustline de la plataforma:
 
 ```bash
-stellar tx new change-trust --network mainnet --source trato-plataforma \
+stellar tx new change-trust --network mainnet --source trato-mn-plataforma \
   --line USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
 ```
 
@@ -163,30 +167,30 @@ OK  escrow-mainnet.wasm  96d51751f924c938a081deb740056dc1c5cc60c6e645672062531f8
 `wasm-mainnet.sh` compara con `contracts/wasm/mainnet.sha256`. `verify-wasm.sh` no cambia: sigue verificando los de testnet.
 
 ```bash
-ARB=$(stellar keys address trato-arbitro)
+ARB=$(stellar keys address trato-mn-arbitro)
 TW=GBWWSOATPLIC72ZBOIM7WJCT7VCAHNWW4QUBZ2H4FORMCCIUM5ZVKSZN
 
 # 1 y 2. Subir los WASM (≈ 41 XLM). Devuelven los hashes de arriba.
-stellar contract upload --network mainnet --source trato-deployer --wasm target/mainnet/pp_guardian.wasm
-stellar contract upload --network mainnet --source trato-deployer --wasm target/mainnet/pp_arbiter.wasm
+stellar contract upload --network mainnet --source trato-mn-deployer --wasm target/mainnet/pp_guardian.wasm
+stellar contract upload --network mainnet --source trato-mn-deployer --wasm target/mainnet/pp_arbiter.wasm
 
 # 3. pp_guardian (mismos plazos que testnet: de 60 s a 30 días)
-GUARDIAN=$(stellar contract deploy --network mainnet --source trato-deployer \
+GUARDIAN=$(stellar contract deploy --network mainnet --source trato-mn-deployer \
   --wasm-hash 46e96842b9c71e3930ef6c554d181153672afce9b971d214ecc20f9810309d94 -- \
   --admin $ARB --tw_fee $TW --min_ship_secs 60 --max_ship_secs 2592000 --min_inspect_secs 60 --max_inspect_secs 2592000)
 
 # 4. pp_arbiter
-ARBITER=$(stellar contract deploy --network mainnet --source trato-deployer \
+ARBITER=$(stellar contract deploy --network mainnet --source trato-mn-deployer \
   --wasm-hash a23fde5c8abd3f9ae76834b3136c836769b0906834d48986f9c1ee3060e0263c -- \
   --admin $ARB --guardian $GUARDIAN --tw_fee $TW)
 
 # 5. Conectarlos (una sola vez, lo firma el árbitro)
-stellar contract invoke --network mainnet --id $GUARDIAN --source trato-arbitro -- set_arbiter --arbiter $ARBITER
+stellar contract invoke --network mainnet --id $GUARDIAN --source trato-mn-arbitro -- set_arbiter --arbiter $ARBITER
 
 # 6. Comprobar lo que quedó en la red (solo lectura)
 for id in $GUARDIAN $ARBITER; do stellar contract fetch --network mainnet --id $id --out-file /tmp/c.wasm && shasum -a 256 /tmp/c.wasm; done
-stellar contract invoke --network mainnet --id $GUARDIAN --source trato-arbitro --send=no -- config
-stellar contract invoke --network mainnet --id $ARBITER  --source trato-arbitro --send=no -- config
+stellar contract invoke --network mainnet --id $GUARDIAN --source trato-mn-arbitro --send=no -- config
+stellar contract invoke --network mainnet --id $ARBITER  --source trato-mn-arbitro --send=no -- config
 echo "GUARDIAN=$GUARDIAN  ARBITER=$ARBITER"
 ```
 
@@ -205,7 +209,7 @@ Un servicio **aparte** del de la demo, con su propio volumen. Se construye con `
 | `STELLAR_NETWORK` | `mainnet`, en **build y runtime** |
 | `PP_GUARDIAN_ID`, `PP_ARBITER_ID` | los contratos del paso 4 (obligatorias: no hay valor por defecto) |
 | `PP_DEPLOY_LEDGER` | desde qué ledger lee eventos `/metricas` |
-| `PLATAFORMA_SECRET`, `ARBITRO_SECRET` | llaves de `trato-plataforma` y `trato-arbitro` |
+| `PLATAFORMA_SECRET`, `ARBITRO_SECRET` | llaves de `trato-mn-plataforma` y `trato-mn-arbitro` |
 | `ARBITRO_PANEL_KEY` | clave del panel del revisor (una nueva) |
 | `PP_DB_PATH` | base nueva, dentro del volumen del servicio |
 | `FX_BS_PER_USD`, `PLATFORM_FEE_BPS` | como en la demo |
@@ -250,13 +254,13 @@ Todo en `https://stellar.expert/explorer/public/…`:
 | Qué mirar | Dónde | Qué tiene que decir |
 |---|---|---|
 | Contratos | `/contract/<PP_GUARDIAN_ID>` y `/contract/<PP_ARBITER_ID>` | el hash del WASM es el del paso 4 |
-| Escrow de la compra | link «Ver contrato» del pedido | WASM `96d51751…`, creado por `trato-plataforma` |
-| Fondeo | la transacción «Guardar el pago en el contrato» | transferencia de USDC de la cuenta de B al escrow; la comisión la pagó `trato-plataforma` (fee bump) |
+| Escrow de la compra | link «Ver contrato» del pedido | WASM `96d51751…`, creado por `trato-mn-plataforma` |
+| Fondeo | la transacción «Guardar el pago en el contrato» | transferencia de USDC de la cuenta de B al escrow; la comisión la pagó `trato-mn-plataforma` (fee bump) |
 | Moneda | el activo de la transferencia | USDC, emisor `GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN`, contrato `CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75` |
-| Liberación | la transacción «Pagar al vendedor» | tres transferencias: vendedor, `trato-plataforma` y `GBWW…KSZN` (0,3 %). El escrow queda en 0 |
+| Liberación | la transacción «Pagar al vendedor» | tres transferencias: vendedor, `trato-mn-plataforma` y `GBWW…KSZN` (0,3 %). El escrow queda en 0 |
 | Nadie más cobró | saldos del escrow y de las tres cuentas | la suma de lo que salió es lo que entró |
 
-Estado crudo de una compra: `stellar contract invoke --network mainnet --id <PP_GUARDIAN_ID> --source trato-arbitro --send=no -- purchase --escrow <ESCROW>`.
+Estado crudo de una compra: `stellar contract invoke --network mainnet --id <PP_GUARDIAN_ID> --source trato-mn-arbitro --send=no -- purchase --escrow <ESCROW>`.
 
 ---
 
@@ -280,19 +284,19 @@ La plata de una compra solo puede ir al vendedor o volver al comprador, con el s
 ```bash
 G=<PP_GUARDIAN_ID>; R=<PP_ARBITER_ID>; E=<escrow de la compra>
 # No despachó y venció el plazo: congelar (rol platform) y devolver
-stellar contract invoke --network mainnet --id $E --source trato-plataforma -- dispute_escrow --signer $(stellar keys address trato-plataforma)
-stellar contract invoke --network mainnet --id $R --source trato-arbitro -- refund_unshipped --escrow $E
+stellar contract invoke --network mainnet --id $E --source trato-mn-plataforma -- dispute_escrow --signer $(stellar keys address trato-mn-plataforma)
+stellar contract invoke --network mainnet --id $R --source trato-mn-arbitro -- refund_unshipped --escrow $E
 # Despachó, venció la revisión y no hay reclamo
-stellar contract invoke --network mainnet --id $G --source trato-arbitro -- auto_release --escrow $E
+stellar contract invoke --network mainnet --id $G --source trato-mn-arbitro -- auto_release --escrow $E
 # Reclamo abierto: 10000 = todo al comprador, 0 = todo al vendedor
-stellar contract invoke --network mainnet --id $R --source trato-arbitro -- resolve --escrow $E --buyer_bps 10000
+stellar contract invoke --network mainnet --id $R --source trato-mn-arbitro -- resolve --escrow $E --buyer_bps 10000
 # Reclamo de más de 7 días sin decidir
-stellar contract invoke --network mainnet --id $R --source trato-arbitro -- resolve_expired --escrow $E
+stellar contract invoke --network mainnet --id $R --source trato-mn-arbitro -- resolve_expired --escrow $E
 ```
 
-En una devolución total el comprador recibe el pago **menos** las comisiones del contrato (0,3 % de Trustless Work y la de la plataforma), igual que en testnet. En una prueba de USD 2 son centavos: devuélvelos a mano desde `trato-plataforma`.
+En una devolución total el comprador recibe el pago **menos** las comisiones del contrato (0,3 % de Trustless Work y la de la plataforma), igual que en testnet. En una prueba de USD 2 son centavos: devuélvelos a mano desde `trato-mn-plataforma`.
 
-Al terminar: `stellar tx new account-merge --network mainnet --source trato-deployer --account <tu cuenta>` recupera lo que sobró ahí. No cierres `trato-plataforma` ni `trato-arbitro` mientras haya compras abiertas.
+Al terminar: `stellar tx new account-merge --network mainnet --source trato-mn-deployer --account <tu cuenta>` recupera lo que sobró ahí. No cierres `trato-mn-plataforma` ni `trato-mn-arbitro` mientras haya compras abiertas.
 
 ---
 
