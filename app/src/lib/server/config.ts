@@ -176,7 +176,7 @@ export function cfgMainnet(env: Entorno = process.env): Config {
   const llave = (nombre: string, deTestnet: string) =>
     once(() => {
       const kp = Keypair.fromSecret(falta(nombre));
-      if (kp.publicKey() === deTestnet) throw new Error(`${nombre} es la llave de testnet: en mainnet va una nueva`);
+      if (kp.publicKey() === deTestnet) throw new Error(`${nombre} es la de testnet: en mainnet va una nueva`);
       return kp;
     });
   const plataforma = llave("PLATAFORMA_SECRET", TESTNET_PUBLICO.plataforma);

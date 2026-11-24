@@ -12,6 +12,7 @@ import type { PreparedTx, WalletRole } from "@/lib/wallet";
 // Solo mainnet (docs/MAINNET.md): la cuenta de Trato de cada persona vive en su navegador y guarda USDC real.
 
 const cargarWallet = () => import("@/lib/wallet");
+const RUTA_SALDO = "/api/wallet/saldo";
 
 /** Saldo de USDC de una cuenta de Trato, refrescado cada 5 segundos. `null` mientras no se sabe. */
 export function useSaldoUsdc(cuenta: string | null) {
@@ -19,7 +20,7 @@ export function useSaldoUsdc(cuenta: string | null) {
   const leer = useCallback(async () => {
     if (!cuenta) return;
     try {
-      setSaldo(BigInt((await api<{ saldo: string }>(`/api/wallet/saldo?cuenta=${cuenta}`)).saldo));
+      setSaldo(BigInt((await api<{ saldo: string }>(`${RUTA_SALDO}?cuenta=${cuenta}`)).saldo));
     } catch {
       /* la red puede fallar un momento: queda el último saldo leído */
     }
