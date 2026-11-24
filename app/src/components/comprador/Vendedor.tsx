@@ -3,7 +3,7 @@
 import { IconoChevronDerecha, IconoWhatsApp } from "@/components/iconos";
 import { TEXTO } from "@/lib/red";
 import { NumerosTienda } from "@/components/Kpis";
-import { desdeTexto, fmtProporcion, plural } from "@/lib/kpi-format";
+import { desdeTexto, fmtProporcion, nf, rotuloVentas } from "@/lib/kpi-format";
 import type { Kpis, OrderView } from "@/lib/types";
 import { fmtWhatsApp } from "@/lib/format";
 import { waLink } from "@/lib/whatsapp";
@@ -19,10 +19,10 @@ const iniciales = (nombre: string) =>
  * La reputación en una sola línea, con los mismos números de la tarjeta y del perfil público (num-ventas y
  * num-sin-reclamo): nunca dos cifras de reclamos que se contradigan.
  */
-export function reputacionTexto(k: Kpis): string {
+export function reputacionTexto(k: Kpis, piloto: boolean): string {
   if (!k.pagadas_al_vendedor) return "Tienda nueva · igual tu plata espera entre los dos";
   const sin = fmtProporcion(k.ventas_sin_reclamo, k.cerradas);
-  return `${plural(k.pagadas_al_vendedor, "venta protegida", "ventas protegidas")} · ${sin === "Todas" ? "todas" : sin} sin reclamo`;
+  return `${nf(k.pagadas_al_vendedor)} ${rotuloVentas(k.pagadas_al_vendedor, piloto)} · ${sin === "Todas" ? "todas" : sin} sin reclamo`;
 }
 
 /**
@@ -39,7 +39,7 @@ export function Reputacion({ v }: { v: OrderView }) {
           {s.store_name}
           {s.city ? <span className="font-normal text-tinta-500"> · {s.city}</span> : null}
         </p>
-        <p className="truncate text-tinta-600">{reputacionTexto(s.kpis)}</p>
+        <p className="truncate text-tinta-600">{reputacionTexto(s.kpis, s.pilot)}</p>
       </div>
     </div>
   );
@@ -69,7 +69,7 @@ export function TarjetaVendedor({ v }: { v: OrderView }) {
           <p className="text-lg font-semibold leading-tight">{s.store_name}</p>
           <p className="text-sm text-tinta-600">
             {s.city ? `${s.city} · ` : ""}
-            {reputacionTexto(k)}
+            {reputacionTexto(k, s.pilot)}
           </p>
         </div>
         <a className="btn-secondary btn-sm flex-none" href={waLink("Hola, te escribo por tu link de pago de Trato", s.whatsapp)} target="_blank" rel="noreferrer">
@@ -77,7 +77,7 @@ export function TarjetaVendedor({ v }: { v: OrderView }) {
           Escribir
         </a>
       </div>
-      {k.pagadas_al_vendedor > 0 && <NumerosTienda k={k} compacto />}
+      {k.pagadas_al_vendedor > 0 && <NumerosTienda k={k} piloto={s.pilot} compacto />}
       <ul className="space-y-0.5 text-sm text-tinta-600">
         <li>{desdeTexto(k, s.since)}</li>
         <li>Verificación de identidad: pendiente ({TEXTO.modo})</li>

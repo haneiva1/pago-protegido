@@ -114,6 +114,8 @@ export interface MoneyView {
 
 export interface SellerCard {
   store_name: string;
+  /** Tienda del piloto: si no lo es, en testnet sus ventas se muestran como compras de prueba (kpi-format, rotuloVentas). */
+  pilot: boolean;
   whatsapp: string;
   pubkey: string;
   city: string | null;

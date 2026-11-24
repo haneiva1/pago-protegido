@@ -200,13 +200,8 @@ async function abrirPregunta(buyer: Page) {
 test("caso feliz: el comprador paga la protección, datos de entrega, envío con evidencia y pago al vendedor", async ({ browser }) => {
   const landing = await browser.newPage();
   await landing.goto("/");
-  await expect(landing.getByRole("heading", { level: 1 })).toHaveText("Vende a otras ciudades sin que desconfíen de ti");
-  await expect(landing.getByText("El contra entrega no cruza departamentos. Trato sí.")).toBeVisible();
-  // Una sola versión: el segmento (celulares y electrónica, Bs 1.000 a 7.000) y el rótulo "Ejemplo" en los datos ilustrativos.
-  await expect(landing.getByText("Celulares y electrónica entre ciudades · Bs 1.000 a 7.000")).toBeVisible();
-  await expect(landing.getByTestId("ejemplo")).toHaveText("Ejemplo");
-  await expect(landing.getByText("Celular Samsung Galaxy A35")).toBeVisible();
-  await capturar(landing, "01-landing");
+  // Con PP_PROBAR=1 la demo es la portada; la portada de siempre se revisa en publico.spec.ts.
+  await expect(landing).toHaveURL(/\/probar$/);
   await landing.close();
 
   const seller = await nuevoVendedor(browser, "Tienda Sofi", "59171234567", "Santa Cruz", { capturas: true });
@@ -349,7 +344,7 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
   const tarjeta = buyer.getByTestId("vendedor");
   await expect(async () => {
     await buyer.reload();
-    await expect(tarjeta.getByTestId("num-ventas")).toContainText(/1\s*venta protegida/, { timeout: 5_000 });
+    await expect(tarjeta.getByTestId("num-ventas")).toContainText(/1\s*compra de prueba interna en testnet/, { timeout: 5_000 });
   }).toPass({ timeout: 180_000 });
   await expect(tarjeta.getByTestId("num-sin-reclamo")).toContainText("Todas");
   await expect(tarjeta.getByTestId("num-perdidos")).toContainText(/0\s*reclamos perdidos/);
@@ -358,7 +353,7 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
   await expect(buyer).toHaveURL(/\/tienda\/tienda-sofi-[0-9a-f]{4}$/);
   await expect(buyer.getByTestId("perfil-nombre")).toHaveText("Tienda Sofi");
   await expect(buyer.getByTestId("sello")).toContainText("Vende con Trato");
-  await expect(buyer.getByTestId("num-ventas")).toContainText(/1\s*venta protegida/);
+  await expect(buyer.getByTestId("num-ventas")).toContainText(/1\s*compra de prueba interna en testnet/);
   await expect(buyer.getByTestId("num-despacho")).not.toContainText("—");
   await expect(buyer.getByTestId("verificacion")).toHaveText("Verificación de identidad: pendiente (modo práctica)");
   await expect(buyer.getByTestId("operacion").first().locator(TX_LINK).first()).toBeVisible();
@@ -368,7 +363,7 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
   // Panel del vendedor: sus propios KPIs (ventas protegidas, % sin reclamo y tiempo hasta el cobro).
   await seller.goto("/panel");
   const tus = seller.getByTestId("kpis-vendedor");
-  await expect(tus.getByTestId("kpi-ventas")).toContainText(/1\s*venta protegida/, CHAIN);
+  await expect(tus.getByTestId("kpi-ventas")).toContainText(/1\s*compra de prueba interna en testnet/, CHAIN);
   await expect(tus.getByTestId("kpi-sin-reclamo")).toContainText("Todas");
   await expect(tus.getByTestId("kpi-cobro")).not.toContainText("—");
   await expect(tus.getByTestId("link-mi-perfil")).toHaveAttribute("href", /\/tienda\/tienda-sofi-[0-9a-f]{4}$/);
@@ -670,7 +665,7 @@ test("bot de WhatsApp: vender por chat → pago con datos de entrega → enviado
 test("transparencia: pruebas del equipo (con reclamos forzados) y piloto aparte, con datos reales de testnet", async ({ page, request }) => {
   await page.goto("/transparencia");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Transparencia");
-  await expect(page.getByText("Estas cifras se calculan con datos públicos de la red Stellar (testnet). Cualquiera puede verificarlas.")).toBeVisible();
+  await expect(page.getByText("Estas cifras se calculan con datos públicos de la red (de prueba). Cualquiera puede verificarlas.")).toBeVisible();
   await expect(page.getByTestId("pruebas-equipo")).toHaveText("Compras de prueba internas en testnet (incluye reclamos forzados)");
   await expect(page.getByTestId("piloto")).toContainText("Piloto con vendedores reales");
   await expect(page.getByTestId("como-terminaron")).toContainText("reclamos forzados");

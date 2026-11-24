@@ -1,10 +1,10 @@
 // El contador "tiendas inscritas al piloto" de /metricas y /api/metricas. `npm run test:api`.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { llamar, src } from "./entorno.mjs";
+import { llamar, nuevoLink, src } from "./entorno.mjs";
 
 const { reiniciarLimites } = await import(src("lib/server/limite.ts"));
-const { COMPRAS_INTERNAS, rotuloCompras, rotuloMonto } = await import(src("lib/kpi-format.ts"));
+const { COMPRAS_INTERNAS, rotuloCompras, rotuloMonto, rotuloVentas } = await import(src("lib/kpi-format.ts"));
 
 const FICHA = {
   name: "Rosaura Quispe",
@@ -62,4 +62,15 @@ test("las compras del equipo se llaman compras de prueba internas, y las del pil
   assert.equal(rotuloMonto("equipo"), "Monto de prueba");
   assert.equal(rotuloCompras("piloto"), "Compras protegidas");
   assert.equal(rotuloMonto("piloto"), "Monto protegido");
+});
+
+test("las ventas de una tienda que no es del piloto se llaman compras de prueba internas", async () => {
+  assert.equal(rotuloVentas(1, false), "compra de prueba interna en testnet");
+  assert.equal(rotuloVentas(57, false), "compras de prueba internas en testnet");
+  assert.equal(rotuloVentas(1, true), "venta protegida");
+  assert.equal(rotuloVentas(3, true), "ventas protegidas");
+  // La página de pago sabe si la tienda es del piloto.
+  const { slug } = nuevoLink();
+  const r = await llamar("orders/[slug]", { method: "GET", path: `/api/orders/${slug}`, params: { slug } });
+  assert.equal(r.body.seller.pilot, false);
 });

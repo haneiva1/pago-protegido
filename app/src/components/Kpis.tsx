@@ -1,5 +1,5 @@
 import { explorer, unitsToNumber } from "@/lib/format";
-import { DESENLACE_LABEL, fmtDiaCorto, fmtDuracion, fmtFecha, fmtProporcion, nf, plural } from "@/lib/kpi-format";
+import { DESENLACE_LABEL, fmtDiaCorto, fmtDuracion, fmtFecha, fmtProporcion, nf, plural, rotuloVentas } from "@/lib/kpi-format";
 import type { CompraOnchain, Desenlace, DiaSerie, Kpis } from "@/lib/types";
 import { IconoExterno } from "./iconos";
 
@@ -16,11 +16,11 @@ export function Stat({ label, value, sub, testId }: { label: string; value: stri
 }
 
 /** Los mismos cuatro números en el perfil público (/tienda) y en la tarjeta del vendedor de la página de pago. */
-export function NumerosTienda({ k, compacto = false }: { k: Kpis; compacto?: boolean }) {
+export function NumerosTienda({ k, piloto, compacto = false }: { k: Kpis; piloto: boolean; compacto?: boolean }) {
   const conDevolucion = k.reclamos.a_favor_comprador + k.reclamos.repartidos;
   return (
     <div className={compacto ? "grid grid-cols-2 gap-2" : "grid grid-cols-2 gap-2 sm:grid-cols-4"} data-testid="numeros-tienda">
-      <Stat testId="num-ventas" value={nf(k.pagadas_al_vendedor)} label={k.pagadas_al_vendedor === 1 ? "venta protegida" : "ventas protegidas"} sub={k.en_curso ? `${k.en_curso} en curso` : undefined} />
+      <Stat testId="num-ventas" value={nf(k.pagadas_al_vendedor)} label={rotuloVentas(k.pagadas_al_vendedor, piloto)} sub={k.en_curso ? `${k.en_curso} en curso` : undefined} />
       <Stat
         testId="num-sin-reclamo"
         value={fmtProporcion(k.ventas_sin_reclamo, k.cerradas)}
