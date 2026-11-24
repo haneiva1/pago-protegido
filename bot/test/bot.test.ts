@@ -119,3 +119,55 @@ describe("plan B: la app todavía no tiene /api/bot/*", () => {
     expect(await texts(SELLER, "vender zapatillas 450 3 dias")).toMatch(/\/p\/zapatillas-/);
   });
 });
+
+describe("WhatsApp real: avisos guardados, compradores y números que WhatsApp no comparte", () => {
+  const COMPRADOR = "59176543210";
+  let pendientes: number;
+  let refrescos: number;
+  beforeEach(async () => {
+    pendientes = 0;
+    refrescos = 0;
+    app = await startMockApp();
+    bot = new Bot({
+      client: new HttpAppClient(app.url), appUrl: "https://pp.test", ventana24h: true,
+      pendientes: () => pendientes, compras: (p) => (p === COMPRADOR ? 1 : 0),
+      refrescar: async () => void refrescos++,
+    });
+  });
+
+  it("novedades: entiende lo que se escribe, el botón de la plantilla y el texto del botón de la web", async () => {
+    for (const t of ["novedades", "Novedades", "ver el aviso", "Ver el aviso", "mis avisos", "avisos PP-7KM4Q9TX", "avisos pp 7KM4Q9TX", "ver los avisos", "avisos de mi pedido PP-4821"]) {
+      pendientes = 2;
+      expect(await texts(COMPRADOR, t)).toBe("📬 Tenía 2 avisos guardados para ti:");
+    }
+    expect(refrescos).toBe(9);
+    for (const t of ["estado PP-4821", "ver PP-4821", "vendo avisos luminosos 450 bs entrega 3 días"]) expect(await texts(SELLER, t)).not.toContain("guardados para ti");
+  });
+
+  it("sin avisos guardados: al comprador le confirma, a la tienda le dice que está al día y a un desconocido le explica", async () => {
+    expect(await texts(COMPRADOR, "avisos PP-4821")).toContain("Te aviso por aquí de tu compra");
+    expect(await texts(SELLER, "novedades")).toContain("Estás al día");
+    expect(await texts("59170000000", "avisos PP-4821")).toContain("No veo ninguna compra con este número");
+  });
+
+  it("si la app no responde al buscar novedades, igual contesta", async () => {
+    bot = new Bot({ client: new HttpAppClient(app.url), appUrl: "https://pp.test", compras: () => 1, refrescar: () => Promise.reject(new Error("caída")) });
+    expect(await texts(COMPRADOR, "novedades")).toContain("Te aviso por aquí");
+  });
+
+  it("un comprador sin tienda que saluda no recibe el 'crea tu tienda' de siempre; la bienvenida de la tienda explica las 24 horas", async () => {
+    expect(await texts(COMPRADOR, "hola")).toContain("Te aviso por aquí de tu compra");
+    expect(await texts("59170000000", "hola")).toContain("todavía no tiene tienda");
+    expect(await texts(SELLER, "hola")).toContain("hasta 24 horas después de tu último mensaje");
+  });
+
+  it("sin teléfono (nombre de usuario de WhatsApp): no busca tiendas ni vincula, pero verifica links", async () => {
+    const id = "BO.13491208655302741918";
+    expect(await texts(id, "hola")).toContain("no me mostró tu número");
+    expect(await texts(id, "novedades")).toContain("no me mostró tu número");
+    expect(await texts(id, `vincular ${DEMO_SELLER.pubkey}`)).toContain("no me mostró tu número");
+    expect(await texts(id, "vendo polera 100 bs entrega 1 día")).toContain("no me mostró tu número");
+    expect(await texts(id, "https://bit.ly/abc")).toContain("NO es de Trato");
+    expect(app.calls).toEqual([]);
+  });
+});

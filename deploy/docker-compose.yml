@@ -15,6 +15,7 @@ services:
       dockerfile: deploy/app.Dockerfile
       args:
         NEXT_PUBLIC_WALLET: ${NEXT_PUBLIC_WALLET:-local}
+        NEXT_PUBLIC_BOT_WHATSAPP: ${NEXT_PUBLIC_BOT_WHATSAPP:-}
         NEXT_PUBLIC_POLLAR_PUBLISHABLE_KEY: ${NEXT_PUBLIC_POLLAR_PUBLISHABLE_KEY:-}
     env_file:
       - path: app.env

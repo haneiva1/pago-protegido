@@ -1,4 +1,5 @@
-# Bot de WhatsApp de Pago Protegido (webhook de WhatsApp Cloud API). SOLO TESTNET.
+# Bot de WhatsApp de Trato (webhook de WhatsApp Cloud API). La instancia de la app (testnet o mainnet) sale de
+# PP_APP_URL y STELLAR_NETWORK. Ver docs/WHATSAPP.md.
 # Contexto de build: pago-protegido/   →   docker build -f deploy/bot.Dockerfile .
 # El bot no tiene llaves de billeteras: solo habla con la API de la app.
 
@@ -13,7 +14,8 @@ COPY bot/src ./src
 RUN mkdir -p /data && chown node:node /data
 ENV NODE_ENV=production \
     PORT=3040 \
-    BOT_STATE_FILE=/data/bot-state.json
+    BOT_STATE_FILE=/data/bot-state.json \
+    REPORTS_FILE=/data/reportes.jsonl
 USER node
 EXPOSE 3040
 # Sin VOLUME: Railway lo rechaza. El volumen se monta en /data desde la plataforma (o docker-compose).

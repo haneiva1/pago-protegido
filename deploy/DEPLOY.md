@@ -97,14 +97,14 @@ Se crean dos servicios desde el mismo repo, cada uno con su Dockerfile.
    - **Volume**: monta un volumen en `/data`, para SQLite.
    - Settings → **Healthcheck Path**: `/api/info`.
    - Settings → Networking → **Generate Domain**. Agrega ese dominio en Pollar como origen y URL de retorno.
-2. **Servicio `bot`** (opcional), con el mismo repo.
+2. **Servicio `bot`** (opcional), con el mismo repo. Paso a paso del WhatsApp real, con la cuenta de Meta: [`../docs/WHATSAPP.md`](../docs/WHATSAPP.md).
    - Root Directory: `pago-protegido`.
    - Variables:
      - `RAILWAY_DOCKERFILE_PATH=deploy/bot.Dockerfile`;
      - las de `bot.env.example`;
      - `PP_APP_URL=http://${{app.RAILWAY_PRIVATE_DOMAIN}}:3000`, por la red privada;
      - `PP_PUBLIC_URL=https://${{app.RAILWAY_PUBLIC_DOMAIN}}`;
-     - `BOT_STATE_FILE=/data/bot-state.json` y `PORT=3040`.
+     - `BOT_STATE_FILE=/data/bot-state.json`, `PORT=3040` y `RAILWAY_RUN_UID=0` (el volumen se monta como root).
    - Volume en `/data`.
    - Healthcheck Path: `/health`.
    - Generate Domain. La URL del webhook en Meta es ese dominio con `/webhook` al final.

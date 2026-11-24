@@ -4,8 +4,9 @@
 
 import { MissingEndpoint, type AppClient } from "../app/client.ts";
 import type { ChangesFeed, Order, OrderStatus, OrderView } from "../app/types.ts";
-import { notice, type OutMsg } from "../engine/messages.ts";
-import { normPhone } from "../engine/parse.ts";
+import { RESUMEN_AVISO, notice, type OutMsg } from "../engine/messages.ts";
+import { normPhone, orderCode } from "../engine/parse.ts";
+import type { AvisoMeta } from "./outbox.ts";
 
 export interface TrackedOrder {
   status: OrderStatus;
@@ -50,6 +51,7 @@ export const REMINDER_HOURS = [48, 24, 2];
 export interface Sent {
   to: string;
   kind: NoticeKind;
+  papel: AvisoMeta["papel"];
   slug: string;
   msg: OutMsg;
 }
@@ -69,26 +71,26 @@ export function noticesFor(view: OrderView, appUrl: string, sellerPhone: string,
   const out: Omit<Sent, "slug">[] = [];
   switch (view.order.status) {
     case "pagado":
-      out.push({ to: sellerPhone, kind: "pagado", msg: notice.paid(d) });
+      out.push({ to: sellerPhone, kind: "pagado", papel: "vendedor", msg: notice.paid(d) });
       break;
     case "enviado":
-      out.push({ to: sellerPhone, kind: "enviado_vendedor", msg: notice.shippedSeller(d) });
-      if (buyerPhone) out.push({ to: buyerPhone, kind: "te_llego", msg: notice.arrived(d) });
+      out.push({ to: sellerPhone, kind: "enviado_vendedor", papel: "vendedor", msg: notice.shippedSeller(d) });
+      if (buyerPhone) out.push({ to: buyerPhone, kind: "te_llego", papel: "comprador", msg: notice.arrived(d) });
       break;
     case "liberado":
-      out.push({ to: sellerPhone, kind: "liberado", msg: notice.released(d) });
+      out.push({ to: sellerPhone, kind: "liberado", papel: "vendedor", msg: notice.released(d) });
       break;
     case "en_disputa":
-      out.push({ to: sellerPhone, kind: "reclamo", msg: notice.dispute(d) });
-      if (buyerPhone) out.push({ to: buyerPhone, kind: "reclamo", msg: notice.disputeBuyer(d) });
+      out.push({ to: sellerPhone, kind: "reclamo", papel: "vendedor", msg: notice.dispute(d) });
+      if (buyerPhone) out.push({ to: buyerPhone, kind: "reclamo", papel: "comprador", msg: notice.disputeBuyer(d) });
       break;
     case "resuelto":
-      out.push({ to: sellerPhone, kind: "resuelto", msg: notice.resolved(d, "vendedor") });
-      if (buyerPhone) out.push({ to: buyerPhone, kind: "resuelto", msg: notice.resolved(d, "comprador") });
+      out.push({ to: sellerPhone, kind: "resuelto", papel: "vendedor", msg: notice.resolved(d, "vendedor") });
+      if (buyerPhone) out.push({ to: buyerPhone, kind: "resuelto", papel: "comprador", msg: notice.resolved(d, "comprador") });
       break;
     case "devuelto":
-      out.push({ to: sellerPhone, kind: "devuelto", msg: notice.refunded(d, "vendedor") });
-      if (buyerPhone) out.push({ to: buyerPhone, kind: "devuelto", msg: notice.refunded(d, "comprador") });
+      out.push({ to: sellerPhone, kind: "devuelto", papel: "vendedor", msg: notice.refunded(d, "vendedor") });
+      if (buyerPhone) out.push({ to: buyerPhone, kind: "devuelto", papel: "comprador", msg: notice.refunded(d, "comprador") });
       break;
   }
   return out;
@@ -97,7 +99,8 @@ export function noticesFor(view: OrderView, appUrl: string, sellerPhone: string,
 export interface PollerDeps {
   client: AppClient;
   appUrl: string;
-  send: (to: string, m: OutMsg) => Promise<void>;
+  /** `meta` es para el transporte que puede tener que guardar el aviso (notify/outbox.ts). */
+  send: (to: string, m: OutMsg, meta: AvisoMeta) => Promise<void>;
   now?: () => number;
   /** Cuántas horas antes de la liberación automática se recuerda al comprador. Por defecto 48, 24 y 2. */
   reminderHours?: number | number[];
@@ -113,6 +116,7 @@ export class Poller {
   private readonly appUrl: string;
   private timer?: NodeJS.Timeout;
   private running = false;
+  private cola: Promise<unknown> = Promise.resolve();
 
   constructor(private readonly d: PollerDeps) {
     this.now = d.now ?? Date.now;
@@ -144,12 +148,25 @@ export class Poller {
     }
   }
 
-  /** Una vuelta: detecta cambios, avisa y manda recordatorios. Devuelve lo enviado. */
-  async tick(): Promise<Sent[]> {
+  /** Cuántas compras dejaron este WhatsApp para los avisos. */
+  comprasDe(phone: string): number {
+    const p = normPhone(phone);
+    return Object.values(this.state.orders).filter((o) => o.buyerPhone === p).length;
+  }
+
+  /** Una vuelta: detecta cambios, avisa y manda recordatorios. Devuelve lo enviado. De a una: dos a la vez avisarían doble. */
+  tick(): Promise<Sent[]> {
+    const r = this.cola.then(() => this.vuelta());
+    this.cola = r.catch(() => undefined);
+    return r;
+  }
+
+  private async vuelta(): Promise<Sent[]> {
     const sent: Sent[] = [];
-    const deliver = async (slug: string, n: Omit<Sent, "slug">) => {
+    const deliver = async (slug: string, n: Omit<Sent, "slug">, view: OrderView) => {
       try {
-        await this.d.send(n.to, n.msg);
+        const vence = n.kind === "recordatorio" ? (view.order.deadline ?? undefined) : undefined;
+        await this.d.send(n.to, n.msg, { slug, kind: n.kind, papel: n.papel, code: orderCode(view.order), resumen: RESUMEN_AVISO[n.kind], ...(vence ? { vence } : {}) });
         sent.push({ ...n, slug });
       } catch (e) {
         console.error(`[avisos] no pude avisar a ${n.to} (${n.kind}):`, e instanceof Error ? e.message : e);
@@ -190,12 +207,12 @@ export class Poller {
         reintegroDesde: undefined,
       });
       const changedStatus = prev !== o.status;
-      if (changedStatus) for (const n of noticesFor(view, this.appUrl, sellerPhone, buyerPhone)) await deliver(slug, n);
+      if (changedStatus) for (const n of noticesFor(view, this.appUrl, sellerPhone, buyerPhone)) await deliver(slug, n, view);
 
       // La hora de liberación cambió (envío o "Necesito más tiempo"): los recordatorios se vuelven a programar con la nueva.
       if (prevT && prevT.deadline != null && o.deadline != null && prevT.deadline !== o.deadline) t.reminders = [];
       if (o.status === "enviado" && extended && prevT && !prevT.extended && !changedStatus) {
-        await deliver(slug, { to: sellerPhone, kind: "mas_tiempo", msg: notice.extended({ appUrl: this.appUrl, view }) });
+        await deliver(slug, { to: sellerPhone, kind: "mas_tiempo", papel: "vendedor", msg: notice.extended({ appUrl: this.appUrl, view }) }, view);
       }
 
       // Anti-presión al comprador: al pagar y otra vez al enviar (dentro de "¿Te llegó?"). También si deja su
@@ -205,7 +222,7 @@ export class Poller {
         if (!warned[o.status]) {
           warned[o.status] = true;
           const inArrived = o.status === "enviado" && changedStatus; // notice.arrived ya lo trae
-          if (!inArrived) await deliver(slug, { to: buyerPhone, kind: "anti_presion", msg: notice.antiPressure({ appUrl: this.appUrl, view }) });
+          if (!inArrived) await deliver(slug, { to: buyerPhone, kind: "anti_presion", papel: "comprador", msg: notice.antiPressure({ appUrl: this.appUrl, view }) }, view);
         }
       }
     }
@@ -224,7 +241,7 @@ export class Poller {
       if (!view || view.order.status !== "enviado") continue;
       t.reminders = [...done, ...due];
       // Si se juntan varios hitos (el bot estuvo apagado), va solo el más urgente.
-      await deliver(slug, { to: t.buyerPhone, kind: "recordatorio", msg: notice.reminder({ appUrl: this.appUrl, view }, now) });
+      await deliver(slug, { to: t.buyerPhone, kind: "recordatorio", papel: "comprador", msg: notice.reminder({ appUrl: this.appUrl, view }, now) }, view);
     }
 
     this.d.save?.(this.state);

@@ -6,7 +6,7 @@ import type { Order, Seller, SellerData } from "./app/types.ts";
 import { askEvidenceSession, detectIntent, routePublic, step, type Command, type PublicCommand, type Session } from "./engine/engine.ts";
 import { SLUG_RE, checkLink, hostOf } from "./engine/links.ts";
 import { linkUrl, msg, registerUrl, type OutMsg } from "./engine/messages.ts";
-import { matchOrder, normPhone } from "./engine/parse.ts";
+import { esBsuid, matchOrder, normPhone } from "./engine/parse.ts";
 import { ReportStore } from "./reports.ts";
 
 export interface BotDeps {
@@ -32,6 +32,15 @@ export interface BotDeps {
   /** Tiendas que ya recibieron el aviso de registro ("para cobrar no tienes que abrir ningún link"). */
   greeted?: Set<string>;
   onGreeted?: (phone: string) => void;
+  // WhatsApp real (en el simulador no hacen falta):
+  /** Hay ventana de 24 horas: se explica en la bienvenida. */
+  ventana24h?: boolean;
+  /** Cuántos avisos guardados tiene ese número. Salen después de la respuesta. */
+  pendientes?: (phone: string) => number;
+  /** Cuántas compras dejaron ese número para los avisos. */
+  compras?: (phone: string) => number;
+  /** Busca cambios ahora, sin esperar la próxima vuelta (el comprador acaba de pagar y pide sus avisos). */
+  refrescar?: () => Promise<unknown>;
 }
 
 export class Bot {
@@ -54,24 +63,25 @@ export class Bot {
 
   /** Procesa un mensaje entrante y devuelve las respuestas, en orden. */
   async handle(fromRaw: string, text: string): Promise<OutMsg[]> {
-    const phone = normPhone(fromRaw);
+    const phone = esBsuid(fromRaw) ? fromRaw : normPhone(fromRaw);
     try {
       const intent = detectIntent(text);
-      if (intent.kind === "link") return [await this.link(phone, intent.pubkey)];
+      if (intent.kind === "link") return [esBsuid(phone) ? msg.sinNumero() : await this.link(phone, intent.pubkey)];
 
       // Verificador, reportes y botones del comprador: para cualquier número, tenga tienda o no.
       const pub = routePublic(text, this.sessions.get(phone), this.now());
       if (pub) return await this.runPublic(pub, phone);
 
+      if (esBsuid(phone)) return [msg.sinNumero()];
       const seller = await this.findSeller(phone);
-      if (!seller) return [msg.notRegistered(this.appUrl, phone)];
+      if (!seller) return [this.d.compras?.(phone) ? msg.compradorHola(this.appUrl) : msg.notRegistered(this.appUrl, phone)];
 
       // Aviso de registro, una sola vez por tienda: nadie cobra abriendo un link.
       const welcome: OutMsg[] = [];
       if (!this.greeted.has(phone)) {
         this.greeted.add(phone);
         this.d.onGreeted?.(phone);
-        welcome.push(msg.sellerWelcome(seller.store_name));
+        welcome.push(msg.sellerWelcome(seller.store_name, this.d.ventana24h));
       }
 
       const r = step(this.sessions.get(phone), text, this.now(), { store: seller.store_name });
@@ -102,6 +112,14 @@ export class Bot {
           note: c.note,
         });
         return [msg.reportThanks(check.host)];
+      }
+      case "novedades": {
+        if (esBsuid(phone)) return [msg.sinNumero()];
+        await this.d.refrescar?.().catch((e) => console.error("[bot] al buscar novedades:", e instanceof Error ? e.message : e));
+        const n = this.d.pendientes?.(phone) ?? 0;
+        if (n) return [msg.novedades(n)];
+        if (this.d.compras?.(phone)) return [msg.avisosActivos()];
+        return [(await this.findSeller(phone)) ? msg.alDia() : msg.avisosSinCompra()];
       }
       case "buyerHelp":
         return [msg.buyerHelp(c.action, c.slug && SLUG_RE.test(c.slug) ? linkUrl(this.appUrl, c.slug) : null)];

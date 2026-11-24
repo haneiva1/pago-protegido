@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Order, OrderView, SellerData } from "../src/app/types.ts";
-import { fmtBs, fmtEnvio, fmtReparto, fmtUsd, msg, notice, type OutMsg } from "../src/engine/messages.ts";
+import { fmtBs, fmtEnvio, fmtReparto, fmtUsd, msg, notice, usarRed, type OutMsg } from "../src/engine/messages.ts";
 
 const order: Order = {
   slug: "zapatillas-nike-40-a1b2c3", seller_pubkey: "G", product: "Zapatillas Nike 40", description: "", photo_url: "",
@@ -48,6 +48,9 @@ function everyMessage(): OutMsg[] {
     notice.paid(d2), notice.shippedSeller(d2), notice.arrived(d2), notice.antiPressure({ appUrl: u, view: { ...view, order: { ...v2, status: "pagado" } } }),
     notice.refunded(d2, "vendedor"), notice.refunded(d2, "comprador"), notice.extended(d2),
     notice.reminder({ appUrl: u, view: { ...view, order: { ...v2, extended: 1 } } }, Date.UTC(2026, 10, 24, 0)),
+    // WhatsApp real
+    msg.sellerWelcome("Tienda Demo", true), msg.novedades(1), msg.novedades(3), msg.alDia(), msg.avisosActivos(), msg.avisosSinCompra(),
+    msg.compradorHola(u), msg.soloTexto(), msg.sinNumero(),
   ];
 }
 
@@ -164,5 +167,26 @@ describe("textos limpios para el cliente", () => {
     expect(notice.resolved({ appUrl: "https://pp.test", view: total }, "vendedor").text).toContain("todo para el comprador");
     expect(notice.resolved({ appUrl: "https://pp.test", view: total }, "comprador").text).toContain("todo para ti");
     expect(notice.resolved({ appUrl: "https://pp.test", view: total }, "vendedor").text).not.toMatch(/100\s?%/);
+  });
+});
+
+describe("la red de la app (STELLAR_NETWORK)", () => {
+  it("en mainnet la moneda es USDC, avisa que es plata real y todo sigue cabiendo en WhatsApp", () => {
+    usarRed("mainnet");
+    try {
+      const todos = everyMessage();
+      for (const m of todos) {
+        expect(m.text).not.toMatch(/USD de prueba|cripto|token|stellar|xlm/i);
+        expect(m.text.length).toBeLessThanOrEqual(1024);
+      }
+      expect(todos.some((m) => m.text.includes("USDC"))).toBe(true);
+      expect(msg.linkCreated("https://pp.test", v2)[0].text).toContain("Prueba real en mainnet: plata real, montos chicos.");
+    } finally {
+      usarRed("testnet");
+    }
+  });
+
+  it("en testnet nada cambia", () => {
+    for (const m of everyMessage()) expect(m.text).not.toMatch(/mainnet|USDC/);
   });
 });

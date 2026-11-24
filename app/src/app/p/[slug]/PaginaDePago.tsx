@@ -10,6 +10,7 @@ import { AvisoNavegadorInterno, CompraEnEsteNavegador, OtroNavegador } from "@/c
 import { BarraPagar, ComoFunciona, DosSalidas, HojaEntrega, Producto, Proteccion, type DatosEntrega } from "@/components/comprador/Checkout";
 import { ConfirmarPago, PreguntaConfirmar } from "@/components/comprador/Confirmar";
 import { EsperaEnCurso } from "@/components/comprador/Espera";
+import { AvisosWhatsApp } from "@/components/comprador/AvisosWhatsApp";
 import { Antifraude, Esqueleto, EstadoPedido, LinkNoEncontrado } from "@/components/comprador/Estado";
 import { RespaldoCuenta, RetirarUsdc } from "@/components/mainnet/CuentaUsdc";
 import { PagoUsdc } from "@/components/mainnet/PagoUsdc";
@@ -271,6 +272,7 @@ export default function PaginaDePago() {
         </div>
       )}
       <Seguimiento v={v} esComprador={isBuyer} recogido={recogido} busy={busy} onRecogido={marcarRecogido} onNoLlego={() => accion("extend")} />
+      {isBuyer && (o.status === "pagado" || o.status === "enviado" || o.status === "en_disputa") && <AvisosWhatsApp code={o.code} />}
       <PublicRecord v={o.verification} escrowId={o.escrow_id} status={o.status} role="comprador" />
       {isBuyer && (o.status === "pagado" || o.status === "enviado" || o.status === "en_disputa") && <CompraEnEsteNavegador />}
       {ES_MAINNET && isBuyer && (o.status === "resuelto" || o.status === "devuelto" ? <RetirarUsdc role="comprador" /> : <RespaldoCuenta role="comprador" />)}

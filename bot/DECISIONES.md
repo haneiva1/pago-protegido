@@ -49,7 +49,7 @@ Criterio: cuando el SPEC no decide algo, se elige **la opción más simple que r
 
 18. **Un aviso por cambio de estado.** El último estado visto de cada pedido queda en `data/bot-state.json`, así un reinicio no repite avisos. Un pedido nuevo para el bot cuenta como si viniera de "Esperando pago".
 19. **El WhatsApp del comprador nunca sale de la vista pública del pedido.** El bot lo recibe solo por `/api/bot/changes`, que exige la clave del bot (APP-ENDPOINTS.md §4).
-20. **Ventana de 24 horas de WhatsApp:** fuera de las 24 h desde el último mensaje de la persona, Meta solo deja mandar plantillas aprobadas. En la prueba, el vendedor siempre habló hace poco con el bot. Para producción hay que aprobar plantillas para los avisos (pendiente, no hace falta en testnet).
+20. **Ventana de 24 horas de WhatsApp:** fuera de las 24 h desde el último mensaje de la persona, Meta solo deja mandar plantillas aprobadas. En la prueba, el vendedor siempre habló hace poco con el bot. Cómo se resuelve: ver 48.
 
 ## Técnicas
 
@@ -58,7 +58,7 @@ Criterio: cuando el SPEC no decide algo, se elige **la opción más simple que r
     - Servidores con `node:http`, sin frameworks.
     - Tests con Vitest y Playwright 1.65.1, la misma versión de la app, para reutilizar el Chromium ya instalado.
 22. **Motor puro:** `engine/step(sesión, texto, ahora)` devuelve `{ sesión, respuestas, comando }`. `bot.ts` ejecuta el comando contra la app y arma la respuesta con `engine/messages.ts`, que también es puro.
-23. **Graph API `v23.0` por defecto** (`WA_GRAPH_VERSION`). Si está `WA_APP_SECRET`, se exige `X-Hub-Signature-256`. El webhook responde 200 al instante y descarta los `wamid` repetidos, porque Meta reintenta.
+23. **Graph API `v23.0` por defecto** (`WA_GRAPH_VERSION`). `WA_APP_SECRET` es obligatoria y se exige `X-Hub-Signature-256` (ver 50). El webhook responde 200 al instante y descarta los `wamid` repetidos, porque Meta reintenta.
 24. **Puertos:** simulador 3030, app de mentira 3031, webhook 3040. El e2e usa 3130 y 3131 para no chocar con `npm run sim`.
 25. **El simulador manda todo por Server-Sent Events,** tanto las respuestas como los avisos del poller. Muestra dos chats, vendedor y comprador, para ver los dos lados de los avisos.
 26. **App de mentira (`src/mock/app-mock.ts`):** imita las rutas reales de la app v2 (mismas formas, mismos errores en español y mismo cálculo de comisiones y de protección). Sirve para los tests, para el e2e y para `npm run sim:demo`, que suma botones para simular al comprador, al vendedor firmando, al revisor, "Necesito más tiempo" y la devolución por no despachar.
@@ -139,3 +139,14 @@ Criterio: cuando el SPEC no decide algo, se elige **la opción más simple que r
    - El `slug` viene en `GET /api/bot/sellers` (la app lo asigna al crear la tienda).
    - Si la app no lo manda (una versión vieja), el bot pide abrir el panel.
    - El mensaje no repite los números (cambian con cada venta: el perfil los muestra en vivo) ni el teléfono.
+
+## WhatsApp real (24-nov-2026)
+
+48. **Ventana de 24 horas: la persona escribe primero y ningún aviso se pierde.** Fuera de la ventana el aviso queda guardado y sale apenas la persona escribe; con `WA_TEMPLATE_AVISO`, además se le manda una plantilla de utilidad. La plantilla es opcional porque depende de que Meta la apruebe. Detalle en [`docs/WHATSAPP.md`](../docs/WHATSAPP.md) §9.
+   - Por pedido y por parte se guarda solo el aviso más nuevo: quien vuelve a los dos días lee el estado actual, no la historia.
+   - El comprador abre su ventana con «Recibir los avisos por WhatsApp» (`NEXT_PUBLIC_BOT_WHATSAPP` en la app) o escribiéndole al bot. Sus avisos van solo al número que dejó al pagar: el código del pedido, escrito desde otro número, no los muestra.
+   - El texto que la tienda reenvía al cliente no cambia (8).
+49. **La instancia se elige con `PP_APP_URL` y `STELLAR_NETWORK`, y se comprueba al arrancar** contra `GET /api/info` (sin `red`, es testnet). Si no coinciden, no arranca. El estado guardado es de una instancia: al cambiar, se descarta todo menos las ventanas de 24 horas. El simulador no hace esta comprobación.
+50. **En modo WhatsApp, lo que falta es un error, no un valor por defecto:** las cuatro `WA_…`, `PP_APP_URL`, `PP_BOT_KEY` y una URL pública con `https`. `WA_APP_SECRET` pasó a ser obligatoria: sin la firma, cualquiera podría escribir en nombre de una tienda. `--mock` no se puede combinar con `--whatsapp`.
+51. **Un mensaje sin teléfono** (nombres de usuario de WhatsApp, 2026) llega con el ID de la persona para este negocio. El bot le contesta por `recipient` y le pide que escriba desde su número: sin teléfono no hay tienda ni compra que buscar. El verificador de links sí funciona.
+52. **Un corte por tiempo no se reintenta.** Meta puede haber recibido el mensaje y la persona lo vería dos veces. Se reintentan (2 veces) los errores pasajeros y los cortes de conexión.

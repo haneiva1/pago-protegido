@@ -1,30 +1,35 @@
 // Punto de entrada.
 //   npm run sim        simulador web (http://localhost:3030) contra PP_APP_URL
 //   npm run sim:demo   simulador + app de mentira (sin la app ni testnet)
-//   npm start          webhook de WhatsApp Cloud API (PORT, por defecto 3040)
+//   npm start          WhatsApp real: webhook de WhatsApp Cloud API (PORT, por defecto 3040). Ver docs/WHATSAPP.md
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
 import { HttpAppClient } from "./app/client.ts";
+import { comprobarApp } from "./app/comprobar.ts";
 import { Bot } from "./bot.ts";
-import { loadConfig } from "./config.ts";
-import type { OutMsg } from "./engine/messages.ts";
+import { loadConfig, problemasWhatsapp } from "./config.ts";
+import { msg, usarRed, type OutMsg } from "./engine/messages.ts";
 import { DEMO_BUYER_PHONE, DEMO_SELLER, startMockApp, type DemoAction } from "./mock/app-mock.ts";
-import { Poller, type PollerState } from "./notify/poller.ts";
+import { Outbox, type AvisoMeta } from "./notify/outbox.ts";
+import { Poller } from "./notify/poller.ts";
 import { ReportStore } from "./reports.ts";
+import { estadoDe, guardarEstado, leerEstado, type Saved } from "./state.ts";
 import { createSimulator } from "./transports/simulator.ts";
-import { GraphSender, createWebhookServer } from "./transports/whatsapp.ts";
-
-interface Saved {
-  poller?: PollerState;
-  phoneLinks?: Record<string, string>;
-  greeted?: string[];
-}
+import { GraphError, GraphSender, createWebhookServer, pista } from "./transports/whatsapp.ts";
 
 const args = new Set(process.argv.slice(2));
 const cfg = loadConfig();
 const useMock = args.has("--mock");
 const useSim = args.has("--sim") || !args.has("--whatsapp");
+
+usarRed(cfg.red);
+if (!useSim) {
+  const problemas = problemasWhatsapp(cfg, { mock: useMock });
+  if (problemas.length) {
+    console.error("El bot de WhatsApp no puede arrancar (docs/WHATSAPP.md):");
+    for (const p of problemas) console.error(`  - ${p}`);
+    process.exit(1);
+  }
+}
 
 let apiUrl = cfg.appUrl;
 let publicUrl = cfg.publicUrl;
@@ -44,22 +49,36 @@ if (useMock) {
   console.log(`App de mentira en ${mock.url} (tienda "${DEMO_SELLER.store_name}", WhatsApp +${DEMO_SELLER.whatsapp})`);
 }
 
-// Estado persistente (avisos ya enviados y números vinculados). Con la app de mentira o BOT_STATE_FILE="", solo en memoria.
-const persistOn = !useMock && !!cfg.stateFile;
-const saved: Saved = persistOn && existsSync(cfg.stateFile) ? JSON.parse(readFileSync(cfg.stateFile, "utf8")) : {};
-const persist = () => {
-  if (!persistOn) return;
-  mkdirSync(dirname(cfg.stateFile), { recursive: true });
-  writeFileSync(cfg.stateFile, JSON.stringify({ poller: poller.state, phoneLinks: Object.fromEntries(bot.phoneLinks), greeted: [...bot.greeted] }, null, 2));
-};
-
 const client = new HttpAppClient(apiUrl, cfg.botKey);
-let send: (to: string, m: OutMsg) => Promise<void>;
+if (!useSim) {
+  try {
+    await comprobarApp(client, cfg.red);
+  } catch (e) {
+    console.error(`El bot de WhatsApp no puede arrancar (docs/WHATSAPP.md): ${e instanceof Error ? e.message : e}`);
+    process.exit(1);
+  }
+}
+
+// Estado persistente (avisos, ventanas de 24 horas y números vinculados). Con la app de mentira o BOT_STATE_FILE="", solo en memoria.
+const stateFile = useMock ? "" : cfg.stateFile;
+const instancia = `${cfg.red}|${publicUrl}`;
+const saved: Saved = estadoDe(leerEstado(stateFile), instancia);
+const persist = () =>
+  guardarEstado(stateFile, {
+    instancia,
+    poller: poller.state,
+    phoneLinks: Object.fromEntries(bot.phoneLinks),
+    greeted: [...bot.greeted],
+    outbox: outbox ? outbox.state : saved.outbox,
+  });
+
+let outbox: Outbox | undefined;
+let send: (to: string, m: OutMsg, meta: AvisoMeta) => Promise<void>;
 
 const poller = new Poller({
   client,
   appUrl: publicUrl,
-  send: (to, m) => send(to, m),
+  send: (to, m, meta) => send(to, m, meta),
   reminderHours: cfg.reminderHours,
   reminderUnitMs: unitMs,
   state: saved.poller,
@@ -77,6 +96,14 @@ const bot = new Bot({
   reports: new ReportStore(cfg.reportsFile),
   greeted: new Set(saved.greeted ?? []),
   onGreeted: persist,
+  ...(useSim
+    ? {}
+    : {
+        ventana24h: true,
+        pendientes: (phone: string) => outbox?.pendientesDe(phone) ?? 0,
+        compras: (phone: string) => poller.comprasDe(phone),
+        refrescar: () => poller.tick(),
+      }),
 });
 const handle = (from: string, text: string) => bot.handle(from, text);
 
@@ -107,16 +134,46 @@ if (useSim) {
   send = sim.send;
   sim.server.listen(cfg.simPort, () => console.log(`Simulador en http://localhost:${cfg.simPort} (app: ${publicUrl})`));
 } else {
-  const missing = (["token", "phoneNumberId", "verifyToken"] as const).filter((k) => !cfg.wa[k]);
-  if (missing.length) {
-    console.error("Faltan variables: WA_TOKEN, WA_PHONE_NUMBER_ID y WA_VERIFY_TOKEN (ver README).");
-    process.exit(1);
-  }
   const graph = new GraphSender(cfg.wa);
-  send = (to, m) => graph.send(to, m);
-  createWebhookServer({ handle, send, verifyToken: cfg.wa.verifyToken, appSecret: cfg.wa.appSecret || undefined }).listen(cfg.port, () =>
-    console.log(`Webhook de WhatsApp en http://localhost:${cfg.port}/webhook (app: ${apiUrl})`),
-  );
+  const plantilla = cfg.wa.plantilla ? { name: cfg.wa.plantilla, lang: cfg.wa.plantillaLang } : null;
+  const bandeja = (outbox = new Outbox({
+    send: (to, m) => graph.send(to, m),
+    anunciar: plantilla ? (to, params) => graph.template(to, plantilla, params) : undefined,
+    state: saved.outbox,
+    save: persist,
+  }));
+  send = (to, m, meta) => bandeja.avisar(to, m, meta);
+  const server = createWebhookServer({
+    handle,
+    send: (to, m) => graph.send(to, m),
+    verifyToken: cfg.wa.verifyToken,
+    appSecret: cfg.wa.appSecret,
+    phoneNumberId: cfg.wa.phoneNumberId,
+    onInbound: (m) => bandeja.entrante(m.from, m.at),
+    onHandled: (from) => bandeja.entregar(from),
+    onStatus: (s) => bandeja.estado(s),
+    noLegible: () => [msg.soloTexto()],
+  });
+  server.listen(cfg.port, () => {
+    console.log(`WhatsApp real: webhook en el puerto ${cfg.port}, ruta /webhook (${cfg.red}, app: ${publicUrl})`);
+    console.log(plantilla ? `Fuera de las 24 horas: plantilla "${plantilla.name}" (${plantilla.lang})` : "Fuera de las 24 horas: los avisos esperan a que la persona escriba");
+  });
+  // Solo informa: si Meta no responde, el webhook igual tiene que estar arriba.
+  graph
+    .numero()
+    .then((n) => console.log(`Número de WhatsApp: ${n}`))
+    .catch((e) => console.error("[whatsapp] Meta no confirmó el número:", e instanceof Error ? e.message : e, pista(e instanceof GraphError ? e.code : undefined)));
+
+  const reloj = setInterval(() => void bandeja.vuelta().catch((e) => console.error("[avisos]", e)), cfg.pollMs);
+  const cerrar = () => {
+    clearInterval(reloj);
+    poller.stop();
+    persist();
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 5_000).unref();
+  };
+  process.once("SIGTERM", cerrar);
+  process.once("SIGINT", cerrar);
 }
 
 poller.start(cfg.pollMs);
