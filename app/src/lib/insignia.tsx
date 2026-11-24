@@ -1,7 +1,8 @@
 import { ImageResponse } from "next/og";
-import { fmtDuracion, fmtProporcion, nf } from "@/lib/kpi-format";
+import { COMPRAS_INTERNAS, fmtDuracion, fmtProporcion, nf } from "@/lib/kpi-format";
 import { BRAND, FUENTE, LogoOg, OG_SIZE, iniciales } from "@/lib/og";
 import { ogFonts } from "@/lib/og-fonts";
+import { ES_MAINNET } from "@/lib/red";
 import type { PerfilTienda } from "@/lib/types";
 
 /**
@@ -59,7 +60,7 @@ export async function insigniaImage(p: PerfilTienda | null) {
               </div>
             ))}
           </div>
-          <div style={{ display: "flex", fontSize: 24, color: BRAND.tinta }}>Números del registro público de cada compra. Verificación de identidad: pendiente.</div>
+          <div style={{ display: "flex", fontSize: 24, color: BRAND.tinta }}>{`${p && !p.pilot && !ES_MAINNET ? COMPRAS_INTERNAS : "Números del registro público de cada compra"}. Verificación de identidad: pendiente.`}</div>
         </div>
       </div>
     ),

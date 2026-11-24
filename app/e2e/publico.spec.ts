@@ -63,9 +63,13 @@ test("métricas en vivo: piloto y pruebas del equipo por separado, cada número 
   await expect(page.getByTestId("actualizado")).toContainText(/Actualizado: \d/);
   await expect(page.getByTestId("aviso-red")).toHaveCount(0);
   await expect(page.getByTestId("titulo-piloto")).toHaveText("Piloto con vendedores reales");
-  await expect(page.getByTestId("titulo-equipo")).toHaveText("Pruebas del equipo en testnet (incluye reclamos forzados)");
+  await expect(page.getByTestId("titulo-equipo")).toHaveText("Compras de prueba internas en testnet (incluye reclamos forzados)");
 
+  // Las tiendas inscritas van aparte: solo el número (base nueva: 0), y las compras del equipo se llaman por su nombre.
+  await expect(page.getByTestId("inscritas-piloto").getByTestId("valor")).toHaveText("0");
   const eq = page.getByTestId("grupo-equipo");
+  await expect(eq.getByTestId("kpi-compras")).toContainText("Compras de prueba internas en testnet");
+  await expect(eq).not.toContainText("Compras protegidas");
   for (const id of ["kpi-compras", "kpi-monto", "kpi-sin-reclamo", "kpi-cobro", "kpi-reclamos", "kpi-devoluciones", "kpi-mas-tiempo", "kpi-despacho"]) {
     await expect(eq.getByTestId(id)).toBeVisible();
     await expect(eq.getByTestId(id)).toHaveAttribute("href", /^\/metricas\/equipo\/[a-z-]+$/);
@@ -103,7 +107,7 @@ test("métricas en vivo: piloto y pruebas del equipo por separado, cada número 
   // Cada número abre la lista de operaciones que lo forman, con links al registro público.
   await eq.getByTestId("kpi-compras").click();
   await expect(page).toHaveURL(/\/metricas\/equipo\/compras$/);
-  await expect(page.getByTestId("grupo-detalle")).toHaveText("Pruebas del equipo en testnet");
+  await expect(page.getByTestId("grupo-detalle")).toHaveText("Compras de prueba internas en testnet");
   await expect(page.getByTestId("total-detalle")).toContainText(`${compras.toLocaleString("es-BO")} compras`);
   await expect(page.getByTestId("operacion").first().locator(TX_LINK).first()).toBeVisible();
   await capturar(page, "71-metricas-operaciones");

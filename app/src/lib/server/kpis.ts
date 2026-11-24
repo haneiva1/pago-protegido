@@ -2,7 +2,7 @@ import { unitsToNumber } from "@/lib/format";
 import type { CompraOnchain, Desenlace, DiaSerie, Grupo, GrupoMetricas, KpiClave, Kpis, MetricasSnapshot, PerfilTienda } from "@/lib/types";
 import { ES_MAINNET, RED } from "@/lib/red";
 import { cfg } from "./config";
-import { db, kv, sellers } from "./db";
+import { db, kv, pilot as piloto, sellers } from "./db";
 import { estadoIndexador, ingestEvents, loadEvents, type PpEvent } from "./metrics";
 
 /**
@@ -225,6 +225,7 @@ export async function metricasSnapshot(): Promise<MetricasSnapshot> {
   const snap: MetricasSnapshot = {
     equipo: grupoMetricas(comprasDeGrupo("equipo", all)),
     piloto: grupoMetricas(comprasDeGrupo("piloto", all)),
+    tiendas_inscritas_piloto: piloto.tiendas(),
     ...(ES_MAINNET ? { red: RED, mainnet: grupoMetricas(comprasDeGrupo("mainnet", all)) } : {}),
     actualizado: lastOk(),
     calculado: Date.now(),

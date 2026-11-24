@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { IconoChevronDerecha } from "@/components/iconos";
 import { ListaOperaciones } from "@/components/Kpis";
-import { fmtDuracion, fmtHora, nf } from "@/lib/kpi-format";
+import { fmtDuracion, fmtHora, nf, rotuloCompras, rotuloMonto } from "@/lib/kpi-format";
 import { TEXTO } from "@/lib/red";
 import { KPI_DETALLE, comprasDeGrupo, isGrupo, isKpi, metricasSnapshot } from "@/lib/server/kpis";
 import type { CompraOnchain } from "@/lib/types";
@@ -35,7 +35,7 @@ export default async function Detalle({ params }: { params: Promise<{ grupo: str
         <p className="eyebrow" data-testid="grupo-detalle">
           {grupo === "piloto" ? "Piloto con vendedores reales" : TEXTO.grupoPropioCorto}
         </p>
-        <h1 className="mt-2 text-2xl sm:text-3xl">{meta.titulo}</h1>
+        <h1 className="mt-2 text-2xl sm:text-3xl">{kpi === "compras" ? `${rotuloCompras(grupo)} y ${rotuloMonto(grupo).toLowerCase()}` : meta.titulo}</h1>
         <p className="mt-2 text-tinta-600">{meta.explica}</p>
         <p className="mt-2 text-xs text-tinta-500 num" data-testid="total-detalle">
           {nf(list.length)} {list.length === 1 ? "compra" : "compras"} · actualizado: {fmtHora(m.actualizado)}

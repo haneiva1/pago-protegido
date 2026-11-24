@@ -68,6 +68,8 @@ export interface GrupoMetricas {
 export interface MetricasSnapshot {
   equipo: GrupoMetricas;
   piloto: GrupoMetricas;
+  /** Inscripciones de /piloto: solo el número, sin datos de nadie. No son compras y no se suman con ninguna. */
+  tiendas_inscritas_piloto: number;
   /** Solo en la instancia de mainnet: sus compras nunca se suman con las de testnet. */
   red?: "testnet" | "mainnet";
   mainnet?: GrupoMetricas;

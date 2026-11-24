@@ -2,7 +2,7 @@ import Link from "next/link";
 import { IconoChevronDerecha } from "@/components/iconos";
 import { GraficoDiario } from "@/components/Kpis";
 import { explorer, fmtUsd } from "@/lib/format";
-import { fmtDuracion, fmtHora, fmtProporcion, nf, plural } from "@/lib/kpi-format";
+import { fmtDuracion, fmtHora, fmtProporcion, nf, plural, rotuloCompras, rotuloMonto } from "@/lib/kpi-format";
 import { ES_MAINNET, TEXTO } from "@/lib/red";
 import { metricasSnapshot } from "@/lib/server/kpis";
 import type { Grupo, GrupoMetricas } from "@/lib/types";
@@ -55,8 +55,8 @@ function GrupoSection({ grupo, g, titulo, nota }: { grupo: Grupo; g: GrupoMetric
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiTile testId="kpi-compras" href={`${base}/compras`} label="Compras protegidas" value={nf(k.compras)} sub={`${k.en_curso} en curso ahora · ${k.cerradas} cerradas`} />
-            <KpiTile testId="kpi-monto" href={`${base}/compras`} label="Monto protegido" value={`Bs ${nf(k.monto_bs)}`} sub={`${fmtUsd(k.monto_unidades)} ${TEXTO.dolaresLargo}`} />
+            <KpiTile testId="kpi-compras" href={`${base}/compras`} label={rotuloCompras(grupo)} value={nf(k.compras)} sub={`${k.en_curso} en curso ahora · ${k.cerradas} cerradas`} />
+            <KpiTile testId="kpi-monto" href={`${base}/compras`} label={rotuloMonto(grupo)} value={`Bs ${nf(k.monto_bs)}`} sub={`${fmtUsd(k.monto_unidades)} ${TEXTO.dolaresLargo}`} />
             <KpiTile
               testId="kpi-sin-reclamo"
               href={`${base}/sin-reclamo`}
@@ -94,7 +94,7 @@ function GrupoSection({ grupo, g, titulo, nota }: { grupo: Grupo; g: GrupoMetric
               sub={`Promedio de ${plural(k.despacho_muestras, "envío registrado", "envíos registrados")}`}
             />
           </div>
-          <GraficoDiario serie={g.diario} testId={`grafico-${grupo}`} />
+          <GraficoDiario serie={g.diario} compras={rotuloCompras(grupo)} monto={rotuloMonto(grupo)} testId={`grafico-${grupo}`} />
         </>
       )}
     </section>
@@ -109,7 +109,7 @@ export default async function Metricas() {
         <p className="eyebrow">Registro público</p>
         <h1 className="mt-2 text-3xl sm:text-4xl">Métricas en vivo</h1>
         <p className="mt-4 max-w-3xl text-lg text-tinta-600">
-          Cada número sale del registro público de las compras protegidas ({TEXTO.redPublica}), no de una base de datos privada. Toca un número para ver las
+          Los números de compras salen del registro público ({TEXTO.redPublica}), no de una base de datos privada. Toca un número para ver las
           operaciones que lo forman, cada una con su link al registro público.
         </p>
         <p className="mt-3 text-xs text-tinta-500 num" data-testid="actualizado">
@@ -122,6 +122,23 @@ export default async function Metricas() {
           </p>
         )}
       </header>
+
+      {/* Las inscripciones llegan a la demo de testnet: la instancia de mainnet tiene otra base y mostraría un cero. */}
+      {!ES_MAINNET && (
+        <section className="panel-suave space-y-2 sm:p-6" data-testid="inscritas-piloto">
+          <h2 className="text-xl sm:text-2xl">Tiendas inscritas al piloto</h2>
+          <p className="font-display text-3xl leading-none tracking-tight text-monte num" data-testid="valor">
+            {nf(m.tiendas_inscritas_piloto)}
+          </p>
+          <p className="text-sm text-tinta-600">
+            Son inscripciones, no compras: tiendas que llenaron el formulario de{" "}
+            <Link className="enlace" href="/piloto">
+              Únete al piloto
+            </Link>
+            , una por WhatsApp. No se suman con las compras de prueba ni con las del piloto.
+          </p>
+        </section>
+      )}
 
       <GrupoSection
         grupo="piloto"

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { IconoAlerta, IconoBalanza, IconoCamion, IconoCandado, IconoCheckCirculo, IconoExterno, IconoInfo, IconoReloj, IconoVolver } from "@/components/iconos";
 import { explorer, fmtPct, fmtUsd, shortAddr, unitsToNumber } from "@/lib/format";
-import { plural } from "@/lib/kpi-format";
+import { plural, rotuloCompras, rotuloMonto } from "@/lib/kpi-format";
 import { ES_MAINNET, TEXTO } from "@/lib/red";
 import { sellers } from "@/lib/server/db";
 import { computeMetrics, ingestEvents, type Metrics, type PurchaseState } from "@/lib/server/metrics";
@@ -137,8 +137,8 @@ export default async function Transparencia() {
           {TEXTO.grupoPropio}
         </h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Tile testId="compras-protegidas" label="Compras protegidas" value={nf(m.compras_protegidas)} sub={`${m.en_curso} en curso ahora`} />
-          <Tile label="Volumen protegido" value={`Bs ${nf(vol * m.tipo_cambio)}`} sub={`${fmtUsd(m.volumen_unidades)} ${TEXTO.dolares}`} />
+          <Tile testId="compras-protegidas" label={rotuloCompras(ES_MAINNET ? "mainnet" : "equipo")} value={nf(m.compras_protegidas)} sub={`${m.en_curso} en curso ahora`} />
+          <Tile label={rotuloMonto(ES_MAINNET ? "mainnet" : "equipo")} value={`Bs ${nf(vol * m.tipo_cambio)}`} sub={`${fmtUsd(m.volumen_unidades)} ${TEXTO.dolares}`} />
           <Tile
             testId="como-terminaron"
             label="Cómo terminaron"
