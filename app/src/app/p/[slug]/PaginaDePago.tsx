@@ -265,9 +265,9 @@ export default function PaginaDePago() {
         </div>
       )}
       <Seguimiento v={v} esComprador={isBuyer} recogido={recogido} busy={busy} onRecogido={marcarRecogido} onNoLlego={() => accion("extend")} />
+      {isBuyer && (o.status === "pagado" || o.status === "enviado" || o.status === "en_disputa") && <AvisosWhatsApp code={o.code} />}
       <PublicRecord v={o.verification} escrowId={o.escrow_id} status={o.status} role="comprador" />
       {isBuyer && (o.status === "pagado" || o.status === "enviado" || o.status === "en_disputa") && <CompraEnEsteNavegador />}
-      {isBuyer && (o.status === "pagado" || o.status === "enviado" || o.status === "en_disputa") && <AvisosWhatsApp code={o.code} />}
 
       {o.ship_imei && (o.status === "enviado" || o.status === "en_disputa") && (
         <div data-testid="imei" className="flex gap-3 text-base">
