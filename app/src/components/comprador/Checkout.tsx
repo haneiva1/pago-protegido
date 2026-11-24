@@ -5,6 +5,7 @@ import { IconoCandado, IconoChevronAbajo, IconoFlechaDerecha, IconoVolver } from
 import { ErrorBox } from "@/components/ui";
 import { CIUDADES, DOLLAR_NOTE, PROTECCION, fmtBs, fmtBsUnits, unitsToNumber } from "@/lib/format";
 import { fmtDia, fmtPlazo, plazosDelPedido } from "@/lib/comprador";
+import { ES_MAINNET } from "@/lib/red";
 import type { OrderView } from "@/lib/types";
 import { Select } from "./Campos";
 import { VendidoPor } from "./Vendedor";
@@ -111,7 +112,7 @@ export function Proteccion({ v }: { v: OrderView }) {
 /** Cómo funciona, en tres pasos, plegado para no empujar el botón de pagar. */
 export function ComoFunciona() {
   const pasos = [
-    "Pagas con QR desde tu banco.",
+    ES_MAINNET ? "Pagas con USDC desde tu cuenta Stellar." : "Pagas con QR desde tu banco.",
     "Tu pago queda guardado. El vendedor ve que pagaste, pero no puede cobrar.",
     "Cuando te llegue, lo revisas y confirmas. Recién ahí se le paga.",
   ];
@@ -146,7 +147,7 @@ export function BarraPagar({ total, onPagar, disabled, label }: { total: string;
       <div className="mx-auto max-w-md">
         <button type="button" className="btn-primary w-full py-4 text-lg" onClick={onPagar} disabled={disabled}>
           <IconoCandado className="h-5 w-5" />
-          {label ?? `Pagar ${total} con QR`}
+          {label ?? `Pagar ${total} con ${ES_MAINNET ? "USDC" : "QR"}`}
         </button>
         <p className="mt-2 text-center text-sm text-tinta-600">La tienda cobra recién cuando confirmes que te llegó.</p>
       </div>
@@ -284,7 +285,7 @@ function FormEntrega({ total, onCerrar, onContinuar }: { total: string; onCerrar
         <p className="mt-1 text-xs text-tinta-500">Te avisamos cuando despachen y un día antes de que se le pague a la tienda. No se muestra a nadie.</p>
       </div>
       <ErrorBox error={error} />
-      <button className="btn-primary w-full py-4 text-lg">Ver el QR para pagar {total}</button>
+      <button className="btn-primary w-full py-4 text-lg">{ES_MAINNET ? "Ver cómo pagar" : "Ver el QR para pagar"} {total}</button>
       <button type="button" className="btn-secondary w-full" onClick={onCerrar}>
         Cerrar
       </button>

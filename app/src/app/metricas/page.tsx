@@ -3,6 +3,7 @@ import { IconoChevronDerecha } from "@/components/iconos";
 import { GraficoDiario } from "@/components/Kpis";
 import { explorer, fmtUsd } from "@/lib/format";
 import { fmtDuracion, fmtHora, fmtProporcion, nf, plural } from "@/lib/kpi-format";
+import { ES_MAINNET, TEXTO } from "@/lib/red";
 import { metricasSnapshot } from "@/lib/server/kpis";
 import type { Grupo, GrupoMetricas } from "@/lib/types";
 
@@ -44,7 +45,7 @@ function GrupoSection({ grupo, g, titulo, nota }: { grupo: Grupo; g: GrupoMetric
           Todavía no hay compras en este grupo.{" "}
           {grupo === "piloto" && (
             <>
-              Se cuentan aparte de las pruebas del equipo.{" "}
+              Se cuentan aparte de {ES_MAINNET ? "la prueba en mainnet" : "las pruebas del equipo"}.{" "}
               <Link className="enlace" href="/piloto">
                 Únete al piloto
               </Link>
@@ -55,7 +56,7 @@ function GrupoSection({ grupo, g, titulo, nota }: { grupo: Grupo; g: GrupoMetric
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <KpiTile testId="kpi-compras" href={`${base}/compras`} label="Compras protegidas" value={nf(k.compras)} sub={`${k.en_curso} en curso ahora · ${k.cerradas} cerradas`} />
-            <KpiTile testId="kpi-monto" href={`${base}/compras`} label="Monto protegido" value={`Bs ${nf(k.monto_bs)}`} sub={`${fmtUsd(k.monto_unidades)} dólares de prueba`} />
+            <KpiTile testId="kpi-monto" href={`${base}/compras`} label="Monto protegido" value={`Bs ${nf(k.monto_bs)}`} sub={`${fmtUsd(k.monto_unidades)} ${TEXTO.dolaresLargo}`} />
             <KpiTile
               testId="kpi-sin-reclamo"
               href={`${base}/sin-reclamo`}
@@ -108,7 +109,7 @@ export default async function Metricas() {
         <p className="eyebrow">Registro público</p>
         <h1 className="mt-2 text-3xl sm:text-4xl">Métricas en vivo</h1>
         <p className="mt-4 max-w-3xl text-lg text-tinta-600">
-          Cada número sale del registro público de las compras protegidas (red de prueba), no de una base de datos privada. Toca un número para ver las
+          Cada número sale del registro público de las compras protegidas ({TEXTO.redPublica}), no de una base de datos privada. Toca un número para ver las
           operaciones que lo forman, cada una con su link al registro público.
         </p>
         <p className="mt-3 text-xs text-tinta-500 num" data-testid="actualizado">
@@ -126,13 +127,13 @@ export default async function Metricas() {
         grupo="piloto"
         g={m.piloto}
         titulo="Piloto con vendedores reales"
-        nota="Solo compras de tiendas que entraron por el piloto. Nunca se suman con las pruebas del equipo."
+        nota={TEXTO.notaPiloto}
       />
       <GrupoSection
-        grupo="equipo"
-        g={m.equipo}
-        titulo="Pruebas del equipo en testnet (incluye reclamos forzados)"
-        nota="Compras hechas por el equipo y por las pruebas automáticas, con reclamos y devoluciones forzados a propósito para probar cada camino."
+        grupo={m.mainnet ? "mainnet" : "equipo"}
+        g={m.mainnet ?? m.equipo}
+        titulo={TEXTO.grupoPropio}
+        nota={TEXTO.notaGrupoPropio}
       />
 
       <p className="border-t border-tinta-200 pt-6 text-center text-sm text-tinta-500">

@@ -1,5 +1,6 @@
 // lib/server/escrow sin red: un escrow de mentira por pedido y transacciones armadas de verdad (sin enviarlas).
-import { Account, Networks, Operation, TransactionBuilder } from "@stellar/stellar-sdk";
+import { Account, Operation, TransactionBuilder } from "@stellar/stellar-sdk";
+import { PASSPHRASE, RED } from "../../../src/lib/red.ts";
 
 export const escrows = [];
 
@@ -20,7 +21,7 @@ const fake = {
     return { ok: true, checks: [] };
   },
   async prepareStep(action, step, ctx, signer) {
-    return new TransactionBuilder(new Account(signer, String(escrows.length * 10 + 1)), { fee: "100", networkPassphrase: Networks.TESTNET })
+    return new TransactionBuilder(new Account(signer, String(escrows.length * 10 + 1)), { fee: "100", networkPassphrase: PASSPHRASE[RED] })
       .addOperation(Operation.manageData({ name: `${action}:${step}`, value: ctx.escrowId }))
       .setTimeout(300)
       .build();

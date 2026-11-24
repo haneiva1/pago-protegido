@@ -5,6 +5,7 @@ import {
   Contract,
   FeeBumpTransaction,
   Keypair,
+  Memo,
   Operation,
   Transaction,
   TransactionBuilder,
@@ -14,6 +15,7 @@ import {
   xdr,
 } from "@stellar/stellar-sdk";
 import { unitsToAmountString } from "@/lib/format";
+import { ES_MAINNET } from "@/lib/red";
 import { FRIENDBOT_URL, HORIZON_URL, NETWORK_PASSPHRASE, RPC_URL, cfg } from "./config";
 
 export class ChainError extends Error {
@@ -271,7 +273,7 @@ export async function feeBumpAndSend(inner: Transaction): Promise<Sent> {
 
 export function labusd(): Asset {
   const c = cfg();
-  return new Asset(c.labusdCode, c.lab.publicKey());
+  return new Asset(c.labusdCode, c.emisor);
 }
 
 interface HorizonBalance {
@@ -293,15 +295,54 @@ export function hasTrustline(acc: { balances: HorizonBalance[] } | null): boolea
   return acc.balances.some((b) => b.asset_code === a.getCode() && b.asset_issuer === a.getIssuer());
 }
 
-/** Cuenta nueva de testnet: friendbot. */
+/**
+ * Lo que la plataforma pone por cada cuenta nueva en mainnet: las reservas de la cuenta (2 × 0,5 XLM) y de la trustline
+ * a USDC (0,5 XLM). Nada más: las comisiones de la cuenta las paga la plataforma con el fee bump.
+ */
+export const XLM_POR_CUENTA = "1.5";
+
+/** Operación con que la plataforma activa una cuenta en mainnet (no hay friendbot). */
+export function opCuentaNueva(pubkey: string): xdr.Operation {
+  return Operation.createAccount({ destination: pubkey, startingBalance: XLM_POR_CUENTA });
+}
+
+async function crearCuenta(pubkey: string): Promise<void> {
+  const p = cfg().plataforma;
+  await withLock(p.publicKey(), () =>
+    reintentarRechazo(async (intento) => {
+      const account = await retry(() => server().getAccount(p.publicKey()));
+      const tx = new TransactionBuilder(account, { fee: String(COMISION_RED * 2 ** intento), networkPassphrase: NETWORK_PASSPHRASE })
+        .addOperation(opCuentaNueva(pubkey))
+        .setTimeout(300)
+        .build();
+      tx.sign(p);
+      return sendAndWait(tx);
+    }),
+  );
+  // Horizon puede ir un ledger atrás del RPC; la trustline que sigue lee la cuenta por RPC.
+  for (let i = 0; i < 8 && !(await horizonAccount(pubkey)); i++) await sleep(1500);
+}
+
+/** Cuenta nueva: friendbot en testnet; en mainnet la activa la plataforma. */
 export async function ensureFunded(pubkey: string): Promise<void> {
   if (await horizonAccount(pubkey)) return;
+  if (ES_MAINNET) return crearCuenta(pubkey);
   const res = await retry(() => fetch(`${FRIENDBOT_URL}?addr=${encodeURIComponent(pubkey)}`, { cache: "no-store" }));
   for (let i = 0; i < 8; i++) {
     if (await horizonAccount(pubkey)) return;
     await sleep(1500);
   }
   throw new ChainError(`No se pudo activar la cuenta de prueba (friendbot ${res.status})`);
+}
+
+/** Retiro en mainnet: pago de USDC de la cuenta del usuario a otra suya. Lo firma el navegador; la plataforma paga la comisión. */
+export async function prepareRetiro(from: string, to: string, units: bigint, memo: string): Promise<Transaction> {
+  const account = await retry(() => server().getAccount(from));
+  const b = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase: NETWORK_PASSPHRASE }).addOperation(
+    Operation.payment({ destination: to, asset: labusd(), amount: unitsToAmountString(units) }),
+  );
+  if (memo) b.addMemo(Memo.text(memo));
+  return b.setTimeout(300).build();
 }
 
 /** Transacción de trustline a LABUSD con el usuario como origen (la firma el navegador). */
@@ -315,6 +356,7 @@ export async function prepareTrustline(pubkey: string): Promise<Transaction> {
 
 /** Rampa simulada: el emisor `lab` envía (emite) LABUSD al comprador. */
 export async function mintLabusd(to: string, units: bigint): Promise<Sent> {
+  if (ES_MAINNET) throw new ChainError("En mainnet no hay rampa simulada");
   const lab = cfg().lab;
   return withLock(lab.publicKey(), async () => {
     const account = await retry(() => server().getAccount(lab.publicKey()));

@@ -1,12 +1,14 @@
 import { scValToNative } from "@stellar/stellar-sdk";
-import { cfg } from "../config";
-import { ChainError, addr, invokeAs, prepareInvoke, remapError, simulate } from "../stellar";
+import { ES_MAINNET, TEXTO } from "@/lib/red";
+import { MAINNET_PUBLICO, cfg } from "../config";
+import { ChainError, addr, invokeAs, prepareInvoke, remapError, server, simulate } from "../stellar";
 import {
   contractSpec,
   createEscrowTx,
   distributionsScVal,
   propsToNative,
   readEscrowState,
+  revisarWasm,
   tokenBalance,
   verifyEscrowInstance,
 } from "./tw";
@@ -217,7 +219,9 @@ export class GuardianEscrowService implements EscrowService {
     const a = cfg().arbitro;
     const call = `escrow.resolve_dispute(dispute_resolver = cuenta del revisor, distribuciones = { tercera cuenta: todo el saldo })`;
     try {
-      await simulate(ctx.escrowId, "resolve_dispute", [addr(a.publicKey()), addr(cfg().twfee), distributionsScVal([{ address: foreign, amount: balance }])]);
+      // El escrow de TW en mainnet no recibe la cuenta de su comisión: la tiene fija.
+      const fee = ES_MAINNET ? [] : [addr(cfg().twfee)];
+      await simulate(ctx.escrowId, "resolve_dispute", [addr(a.publicKey()), ...fee, distributionsScVal([{ address: foreign, amount: balance }])]);
       return { rejected: false, by: "contrato", call, detail: "La simulación no falló: revisar roles del escrow." };
     } catch (e) {
       const err = e as ChainError;
@@ -249,8 +253,21 @@ export class GuardianEscrowService implements EscrowService {
     return readEscrowState(escrowId);
   }
 
-  verify(ctx: EscrowCtx) {
-    return verifyEscrowInstance(ctx.escrowId, this.roles(ctx.buyer, ctx.seller), { approver: "pp_guardian", resolver: "pp_arbiter" });
+  async verify(ctx: EscrowCtx) {
+    const v = await verifyEscrowInstance(ctx.escrowId, this.roles(ctx.buyer, ctx.seller), { approver: "pp_guardian", resolver: "pp_arbiter" });
+    if (!ES_MAINNET) return v;
+    // En mainnet los dos contratos tienen que ser los compilados para el escrow de TW de mainnet: con los de testnet se
+    // podría guardar la plata, pero no liberarla ni devolverla.
+    const propios = await Promise.all(
+      (
+        [
+          ["pp_guardian", this.guardian, MAINNET_PUBLICO.guardianWasmHash],
+          ["pp_arbiter", this.arbiter, MAINNET_PUBLICO.arbiterWasmHash],
+        ] as const
+      ).map(async ([nombre, id, esperado]) => revisarWasm(nombre, await server().getContractWasmByContractId(id), esperado)),
+    );
+    const checks = [...v.checks, ...propios];
+    return { ...v, checks, ok: checks.every((c) => c.ok) };
   }
 
   contracts() {
@@ -258,7 +275,7 @@ export class GuardianEscrowService implements EscrowService {
     return [
       { label: "pp_guardian v2 (plazos de despacho y revisión, envío, confirmación y liberación)", id: this.guardian, kind: "contract" as const },
       { label: "pp_arbiter v2 (solo reparte entre comprador y vendedor; devuelve si no se despachó)", id: this.arbiter, kind: "contract" as const },
-      { label: "Moneda de prueba (USD de prueba, LABUSD)", id: c.labusdSac, kind: "contract" as const },
+      { label: TEXTO.monedaContrato, id: c.labusdSac, kind: "contract" as const },
       { label: "Plataforma (patrocina comisiones)", id: c.plataforma.publicKey(), kind: "account" as const },
     ];
   }

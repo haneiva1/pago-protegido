@@ -1,3 +1,4 @@
+import { TEXTO } from "@/lib/red";
 import { ImageResponse } from "next/og";
 import { fmtBs, fmtUsd } from "@/lib/format";
 import { BRAND, FUENTE, LogoOg, NudoIcono, OG_SIZE, TAGLINE, iniciales } from "@/lib/og";
@@ -18,7 +19,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   const s = o ? sellers.get(o.seller_pubkey) : undefined;
   const product = o?.product ?? "Link de pago protegido";
   const price = o ? fmtBs(o.price_bs_cents) : "";
-  const usd = o ? `aprox. ${fmtUsd(o.amount_units)} USD de prueba` : "";
+  const usd = o ? `aprox. ${fmtUsd(o.amount_units)} ${TEXTO.dolares}` : "";
   const store = s?.store_name ?? "Trato";
 
   return new ImageResponse(

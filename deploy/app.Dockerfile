@@ -1,4 +1,5 @@
-# App web de Pago Protegido (Next.js, salida standalone). SOLO TESTNET.
+# App web de Pago Protegido (Next.js, salida standalone). Testnet por defecto; mainnet con --build-arg
+# STELLAR_NETWORK=mainnet y la misma variable en runtime (docs/MAINNET.md).
 # Contexto de build: pago-protegido/   →   docker build -f deploy/app.Dockerfile .
 # Las variables NEXT_PUBLIC_* se fijan en el build (ARG); los secretos se pasan
 # solo en runtime (app.env), nunca en la imagen.
@@ -23,7 +24,9 @@ RUN grep -q 'output:' next.config.ts \
   || sed -i 's/const nextConfig: NextConfig = {/const nextConfig: NextConfig = {\n  output: "standalone",/' next.config.ts
 ARG NEXT_PUBLIC_WALLET=local
 ARG NEXT_PUBLIC_POLLAR_PUBLISHABLE_KEY=
-ENV NEXT_PUBLIC_WALLET=$NEXT_PUBLIC_WALLET \
+ARG STELLAR_NETWORK=testnet
+ENV STELLAR_NETWORK=$STELLAR_NETWORK \
+    NEXT_PUBLIC_WALLET=$NEXT_PUBLIC_WALLET \
     NEXT_PUBLIC_POLLAR_PUBLISHABLE_KEY=$NEXT_PUBLIC_POLLAR_PUBLISHABLE_KEY
 RUN npm run build
 
