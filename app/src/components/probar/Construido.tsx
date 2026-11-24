@@ -15,7 +15,7 @@ const PUNTOS: { texto: string; links: { label: string; href: string }[] }[] = [
     links: [],
   },
   {
-    texto: "Tests: 47 de contratos contra el WASM real (invariantes, red team y 200 secuencias aleatorias), 171 de la app, 191 unitarios y 4 e2e del bot, y 12 de punta a punta contra la red de prueba (6 con pagos).",
+    texto: "Tests: 47 de contratos contra el WASM real (invariantes, red team y 200 secuencias aleatorias), 171 de la app, 241 unitarios y 4 e2e del bot, y 12 de punta a punta contra la red de prueba (6 con pagos).",
     links: [{ label: "Repositorio", href: "https://github.com/haneiva1/pago-protegido" }],
   },
   {

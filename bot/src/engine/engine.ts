@@ -49,6 +49,8 @@ export type Intent =
   | { kind: "verify"; arg: string }
   | { kind: "report"; arg: string }
   | { kind: "buyerHelp"; action: BuyerAction; slug?: string }
+  /** "novedades" o "avisos PP-…": pide los avisos guardados (y abre la ventana de 24 horas de WhatsApp). */
+  | { kind: "novedades" }
   | { kind: "none" };
 
 export type BuyerAction = "problema" | "tiempo" | "ok";
@@ -58,7 +60,8 @@ export type PublicCommand =
   /** Sin links: hay que pedirlos. */
   | { kind: "verify"; links: string[] }
   | { kind: "report"; link?: string; note: string }
-  | { kind: "buyerHelp"; action: BuyerAction; slug?: string };
+  | { kind: "buyerHelp"; action: BuyerAction; slug?: string }
+  | { kind: "novedades" };
 
 /** Una conversación guiada se olvida a los 30 minutos sin respuesta. */
 export const SESSION_TTL_MS = 30 * 60_000;
@@ -94,6 +97,9 @@ export function detectIntent(text: string): Intent {
   if (prot) return { kind: "proteccion", who: prot[1] === "regalo" ? "vendedor" : "comprador", code: prot[2] };
   const protText = /^(?:(yo )?la regalo|la regalo yo|regalo la proteccion|(?:la )?paga (?:mi |el )?cliente|la paga el comprador)(?:\s+(pp-\d{4,5}|pp-(?=[a-z]{0,7}[2-9])[2-9a-hjkmnp-z]{8}|[0-9a-f]{6}))?$/.exec(t);
   if (protText) return { kind: "proteccion", who: /regalo/.test(t) ? "vendedor" : "comprador", code: protText[2] };
+
+  // "novedades", el botón de la plantilla ("Ver el aviso") y el texto del botón de la web ("avisos PP-7KM4Q9TX").
+  if (/^(ver |mis |quiero |dame )?(los |el |mis )?(novedad(es)?|avisos?)( (de|del)( mi)?( pedido| compra)?)?( pp-[a-z0-9]{4,8})?$/.test(t)) return { kind: "novedades" };
 
   if (/^(cancelar|cancela|cancelalo|salir|olvidalo|olvida|nada|ya no|stop)$/.test(t)) return { kind: "cancel" };
 
@@ -228,6 +234,8 @@ export function routePublic(text: string, session: Session | undefined, now: num
       return { kind: "report", link: argLinks(intent.arg)[0], note: text.trim().slice(0, 500) };
     case "buyerHelp":
       return { kind: "buyerHelp", action: intent.action, slug: intent.slug };
+    case "novedades":
+      return { kind: "novedades" };
     case "shipped":
     case "link":
       return null;

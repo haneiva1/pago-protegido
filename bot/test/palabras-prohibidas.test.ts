@@ -31,9 +31,7 @@ const PROHIBIDAS: [string, RegExp][] = [
  * Textos que no ve ningún cliente aunque contengan una palabra de la lista: identificadores, claves y rutas.
  * `archivo` es relativo a la raíz del repo y `texto` es el string completo, tal cual está en el código.
  */
-const EXCEPCIONES: { archivo: string; texto: string; motivo: string }[] = [
-  { archivo: "bot/src/main.ts", texto: "token", motivo: "clave de configuración de WhatsApp (cfg.wa.token) en un error de arranque para el equipo" },
-];
+const EXCEPCIONES: { archivo: string; texto: string; motivo: string }[] = [];
 
 /** Atributos JSX que son código, no texto visible. */
 const ATRIBUTOS_CODIGO = new Set([

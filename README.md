@@ -58,9 +58,9 @@ Los PR #3 a #9 aparecen como «cerrados» porque se integraron juntos en el [PR 
 
 **En el navegador (2 minutos):** en [`/probar`](https://app-production-dc7d8d8b.up.railway.app/probar), el vendedor y el comprador aparecen lado a lado. Cada paso muestra su transacción en stellar.expert, incluido un intento de desvío que el contrato rechaza.
 
-¿Por qué simulado? Meta solo deja que un número de prueba le responda a 5 teléfonos hasta verificar la empresa. El bot real ya está hecho (carpeta `bot/`, 191 tests, API oficial de WhatsApp) y lo mostramos en vivo en la final.
+¿Por qué simulado? Meta solo deja que un número de prueba le responda a 5 teléfonos hasta verificar la empresa. El bot real ya está hecho (carpeta `bot/`, 241 tests, API oficial de WhatsApp) y lo mostramos en vivo en la final.
 
-Cuando `/probar` dice que Trato funciona dentro de WhatsApp, describe cómo se usa el producto: la tienda y el comprador nunca salen del chat. En la demo, ese chat es una simulación con los textos del bot real (carpeta `bot/`), hasta que Meta verifique el número.
+El chat de `/probar` es una simulación con los textos del bot real. El bot real (carpeta `bot/`) está listo para WhatsApp con la API oficial de Meta y su número de prueba, que habla con hasta 5 teléfonos: paso a paso en [docs/WHATSAPP.md](docs/WHATSAPP.md). Las pruebas lo corren entero contra una API de Meta simulada por HTTP; conectarlo a Meta es el paso que falta.
 
 La demo corre en Stellar testnet (plata de prueba), desplegada desde `main`. Usa un despliegue paralelo creado el 21-nov para la demo, con el mismo código que [Evidencia on-chain](#evidencia-on-chain): `pp_guardian` [`CB3OPNYKCSZXGCXRYBKIOB2Y6ZYV6ICNVETLQXHW2QCKWAQ5432AYTKP`](https://stellar.expert/explorer/testnet/contract/CB3OPNYKCSZXGCXRYBKIOB2Y6ZYV6ICNVETLQXHW2QCKWAQ5432AYTKP) y `pp_arbiter` [`CAS6VQ3Y6MMDOMZX7ALUIBMSB5QVKURNETZFK3YDK3WJT2XRNYZRGSOS`](https://stellar.expert/explorer/testnet/contract/CAS6VQ3Y6MMDOMZX7ALUIBMSB5QVKURNETZFK3YDK3WJT2XRNYZRGSOS). En [`/metricas`](https://app-production-dc7d8d8b.up.railway.app/metricas) cada compra de la demo aparece con su link a stellar.expert, contada aparte de las del piloto con vendedores reales, que arranca con el piloto medido, del 7 al 20-dic.
 
@@ -68,7 +68,7 @@ La demo corre en Stellar testnet (plata de prueba), desplegada desde `main`. Usa
 
 ```bash
 cd contracts && cargo test && cd ..                        # 53 tests contra el WASM real de Trustless Work
-cd bot && npm ci && npm test && cd ..                      # bot: 191 unitarios y 4 e2e del simulador
+cd bot && npm ci && npm test && cd ..                      # bot: 241 unitarios y 4 e2e del simulador
 cd app && npm ci && npm run build && npm run test:e2e:publico   # app: build y e2e de solo lectura contra testnet
 ```
 
