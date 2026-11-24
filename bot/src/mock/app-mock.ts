@@ -21,6 +21,8 @@ export interface MockOptions {
   /** false = la app todavía no tiene /api/bot/* (plan B del bot). */
   botEndpoints?: boolean;
   botKey?: string;
+  /** En qué red dice correr (GET /api/info). Sin esto, testnet, como la app de main. */
+  red?: "mainnet";
   fx?: number;
   now?: () => number;
   /** Plazo de despacho desde el pago (`ship_secs`). Por defecto, los días de entrega, como la app v2. */
@@ -262,7 +264,7 @@ export async function startMockApp(opts: MockOptions = {}) {
       if (p === "/api/links" && req.method === "POST") return json(200, createLink(await read()));
       if ((m = /^\/api\/links\/([^/]+)$/.exec(p)) && req.method === "PATCH") return json(200, setProteccion(decodeURIComponent(m[1]), await read()));
       if (p === "/api/info" && req.method === "GET") {
-        return json(200, { mode: "guardian", fx, capabilities: { extend: true, clockFromShipping: true, refundUnshipped: true, proteccionPatch: true } });
+        return json(200, { ...(opts.red ? { red: opts.red, topeUsd: 10 } : {}), mode: "guardian", fx, capabilities: { extend: true, clockFromShipping: true, refundUnshipped: true, proteccionPatch: true } });
       }
       if ((m = /^\/api\/sellers\/([^/]+)\/panel$/.exec(p)) && req.method === "GET") {
         const s = sellers.get(decodeURIComponent(m[1]));

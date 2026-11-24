@@ -4,31 +4,90 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import http from "node:http";
 import type { OutMsg } from "../engine/messages.ts";
+import { esBsuid } from "../engine/parse.ts";
 
 export interface Incoming {
   id: string;
+  /** Teléfono (wa_id) o, si WhatsApp no lo comparte, el ID de la persona para este negocio (BSUID: "BO.1234…"). */
   from: string;
   text: string;
   name?: string;
+  /** Cuándo lo mandó la persona (ms): desde ahí corre la ventana de 24 horas. */
+  at?: number;
+  /** Audio, sticker, foto sin texto…: el bot no lo lee y contesta que solo entiende texto. */
+  noLegible?: boolean;
+}
+
+/** Estado de un mensaje que mandó el bot (webhook `statuses`). Los errores de Meta pueden llegar recién por acá. */
+export interface EstadoEnvio {
+  id: string;
+  status: string;
+  to?: string;
+  code?: number;
+  detalle?: string;
 }
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-/** Mensajes de texto y respuestas de botones de un POST del webhook. Ignora estados (sent/delivered/read). */
-export function parseWebhook(body: Json): Incoming[] {
-  const out: Incoming[] = [];
+const MEDIOS = new Set(["audio", "image", "video", "document", "sticker", "location", "contacts", "order"]);
+
+function valores(body: Json, phoneNumberId?: string): Json[] {
+  const out: Json[] = [];
   for (const entry of body?.entry ?? []) {
     for (const change of entry?.changes ?? []) {
       const v = change?.value;
-      if (!Array.isArray(v?.messages)) continue;
-      const names = new Map<string, string>((v.contacts ?? []).map((c: Json) => [c.wa_id, c.profile?.name]));
-      for (const m of v.messages) {
-        let text: string | undefined;
-        if (m.type === "text") text = m.text?.body;
-        else if (m.type === "interactive") text = m.interactive?.button_reply?.id ?? m.interactive?.list_reply?.id;
-        else if (m.type === "button") text = m.button?.payload ?? m.button?.text;
-        if (typeof text === "string" && text.trim() && m.from) out.push({ id: m.id, from: m.from, text, name: names.get(m.from) });
-      }
+      if (!v) continue;
+      // La misma cuenta de WhatsApp puede tener otros números: se atiende solo el de este bot.
+      const id = v.metadata?.phone_number_id;
+      if (phoneNumberId && id && String(id) !== phoneNumberId) continue;
+      out.push(v);
+    }
+  }
+  return out;
+}
+
+/** Mensajes de un POST del webhook: texto, botones y pies de foto. Ignora estados, reacciones y avisos del sistema. */
+export function parseWebhook(body: Json, phoneNumberId?: string): Incoming[] {
+  const out: Incoming[] = [];
+  for (const v of valores(body, phoneNumberId)) {
+    if (!Array.isArray(v.messages)) continue;
+    const contactos: Json[] = Array.isArray(v.contacts) ? v.contacts : [];
+    for (const m of v.messages) {
+      let text: string | undefined;
+      if (m.type === "text") text = m.text?.body;
+      else if (m.type === "interactive") text = m.interactive?.button_reply?.id ?? m.interactive?.list_reply?.id;
+      else if (m.type === "button") text = m.button?.payload ?? m.button?.text;
+      else if (MEDIOS.has(m.type)) text = m[m.type]?.caption ?? "";
+      if (typeof text !== "string") continue;
+      const contacto =
+        contactos.find((c) => (m.from && c.wa_id === m.from) || (m.from_user_id && c.user_id === m.from_user_id)) ??
+        (contactos.length === 1 ? contactos[0] : undefined);
+      const from = m.from ?? contacto?.wa_id ?? m.from_user_id ?? contacto?.user_id;
+      if (!from) continue;
+      const noLegible = !text.trim() && MEDIOS.has(m.type);
+      if (!text.trim() && !noLegible) continue;
+      const seg = Number(m.timestamp);
+      out.push({
+        id: m.id,
+        from: String(from),
+        text,
+        name: contacto?.profile?.name,
+        ...(seg > 0 ? { at: seg * 1000 } : {}),
+        ...(noLegible ? { noLegible } : {}),
+      });
+    }
+  }
+  return out;
+}
+
+/** Estados de envío de un POST del webhook. */
+export function parseStatuses(body: Json, phoneNumberId?: string): EstadoEnvio[] {
+  const out: EstadoEnvio[] = [];
+  for (const v of valores(body, phoneNumberId)) {
+    for (const s of Array.isArray(v.statuses) ? v.statuses : []) {
+      if (!s?.id) continue;
+      const e = s.errors?.[0];
+      out.push({ id: s.id, status: s.status, to: s.recipient_id, ...(e ? { code: Number(e.code), detalle: e.error_data?.details ?? e.title } : {}) });
     }
   }
   return out;
@@ -42,17 +101,20 @@ export function verifyChallenge(q: URLSearchParams, verifyToken: string): { stat
   return { status: 403, body: "Forbidden" };
 }
 
-/** X-Hub-Signature-256 = "sha256=" + HMAC(app secret, cuerpo crudo). */
+/** X-Hub-Signature-256 = "sha256=" + HMAC(app secret, cuerpo crudo). Sin app secret, nada es válido. */
 export function validSignature(raw: Buffer, header: string | undefined, appSecret: string): boolean {
-  if (!header?.startsWith("sha256=")) return false;
+  if (!appSecret || !header?.startsWith("sha256=")) return false;
   const expected = createHmac("sha256", appSecret).update(raw).digest();
   const got = Buffer.from(header.slice(7), "hex");
   return got.length === expected.length && timingSafeEqual(got, expected);
 }
 
+/** A quién: teléfono en `to` o, si WhatsApp no lo comparte, el BSUID en `recipient`. */
+const destino = (to: string) => ({ messaging_product: "whatsapp", recipient_type: "individual", ...(esBsuid(to) ? { recipient: to } : { to }) });
+
 /** Cuerpo de POST /{phone-number-id}/messages: texto, o botones de respuesta (máx. 3, título ≤ 20). */
 export function graphPayload(to: string, m: OutMsg): Json {
-  const base = { messaging_product: "whatsapp", recipient_type: "individual", to };
+  const base = destino(to);
   if (m.buttons?.length) {
     return {
       ...base,
@@ -69,87 +131,234 @@ export function graphPayload(to: string, m: OutMsg): Json {
   return { ...base, type: "text", text: { body: m.text.slice(0, 4096), preview_url: true } };
 }
 
+export interface Plantilla {
+  name: string;
+  lang: string;
+}
+
+/** Plantilla aprobada, con sus parámetros en orden en el cuerpo. Los parámetros no llevan saltos de línea. */
+export function plantillaPayload(to: string, p: Plantilla, params: string[]): Json {
+  return {
+    ...destino(to),
+    type: "template",
+    template: {
+      name: p.name,
+      language: { code: p.lang },
+      components: [{ type: "body", parameters: params.map((t) => ({ type: "text", text: t.replace(/\s+/g, " ").trim().slice(0, 200) || "-" })) }],
+    },
+  };
+}
+
+/** Error de la Graph API con su código (131047, 190, …). */
+export class GraphError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: number | undefined,
+    detalle: string,
+  ) {
+    super(`Graph API ${status}${code ? ` (${code})` : ""}: ${detalle.slice(0, 300)}`);
+  }
+}
+
+/** Fuera de la ventana de 24 horas: solo se pueden mandar plantillas. */
+export const FUERA_DE_VENTANA = 131047;
+/** Insistir no sirve: el número no está en la lista de prueba, no tiene WhatsApp o no acepta el mensaje. */
+const PERMANENTES = new Set([131030, 131026, 131050, 131051]);
+/** Vale la pena reintentar enseguida: límite de ritmo o falla pasajera de Meta. */
+const PASAJEROS = new Set([1, 2, 4, 80007, 130429, 131000, 131016, 131056]);
+
+export const esPermanente = (code?: number) => code != null && PERMANENTES.has(code);
+
+/** Qué hacer ante un error, para el registro del servicio. */
+export function pista(code?: number): string {
+  switch (code) {
+    case 190:
+      return "la credencial de Meta venció o no sirve: genera otra (docs/WHATSAPP.md)";
+    case 131030:
+      return "ese teléfono no está en la lista de destinatarios del número de prueba (docs/WHATSAPP.md)";
+    case FUERA_DE_VENTANA:
+      return "pasaron más de 24 horas desde su último mensaje: el aviso queda guardado hasta que escriba";
+    case 131026:
+      return "WhatsApp no lo puede entregar (sin WhatsApp, versión vieja o términos sin aceptar)";
+    case 132000:
+    case 132001:
+      return "la plantilla no existe, no está aprobada en ese idioma o tiene otra cantidad de variables";
+    default:
+      return "";
+  }
+}
+
 export interface GraphConfig {
   token: string;
   phoneNumberId: string;
   version?: string;
   baseUrl?: string;
   fetchFn?: typeof fetch;
+  /** Espera antes de cada reintento (ms). [] = sin reintentos. */
+  reintentosMs?: number[];
 }
 
 export class GraphSender {
   constructor(private readonly c: GraphConfig) {}
 
-  async send(to: string, m: OutMsg): Promise<void> {
-    const url = `${this.c.baseUrl ?? "https://graph.facebook.com"}/${this.c.version ?? "v23.0"}/${this.c.phoneNumberId}/messages`;
+  /** Manda texto o botones y devuelve el ID del mensaje (wamid). */
+  send(to: string, m: OutMsg): Promise<string | undefined> {
+    return this.post(graphPayload(to, m));
+  }
+
+  template(to: string, p: Plantilla, params: string[]): Promise<string | undefined> {
+    return this.post(plantillaPayload(to, p, params));
+  }
+
+  /** El número que atiende, para el registro de arranque: comprueba que la credencial y el ID van juntos. */
+  async numero(): Promise<string> {
+    const d = await this.pedir(`${this.c.phoneNumberId}?fields=display_phone_number,verified_name`, { method: "GET" });
+    return [d.display_phone_number, d.verified_name && `(${d.verified_name})`].filter(Boolean).join(" ");
+  }
+
+  private async post(payload: Json): Promise<string | undefined> {
+    const esperas = this.c.reintentosMs ?? [500, 2000];
+    for (let i = 0; ; i++) {
+      try {
+        const d = await this.pedir(`${this.c.phoneNumberId}/messages`, { method: "POST", body: JSON.stringify(payload) });
+        return d.messages?.[0]?.id;
+      } catch (e) {
+        // Un corte por tiempo no se reintenta: Meta puede haberlo recibido y la persona vería el mensaje dos veces.
+        const pasajero = e instanceof GraphError ? e.status === 429 || e.status >= 500 || (e.code != null && PASAJEROS.has(e.code)) : e instanceof TypeError;
+        if (!pasajero || i >= esperas.length) throw e;
+        await new Promise((r) => setTimeout(r, esperas[i]));
+      }
+    }
+  }
+
+  private async pedir(ruta: string, init: RequestInit): Promise<Json> {
+    const url = `${this.c.baseUrl ?? "https://graph.facebook.com"}/${this.c.version ?? "v23.0"}/${ruta}`;
     const res = await (this.c.fetchFn ?? fetch)(url, {
-      method: "POST",
+      ...init,
       headers: { authorization: `Bearer ${this.c.token}`, "content-type": "application/json" },
-      body: JSON.stringify(graphPayload(to, m)),
       signal: AbortSignal.timeout(15_000),
     });
-    if (!res.ok) throw new Error(`Graph API ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    const texto = await res.text();
+    let data: Json = {};
+    try {
+      data = JSON.parse(texto);
+    } catch {
+      /* respuesta sin JSON */
+    }
+    if (!res.ok) throw new GraphError(res.status, data.error?.code, data.error?.error_data?.details ?? data.error?.message ?? texto);
+    return data;
   }
 }
 
 export interface WebhookDeps {
   handle: (from: string, text: string) => Promise<OutMsg[]>;
-  send: (to: string, m: OutMsg) => Promise<void>;
+  send: (to: string, m: OutMsg) => Promise<unknown>;
   verifyToken: string;
-  /** Si está, se exige X-Hub-Signature-256 válida. */
-  appSecret?: string;
+  /** Se exige X-Hub-Signature-256 válida: sin la firma de Meta, cualquiera podría hablar en nombre de una tienda. */
+  appSecret: string;
+  /** Si está, se ignoran los mensajes a otros números de la misma cuenta. */
+  phoneNumberId?: string;
   path?: string;
+  /** Antes de atender: abre la ventana de 24 horas. */
+  onInbound?: (m: Incoming) => void;
+  /** Después de contestar: salen los avisos que esperaban a que la persona escribiera. */
+  onHandled?: (from: string) => Promise<void>;
+  onStatus?: (s: EstadoEnvio) => Promise<void>;
+  /** Qué contestar a un audio, un sticker o una foto sin texto. */
+  noLegible?: () => OutMsg[];
 }
+
+const MAX_CUERPO = 3_000_000; // Meta manda hasta 3 MB por notificación.
+
+/** "59171234567" → "…4567": en los registros no va el número completo. */
+export const corto = (tel: string) => `…${tel.slice(-4)}`;
 
 /** Servidor HTTP del webhook. Responde 200 al instante y procesa después (Meta reintenta si tarda). */
 export function createWebhookServer(d: WebhookDeps): http.Server {
   const path = d.path ?? "/webhook";
   const seen = new Set<string>();
+  const colas = new Map<string, Promise<void>>();
 
-  async function process(msgs: Incoming[]) {
+  async function uno(m: Incoming) {
+    try {
+      const replies = m.noLegible ? (d.noLegible?.() ?? []) : await d.handle(m.from, m.text);
+      for (const r of replies) await d.send(m.from, r);
+      await d.onHandled?.(m.from);
+    } catch (e) {
+      const code = e instanceof GraphError ? e.code : undefined;
+      console.error(`[whatsapp] respuesta a ${corto(m.from)}:`, e instanceof Error ? e.message : e, pista(code));
+    }
+  }
+
+  /** Los mensajes de una misma persona se atienden en orden, uno por vez. */
+  function procesar(msgs: Incoming[]) {
     for (const m of msgs) {
       if (seen.has(m.id)) continue; // Meta puede reenviar el mismo mensaje.
       seen.add(m.id);
       if (seen.size > 5000) seen.delete(seen.values().next().value!);
+      d.onInbound?.(m);
+      const cola = (colas.get(m.from) ?? Promise.resolve()).then(() => uno(m));
+      colas.set(m.from, cola);
+      void cola.then(() => colas.get(m.from) === cola && colas.delete(m.from));
+    }
+  }
+
+  async function estados(list: EstadoEnvio[]) {
+    for (const s of list) {
       try {
-        for (const r of await d.handle(m.from, m.text)) await d.send(m.from, r);
+        await d.onStatus?.(s);
       } catch (e) {
-        console.error("[whatsapp]", e instanceof Error ? e.message : e);
+        console.error("[whatsapp] estado de envío:", e instanceof Error ? e.message : e);
       }
     }
   }
 
   return http.createServer(async (req, res) => {
-    const url = new URL(req.url ?? "/", "http://localhost");
-    if (req.method === "GET" && url.pathname === "/health") return void res.end("ok");
-    if (url.pathname !== path) {
-      res.statusCode = 404;
-      return void res.end("Not found");
-    }
-    if (req.method === "GET") {
-      const r = verifyChallenge(url.searchParams, d.verifyToken);
-      res.statusCode = r.status;
-      return void res.end(r.body);
-    }
-    if (req.method !== "POST") {
-      res.statusCode = 405;
-      return void res.end();
-    }
-    const chunks: Buffer[] = [];
-    for await (const c of req) chunks.push(c as Buffer);
-    const raw = Buffer.concat(chunks);
-    if (d.appSecret && !validSignature(raw, req.headers["x-hub-signature-256"] as string | undefined, d.appSecret)) {
-      res.statusCode = 401;
-      return void res.end("Bad signature");
-    }
-    let body: Json = {};
     try {
-      body = JSON.parse(raw.toString("utf8"));
-    } catch {
-      /* cuerpo inválido: se responde 200 igual para que Meta no reintente */
+      const url = new URL(req.url ?? "/", "http://localhost");
+      if (req.method === "GET" && url.pathname === "/health") return void res.end("ok");
+      if (url.pathname !== path) {
+        res.statusCode = 404;
+        return void res.end("Not found");
+      }
+      if (req.method === "GET") {
+        const r = verifyChallenge(url.searchParams, d.verifyToken);
+        res.writeHead(r.status, { "content-type": "text/plain; charset=utf-8" });
+        return void res.end(r.body);
+      }
+      if (req.method !== "POST") {
+        res.statusCode = 405;
+        return void res.end();
+      }
+      const chunks: Buffer[] = [];
+      let total = 0;
+      for await (const c of req) {
+        total += (c as Buffer).length;
+        if (total > MAX_CUERPO) {
+          res.writeHead(413, { connection: "close" });
+          return void res.end();
+        }
+        chunks.push(c as Buffer);
+      }
+      const raw = Buffer.concat(chunks);
+      if (!validSignature(raw, req.headers["x-hub-signature-256"] as string | undefined, d.appSecret)) {
+        res.statusCode = 401;
+        return void res.end("Bad signature");
+      }
+      let body: Json = {};
+      try {
+        body = JSON.parse(raw.toString("utf8")) ?? {};
+      } catch {
+        /* cuerpo inválido: se responde 200 igual para que Meta no reintente */
+      }
+      res.statusCode = 200;
+      res.end("EVENT_RECEIVED");
+      procesar(parseWebhook(body, d.phoneNumberId));
+      void estados(parseStatuses(body, d.phoneNumberId));
+    } catch (e) {
+      console.error("[whatsapp] webhook:", e instanceof Error ? e.message : e);
+      if (!res.headersSent) res.statusCode = 400;
+      res.end();
     }
-    res.statusCode = 200;
-    res.end("EVENT_RECEIVED");
-    void process(parseWebhook(body));
   });
 }

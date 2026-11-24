@@ -112,6 +112,13 @@ export interface CreateLinkInput {
   category?: Categoria;
 }
 
+/** GET /api/info: lo que le importa al bot. Sin `red`, la instancia es de testnet. */
+export interface AppInfo {
+  red?: "testnet" | "mainnet";
+  /** Máximo por compra en USD (solo en mainnet). */
+  topeUsd?: number;
+}
+
 /** GET /api/bot/changes?since= */
 export interface ChangesFeed {
   now: number;

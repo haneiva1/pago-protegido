@@ -191,6 +191,9 @@ export function normPhone(p: string): string {
   return d.length === 8 ? `591${d}` : d;
 }
 
+/** ID de la persona para este negocio ("BO.13491208655302741918"): lo manda Meta cuando no comparte el teléfono. */
+export const esBsuid = (s: string) => /^[A-Z]{2}(\.[A-Za-z0-9]+)+$/.test(s);
+
 /** Sufijo hex del slug ("zapatillas-nike-a1b2c3" → "a1b2c3"): el código de los pedidos viejos, sin `code`. */
 export function shortCode(slug: string): string {
   return slug.split("-").pop() ?? slug;

@@ -1,6 +1,6 @@
 // Cliente de la app web. Usa las rutas reales de pago-protegido/app y las propuestas en APP-ENDPOINTS.md.
 
-import type { ChangesFeed, CreateLinkInput, Order, OrderView, Proteccion, Seller, SellerData } from "./types.ts";
+import type { AppInfo, ChangesFeed, CreateLinkInput, Order, OrderView, Proteccion, Seller, SellerData } from "./types.ts";
 
 /** La app respondió con un error legible ({ error }). */
 export class AppError extends Error {
@@ -32,6 +32,8 @@ export interface AppClient {
   order(slug: string): Promise<OrderView>;
   /** §2: pedidos que cambiaron desde `since` (ms). */
   changes(since: number): Promise<ChangesFeed>;
+  /** GET /api/info: en qué red corre la app. */
+  info(): Promise<AppInfo>;
 }
 
 export class HttpAppClient implements AppClient {
@@ -93,5 +95,9 @@ export class HttpAppClient implements AppClient {
 
   changes(since: number): Promise<ChangesFeed> {
     return this.call<ChangesFeed>(`/api/bot/changes?since=${since}`);
+  }
+
+  info(): Promise<AppInfo> {
+    return this.call<AppInfo>("/api/info");
   }
 }

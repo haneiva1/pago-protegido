@@ -1,5 +1,5 @@
 // Todos los textos del bot: cortos, amables y en español boliviano. Nunca dicen "cripto":
-// la moneda es "USD de prueba". Funciones puras.
+// la moneda es "USD de prueba" en testnet y "USDC" en mainnet. Funciones puras, salvo `usarRed`.
 
 import { STATUS_LABEL, type Order, type OrderStatus, type OrderView, type SellerData } from "../app/types.ts";
 import type { FakeReason } from "./links.ts";
@@ -17,6 +17,17 @@ export interface OutMsg {
   /** Hasta 3 botones de respuesta rápida. */
   buttons?: Button[];
 }
+
+export type Red = "testnet" | "mainnet";
+
+let red: Red = "testnet";
+/** En qué red corre la app a la que apunta el bot (STELLAR_NETWORK). Se fija una vez, al arrancar. */
+export function usarRed(r: Red) {
+  red = r;
+}
+const moneda = () => (red === "mainnet" ? "USDC" : "USD de prueba");
+/** En mainnet, la misma advertencia que la franja de la app; en testnet, nada. */
+const avisoRed = () => (red === "mainnet" ? "\n\n⚠️ Prueba real en mainnet: plata real, montos chicos." : "");
 
 const nf2 = new Intl.NumberFormat("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const nf = new Intl.NumberFormat("es-BO", { maximumFractionDigits: 2 });
@@ -109,6 +120,9 @@ export const registerUrl = (appUrl: string, phone: string) => `${appUrl}/vender?
 
 /** Al vendedor, en el registro. */
 export const SELLER_NO_LINK = "Para cobrar no tienes que abrir ningún link: el pago te llega solo. Un mensaje que diga 'entra aquí para cobrar' es falso.";
+/** Regla de WhatsApp: pasadas 24 horas sin escribir, el bot no puede mandar mensajes libres. */
+export const VENTANA_24H =
+  "WhatsApp me deja escribirte hasta 24 horas después de tu último mensaje. Si pasa más tiempo, guardo tus avisos y te los mando apenas me escribas *novedades*.";
 /** Al vendedor, cada vez que recibe un link de pago. */
 export const QR_WARNING = "Ojo: el QR de pago nunca está a nombre de una persona.";
 /** Al comprador, al pagar y otra vez cuando el vendedor marca enviado. */
@@ -153,6 +167,7 @@ const HOW_TO = [
   "• *enviado PP-7KM4Q9TX <guía>*",
   "• *saldo*",
   "• *mi perfil*",
+  "• *novedades*",
 ].join("\n");
 
 export const msg = {
@@ -165,7 +180,7 @@ export const msg = {
 
   notRegistered(appUrl: string, phone: string): OutMsg {
     return {
-      text: `¡Hola! 👋 Este número todavía no tiene tienda en *Trato*.\nCréala en 1 minuto (nombre, WhatsApp y listo):\n👉 ${registerUrl(appUrl, phone)}\n\nCuando termines, escríbeme *hola*.\n\n🔒 ${SELLER_NO_LINK}\n\n¿Te mandaron un link para pagar? Reenvíamelo y te digo si es de verdad.`,
+      text: `¡Hola! 👋 Este número todavía no tiene tienda en *Trato*.\nCréala en 1 minuto (nombre, WhatsApp y listo):\n👉 ${registerUrl(appUrl, phone)}\n\nCuando termines, escríbeme *hola*.${avisoRed()}\n\n🔒 ${SELLER_NO_LINK}\n\n¿Te mandaron un link para pagar? Reenvíamelo y te digo si es de verdad.`,
     };
   },
 
@@ -218,10 +233,10 @@ export const msg = {
     const prot = protectionLine(o);
     const head = prot
       ? `*${o.product}* · ${fmtBs(o.price_bs_cents)} · entrega en ${days}\n👉 ${url}\n\n${prot}`
-      : `*${o.product}* · ${fmtBs(o.price_bs_cents)} (≈ ${fmtUsd(o.amount_units)} USD de prueba) · entrega en ${days}\n👉 ${url}`;
+      : `*${o.product}* · ${fmtBs(o.price_bs_cents)} (≈ ${fmtUsd(o.amount_units)} ${moneda()}) · entrega en ${days}\n👉 ${url}`;
     return [
       {
-        text: `¡Listo! ✅ Tu link de pago protegido:\n${head}\n\nCódigo: *${orderCode(o)}*. Es para un solo cliente. Te aviso apenas pague.\n\n⚠️ ${QR_WARNING}`,
+        text: `¡Listo! ✅ Tu link de pago protegido:\n${head}\n\nCódigo: *${orderCode(o)}*. Es para un solo cliente. Te aviso apenas pague.\n\n⚠️ ${QR_WARNING}${avisoRed()}`,
         buttons: o.proteccion ? [...protButtons(o.slug), BTN.otro] : [BTN.otro, BTN.ventas],
       },
       { text: "Reenvíale esto a tu cliente 👇" },
@@ -283,14 +298,14 @@ export const msg = {
         next = `Enviado con: ${fmtEnvio(o.shipped_evidence) || "-"}. Se libera cuando tu cliente confirme${o.deadline ? ` o, si no dice nada, el ${fmtDate(o.deadline)}` : ""}.${o.extended ? " Tu cliente ya pidió más tiempo una vez." : ""}`;
         break;
       case "liberado":
-        next = v.breakdown ? `Recibiste *${fmtUsd(v.breakdown.seller)} USD de prueba* en tu cuenta 🙌` : "El pago ya se liberó a tu cuenta 🙌";
+        next = v.breakdown ? `Recibiste *${fmtUsd(v.breakdown.seller)} ${moneda()}* en tu cuenta 🙌` : "El pago ya se liberó a tu cuenta 🙌";
         break;
       case "en_disputa":
         next = `Hay un reclamo${o.dispute_reason ? `: “${o.dispute_reason}”` : ""}. La plata queda congelada hasta que decida el revisor. Cuenta tu versión en ${appUrl}/panel`;
         break;
       case "resuelto": {
         const b = (o.buyer_bps ?? 0) / 100;
-        next = `El revisor resolvió el reclamo: ${fmtReparto(b, "vendedor")}.${v.split ? ` Te tocan *${fmtUsd(v.split.seller)} USD de prueba*.` : ""}`;
+        next = `El revisor resolvió el reclamo: ${fmtReparto(b, "vendedor")}.${v.split ? ` Te tocan *${fmtUsd(v.split.seller)} ${moneda()}*.` : ""}`;
         break;
       }
       case "devuelto":
@@ -338,7 +353,7 @@ export const msg = {
     const cents = inEscrow.reduce((s, o) => s + o.price_bs_cents, 0);
     const protectedLine = inEscrow.length ? `\nAdemás tienes *${fmtBs(cents)}* protegidos en ${inEscrow.length} pedido${inEscrow.length > 1 ? "s" : ""} en camino.` : "";
     return {
-      text: `💰 Tu saldo: *${fmtUsd(d.balance)} USD de prueba*.${protectedLine}\nVentas completadas: ${d.seller.completedSales}.\n\nDetalle en tu panel: ${appUrl}/panel`,
+      text: `💰 Tu saldo: *${fmtUsd(d.balance)} ${moneda()}*.${protectedLine}\nVentas completadas: ${d.seller.completedSales}.\n\nDetalle en tu panel: ${appUrl}/panel`,
       buttons: [BTN.vender, BTN.ventas],
     };
   },
@@ -352,8 +367,50 @@ export const msg = {
   },
 
   /** La primera vez que una tienda registrada le escribe al bot. */
-  sellerWelcome(store: string): OutMsg {
-    return { text: `🔒 *${store}*, antes de empezar: ${SELLER_NO_LINK}` };
+  sellerWelcome(store: string, ventana24h = false): OutMsg {
+    return { text: `🔒 *${store}*, antes de empezar: ${SELLER_NO_LINK}${ventana24h ? `\n\n⏰ ${VENTANA_24H}` : ""}` };
+  },
+
+  // ---------- Avisos y ventana de 24 horas (WhatsApp real) ----------
+
+  /** "novedades" con avisos guardados: los avisos salen en los mensajes siguientes. */
+  novedades(n: number): OutMsg {
+    return { text: n === 1 ? "📬 Tenía un aviso guardado para ti:" : `📬 Tenía ${n} avisos guardados para ti:` };
+  },
+
+  alDia(): OutMsg {
+    return { text: "👍 Estás al día: no tienes avisos guardados." };
+  },
+
+  /** Al comprador que pide sus avisos desde el número que dejó al pagar. */
+  avisosActivos(): OutMsg {
+    return { text: `🔔 ¡Listo! Te aviso por aquí de tu compra.\n\n⏰ ${VENTANA_24H}` };
+  },
+
+  /** "avisos PP-…" desde un número que ninguna compra dejó. */
+  avisosSinCompra(): OutMsg {
+    return {
+      text: "🤔 No veo ninguna compra con este número. Si acabas de pagar, espera un minuto y escríbeme *novedades*. Los avisos llegan solo al WhatsApp que dejaste al pagar.\n\n¿Te mandaron un link para pagar? Reenvíamelo y te digo si es de verdad.",
+    };
+  },
+
+  /** A un comprador que saluda (tiene compras y no tiene tienda). */
+  compradorHola(appUrl: string): OutMsg {
+    return {
+      text: `¡Hola! 👋 Soy el asistente de *Trato*. Te aviso por aquí de tu compra.\n• *novedades*: tus avisos guardados\n• Reenvíame cualquier link de pago y te digo si es de verdad.\n\n⏰ ${VENTANA_24H}\n\n¿Quieres vender? Crea tu tienda: ${appUrl}/vender`,
+    };
+  },
+
+  /** Audio, sticker o foto sin texto. */
+  soloTexto(): OutMsg {
+    return { text: "🙈 Por ahora solo leo mensajes de texto. Escríbeme *ayuda* para ver lo que puedo hacer." };
+  },
+
+  /** WhatsApp no compartió el teléfono (la persona usa nombre de usuario): no se puede buscar su tienda. */
+  sinNumero(): OutMsg {
+    return {
+      text: "🤔 WhatsApp no me mostró tu número, así que no puedo encontrar tu tienda ni tus compras. Escríbeme desde el número que registraste.\n\nIgual puedes reenviarme un link de pago y te digo si es de verdad.",
+    };
   },
 
   // ---------- Verificador y reportes (para cualquiera, tenga tienda o no) ----------
@@ -406,7 +463,7 @@ export const msg = {
 function protectionLine(o: Order): string | null {
   if (!o.proteccion) return null;
   const prot = o.proteccion_bs_cents ?? 0;
-  const usd = `≈ ${fmtUsd(o.amount_units)} USD de prueba`;
+  const usd = `≈ ${fmtUsd(o.amount_units)} ${moneda()}`;
   if (o.proteccion === "comprador") {
     return `🛡️ Protección: la paga tu cliente${prot ? ` (${fmtBs(prot)})` : ""}. Paga ${fmtBs(o.price_bs_cents + prot)} (${usd}) y tú recibes ${fmtBs(o.price_bs_cents)}.`;
   }
@@ -439,6 +496,20 @@ function fullRefund(appUrl: string, v: OrderView): string | null {
 }
 
 // ---------- Avisos del poller ----------
+
+/** Resumen de una línea para la plantilla de WhatsApp: "Hay una novedad en el pedido PP-…: <resumen>." */
+export const RESUMEN_AVISO = {
+  pagado: "tu cliente ya pagó",
+  enviado_vendedor: "ya figura como enviado",
+  te_llego: "la tienda ya lo envió",
+  liberado: "el pago se liberó a tu cuenta",
+  reclamo: "hay un reclamo abierto",
+  resuelto: "el revisor resolvió el reclamo",
+  devuelto: "se devolvió la plata porque no se despachó a tiempo",
+  mas_tiempo: "tu cliente pidió más tiempo",
+  recordatorio: "el pago se va a liberar pronto a la tienda",
+  anti_presion: "tu pago está guardado",
+};
 
 export interface NoticeData {
   appUrl: string;
@@ -477,7 +548,7 @@ export const notice = {
   /** Al vendedor cuando se libera el pago. */
   released({ view }: NoticeData): OutMsg {
     const o = view.order;
-    const amount = view.breakdown ? ` Te llegaron *${fmtUsd(view.breakdown.seller)} USD de prueba*` : " La plata ya está en tu cuenta";
+    const amount = view.breakdown ? ` Te llegaron *${fmtUsd(view.breakdown.seller)} ${moneda()}*` : " La plata ya está en tu cuenta";
     return { text: `✅ ${orderCode(o)}: ¡Liberado! Tu cliente recibió *${o.product}*.${amount}. ¡Gracias por vender protegido! 🙌`, buttons: [BTN.otro, BTN.saldo] };
   },
 
