@@ -1,4 +1,5 @@
-import { Keypair, Networks, TransactionBuilder } from "@stellar/stellar-sdk";
+import { Keypair, TransactionBuilder } from "@stellar/stellar-sdk";
+import { PASSPHRASE, RED } from "@/lib/red";
 import { storageKey } from "./storage";
 import { firmarSep53 } from "@/lib/sep53";
 import type { WalletProvider, WalletRole } from "./types";
@@ -32,7 +33,7 @@ export class LocalWallet implements WalletProvider {
   async signTransaction(xdr: string): Promise<string> {
     const s = this.secret();
     if (!s) throw new Error("No hay billetera en este dispositivo");
-    const tx = TransactionBuilder.fromXDR(xdr, Networks.TESTNET);
+    const tx = TransactionBuilder.fromXDR(xdr, PASSPHRASE[RED]);
     // Las invocaciones usan al usuario como cuenta de origen, así que su firma de la
     // transacción cubre también la autorización de Soroban (credenciales de cuenta de origen).
     tx.sign(Keypair.fromSecret(s));
@@ -43,6 +44,14 @@ export class LocalWallet implements WalletProvider {
     const s = this.secret();
     if (!s) throw new Error("No hay una cuenta en este dispositivo");
     return firmarSep53(Keypair.fromSecret(s), mensaje);
+  }
+
+  /**
+   * Clave de respaldo (S…), solo para que la persona guarde la de su propia cuenta: en mainnet hay plata real y el
+   * navegador puede borrar sus datos. No sale del dispositivo.
+   */
+  respaldo(): string | null {
+    return this.secret();
   }
 
   async disconnect(): Promise<void> {

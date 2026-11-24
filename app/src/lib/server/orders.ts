@@ -15,12 +15,14 @@ import {
   releaseBreakdown,
   splitFromGross,
   splitPreview,
+  unitsToAmountString,
 } from "@/lib/format";
 import { VIDEO_OBLIGATORIO_DESDE_BS_CENTS, fleteFinal, parseFlete } from "@/lib/comprador";
 import { huellaDeLink, huellaPropia } from "@/lib/evidencia";
 import { evidenciaDeLasPartes } from "@/lib/revisor";
 import { esperaParaConfirmar } from "@/lib/ciudades";
-import { NETWORK_PASSPHRASE, cfg } from "./config";
+import { ES_MAINNET } from "@/lib/red";
+import { NETWORK_PASSPHRASE, cfg, topesMainnet } from "./config";
 import { type OrderRow, evidence, kv, orders, pending, pilot, sellers, txs } from "./db";
 import { linkAmounts as amountsFor } from "@/lib/format";
 import {
@@ -42,6 +44,7 @@ import {
   hasTrustline,
   horizonAccount,
   mintLabusd,
+  prepareRetiro,
   prepareTrustline,
   tokenBalance,
   withLock,
@@ -75,6 +78,7 @@ const STEP_LABEL: Record<string, string> = {
   confirm: "Pagar al vendedor",
   dispute: "Abrir un reclamo",
   extend: "Pedir más tiempo para revisar",
+  retiro: "Retirar tus USDC",
 };
 
 /** Teléfono a solo dígitos; 8 dígitos (celular boliviano) → con 591 adelante. */
@@ -129,7 +133,8 @@ const CHAIN_MARGIN_MS = 10_000;
 /** Modo demo (PP_DEMO=1): "Pagar al vendedor" se habilita 10 segundos después del envío (pedido de Hans, 22-nov-2026; solo demo). */
 export const demoTimers = () => process.env.PP_DEMO === "1";
 /** /probar (PP_PROBAR=1, apagado por defecto): la demo pública con dos celulares. */
-export const probarActivo = () => process.env.PP_PROBAR === "1";
+// Nunca en mainnet: /probar usa la rampa simulada y cuentas de prueba al vuelo.
+export const probarActivo = () => !ES_MAINNET && process.env.PP_PROBAR === "1";
 
 /**
  * "Pagar al vendedor" se habilita 2 h después del envío en la misma ciudad y 24 h si es otra ciudad.
@@ -205,6 +210,16 @@ export function newCode(): string {
   }
 }
 
+/** Tope por compra de la prueba en mainnet (MAINNET_MAX_USD, USD 10 por defecto). En testnet no hay tope. */
+function revisarTope(amount: bigint, fx: number) {
+  if (!ES_MAINNET) return;
+  const { maxUsd } = topesMainnet();
+  const max = BigInt(Math.round(maxUsd * 1e7));
+  if (amount > max) {
+    throw new AppError(`Prueba real en mainnet: el máximo por compra es USD ${maxUsd.toLocaleString("es-BO")} (${fmtBsUnits(max, fx)}), con la protección incluida`);
+  }
+}
+
 export function createLink(input: Record<string, unknown>) {
   const seller = isPubkey(input.sellerPubkey) ? sellers.get(input.sellerPubkey) : undefined;
   if (!seller) throw new AppError("Primero crea tu tienda", 403);
@@ -233,6 +248,7 @@ export function createLink(input: Record<string, unknown>) {
   const fx = cfg().fx;
   const price_bs_cents = Math.round(priceBs * 100);
   const a = linkAmounts(price_bs_cents, fx, fee_payer);
+  revisarTope(a.amount, fx);
   const slug = slugify(product);
   orders.insert({
     slug,
@@ -270,6 +286,7 @@ export function patchLink(slug: string, input: Record<string, unknown>) {
     if (o.status !== "esperando_pago" || o.buyer_pubkey || o.escrow_id) throw new AppError("Este link ya se está pagando: no se puede cambiar", 409);
     if (input.proteccion !== "comprador" && input.proteccion !== "vendedor") throw new AppError("proteccion tiene que ser comprador o vendedor");
     const a = amountsFor(o.price_bs_cents, o.fx, input.proteccion);
+    revisarTope(a.amount, o.fx);
     orders.update(slug, { fee_payer: input.proteccion, amount_units: a.amount.toString(), price_units: a.price.toString(), platform_bps: a.platformBps });
     return publicOrder(mustOrder(slug));
   });
@@ -280,10 +297,46 @@ export function patchLink(slug: string, input: Record<string, unknown>) {
 /** Cuenta nueva: friendbot y, si falta, la trustline a LABUSD (la firma el navegador). */
 export async function activateWallet(pubkey: unknown) {
   if (!isPubkey(pubkey)) throw new AppError("Cuenta inválida");
+  if (ES_MAINNET && !(await horizonAccount(pubkey))) reservarCuenta(pubkey);
   await ensureFunded(pubkey);
   if (hasTrustline(await horizonAccount(pubkey))) return { ready: true as const };
   const tx = await prepareTrustline(pubkey);
   return { ready: false as const, prepared: register(tx, { order_slug: null, action: "trustline", step: "trustline", signer: pubkey }) };
+}
+
+const CUENTAS_MAINNET = "mainnet:cuentas";
+
+/** Cupo de cuentas que activa la plataforma en mainnet (MAINNET_MAX_CUENTAS): cada una le cuesta 1,5 XLM. */
+function reservarCuenta(pubkey: string) {
+  const lista = JSON.parse(kv.get(CUENTAS_MAINNET) || "[]") as string[];
+  if (lista.includes(pubkey)) return;
+  if (lista.length >= topesMainnet().maxCuentas) throw new AppError("Ya se usaron todos los cupos de la prueba en mainnet. Escríbele al equipo de Trato.", 429);
+  kv.set(CUENTAS_MAINNET, JSON.stringify([...lista, pubkey]));
+}
+
+/** Saldo en USDC de una cuenta de Trato, para que el comprador vea llegar lo que mandó (solo mainnet). */
+export async function saldoDe(cuenta: unknown) {
+  if (!ES_MAINNET) throw new AppError("No encontrado", 404);
+  if (!isPubkey(cuenta)) throw new AppError("Cuenta inválida");
+  return { cuenta, saldo: (await tokenBalance(cuenta)).toString(), moneda: cfg().labusdCode, emisor: cfg().emisor };
+}
+
+/**
+ * Retirar USDC de la cuenta de Trato a otra cuenta Stellar (solo mainnet). Arma el pago y lo firma el navegador: el
+ * servidor no puede mover la plata. Revisa que el destino exista y acepte USDC, para que el pago no rebote.
+ */
+export async function prepararRetiro(cuenta: string, body: Record<string, unknown>): Promise<PreparedDto> {
+  if (!ES_MAINNET) throw new AppError("No encontrado", 404);
+  const destino = clean(body.destino, 60);
+  const memo = clean(body.memo, 64);
+  if (!isPubkey(destino)) throw new AppError("Escribe una cuenta Stellar válida (empieza con G)");
+  if (destino === cuenta) throw new AppError("Esa es tu misma cuenta de Trato");
+  if (Buffer.byteLength(memo, "utf8") > 28) throw new AppError("El memo puede tener hasta 28 caracteres");
+  const saldo = await tokenBalance(cuenta);
+  if (saldo <= 0n) throw new AppError("No tienes USDC para retirar", 409);
+  if (!hasTrustline(await horizonAccount(destino))) throw new AppError("Esa cuenta no existe o no acepta USDC de Circle en Stellar");
+  const tx = await prepareRetiro(cuenta, destino, saldo, memo);
+  return register(tx, { order_slug: null, action: "retiro", step: "retiro", signer: cuenta });
 }
 
 // ---------- Pago ----------
@@ -448,6 +501,15 @@ export async function startPayment(slug: string, body: Record<string, unknown>):
       o = liberarIntento(o);
     }
     if (!hasTrustline(await horizonAccount(buyer))) throw new AppError("Primero activa tu cuenta", 409);
+    if (ES_MAINNET) {
+      revisarTope(BigInt(o.amount_units), o.fx);
+      // Sin el USDC en su cuenta no se toma el link ni se crea el contrato: eso le cuesta XLM a la plataforma.
+      const falta = BigInt(o.amount_units) - (await tokenBalance(buyer));
+      // Trustless Work les paga a la tienda y a la plataforma al liberar: si una no acepta USDC, la liberación fallaría.
+      if (!hasTrustline(await horizonAccount(o.seller_pubkey))) throw new AppError("La tienda todavía no activó su cuenta para cobrar en USDC", 409);
+      if (!hasTrustline(await horizonAccount(cfg().plataforma.publicKey()))) throw new AppError("Trato todavía no está listo para cobrar en USDC. Avísale al equipo.", 503);
+      if (falta > 0n) throw new AppError(`Todavía faltan ${unitsToAmountString(falta)} USDC en tu cuenta de Trato`, 402);
+    }
     orders.update(slug, { buyer_pubkey: buyer, buyer_lease_until: Date.now() + PAGO_EN_CURSO_MS });
     if (buyerWa) orders.update(slug, { buyer_whatsapp: buyerWa });
     if (!o.escrow_id) {
@@ -466,7 +528,8 @@ export async function startPayment(slug: string, body: Record<string, unknown>):
     o = mustOrder(slug);
     const amount = BigInt(o.amount_units);
 
-    if (!o.ramp_hash) {
+    // En mainnet no hay rampa: el USDC ya llegó de la cuenta Stellar del comprador (se revisó arriba).
+    if (!o.ramp_hash && !ES_MAINNET) {
       const sent = await mintLabusd(buyer, amount);
       orders.update(slug, { ramp_hash: sent.hash });
       txs.add({
@@ -637,6 +700,10 @@ export async function submitSigned(signedXdr: unknown): Promise<{ hash: string; 
 
   if (p.action === "trustline") {
     txs.add({ order_slug: null, actor: p.signer, kind: "trustline", label: "Cuenta activada", hash: sent.hash });
+    return { hash: sent.hash };
+  }
+  if (p.action === "retiro") {
+    txs.add({ order_slug: null, actor: p.signer, kind: "retiro", label: "Retiraste tus USDC", hash: sent.hash });
     return { hash: sent.hash };
   }
 
@@ -1219,6 +1286,7 @@ export async function info() {
     contracts: svc.contracts(),
     capabilities: CAPABILITIES_FOR(),
     demoTimers: demoTimers(),
+    ...(ES_MAINNET ? { red: "mainnet" as const, topeUsd: topesMainnet().maxUsd } : {}),
   };
 }
 

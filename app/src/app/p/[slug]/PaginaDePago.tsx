@@ -11,6 +11,8 @@ import { BarraPagar, ComoFunciona, DosSalidas, HojaEntrega, Producto, Proteccion
 import { ConfirmarPago, PreguntaConfirmar } from "@/components/comprador/Confirmar";
 import { EsperaEnCurso } from "@/components/comprador/Espera";
 import { Antifraude, Esqueleto, EstadoPedido, LinkNoEncontrado } from "@/components/comprador/Estado";
+import { RespaldoCuenta, RetirarUsdc } from "@/components/mainnet/CuentaUsdc";
+import { PagoUsdc } from "@/components/mainnet/PagoUsdc";
 import { PagoQr } from "@/components/comprador/PagoQr";
 import { QrEscaneo } from "@/components/comprador/QrEscaneo";
 import { canal } from "@/components/chat/pedido";
@@ -21,6 +23,7 @@ import { TarjetaVendedor } from "@/components/comprador/Vendedor";
 import { ApiError, api } from "@/lib/api";
 import { NO_CARGO_CUENTA, cargaUnaVez } from "@/lib/comprador";
 import { enProbar } from "@/lib/probar";
+import { ES_MAINNET, TEXTO } from "@/lib/red";
 import { MOTIVO_PRESION, fmtBs, fmtBsUnits } from "@/lib/format";
 import type { OrderView } from "@/lib/types";
 import { apiFirmada } from "@/lib/api-firmada";
@@ -149,7 +152,7 @@ export default function PaginaDePago() {
       setMe(pk);
       await activateWallet(wallet);
       progress.finish(LW);
-      const L = "Banco: pago simulado y contrato del pedido creado";
+      const L = ES_MAINNET ? "Contrato del pedido creado" : "Banco: pago simulado y contrato del pedido creado";
       progress.push(L);
       const prepared = await apiFirmada<PreparedTx>(wallet, `/api/orders/${slug}/pay`, { buyer: pk, ...datos });
       progress.finish(L);
@@ -205,7 +208,11 @@ export default function PaginaDePago() {
             Este link ya lo está pagando otra persona.
           </p>
         ) : busy ? null : qrOpen ? (
+          ES_MAINNET ? (
+          <PagoUsdc v={v} busy={busy} onPay={() => delivery && pagar(delivery)} />
+        ) : (
           <PagoQr v={v} busy={busy} onPay={() => delivery && pagar(delivery)} />
+        )
         ) : null}
         {esperando}
         <ErrorBox error={error} />
@@ -266,6 +273,7 @@ export default function PaginaDePago() {
       <Seguimiento v={v} esComprador={isBuyer} recogido={recogido} busy={busy} onRecogido={marcarRecogido} onNoLlego={() => accion("extend")} />
       <PublicRecord v={o.verification} escrowId={o.escrow_id} status={o.status} role="comprador" />
       {isBuyer && (o.status === "pagado" || o.status === "enviado" || o.status === "en_disputa") && <CompraEnEsteNavegador />}
+      {ES_MAINNET && isBuyer && (o.status === "resuelto" || o.status === "devuelto" ? <RetirarUsdc role="comprador" /> : <RespaldoCuenta role="comprador" />)}
 
       {o.ship_imei && (o.status === "enviado" || o.status === "en_disputa") && (
         <div data-testid="imei" className="flex gap-3 text-base">
@@ -325,7 +333,7 @@ export default function PaginaDePago() {
 function ModoPractica() {
   return (
     <p className="text-center text-sm text-tinta-500" data-testid="modo-practica">
-      Modo práctica: no se mueve dinero real.
+      {TEXTO.aviso}
     </p>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { IconoChevronDerecha, IconoWhatsApp } from "@/components/iconos";
+import { TEXTO } from "@/lib/red";
 import { NumerosTienda } from "@/components/Kpis";
 import { desdeTexto, fmtProporcion, plural } from "@/lib/kpi-format";
 import type { Kpis, OrderView } from "@/lib/types";
@@ -79,7 +80,7 @@ export function TarjetaVendedor({ v }: { v: OrderView }) {
       {k.pagadas_al_vendedor > 0 && <NumerosTienda k={k} compacto />}
       <ul className="space-y-0.5 text-sm text-tinta-600">
         <li>{desdeTexto(k, s.since)}</li>
-        <li>Verificación de identidad: pendiente (modo práctica)</li>
+        <li>Verificación de identidad: pendiente ({TEXTO.modo})</li>
         <li>WhatsApp {fmtWhatsApp(s.whatsapp)}</li>
       </ul>
       {s.slug && (

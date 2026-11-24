@@ -1,3 +1,4 @@
+import { TEXTO } from "@/lib/red";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -5,7 +6,7 @@ import { cache } from "react";
 import { Nudo } from "@/components/iconos";
 import { ListaOperaciones, NumerosTienda } from "@/components/Kpis";
 import { explorer } from "@/lib/format";
-import { COMPRAS_INTERNAS, desdeTexto, fmtDuracion, fmtHora, fmtProporcion, nf } from "@/lib/kpi-format";
+import { desdeTexto, fmtDuracion, fmtHora, fmtProporcion, nf } from "@/lib/kpi-format";
 import { perfilTienda } from "@/lib/server/kpis";
 import type { PerfilTienda } from "@/lib/types";
 
@@ -69,11 +70,11 @@ export default async function Tienda({ params }: { params: Promise<{ slug: strin
         </span>
         <NumerosTienda k={k} />
         <ul className="space-y-1 text-sm text-sal/80">
-          <li data-testid="verificacion">Verificación de identidad: pendiente (modo práctica)</li>
+          <li data-testid="verificacion">Verificación de identidad: pendiente ({TEXTO.modo})</li>
           <li>
             {p.pilot
               ? "Tienda del piloto con vendedores reales."
-              : `${COMPRAS_INTERNAS}: esta tienda es de las pruebas del equipo, no del piloto.`}
+              : TEXTO.tiendaPropia}
           </li>
           <li className="text-xs text-sal/60" data-testid="perfil-actualizado">
             Calculado con el registro público de cada compra · actualizado: {fmtHora(p.actualizado)}

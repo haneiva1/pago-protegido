@@ -5,7 +5,7 @@ export type { EvidenceRow, OrderRow, SellerRow, TxRow, OnchainState, Verificatio
 
 // ---------- KPIs del registro público (/metricas, panel del vendedor y /tienda/<slug>) ----------
 
-export type Grupo = "equipo" | "piloto";
+export type Grupo = "equipo" | "piloto" | "mainnet";
 export type KpiClave = "compras" | "sin-reclamo" | "cobro" | "reclamos" | "devoluciones" | "mas-tiempo" | "despacho";
 export type Desenlace = "confirmada" | "plazo" | "resuelta" | "devuelta" | "en_reclamo" | "en_curso";
 
@@ -70,6 +70,9 @@ export interface MetricasSnapshot {
   piloto: GrupoMetricas;
   /** Inscripciones de /piloto: solo el número, sin datos de nadie. No son compras y no se suman con ninguna. */
   tiendas_inscritas_piloto: number;
+  /** Solo en la instancia de mainnet: sus compras nunca se suman con las de testnet. */
+  red?: "testnet" | "mainnet";
+  mainnet?: GrupoMetricas;
   /** Última lectura exitosa de la red (ms). Si el RPC falla, no se mueve. */
   actualizado: number | null;
   calculado: number;
@@ -171,6 +174,9 @@ export interface InfoData {
   contracts: { label: string; id: string; kind: "contract" | "account" }[];
   capabilities: { extend: boolean; clockFromShipping: boolean; refundUnshipped?: boolean; proteccionPatch?: boolean };
   demoTimers: boolean;
+  /** Solo en la instancia de mainnet. */
+  red?: "mainnet";
+  topeUsd?: number;
 }
 
 /**

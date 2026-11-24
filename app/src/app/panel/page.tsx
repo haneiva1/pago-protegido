@@ -1,5 +1,7 @@
 "use client";
 
+import { RespaldoCuenta, RetirarUsdc } from "@/components/mainnet/CuentaUsdc";
+import { ES_MAINNET, TEXTO } from "@/lib/red";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Countdown, ShipDeadline } from "@/components/Guardian";
@@ -164,7 +166,7 @@ export default function Panel() {
           {haySaldo ? (
             <button type="button" className="btn-secondary btn-sm mt-4 w-full sm:w-auto" aria-expanded={banco} onClick={() => setBanco((b) => !b)}>
               <IconoBillete className="h-4 w-4" />
-              Pasar a mi banco
+              {ES_MAINNET ? "Retirar mis USDC" : "Pasar a mi banco"}
             </button>
           ) : (
             <p className="mt-1 text-sm text-tinta-500">Sin saldo por cobrar todavía.</p>
@@ -172,7 +174,14 @@ export default function Panel() {
         </div>
       </section>
 
-      {banco && <PasarAMiBanco saldo={saldo} onCerrar={() => setBanco(false)} />}
+      {banco && ES_MAINNET && <RetirarUsdc role="vendedor" onHecho={() => load(seller.pubkey)} />}
+      {ES_MAINNET && !banco && <RespaldoCuenta role="vendedor" />}
+      {ES_MAINNET && info?.topeUsd && (
+        <p className="caja-aviso" data-testid="tope-mainnet">
+          {TEXTO.aviso} Máximo por compra: USD {info.topeUsd.toLocaleString("es-BO")} (Bs {(info.topeUsd * (info.fx ?? fx)).toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}), con la protección incluida.
+        </p>
+      )}
+      {banco && !ES_MAINNET && <PasarAMiBanco saldo={saldo} onCerrar={() => setBanco(false)} />}
 
       <p data-testid="antifraude-vendedor" className="flex gap-3 text-base text-tinta-700">
         <IconoInfo className="mt-0.5 h-5 w-5 flex-none text-musgo" />
@@ -299,7 +308,7 @@ export default function Panel() {
 
       {seller.slug && <Insignia slug={seller.slug} storeName={seller.store_name} kpis={data.kpis} />}
 
-      <p className="text-center text-sm text-tinta-500">Modo práctica: no se mueve dinero real.</p>
+      <p className="text-center text-sm text-tinta-500">{TEXTO.aviso}</p>
     </div>
   );
 }

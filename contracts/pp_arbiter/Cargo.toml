@@ -8,6 +8,10 @@ publish.workspace = true
 crate-type = ["cdylib", "rlib"]
 doctest = false
 
+[features]
+# Escrow de Trustless Work de MAINNET (wasm/README.md): sin ella, el de siempre (testnet, commit f0b706e).
+tw-mainnet = []
+
 [dependencies]
 soroban-sdk = { workspace = true }
 

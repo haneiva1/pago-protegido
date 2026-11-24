@@ -1,4 +1,5 @@
 import { rpc, scValToNative } from "@stellar/stellar-sdk";
+import { ES_MAINNET } from "@/lib/red";
 import { DEPLOYED, HORIZON_URL, NETWORK_PASSPHRASE, PARES_HISTORICOS, TESTNET_PUBLICO, cfg } from "./config";
 import { db, kv } from "./db";
 import { server, withLock } from "./stellar";
@@ -25,8 +26,8 @@ import {
  * verificado (verificacion.ts) y solo cuenta si su escrow cumple las cinco reglas públicas.
  */
 
-/** Ledger del despliegue de los contratos (contracts/deployments/testnet.json). */
-export const DEPLOY_LEDGER = 5790662;
+/** Ledger del despliegue de los contratos (contracts/deployments/testnet.json; en mainnet, PP_DEPLOY_LEDGER). */
+export const DEPLOY_LEDGER = ES_MAINNET ? Number(process.env.PP_DEPLOY_LEDGER) || 0 : 5790662;
 /** Cursor propio de v1+v2: con el filtro nuevo se vuelve a leer desde el inicio (los repetidos se ignoran). */
 const CURSOR_KEY = "events:cursor:v1v2";
 const PAGE = 200;
@@ -126,6 +127,8 @@ export function loadEvents(): PpEvent[] {
 export function paresIndexador(): { guardian: string; arbiter: string }[] {
   const c = cfg();
   const actual = { guardian: c.guardianId ?? DEPLOYED.guardian, arbiter: c.arbiterId ?? DEPLOYED.arbiter };
+  // Mainnet y testnet nunca se mezclan: en mainnet solo cuenta el par desplegado ahí.
+  if (ES_MAINNET) return [actual];
   const vistos = new Set<string>();
   return [actual, ...PARES_HISTORICOS].filter((p) => {
     const k = `${p.guardian}/${p.arbiter}`;
@@ -138,6 +141,7 @@ export function paresIndexador(): { guardian: string; arbiter: string }[] {
 /** Lo que se espera de cada escrow: valores de la configuración o, sin .env.local, los públicos de DEPLOYED.md. */
 export function reglasIndexador(): Reglas {
   const c = cfg();
+  if (ES_MAINNET) return { wasmHash: c.wasmHash, labusdSac: c.labusdSac, platform: c.plataforma.publicKey(), pares: paresIndexador() };
   let platform = TESTNET_PUBLICO.plataforma;
   try {
     platform = c.plataforma.publicKey();
@@ -288,15 +292,16 @@ export function estadoIndexador(events: PpEvent[] = loadEvents()): EstadoIndexad
 
 /** Resumen público para /transparencia: cuántas compras cuenta, cuántas descartó y por qué. */
 export function resumenIndexador(st: EstadoIndexador) {
+  const moneda = (t: string) => t.replaceAll("LABUSD", cfg().labusdCode);
   return {
     contadas: st.ok.size,
     pendientes: st.pendientes,
     descartadas: st.descartadas.length,
-    por_motivo: [...REGLAS.map((r) => ({ regla: r.regla as Motivo, texto: r.falla })), { regla: "lectura" as Motivo, texto: FALLA_LECTURA }].map((r) => ({
+    por_motivo: [...REGLAS.map((r) => ({ regla: r.regla as Motivo, texto: moneda(r.falla) })), { regla: "lectura" as Motivo, texto: FALLA_LECTURA }].map((r) => ({
       ...r,
       compras: st.descartadas.filter((d) => d.motivo === r.regla).length,
     })),
-    reglas: REGLAS.map((r) => ({ regla: r.regla, texto: r.cumple })),
+    reglas: REGLAS.map((r) => ({ regla: r.regla, texto: moneda(r.cumple) })),
     ejemplos: st.descartadas.slice(-10).reverse(),
   };
 }

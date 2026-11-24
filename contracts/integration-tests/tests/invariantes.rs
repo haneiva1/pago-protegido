@@ -431,16 +431,16 @@ fn no_existe_via_directa_al_escrow() {
     t.guardian.dispute(&escrow, &t.buyer);
     let before = t.snapshot(&t.everyone(&escrow));
     assert_eq!(
-        tw.try_resolve_dispute(&t.stranger, &t.stranger, &steal),
+        tw_llamar!(tw, try_resolve_dispute, &t.stranger, &t.stranger, &steal),
         Err(Ok(TwError::OnlyDisputeResolverCanExecuteThisFunction))
     );
     for who in [&t.stranger, &t.admin, &t.platform] {
-        let args = (&t.arbiter.address, &t.stranger, steal.clone()).into_val(&t.env);
+        let args = tw_args!(&t.env, &t.arbiter.address, &t.stranger, steal.clone());
         mock(&t, who, &escrow, "resolve_dispute", args);
-        assert!(tw.try_resolve_dispute(&t.arbiter.address, &t.stranger, &steal).is_err());
+        assert!(tw_llamar!(tw, try_resolve_dispute, &t.arbiter.address, &t.stranger, &steal).is_err());
     }
     t.env.set_auths(&[]);
-    assert!(tw.try_resolve_dispute(&t.arbiter.address, &t.stranger, &steal).is_err());
+    assert!(tw_llamar!(tw, try_resolve_dispute, &t.arbiter.address, &t.stranger, &steal).is_err());
     t.env.mock_all_auths();
     assert_eq!(tw.try_update_escrow(&t.platform, &hijack), Err(Ok(TwError::EscrowOpenedForDisputeResolution)));
     assert_eq!(t.snapshot(&t.everyone(&escrow)), before);

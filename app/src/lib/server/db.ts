@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { OrderStatus } from "@/lib/format";
+import { ES_MAINNET } from "@/lib/red";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS sellers (
@@ -335,6 +336,22 @@ export interface PilotRow {
 
 const g = globalThis as unknown as { __ppDb?: Database.Database };
 
+/**
+ * Una base es de una sola red. La de mainnet queda marcada al crearla: abrirla desde testnet, o abrir en mainnet una que ya
+ * tiene pedidos sin marca (todas las de testnet), es un error. En testnet no se escribe nada.
+ */
+function revisarRed(d: Database.Database) {
+  const marca = (d.prepare(`SELECT v FROM kv WHERE k = 'red'`).get() as { v: string } | undefined)?.v;
+  if (!ES_MAINNET) {
+    if (marca === "mainnet") throw new Error("Esta base es de mainnet y el servidor corre en testnet (PP_DB_PATH)");
+    return;
+  }
+  if (marca === "mainnet") return;
+  const { n } = d.prepare(`SELECT (SELECT COUNT(*) FROM orders) + (SELECT COUNT(*) FROM pp_events) AS n`).get() as { n: number };
+  if (marca || n > 0) throw new Error("Esta base es de testnet y el servidor corre en mainnet: usa una base nueva (PP_DB_PATH)");
+  d.prepare(`INSERT INTO kv (k, v) VALUES ('red', 'mainnet')`).run();
+}
+
 export function db(): Database.Database {
   if (g.__ppDb) return g.__ppDb;
   const file = process.env.PP_DB_PATH
@@ -351,6 +368,7 @@ export function db(): Database.Database {
   }
   d.exec(`CREATE UNIQUE INDEX IF NOT EXISTS orders_code ON orders(code)`);
   d.exec(`CREATE UNIQUE INDEX IF NOT EXISTS sellers_slug ON sellers(slug)`);
+  revisarRed(d);
   g.__ppDb = d;
   return d;
 }

@@ -96,6 +96,7 @@ pub struct Purchase {
 /// Solo las funciones del escrow que usan pp_guardian y pp_arbiter.
 /// Si el escrow devuelve un error, la invocación completa se revierte.
 /// No incluye `withdraw_remaining_funds` (TW-5) ni `update_escrow`.
+#[cfg(not(feature = "tw-mainnet"))]
 #[allow(dead_code)]
 #[contractclient(name = "EscrowClient")]
 pub trait EscrowInterface {
@@ -117,6 +118,29 @@ pub trait EscrowInterface {
         trustless_work_address: Address,
         distributions: Map<Address, i128>,
     );
+}
+
+/// Lo mismo para el escrow que Trustless Work tiene en MAINNET (feature `tw-mainnet`, wasm/README.md): la cuenta de su
+/// 0,3 % viene fija en el contrato, así que `release_funds` y `resolve_dispute` no la reciben.
+/// Si el escrow devuelve un error, la invocación completa se revierte.
+/// No incluye `withdraw_remaining_funds` (TW-5) ni `update_escrow`.
+#[cfg(feature = "tw-mainnet")]
+#[allow(dead_code)]
+#[contractclient(name = "EscrowClient")]
+pub trait EscrowInterface {
+    fn get_escrow(e: Env) -> Escrow;
+    fn fund_escrow(e: Env, signer: Address, expected_escrow: Escrow, amount: i128);
+    fn change_milestone_status(
+        e: Env,
+        milestone_index: u32,
+        new_status: String,
+        new_evidence: Option<String>,
+        service_provider: Address,
+    );
+    fn approve_milestone(e: Env, milestone_index: u32, approver: Address);
+    fn release_funds(e: Env, release_signer: Address);
+    fn dispute_escrow(e: Env, signer: Address);
+    fn resolve_dispute(e: Env, dispute_resolver: Address, distributions: Map<Address, i128>);
 }
 
 /// Status que `pp_guardian.mark_shipped` escribe en el hito 0 del escrow.

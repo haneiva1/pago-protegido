@@ -1,5 +1,6 @@
 "use client";
 
+import { TEXTO } from "@/lib/red";
 import { useCallback, useEffect, useState } from "react";
 import { SplitView, TxList } from "@/components/OrderBits";
 import { IconoBalanza } from "@/components/iconos";
@@ -221,7 +222,7 @@ function DisputeCard({ d, arbKey, onDone }: { d: DisputeItem; arbKey: string; on
             {d.code} · {d.product}
           </h3>
           <p className="muted">
-            {fmtBs(d.price_bs_cents)} · en el contrato {fmtBsUnits(d.amount_units, d.fx)} ({fmtUsd(d.amount_units)} USD de prueba) · tienda {d.seller?.store_name} ·
+            {fmtBs(d.price_bs_cents)} · en el contrato {fmtBsUnits(d.amount_units, d.fx)} ({fmtUsd(d.amount_units)} {TEXTO.dolares}) · tienda {d.seller?.store_name} ·
             reclamo del {d.dispute_by} el {fmtDate(d.disputed_at)}
           </p>
           {d.seller && d.seller.pressure_reports > 0 && (
@@ -284,7 +285,7 @@ function DisputeCard({ d, arbKey, onDone }: { d: DisputeItem; arbKey: string; on
         {d.onchain ? (
           <ul className="mt-1 space-y-0.5 text-tinta-700">
             <li>
-              Saldo: <strong>{fmtBsUnits(d.onchain.balance, d.fx)}</strong> ({fmtUsd(d.onchain.balance)} USD de prueba)
+              Saldo: <strong>{fmtBsUnits(d.onchain.balance, d.fx)}</strong> ({fmtUsd(d.onchain.balance)} {TEXTO.dolares})
             </li>
             <li>
               En disputa: {d.onchain.flags.disputed ? "sí" : "no"} · Liberado: {d.onchain.flags.released ? "sí" : "no"} · Resuelto: {d.onchain.flags.resolved ? "sí" : "no"}

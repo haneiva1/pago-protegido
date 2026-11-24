@@ -2,7 +2,8 @@ import Link from "next/link";
 import { IconoChevronDerecha } from "@/components/iconos";
 import { GraficoDiario } from "@/components/Kpis";
 import { explorer, fmtUsd } from "@/lib/format";
-import { COMPRAS_INTERNAS, fmtDuracion, fmtHora, fmtProporcion, nf, plural, rotuloCompras, rotuloMonto } from "@/lib/kpi-format";
+import { fmtDuracion, fmtHora, fmtProporcion, nf, plural, rotuloCompras, rotuloMonto } from "@/lib/kpi-format";
+import { ES_MAINNET, TEXTO } from "@/lib/red";
 import { metricasSnapshot } from "@/lib/server/kpis";
 import type { Grupo, GrupoMetricas } from "@/lib/types";
 
@@ -44,7 +45,7 @@ function GrupoSection({ grupo, g, titulo, nota }: { grupo: Grupo; g: GrupoMetric
           Todavía no hay compras en este grupo.{" "}
           {grupo === "piloto" && (
             <>
-              Se cuentan aparte de las pruebas del equipo.{" "}
+              Se cuentan aparte de {ES_MAINNET ? "la prueba en mainnet" : "las pruebas del equipo"}.{" "}
               <Link className="enlace" href="/piloto">
                 Únete al piloto
               </Link>
@@ -55,7 +56,7 @@ function GrupoSection({ grupo, g, titulo, nota }: { grupo: Grupo; g: GrupoMetric
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <KpiTile testId="kpi-compras" href={`${base}/compras`} label={rotuloCompras(grupo)} value={nf(k.compras)} sub={`${k.en_curso} en curso ahora · ${k.cerradas} cerradas`} />
-            <KpiTile testId="kpi-monto" href={`${base}/compras`} label={rotuloMonto(grupo)} value={`Bs ${nf(k.monto_bs)}`} sub={`${fmtUsd(k.monto_unidades)} dólares de prueba`} />
+            <KpiTile testId="kpi-monto" href={`${base}/compras`} label={rotuloMonto(grupo)} value={`Bs ${nf(k.monto_bs)}`} sub={`${fmtUsd(k.monto_unidades)} ${TEXTO.dolaresLargo}`} />
             <KpiTile
               testId="kpi-sin-reclamo"
               href={`${base}/sin-reclamo`}
@@ -108,7 +109,7 @@ export default async function Metricas() {
         <p className="eyebrow">Registro público</p>
         <h1 className="mt-2 text-3xl sm:text-4xl">Métricas en vivo</h1>
         <p className="mt-4 max-w-3xl text-lg text-tinta-600">
-          Los números de compras salen del registro público (red de prueba), no de una base de datos privada. Toca un número para ver las
+          Los números de compras salen del registro público ({TEXTO.redPublica}), no de una base de datos privada. Toca un número para ver las
           operaciones que lo forman, cada una con su link al registro público.
         </p>
         <p className="mt-3 text-xs text-tinta-500 num" data-testid="actualizado">
@@ -122,31 +123,34 @@ export default async function Metricas() {
         )}
       </header>
 
-      <section className="panel-suave space-y-2 sm:p-6" data-testid="inscritas-piloto">
-        <h2 className="text-xl sm:text-2xl">Tiendas inscritas al piloto</h2>
-        <p className="font-display text-3xl leading-none tracking-tight text-monte num" data-testid="valor">
-          {nf(m.tiendas_inscritas_piloto)}
-        </p>
-        <p className="text-sm text-tinta-600">
-          Son inscripciones, no compras: tiendas que llenaron el formulario de{" "}
-          <Link className="enlace" href="/piloto">
-            Únete al piloto
-          </Link>
-          , una por WhatsApp. No se suman con las compras de prueba ni con las del piloto.
-        </p>
-      </section>
+      {/* Las inscripciones llegan a la demo de testnet: la instancia de mainnet tiene otra base y mostraría un cero. */}
+      {!ES_MAINNET && (
+        <section className="panel-suave space-y-2 sm:p-6" data-testid="inscritas-piloto">
+          <h2 className="text-xl sm:text-2xl">Tiendas inscritas al piloto</h2>
+          <p className="font-display text-3xl leading-none tracking-tight text-monte num" data-testid="valor">
+            {nf(m.tiendas_inscritas_piloto)}
+          </p>
+          <p className="text-sm text-tinta-600">
+            Son inscripciones, no compras: tiendas que llenaron el formulario de{" "}
+            <Link className="enlace" href="/piloto">
+              Únete al piloto
+            </Link>
+            , una por WhatsApp. No se suman con las compras de prueba ni con las del piloto.
+          </p>
+        </section>
+      )}
 
       <GrupoSection
         grupo="piloto"
         g={m.piloto}
         titulo="Piloto con vendedores reales"
-        nota="Solo compras de tiendas que entraron por el piloto. Nunca se suman con las pruebas del equipo."
+        nota={TEXTO.notaPiloto}
       />
       <GrupoSection
-        grupo="equipo"
-        g={m.equipo}
-        titulo={`${COMPRAS_INTERNAS} (incluye reclamos forzados)`}
-        nota="No son ventas de tiendas reales: son compras hechas por el equipo y por las pruebas automáticas, con reclamos y devoluciones forzados a propósito para probar cada camino."
+        grupo={m.mainnet ? "mainnet" : "equipo"}
+        g={m.mainnet ?? m.equipo}
+        titulo={TEXTO.grupoPropio}
+        nota={TEXTO.notaGrupoPropio}
       />
 
       <p className="border-t border-tinta-200 pt-6 text-center text-sm text-tinta-500">

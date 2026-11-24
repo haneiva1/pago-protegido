@@ -15,7 +15,8 @@ const { orderView, sweepOverdue } = await import(src("lib/server/orders.ts"));
 const { reiniciarLimites } = await import(src("lib/server/limite.ts"));
 const { cadena } = await import(new URL("./stubs/escrow.mjs", import.meta.url).href);
 
-const FONDEADO_EN = Date.parse("2026-11-20T06:00:00Z");
+// Hace una hora: el plazo de despacho (3 días) tiene que seguir abierto, se corra cuando se corra.
+const FONDEADO_EN = Math.floor(Date.now() / 1000) * 1000 - 3_600_000;
 const compraEnCadena = () => ({
   fundedAt: FONDEADO_EN,
   shipDeadline: FONDEADO_EN + 3 * 86_400_000,

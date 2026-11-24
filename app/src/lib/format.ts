@@ -1,8 +1,9 @@
 // Utilidades compartidas entre servidor y navegador (sin dependencias de Node).
+import { TEXTO, explorador } from "./red";
 
 export const UNITS = 10_000_000n; // LABUSD tiene 7 decimales
 export const TW_FEE_BPS = 30n; // 0,3 % fijo en el contrato de Trustless Work
-export const EXPLORER = "https://stellar.expert/explorer/testnet";
+export const EXPLORER = explorador();
 
 export const explorer = {
   tx: (hash: string) => `${EXPLORER}/tx/${hash}`,
@@ -133,7 +134,7 @@ export function fmtWhatsApp(n: string | null | undefined): string {
   return n ?? "";
 }
 
-export const DOLLAR_NOTE = "Se guarda en dólares digitales (en producción, USDC, 1 a 1 con el dólar; en esta práctica, dólares de prueba).";
+export const DOLLAR_NOTE = TEXTO.notaDolares;
 
 /**
  * Montos de un link según quién paga la protección.
