@@ -824,13 +824,15 @@ impl Mercado {
             }
             // Un tercero nunca. Un rol legítimo: disputa si no hay otra abierta
             // y no está resuelta (H-1: después de liberar, sí); status mientras
-            // no esté liberada ni resuelta.
+            // no esté liberada ni resuelta. El WASM de mainnet no congela el
+            // status al cerrar (no mueve plata: pp_guardian usa su propia
+            // evidencia y ya no hay saldo).
             Op::Directa { i, firma, d } => {
                 let c = c.unwrap();
                 self.directa_legitima(*i, firma, d)
                     && match d {
                         Directa::DisputeEscrow { .. } => !c.en_disputa && !c.resuelta(),
-                        _ => !c.liberada() && !c.resuelta(),
+                        _ => cfg!(feature = "tw-mainnet") || (!c.liberada() && !c.resuelta()),
                     }
             }
         }
@@ -951,8 +953,8 @@ impl Mercado {
                 };
                 match d {
                     Directa::ReleaseFunds { signer } => {
-                        self.firmar(firma, e, "release_funds", (signer, x).into_val(env), &[]);
-                        res(&tw.try_release_funds(signer, x))
+                        self.firmar(firma, e, "release_funds", tw_args!(env, signer, x), &[]);
+                        res(&tw_llamar!(tw, try_release_funds, signer, x))
                     }
                     Directa::ApproveMilestone { approver } => {
                         self.firmar(firma, e, "approve_milestone", (0u32, approver).into_val(env), &[]);
@@ -960,13 +962,13 @@ impl Mercado {
                     }
                     Directa::ResolveDispute { resolver, destino } => {
                         let m = robo(destino, saldo);
-                        self.firmar(firma, e, "resolve_dispute", (resolver, x, m.clone()).into_val(env), &[]);
-                        res(&tw.try_resolve_dispute(resolver, x, &m))
+                        self.firmar(firma, e, "resolve_dispute", tw_args!(env, resolver, x, m.clone()), &[]);
+                        res(&tw_llamar!(tw, try_resolve_dispute, resolver, x, &m))
                     }
                     Directa::WithdrawRemaining { resolver, destino } => {
                         let m = robo(destino, saldo);
-                        self.firmar(firma, e, "withdraw_remaining_funds", (resolver, x, m.clone()).into_val(env), &[]);
-                        res(&tw.try_withdraw_remaining_funds(resolver, x, &m))
+                        self.firmar(firma, e, "withdraw_remaining_funds", tw_args!(env, resolver, x, m.clone()), &[]);
+                        res(&tw_llamar!(tw, try_withdraw_remaining_funds, resolver, x, &m))
                     }
                     Directa::DisputeEscrow { signer } => {
                         self.firmar(firma, e, "dispute_escrow", (signer,).into_val(env), &[]);

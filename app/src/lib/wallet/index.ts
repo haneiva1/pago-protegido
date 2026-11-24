@@ -1,4 +1,5 @@
 import { enProbar } from "@/lib/probar";
+import { ES_MAINNET } from "@/lib/red";
 import { LocalWallet } from "./local";
 import { PollarWallet, pollarConfigured } from "./pollar";
 import type { PreparedTx, SubmitResult, WalletProvider, WalletRole } from "./types";
@@ -7,10 +8,11 @@ export type { PreparedTx, SubmitResult, WalletProvider, WalletRole };
 
 /**
  * NEXT_PUBLIC_WALLET=local|pollar. Pollar requiere su publishable key; si falta, se usa la local.
+ * En mainnet siempre es la local: Pollar Live exige billeteras de Turnkey y KYC (docs/MAINNET.md).
  * En /probar siempre es la local: cada rol con su cuenta de prueba, creada al vuelo en este navegador.
  */
 export const WALLET_KIND: "local" | "pollar" =
-  process.env.NEXT_PUBLIC_WALLET === "pollar" && pollarConfigured() && !enProbar() ? "pollar" : "local";
+  !ES_MAINNET && process.env.NEXT_PUBLIC_WALLET === "pollar" && pollarConfigured() && !enProbar() ? "pollar" : "local";
 
 const cache = new Map<WalletRole, WalletProvider>();
 
@@ -49,7 +51,7 @@ export async function signAndSubmit(
   return done;
 }
 
-/** Cuenta nueva en testnet (friendbot) + trustline a la moneda de prueba, firmada por el usuario. */
+/** Cuenta nueva (friendbot en testnet; la plataforma en mainnet) + trustline a la moneda, firmada por el usuario. */
 export async function activateWallet(wallet: WalletProvider, onStep?: (label: string, hash?: string) => void) {
   const pubkey = await wallet.connect();
   const r = await api<{ ready: boolean; prepared?: PreparedTx }>("/api/wallet/activate", { pubkey });

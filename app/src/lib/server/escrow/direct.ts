@@ -1,3 +1,4 @@
+import { TEXTO } from "@/lib/red";
 import { cfg } from "../config";
 import { ChainError, addr, invokeAs, prepareInvoke, simulate, u32 } from "../stellar";
 import {
@@ -125,7 +126,7 @@ export class DirectEscrowService implements EscrowService {
   contracts() {
     const c = cfg();
     return [
-      { label: "Moneda de prueba (USD de prueba, LABUSD)", id: c.labusdSac, kind: "contract" as const },
+      { label: TEXTO.monedaContrato, id: c.labusdSac, kind: "contract" as const },
       { label: "Revisor (cuenta, modo directo)", id: c.arbitro.publicKey(), kind: "account" as const },
       { label: "Plataforma (patrocina comisiones)", id: c.plataforma.publicKey(), kind: "account" as const },
     ];

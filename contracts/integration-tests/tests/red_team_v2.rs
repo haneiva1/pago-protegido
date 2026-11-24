@@ -145,16 +145,16 @@ fn tw5_sin_ruta_a_withdraw_remaining_funds() {
     let before = t.snapshot(&t.everyone(&escrow));
 
     assert_eq!(
-        tw.try_withdraw_remaining_funds(&t.stranger, &t.stranger, &steal),
+        tw_llamar!(tw, try_withdraw_remaining_funds, &t.stranger, &t.stranger, &steal),
         Err(Ok(TwError::OnlyDisputeResolverCanExecuteThisFunction))
     );
     for who in [&t.stranger, &t.admin, &t.platform, &t.seller] {
-        let args = (&t.arbiter.address, &t.stranger, steal.clone()).into_val(&t.env);
+        let args = tw_args!(&t.env, &t.arbiter.address, &t.stranger, steal.clone());
         mock(&t, who, &escrow, "withdraw_remaining_funds", args);
-        assert!(tw.try_withdraw_remaining_funds(&t.arbiter.address, &t.stranger, &steal).is_err());
+        assert!(tw_llamar!(tw, try_withdraw_remaining_funds, &t.arbiter.address, &t.stranger, &steal).is_err());
     }
     t.env.set_auths(&[]);
-    assert!(tw.try_withdraw_remaining_funds(&t.arbiter.address, &t.stranger, &steal).is_err());
+    assert!(tw_llamar!(tw, try_withdraw_remaining_funds, &t.arbiter.address, &t.stranger, &steal).is_err());
     assert_eq!(t.snapshot(&t.everyone(&escrow)), before);
 }
 

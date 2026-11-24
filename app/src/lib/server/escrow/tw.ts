@@ -133,6 +133,12 @@ export function distributionsScVal(entries: { address: string; amount: bigint }[
 
 export { tokenBalance };
 
+/** ¿El WASM leído de la red es el publicado? (contracts/wasm/mainnet.sha256). */
+export function revisarWasm(nombre: string, wasm: Uint8Array, esperado: string) {
+  const h = createHash("sha256").update(Buffer.from(wasm)).digest("hex");
+  return { label: `${nombre} ejecuta el código publicado de mainnet`, ok: h === esperado, detail: `WASM ${h.slice(0, 12)}…` };
+}
+
 /**
  * H-2: antes de pedirle al comprador que firme el fondeo, se verifica por RPC que la instancia
  * ejecuta el WASM auditado de Trustless Work y que sus roles son los esperados.

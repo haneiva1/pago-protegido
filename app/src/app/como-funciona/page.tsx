@@ -1,3 +1,4 @@
+import { ES_MAINNET, TEXTO } from "@/lib/red";
 import Link from "next/link";
 import { IconoAlerta, IconoCheckCirculo } from "@/components/iconos";
 import { explorer } from "@/lib/format";
@@ -45,9 +46,9 @@ export default async function ComoFunciona() {
           <Paso n="1" titulo="El vendedor crea el link">
             Producto, precio en Bs, categoría, días de entrega y quién paga la protección (el comprador: 1,5%, mín. Bs 5, máx. Bs 50; o el vendedor: 2,3%).
           </Paso>
-          <Paso n="2" titulo="El comprador deja los datos de entrega y paga con QR">
-            Quién recibe, ciudad de destino y agencia preferida. Esos datos quedan ligados al contrato con una huella digital. En esta práctica, el pago en Bs está
-            simulado.
+          <Paso n="2" titulo={ES_MAINNET ? "El comprador deja los datos de entrega y paga con USDC" : "El comprador deja los datos de entrega y paga con QR"}>
+            Quién recibe, ciudad de destino y agencia preferida. Esos datos quedan ligados al contrato con una huella digital.{" "}
+            {ES_MAINNET ? "Paga con USDC de su propia cuenta Stellar." : "En esta práctica, el pago en Bs está simulado."}
           </Paso>
           <Paso n="3" titulo="La plata espera entre los dos, en el contrato del pedido">
             Antes de pedir la firma, la app comprueba que el contrato ejecuta el código de Trustless Work y tiene los roles correctos.
@@ -114,7 +115,8 @@ export default async function ComoFunciona() {
           <div className="panel-suave text-sm">
             <p className="font-semibold text-exito-700">Real</p>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-tinta-700">
-              <li>Contratos en la red de prueba (pp_guardian, pp_arbiter)</li>
+              <li>Contratos en la {TEXTO.redPublica} (pp_guardian, pp_arbiter)</li>
+              {ES_MAINNET && <li>La plata: USDC real que el comprador manda desde su propia cuenta Stellar, con un monto máximo por compra</li>}
               <li>Contrato de Trustless Work, uno por compra</li>
               <li>Firmas de comprador y vendedor</li>
               <li>Comisiones de red pagadas por la plataforma</li>
@@ -124,11 +126,17 @@ export default async function ComoFunciona() {
           <div className="rounded-card border border-tinta-200 bg-tinta-100 p-4 text-sm">
             <p className="font-semibold text-tinta-700">Simulado</p>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-tinta-700">
-              <li>El pago en Bs (QR del banco)</li>
-              <li>El dinero: dólares de prueba (en producción, USDC)</li>
+              {ES_MAINNET ? (
+                <li>No hay pago en Bs con QR: los precios en Bs son una referencia</li>
+              ) : (
+                <>
+                  <li>El pago en Bs (QR del banco)</li>
+                  <li>El dinero: dólares de prueba (en producción, USDC)</li>
+                </>
+              )}
               <li>El número de WhatsApp (simulador)</li>
               <li>La verificación de identidad (KYC)</li>
-              <li>En la red de prueba, Pollar guarda el acceso a la cuenta de los vendedores que entran con Google o correo</li>
+              {!ES_MAINNET && <li>En la red de prueba, Pollar guarda el acceso a la cuenta de los vendedores que entran con Google o correo</li>}
             </ul>
           </div>
         </div>
@@ -165,7 +173,7 @@ export default async function ComoFunciona() {
       </section>
 
       <section className="card space-y-3 sm:p-6">
-        <h2 className="text-xl">Los contratos, en la red de prueba</h2>
+        <h2 className="text-xl">Los contratos, en la {TEXTO.redPublica}</h2>
         {data ? (
           <ul className="space-y-3 text-sm">
             {data.contracts.map((c) => (

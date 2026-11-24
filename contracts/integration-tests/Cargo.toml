@@ -9,6 +9,10 @@ publish.workspace = true
 path = "src/lib.rs"
 doctest = false
 
+[features]
+# Los mismos tests contra el WASM de Trustless Work de mainnet: cargo test --features tw-mainnet
+tw-mainnet = ["pp_guardian/tw-mainnet", "pp_arbiter/tw-mainnet"]
+
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
 pp_guardian = { path = "../pp_guardian" }

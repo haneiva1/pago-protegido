@@ -1,3 +1,4 @@
+import { TEXTO } from "@/lib/red";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -69,11 +70,11 @@ export default async function Tienda({ params }: { params: Promise<{ slug: strin
         </span>
         <NumerosTienda k={k} />
         <ul className="space-y-1 text-sm text-sal/80">
-          <li data-testid="verificacion">Verificación de identidad: pendiente (modo práctica)</li>
+          <li data-testid="verificacion">Verificación de identidad: pendiente ({TEXTO.modo})</li>
           <li>
             {p.pilot
               ? "Tienda del piloto con vendedores reales."
-              : "Datos de práctica en la red de prueba: esta tienda es de las pruebas del equipo, no del piloto."}
+              : TEXTO.tiendaPropia}
           </li>
           <li className="text-xs text-sal/60" data-testid="perfil-actualizado">
             Calculado con el registro público de cada compra · actualizado: {fmtHora(p.actualizado)}

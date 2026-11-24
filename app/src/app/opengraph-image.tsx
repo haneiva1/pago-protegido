@@ -1,3 +1,4 @@
+import { ES_MAINNET, TEXTO } from "@/lib/red";
 import { ImageResponse } from "next/og";
 import { BRAND, FUENTE, LogoOg, OG_SIZE, TAGLINE } from "@/lib/og";
 import { ogFonts } from "@/lib/og-fonts";
@@ -34,7 +35,7 @@ export default async function Image() {
           <div style={{ display: "flex" }}>Pago protegido para ventas por redes · Bolivia</div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ display: "flex", width: 10, height: 10, borderRadius: 5, background: BRAND.yungas }} />
-            Modo práctica
+            {ES_MAINNET ? TEXTO.modo : "Modo práctica"}
           </div>
         </div>
       </div>

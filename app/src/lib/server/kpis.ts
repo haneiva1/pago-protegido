@@ -1,5 +1,6 @@
 import { unitsToNumber } from "@/lib/format";
 import type { CompraOnchain, Desenlace, DiaSerie, Grupo, GrupoMetricas, KpiClave, Kpis, MetricasSnapshot, PerfilTienda } from "@/lib/types";
+import { ES_MAINNET, RED } from "@/lib/red";
 import { cfg } from "./config";
 import { db, kv, sellers } from "./db";
 import { estadoIndexador, ingestEvents, loadEvents, type PpEvent } from "./metrics";
@@ -9,6 +10,8 @@ import { estadoIndexador, ingestEvents, loadEvents, type PpEvent } from "./metri
  * on-chain de pp_guardian y pp_arbiter (v1 y v2) que ingiere metrics.ts, con las reglas de
  * contracts/scripts/metricas.sh: el primer evento terminal define cómo terminó cada compra.
  * Pruebas del equipo y piloto nunca se mezclan: cada grupo se calcula por separado (sellers.pilot).
+ * Mainnet tampoco: su instancia tiene su propia base y sus propios contratos, y lo que no es piloto va al grupo
+ * "mainnet" (el grupo "equipo" es solo de testnet).
  * H-9: solo cuentan las compras que pasaron el indexador verificado (metrics.ts, docs/METRICAS.md).
  */
 
@@ -143,6 +146,7 @@ export function serieDiaria(list: CompraOnchain[], dias = 30, hoy = Date.now()):
 
 export function comprasDeGrupo(grupo: Grupo, all = comprasOnchain()): CompraOnchain[] {
   const pilot = sellers.pilotPubkeys();
+  if (grupo !== "piloto" && (grupo === "mainnet") !== ES_MAINNET) return [];
   return all.filter((c) => (grupo === "piloto") === pilot.has(c.seller));
 }
 
@@ -186,7 +190,7 @@ export const KPI_DETALLE: Record<KpiClave, { titulo: string; explica: string; fi
   },
 };
 
-export const isGrupo = (g: string): g is Grupo => g === "equipo" || g === "piloto";
+export const isGrupo = (g: string): g is Grupo => g === (ES_MAINNET ? "mainnet" : "equipo") || g === "piloto";
 export const isKpi = (k: string): k is KpiClave => Object.hasOwn(KPI_DETALLE, k);
 
 // ---------- Caché corta ----------
@@ -221,6 +225,7 @@ export async function metricasSnapshot(): Promise<MetricasSnapshot> {
   const snap: MetricasSnapshot = {
     equipo: grupoMetricas(comprasDeGrupo("equipo", all)),
     piloto: grupoMetricas(comprasDeGrupo("piloto", all)),
+    ...(ES_MAINNET ? { red: RED, mainnet: grupoMetricas(comprasDeGrupo("mainnet", all)) } : {}),
     actualizado: lastOk(),
     calculado: Date.now(),
     error,

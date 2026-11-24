@@ -5,6 +5,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { TratoLogo } from "@/components/TratoLogo";
 import { WalletRuntime } from "@/components/WalletRuntime";
 import { SCRIPT_MARCO } from "@/lib/probar";
+import { ES_MAINNET, TEXTO } from "@/lib/red";
 import "./globals.css";
 
 const OG_TITLE = "Trato: vende a otras ciudades sin que desconfíen de ti";
@@ -19,7 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase: new URL(`${proto}://${host}`),
     title: "Trato · pago protegido para ventas por redes",
-    description: "Pago contra confirmación de entrega para ventas entre ciudades por encomienda. Modo práctica.",
+    description: "Pago contra confirmación de entrega para ventas entre ciudades por encomienda. " + (ES_MAINNET ? TEXTO.aviso : "Modo práctica."),
     openGraph: { title: OG_TITLE, description: OG_DESC, type: "website", siteName: "Trato", locale: "es_BO" },
     twitter: { card: "summary_large_image", title: OG_TITLE, description: OG_DESC },
   };
@@ -44,9 +45,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="flex min-h-screen flex-col">
         {/* Modo embebido de /probar: corre antes de pintar, así el encabezado nunca aparece dentro del marco. */}
         <script dangerouslySetInnerHTML={{ __html: SCRIPT_MARCO }} />
-        <div data-chrome className="bg-monte px-4 py-1.5 text-center text-xs font-medium text-sal/85">
-          <span aria-hidden className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-yungas align-middle" />
-          Modo práctica: no se mueve dinero real.
+        <div data-chrome className={ES_MAINNET ? "bg-yungas px-4 py-2 text-center text-sm font-semibold text-monte" : "bg-monte px-4 py-1.5 text-center text-xs font-medium text-sal/85"}>
+          <span aria-hidden className={`mr-2 inline-block h-1.5 w-1.5 rounded-full align-middle ${ES_MAINNET ? "bg-monte" : "bg-yungas"}`} />
+          <span data-testid="franja-red">{TEXTO.aviso}</span>
         </div>
         <header data-chrome className="sticky top-0 z-20 border-b border-tinta-200/70 bg-sal/90 backdrop-blur">
           <nav aria-label="Principal" className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-4 px-4">
@@ -75,7 +76,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-8 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <TratoLogo sobre="claro" className="h-5 w-auto" />
-              <span className="text-xs text-tinta-500">Pago protegido para ventas por redes · modo práctica</span>
+              <span className="text-xs text-tinta-500">Pago protegido para ventas por redes · {TEXTO.modo}</span>
             </div>
             <nav aria-label="Más de Trato" className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-medium text-tinta-600 sm:flex sm:flex-wrap">
               {PIE.map((l) => (

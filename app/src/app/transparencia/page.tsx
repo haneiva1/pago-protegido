@@ -2,6 +2,7 @@ import Link from "next/link";
 import { IconoAlerta, IconoBalanza, IconoCamion, IconoCandado, IconoCheckCirculo, IconoExterno, IconoInfo, IconoReloj, IconoVolver } from "@/components/iconos";
 import { explorer, fmtPct, fmtUsd, shortAddr, unitsToNumber } from "@/lib/format";
 import { plural } from "@/lib/kpi-format";
+import { ES_MAINNET, TEXTO } from "@/lib/red";
 import { sellers } from "@/lib/server/db";
 import { computeMetrics, ingestEvents, type Metrics, type PurchaseState } from "@/lib/server/metrics";
 
@@ -101,10 +102,10 @@ export default async function Transparencia() {
       <header className="pt-2">
         <p className="eyebrow">Registro público</p>
         <h1 className="mt-2 text-3xl sm:text-4xl">Transparencia</h1>
-        <p className="mt-4 max-w-3xl text-lg text-tinta-600">Estas cifras se calculan con datos públicos de la red (de prueba). Cualquiera puede verificarlas.</p>
+        <p className="mt-4 max-w-3xl text-lg text-tinta-600">Estas cifras se calculan con datos públicos de la {ES_MAINNET ? TEXTO.redPublica : "red (de prueba)"}. Cualquiera puede verificarlas.</p>
         <p className="mt-3 text-xs text-tinta-500 num" data-testid="rango-ledgers">
           Eventos de <Externo href={explorer.contract(m.contratos.guardian)}>pp_guardian</Externo> y <Externo href={explorer.contract(m.contratos.arbiter)}>pp_arbiter</Externo> desde el
-          bloque {nf(m.desde_ledger)} hasta el {nf(m.hasta_ledger)} · {m.eventos} eventos · USD de prueba a Bs {nf(m.tipo_cambio, 2)}.
+          bloque {nf(m.desde_ledger)} hasta el {nf(m.hasta_ledger)} · {m.eventos} eventos · {TEXTO.dolares} a Bs {nf(m.tipo_cambio, 2)}.
         </p>
         {warning && <p className="caja-aviso mt-3 max-w-3xl">{warning}</p>}
         <p className="mt-3 text-sm">
@@ -133,11 +134,11 @@ export default async function Transparencia() {
 
       <section className="space-y-4">
         <h2 className="text-xl sm:text-2xl" data-testid="pruebas-equipo">
-          Pruebas del equipo en testnet (incluye reclamos forzados)
+          {TEXTO.grupoPropio}
         </h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Tile testId="compras-protegidas" label="Compras protegidas" value={nf(m.compras_protegidas)} sub={`${m.en_curso} en curso ahora`} />
-          <Tile label="Volumen protegido" value={`Bs ${nf(vol * m.tipo_cambio)}`} sub={`${fmtUsd(m.volumen_unidades)} USD de prueba`} />
+          <Tile label="Volumen protegido" value={`Bs ${nf(vol * m.tipo_cambio)}`} sub={`${fmtUsd(m.volumen_unidades)} ${TEXTO.dolares}`} />
           <Tile
             testId="como-terminaron"
             label="Cómo terminaron"
@@ -175,11 +176,11 @@ export default async function Transparencia() {
           <dl className="space-y-2 text-sm">
             <div className="flex items-baseline justify-between gap-3">
               <dt className="text-tinta-600">Plataforma (2%)</dt>
-              <dd className="font-semibold text-monte num">{fmtUsd(m.comisiones.plataforma)} USD de prueba</dd>
+              <dd className="font-semibold text-monte num">{fmtUsd(m.comisiones.plataforma)} {TEXTO.dolares}</dd>
             </div>
             <div className="flex items-baseline justify-between gap-3">
               <dt className="text-tinta-600">Trustless Work (0,3%)</dt>
-              <dd className="font-semibold text-monte num">{fmtUsd(m.comisiones.trustless_work)} USD de prueba</dd>
+              <dd className="font-semibold text-monte num">{fmtUsd(m.comisiones.trustless_work)} {TEXTO.dolares}</dd>
             </div>
           </dl>
           <p className="text-xs text-tinta-500">Las comisiones de red las paga la plataforma.</p>
@@ -240,7 +241,7 @@ export default async function Transparencia() {
                   <span className="min-w-0">
                     <span className="block text-monte">
                       {ev.texto}
-                      {e.kind === "pp_funded" && e.data.amount != null ? ` · ${fmtUsd(String(e.data.amount))} USD de prueba` : ""}
+                      {e.kind === "pp_funded" && e.data.amount != null ? ` · ${fmtUsd(String(e.data.amount))} ${TEXTO.dolares}` : ""}
                       {e.kind === "pp_resolved" && e.data.buyer_bps != null ? ` · ${fmtPct(Number(e.data.buyer_bps) / 100)} comprador / ${fmtPct(100 - Number(e.data.buyer_bps) / 100)} vendedor` : ""}
                     </span>
                     <span className="text-xs text-tinta-500 num">

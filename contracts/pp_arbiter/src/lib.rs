@@ -373,10 +373,16 @@ fn execute(env: &Env, escrow: &Address, split: &Split) {
     if split.seller_amount > 0 {
         distributions.set(split.seller.clone(), split.seller_amount);
     }
-    let tw_fee: Address = env.storage().instance().get(&DataKey::TwFee).unwrap();
-    EscrowClient::new(env, escrow).resolve_dispute(
-        &env.current_contract_address(),
-        &tw_fee,
-        &distributions,
-    );
+    #[cfg(not(feature = "tw-mainnet"))]
+    {
+        let tw_fee: Address = env.storage().instance().get(&DataKey::TwFee).unwrap();
+        EscrowClient::new(env, escrow).resolve_dispute(
+            &env.current_contract_address(),
+            &tw_fee,
+            &distributions,
+        );
+    }
+    // El escrow de TW en mainnet ya trae fija la cuenta de su 0,3 %.
+    #[cfg(feature = "tw-mainnet")]
+    EscrowClient::new(env, escrow).resolve_dispute(&env.current_contract_address(), &distributions);
 }
