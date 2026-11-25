@@ -184,10 +184,10 @@ describe.each([
 
   it("la tienda escribe desde su celular y recibe su link, por la Graph API", async () => {
     expect((await escribir(DEMO_SELLER.whatsapp, "vendo zapatillas nike 40 a 90 bs entrega 3 días")).status).toBe(200);
-    const link = await recibe(DEMO_SELLER.whatsapp, /Tu link de pago protegido/);
+    const link = await recibe(DEMO_SELLER.whatsapp, /Tu link de pago/);
     const slug = [...app.orders.keys()][0];
     expect(link).toContain(`${PUBLIC}/p/${slug}`);
-    await recibe(DEMO_SELLER.whatsapp, /Te paso el link de pago protegido/);
+    await recibe(DEMO_SELLER.whatsapp, /Paga \*.+ aquí:/);
     for (const l of graph.llamadas) {
       expect(l).toMatchObject({ method: "POST", path: `/v23.0/${PHONE_ID}/messages`, auth: `Bearer ${TOKEN}` });
       expect(l.body).toMatchObject({ messaging_product: "whatsapp", recipient_type: "individual", to: DEMO_SELLER.whatsapp });

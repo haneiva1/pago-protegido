@@ -3,11 +3,11 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { PublicRecord, useNow } from "@/components/Guardian";
-import { IconoAlerta, IconoCelular } from "@/components/iconos";
-import { ErrorBox, Progress, useProgress } from "@/components/ui";
+import { IconoAlerta, IconoCelular, IconoWhatsApp } from "@/components/iconos";
+import { ErrorBox, useProgress } from "@/components/ui";
 import { WhatsAppBox } from "@/components/WhatsAppBox";
 import { AvisoNavegadorInterno, CompraEnEsteNavegador, OtroNavegador } from "@/components/comprador/AccesoCompra";
-import { BarraPagar, ComoFunciona, DosSalidas, HojaEntrega, Producto, Proteccion, type DatosEntrega } from "@/components/comprador/Checkout";
+import { BarraPagar, ComoFunciona, FormEntrega, PagoEmpezado, Producto, Promesa } from "@/components/comprador/Checkout";
 import { ConfirmarPago, PreguntaConfirmar } from "@/components/comprador/Confirmar";
 import { EsperaEnCurso } from "@/components/comprador/Espera";
 import { AvisosWhatsApp } from "@/components/comprador/AvisosWhatsApp";
@@ -22,15 +22,16 @@ import { Cierre, LineaDeTiempo, RegistroPedido } from "@/components/comprador/Re
 import { Seguimiento, useRecogido } from "@/components/comprador/Seguimiento";
 import { TarjetaVendedor } from "@/components/comprador/Vendedor";
 import { ApiError, api } from "@/lib/api";
-import { NO_CARGO_CUENTA, cargaUnaVez } from "@/lib/comprador";
+import { NO_CARGO_CUENTA, cargaUnaVez, mensajeDeError } from "@/lib/comprador";
+import { borrarCompra, guardarCompra, intentoDePago, leerCompra, type CompraLocal, type DatosEntrega } from "@/lib/compra-local";
 import { enProbar } from "@/lib/probar";
 import { ES_MAINNET, TEXTO } from "@/lib/red";
 import { MOTIVO_PRESION, fmtBs, fmtBsUnits } from "@/lib/format";
 import type { OrderView } from "@/lib/types";
 import { apiFirmada } from "@/lib/api-firmada";
 import type { PreparedTx } from "@/lib/wallet";
-import { hayCuentaGuardada } from "@/lib/wallet/storage";
-import { waText } from "@/lib/whatsapp";
+import { hayAlgunComprador } from "@/lib/wallet/storage";
+import { waLink, waText } from "@/lib/whatsapp";
 
 // El módulo de la cuenta (SDK de la red) se carga recién al tocar "Pagar", o al abrir si este navegador ya pagó.
 // Si el chunk no baja, el error lleva un texto para el comprador y la próxima llamada lo vuelve a intentar.
@@ -55,8 +56,9 @@ export default function PaginaDePago() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [espera, setEspera] = useState<Espera>(null);
-  const [hoja, setHoja] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
+  /** Pago a medias guardado en este navegador: al volver al link, sigue en el QR. */
+  const [guardada, setGuardada] = useState<CompraLocal | null>(null);
   const [problem, setProblem] = useState(false);
   const [ask, setAsk] = useState(false);
   const [pressure, setPressure] = useState(false);
@@ -71,7 +73,7 @@ export default function PaginaDePago() {
       setV(await api<OrderView>(`/api/orders/${slug}?onchain=1`));
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) setNoExiste(true);
-      else setError((e as Error).message);
+      else setError(mensajeDeError(e));
     }
   }, [slug]);
 
@@ -83,21 +85,42 @@ export default function PaginaDePago() {
   }, [qrDemo]);
 
   useEffect(() => {
-    if (hayCuentaGuardada("comprador"))
-      cargarWallet()
-        .then((w) => setMe(w.getWallet("comprador").publicKey()))
-        .catch(() => setError(NO_CARGO_CUENTA));
-    else setMe(null);
+    const c = enProbar() ? null : leerCompra(slug);
+    if (c) {
+      setGuardada(c);
+      setDelivery(c.datos);
+      setQrOpen(true);
+    }
     load();
-  }, [load]);
+  }, [load, slug]);
+
+  // Qué cuenta de comprador hay en este navegador. Depende de quién empezó a pagar el pedido: si fue la de /probar en este
+  // mismo celular, sigue con esa.
+  const cargado = v !== null;
+  const comprador = v?.order.buyer_pubkey ?? null;
+  useEffect(() => {
+    if (!cargado) return;
+    if (!hayAlgunComprador()) return setMe(null);
+    let vivo = true;
+    cargarWallet()
+      .then((w) => vivo && setMe(w.cuentaDelComprador(comprador)))
+      .catch(() => vivo && setError(NO_CARGO_CUENTA));
+    return () => {
+      vivo = false;
+    };
+  }, [cargado, comprador]);
+
+  // Pagado: el pago a medias ya no hace falta.
+  const pagado = cargado && v?.order.status !== "esperando_pago";
+  useEffect(() => {
+    if (pagado) borrarCompra(slug);
+  }, [pagado, slug]);
 
   useEffect(() => {
     if (busy) return;
     const t = setInterval(load, 7000);
     return () => clearInterval(t);
   }, [busy, load]);
-
-  const cerrarHoja = useCallback(() => setHoja(false), []);
 
   if (noExiste) return <LinkNoEncontrado />;
   if (!v)
@@ -113,7 +136,10 @@ export default function PaginaDePago() {
   const url = typeof window === "undefined" ? "" : window.location.href.split("?")[0];
   const host = typeof window === "undefined" ? "" : window.location.host;
   const isBuyer = Boolean(me && me === o.buyer_pubkey);
-  const takenByOther = Boolean(o.buyer_pubkey && !isBuyer && o.status === "esperando_pago");
+  const intento =
+    o.status === "esperando_pago"
+      ? intentoDePago({ comprador: o.buyer_pubkey, yo: me, guardada: guardada?.cuenta, hasta: o.buyer_lease_until, ahora: now })
+      : "libre";
   const total = fmtBsUnits(o.amount_units, o.fx);
   const d = {
     product: o.product,
@@ -125,6 +151,10 @@ export default function PaginaDePago() {
     amount: v.breakdown ? fmtBsUnits(v.breakdown.seller, o.fx) : undefined,
   };
 
+  /** Mensaje listo para la tienda en los momentos en que le toca enterarse. */
+  const avisar =
+    isBuyer && o.status === "pagado" ? waText("pagado", d) : isBuyer && o.status === "liberado" ? waText("liberado", d) : isBuyer && o.status === "en_disputa" ? waText("disputa", d) : null;
+
   async function run(tipo: Exclude<Espera, null>, fn: () => Promise<void>) {
     setBusy(true);
     setEspera(tipo);
@@ -134,7 +164,7 @@ export default function PaginaDePago() {
       await fn();
       await load();
     } catch (e) {
-      setError((e as Error).message);
+      setError(mensajeDeError(e));
       await load();
     } finally {
       setBusy(false);
@@ -151,6 +181,10 @@ export default function PaginaDePago() {
       progress.push(LW);
       const pk = await wallet.connect();
       setMe(pk);
+      if (!demo) {
+        guardarCompra(slug, datos, pk);
+        setGuardada({ datos, cuenta: pk, t: Date.now() });
+      }
       await activateWallet(wallet);
       progress.finish(LW);
       const L = ES_MAINNET ? "Contrato del pedido creado" : "Banco: pago simulado y contrato del pedido creado";
@@ -185,11 +219,9 @@ export default function PaginaDePago() {
       />
     ) : busy && espera === "accion" ? (
       <EsperaEnCurso titulo="Enviando tu confirmación… unos segundos" steps={progress.steps} testId="espera-accion" />
-    ) : (
-      <Progress steps={progress.steps} />
-    );
+    ) : null;
 
-  if (o.status === "esperando_pago" && demo && !takenByOther) {
+  if (o.status === "esperando_pago" && demo && intento !== "ajeno") {
     return (
       <div className="mx-auto max-w-md space-y-4 pb-10">
         <QrEscaneo v={v} busy={busy} hechos={hechos} error={error} onEscanear={() => void pagar(ENTREGA_DEMO)} />
@@ -199,59 +231,72 @@ export default function PaginaDePago() {
   }
 
   if (o.status === "esperando_pago") {
+    if (intento === "cargando")
+      return error ? (
+        <div className="mx-auto max-w-md space-y-4">
+          <ErrorBox error={error} />
+          <button type="button" className="btn-primary w-full" onClick={() => window.location.reload()}>
+            Recargar
+          </button>
+        </div>
+      ) : (
+        <Esqueleto />
+      );
+    if (intento === "ajeno")
+      return (
+        <div className="mx-auto max-w-md space-y-6 pb-10">
+          <Producto v={v} />
+          <PagoEmpezado v={v} now={now} />
+          <ComoFunciona v={v} />
+        </div>
+      );
+    if (qrOpen && delivery)
+      return (
+        <div className="mx-auto max-w-md space-y-6 pb-10">
+          {ES_MAINNET ? (
+            <>
+              {!busy && <PagoUsdc v={v} busy={busy} onPay={() => pagar(delivery)} />}
+              {esperando}
+              <ErrorBox error={error} />
+            </>
+          ) : (
+            <PagoQr
+              v={v}
+              busy={busy}
+              espera={esperando}
+              error={error}
+              aMedias={intento === "mio"}
+              onPay={() => pagar(delivery)}
+              onCambiar={() => setQrOpen(false)}
+            />
+          )}
+        </div>
+      );
     return (
-      <div className="mx-auto max-w-md space-y-8 pb-32">
+      <div className="mx-auto max-w-md space-y-5 pb-28">
         <AvisoNavegadorInterno />
-        {!qrOpen && <Producto v={v} />}
-        {!qrOpen && !busy && !takenByOther && <Proteccion v={v} />}
-        {takenByOther ? (
-          <p className="rounded-card bg-tinta-50 p-4 text-center text-base text-tinta-700" data-testid="tomado">
-            Este link ya lo está pagando otra persona.
-          </p>
-        ) : busy ? null : qrOpen ? (
-          ES_MAINNET ? (
-          <PagoUsdc v={v} busy={busy} onPay={() => delivery && pagar(delivery)} />
-        ) : (
-          <PagoQr v={v} busy={busy} onPay={() => delivery && pagar(delivery)} />
-        )
-        ) : null}
-        {esperando}
-        <ErrorBox error={error} />
-        {!qrOpen && (
-          <>
-            <DosSalidas v={v} />
-            <ComoFunciona />
-            <TarjetaVendedor v={v} />
-          </>
-        )}
-        <Antifraude code={o.code} host={host} />
-        <ModoPractica />
-        {!takenByOther && !qrOpen && !busy && (
-          <BarraPagar
-            total={total}
-            label={demo ? `Pagar ${total}` : undefined}
-            onPagar={() => {
-              if (demo) {
-                void pagar(ENTREGA_DEMO);
-                return;
-              }
-              cargarWallet().catch(() => {}); // se adelanta la descarga mientras llena los datos; si falla, "Pagar" reintenta
-              setHoja(true);
-            }}
-          />
-        )}
-        <HojaEntrega
-          total={total}
-          abierta={hoja}
-          aviso={<AvisoNavegadorInterno />}
-          onCerrar={cerrarHoja}
+        <Producto v={v} />
+        <Promesa v={v} />
+        <FormEntrega
+          v={v}
+          inicial={delivery}
           onContinuar={(x) => {
+            guardarCompra(slug, x, guardada?.cuenta ?? null);
             setDelivery(x);
-            setHoja(false);
+            setError(null);
             setQrOpen(true);
-            window.scrollTo({ top: 0, behavior: "smooth" });
+            cargarWallet().catch(() => {}); // se adelanta la descarga mientras mira el QR; si falla, al pagar reintenta
+            window.scrollTo({ top: 0 });
           }}
         />
+        <ErrorBox error={error} />
+        <div>
+          <ComoFunciona v={v} />
+          <TarjetaVendedor v={v} />
+          <Antifraude code={o.code} host={host} />
+        </div>
+        <ModoPractica />
+        <BarraPagar total={total} />
       </div>
     );
   }
@@ -273,7 +318,12 @@ export default function PaginaDePago() {
       )}
       <Seguimiento v={v} esComprador={isBuyer} recogido={recogido} busy={busy} onRecogido={marcarRecogido} onNoLlego={() => accion("extend")} />
       {isBuyer && (o.status === "pagado" || o.status === "enviado" || o.status === "en_disputa") && <AvisosWhatsApp code={o.code} />}
-      <PublicRecord v={o.verification} escrowId={o.escrow_id} status={o.status} role="comprador" />
+      {avisar && (
+        <a className="btn-primary w-full" href={waLink(avisar, v.seller.whatsapp)} target="_blank" rel="noreferrer" data-testid="avisar-tienda">
+          <IconoWhatsApp className="h-5 w-5" />
+          Avisar a la tienda por WhatsApp
+        </a>
+      )}
       {isBuyer && (o.status === "pagado" || o.status === "enviado" || o.status === "en_disputa") && <CompraEnEsteNavegador />}
       {ES_MAINNET && isBuyer && (o.status === "resuelto" || o.status === "devuelto" ? <RetirarUsdc role="comprador" /> : <RespaldoCuenta role="comprador" />)}
 
@@ -316,14 +366,12 @@ export default function PaginaDePago() {
 
       {problem && <Reclamo order={o} busy={busy} onCancel={() => setProblem(false)} onSubmit={(x) => accion("dispute", x)} />}
 
-      <LineaDeTiempo v={v} onReload={load} onExtend={isBuyer ? () => accion("extend") : undefined} />
+      <LineaDeTiempo v={v} plegada={o.status === "pagado"} onReload={load} onExtend={isBuyer ? () => accion("extend") : undefined} />
       <Cierre v={v} />
 
-      {isBuyer && o.status === "pagado" && <WhatsAppBox title="Avísale al vendedor" text={waText("pagado", d)} phone={v.seller.whatsapp} />}
-      {isBuyer && o.status === "liberado" && <WhatsAppBox title="Avísale al vendedor" text={waText("liberado", d)} phone={v.seller.whatsapp} />}
-      {isBuyer && o.status === "en_disputa" && <WhatsAppBox title="Avísale al vendedor" text={waText("disputa", d)} phone={v.seller.whatsapp} />}
       {o.status === "resuelto" && <WhatsAppBox title="Compartir la decisión" text={waText("resuelto", d)} phone={v.seller.whatsapp} />}
 
+      <PublicRecord v={o.verification} escrowId={o.escrow_id} status={o.status} role="comprador" />
       <TarjetaVendedor v={v} />
       <RegistroPedido v={v} />
       <Antifraude code={o.code} host={host} />

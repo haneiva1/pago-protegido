@@ -7,6 +7,7 @@ import { ErrorBox } from "@/components/ui";
 import { Select } from "@/components/comprador/Campos";
 import { CIUDADES, fmtWhatsApp } from "@/lib/format";
 import { apiFirmada } from "@/lib/api-firmada";
+import { mensajeDeError } from "@/lib/comprador";
 import { WALLET_KIND, activateWallet, api, getWallet } from "@/lib/wallet";
 
 const PASOS = ["Tu tienda", "Tu WhatsApp", "Tu cuenta"];
@@ -59,7 +60,7 @@ export default function Vender() {
       paso("Guardando tu tienda", true);
       router.push("/panel?primer=1");
     } catch (e) {
-      setError((e as Error).message);
+      setError(mensajeDeError(e));
       setBusy(false);
     }
   }

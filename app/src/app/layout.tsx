@@ -19,7 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const proto = h.get("x-forwarded-proto") ?? (local ? "http" : "https");
   return {
     metadataBase: new URL(`${proto}://${host}`),
-    title: "Trato · pago protegido para ventas por redes",
+    title: "Trato · compra y vende por redes",
     description: "Pago contra confirmación de entrega para ventas entre ciudades por encomienda. " + (ES_MAINNET ? TEXTO.aviso : "Modo práctica."),
     openGraph: { title: OG_TITLE, description: OG_DESC, type: "website", siteName: "Trato", locale: "es_BO" },
     twitter: { card: "summary_large_image", title: OG_TITLE, description: OG_DESC },
@@ -34,7 +34,7 @@ export const viewport: Viewport = { width: "device-width", initialScale: 1, them
 const PIE = [
   { href: "/verificar", texto: "Verificar un link" },
   { href: "/piloto", texto: "Únete al piloto" },
-  { href: "/pedir", texto: "Pide compra protegida" },
+  { href: "/pedir", texto: "Pide pagar con Trato" },
   { href: "/revisor", texto: "Panel del revisor" },
 ];
 
@@ -55,10 +55,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <TratoLogo sobre="claro" className="h-6 w-auto" />
             </Link>
             <div className="flex items-center gap-4 text-sm font-medium text-tinta-600 sm:gap-5">
-              <Link href="/como-funciona" className="transition-colors hover:text-monte">
+              <Link href="/como-funciona" className="inline-flex min-h-11 items-center transition-colors hover:text-monte">
                 Cómo funciona
               </Link>
-              <Link href="/transparencia" className="transition-colors hover:text-monte">
+              <Link href="/transparencia" className="inline-flex min-h-11 items-center transition-colors hover:text-monte">
                 Transparencia
               </Link>
               <Link href="/panel" className="hidden transition-colors hover:text-monte sm:inline">
@@ -76,11 +76,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-8 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <TratoLogo sobre="claro" className="h-5 w-auto" />
-              <span className="text-xs text-tinta-500">Pago protegido para ventas por redes · {TEXTO.modo}</span>
+              <span className="text-xs text-tinta-500">Compra y vende por redes · {TEXTO.modo}</span>
             </div>
-            <nav aria-label="Más de Trato" className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-medium text-tinta-600 sm:flex sm:flex-wrap">
+            <nav aria-label="Más de Trato" className="grid grid-cols-2 gap-x-4 text-xs font-medium text-tinta-600 sm:flex sm:flex-wrap">
               {PIE.map((l) => (
-                <Link key={l.href} href={l.href} className="transition-colors hover:text-monte">
+                <Link key={l.href} href={l.href} className="inline-flex min-h-11 items-center transition-colors hover:text-monte">
                   {l.texto}
                 </Link>
               ))}

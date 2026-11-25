@@ -18,7 +18,7 @@ import {
 } from "./verificacion";
 
 /**
- * Métricas públicas de Pago Protegido calculadas SOLO con eventos on-chain de pp_guardian y pp_arbiter
+ * Métricas públicas de Trato calculadas SOLO con eventos on-chain de pp_guardian y pp_arbiter
  * (pago-protegido/docs/METRICAS.md). Los eventos se ingieren de forma incremental a SQLite porque el RPC
  * público solo guarda unos 7 días; la referencia de las reglas es contracts/scripts/metricas.sh.
  *

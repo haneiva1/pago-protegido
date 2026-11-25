@@ -173,7 +173,7 @@ const HOW_TO = [
 export const msg = {
   help(store?: string): OutMsg {
     return {
-      text: `¡Hola${store ? ` ${store}` : ""}! 👋 Soy el asistente de *Trato*.\nCreo tus links de pago y te aviso de cada pedido. Tu cliente paga por adelantado y su plata queda protegida hasta que recibe.\n\n${HOW_TO}`,
+      text: `¡Hola${store ? ` ${store}` : ""}! 👋 Soy el asistente de *Trato*.\nCreo tus links de pago y te aviso de cada pedido. Tu cliente paga por adelantado y su plata espera hasta que recibe.\n\n${HOW_TO}`,
       buttons: [BTN.vender, BTN.ventas, BTN.saldo],
     };
   },
@@ -236,13 +236,13 @@ export const msg = {
       : `*${o.product}* · ${fmtBs(o.price_bs_cents)} (≈ ${fmtUsd(o.amount_units)} ${moneda()}) · entrega en ${days}\n👉 ${url}`;
     return [
       {
-        text: `¡Listo! ✅ Tu link de pago protegido:\n${head}\n\nCódigo: *${orderCode(o)}*. Es para un solo cliente. Te aviso apenas pague.\n\n⚠️ ${QR_WARNING}${avisoRed()}`,
+        text: `¡Listo! ✅ Tu link de pago:\n${head}\n\nCódigo: *${orderCode(o)}*. Es para un solo cliente. Te aviso apenas pague.\n\n⚠️ ${QR_WARNING}${avisoRed()}`,
         buttons: o.proteccion ? [...protButtons(o.slug), BTN.otro] : [BTN.otro, BTN.ventas],
       },
       { text: "Reenvíale esto a tu cliente 👇" },
       // El mismo texto que waText("link") de la app (DECISIONES 8): la web y el bot dicen lo mismo.
       {
-        text: `¡Hola! 👋 Te paso el link de pago protegido de ${store ?? "mi tienda"} para *${o.product}* (${fmtBs(o.price_bs_cents)}).\n\nTu plata queda guardada en un contrato y solo me llega cuando confirmas que recibiste. Si hay un problema, un tercero revisa el reclamo.\n\n👉 ${url}`,
+        text: `¡Hola! 👋 Paga *${o.product}* (${fmtBs(o.price_bs_cents)}) aquí:\n${url}\n\nCon Trato, yo cobro recién cuando confirmes que te llegó.`,
       },
     ];
   },
@@ -344,7 +344,7 @@ export const msg = {
     if (!s.slug) return { text: `Tu perfil público todavía no está listo. Ábrelo desde tu panel: ${appUrl}/panel` };
     const url = profileUrl(appUrl, s.slug);
     return {
-      text: `🛡️ Tu perfil público de *${s.store_name}*:\n${url}\n\nAhí tus clientes ven tus ventas protegidas, cuántas terminaron sin reclamo y cuánto tardas en despachar, calculado con el registro público de cada compra. No muestra tu teléfono ni tu dirección.\n\nPégalo en la bio de tu Instagram o TikTok:\n*Vendo con Trato ✅ ${url}*`,
+      text: `🛡️ Tu perfil público de *${s.store_name}*:\n${url}\n\nAhí tus clientes ven tus ventas, cuántas terminaron sin reclamo y cuánto tardas en despachar, calculado con el registro público de cada compra. No muestra tu teléfono ni tu dirección.\n\nPégalo en la bio de tu Instagram o TikTok:\n*Vendo con Trato ✅ ${url}*`,
     };
   },
 
@@ -549,7 +549,7 @@ export const notice = {
   released({ view }: NoticeData): OutMsg {
     const o = view.order;
     const amount = view.breakdown ? ` Te llegaron *${fmtUsd(view.breakdown.seller)} ${moneda()}*` : " La plata ya está en tu cuenta";
-    return { text: `✅ ${orderCode(o)}: ¡Liberado! Tu cliente recibió *${o.product}*.${amount}. ¡Gracias por vender protegido! 🙌`, buttons: [BTN.otro, BTN.saldo] };
+    return { text: `✅ ${orderCode(o)}: ¡Liberado! Tu cliente recibió *${o.product}*.${amount}. ¡Gracias por vender con Trato! 🙌`, buttons: [BTN.otro, BTN.saldo] };
   },
 
   /** Al vendedor cuando se abre un reclamo. */

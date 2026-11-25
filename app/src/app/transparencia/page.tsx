@@ -32,7 +32,7 @@ const STATE: Record<PurchaseState, { label: string; cls: string }> = {
 
 type Icono = (p: { className?: string }) => React.ReactNode;
 const EVENT: Record<string, { texto: string; Icono: Icono }> = {
-  pp_funded: { texto: "Compra protegida (la plata quedó en el contrato)", Icono: IconoCandado },
+  pp_funded: { texto: "Compra pagada (la plata quedó en el contrato)", Icono: IconoCandado },
   pp_shipped: { texto: "El vendedor registró el envío", Icono: IconoCamion },
   pp_extended: { texto: "El comprador pidió más tiempo para revisar", Icono: IconoReloj },
   pp_confirmed: { texto: "El comprador confirmó y se pagó al vendedor", Icono: IconoCheckCirculo },
@@ -119,7 +119,7 @@ export default async function Transparencia() {
         <h2 className="text-xl">Piloto con vendedores reales</h2>
         {pm && pm.compras_protegidas > 0 ? (
           <p className="text-sm text-tinta-700">
-            <strong>{pm.compras_protegidas}</strong> {pm.compras_protegidas === 1 ? "compra protegida" : "compras protegidas"} · Bs {nf(unitsToNumber(pm.volumen_unidades) * pm.tipo_cambio)} ·{" "}
+            <strong>{pm.compras_protegidas}</strong> {pm.compras_protegidas === 1 ? "compra con Trato" : "compras con Trato"} · Bs {nf(unitsToNumber(pm.volumen_unidades) * pm.tipo_cambio)} ·{" "}
             {plural(pm.liberadas_por_confirmacion + pm.liberadas_por_plazo, "pagada al vendedor", "pagadas al vendedor")} · {plural(pm.disputas.total, "reclamo", "reclamos")}
           </p>
         ) : (

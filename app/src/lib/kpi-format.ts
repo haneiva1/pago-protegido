@@ -7,11 +7,11 @@ const TZ = "America/La_Paz";
 
 /** Las compras del equipo en testnet son pruebas, no tracción: donde se muestre su número, se llaman así. */
 export const COMPRAS_INTERNAS = TEXTOS.testnet.grupoPropioCorto;
-export const rotuloCompras = (grupo: Grupo) => (grupo === "equipo" ? COMPRAS_INTERNAS : "Compras protegidas");
-/** Lo mismo con el número de una tienda (pedido, perfil, panel e insignia): solo las del piloto, o en mainnet, tienen "ventas protegidas". */
+export const rotuloCompras = (grupo: Grupo) => (grupo === "equipo" ? COMPRAS_INTERNAS : "Compras con Trato");
+/** Lo mismo con el número de una tienda (pedido, perfil, panel e insignia): solo las del piloto, o en mainnet, tienen "ventas con Trato". */
 export function rotuloVentas(n: number, piloto: boolean): string {
   if (!piloto && !ES_MAINNET) return n === 1 ? "compra de prueba interna en testnet" : "compras de prueba internas en testnet";
-  return n === 1 ? "venta protegida" : "ventas protegidas";
+  return n === 1 ? "venta con Trato" : "ventas con Trato";
 }
 export const rotuloMonto = (grupo: Grupo) => (grupo === "equipo" ? "Monto de prueba" : "Monto protegido");
 
@@ -50,9 +50,9 @@ export const fmtMesAnio = (v: string | number) => new Intl.DateTimeFormat("es-BO
 export const fmtDiaCorto = (dia: string) =>
   new Intl.DateTimeFormat("es-BO", { day: "numeric", month: "short", timeZone: TZ }).format(new Date(`${dia}T12:00:00-04:00`));
 
-/** Desde cuándo vende: la primera compra protegida en el registro público; si no hay, la fecha de la tienda. */
+/** Desde cuándo vende: la primera compra con Trato en el registro público; si no hay, la fecha de la tienda. */
 export function desdeTexto(k: Kpis, tiendaDesde: number): string {
-  return k.desde ? `Vende con Trato desde ${fmtMesAnio(k.desde)}` : `Tienda creada en ${fmtMesAnio(tiendaDesde)} · todavía sin ventas protegidas`;
+  return k.desde ? `Vende con Trato desde ${fmtMesAnio(k.desde)}` : `Tienda creada en ${fmtMesAnio(tiendaDesde)} · todavía sin ventas`;
 }
 
 export const DESENLACE_LABEL: Record<Desenlace, string> = {

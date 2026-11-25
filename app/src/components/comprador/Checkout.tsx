@@ -1,128 +1,87 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { IconoCandado, IconoChevronAbajo, IconoFlechaDerecha, IconoVolver } from "@/components/iconos";
-import { ErrorBox } from "@/components/ui";
+import { useEffect, useRef, useState } from "react";
+import { IconoCandado, IconoChevronAbajo, IconoReloj } from "@/components/iconos";
+import { CopyButton } from "@/components/ui";
 import { CIUDADES, DOLLAR_NOTE, PROTECCION, fmtBs, fmtBsUnits, unitsToNumber } from "@/lib/format";
-import { fmtDia, fmtPlazo, plazosDelPedido } from "@/lib/comprador";
+import { fmtDia, fmtFlete, fmtPlazo, plazosDelPedido } from "@/lib/comprador";
+import { leerEntrega, type DatosEntrega } from "@/lib/compra-local";
 import { ES_MAINNET } from "@/lib/red";
 import type { OrderView } from "@/lib/types";
 import { Select } from "./Campos";
 import { VendidoPor } from "./Vendedor";
 
+export type { DatosEntrega };
+
 const nf = (n: number) => n.toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-/** Primer pantallazo: qué compras, cuánto pagas y a quién le compras. */
-export function Producto({ v, compacto }: { v: OrderView; compacto?: boolean }) {
+/** Qué compras, cuánto pagas (con la protección a la vista, en una línea) y a quién le compras. */
+export function Producto({ v }: { v: OrderView }) {
   const o = v.order;
+  const total = unitsToNumber(o.amount_units) * o.fx;
   return (
-    <section className={compacto ? "space-y-1 border-t border-tinta-200 pt-6" : "space-y-3"}>
-      {o.photo_url && !compacto ? (
+    <section className="space-y-2">
+      {o.photo_url ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={o.photo_url} alt={o.product} className="h-48 w-full rounded-card object-cover" />
+        <img src={o.photo_url} alt={o.product} className="h-44 w-full rounded-card object-cover" />
       ) : null}
       <p className="eyebrow" data-testid="codigo">
-        Compra protegida · {o.code}
+        Pedido {o.code}
       </p>
-      <h1 className={compacto ? "font-sans text-base font-semibold" : "text-3xl leading-tight"} data-testid="producto">
+      <h1 className="text-2xl leading-tight" data-testid="producto">
         {o.product}
       </h1>
-      {o.description && !compacto && <p className="text-base text-tinta-600">{o.description}</p>}
-      <p className={compacto ? "text-base text-tinta-600 num" : "font-display text-5xl leading-none tracking-tight text-monte num"} data-testid="total">
+      {o.description && <p className="text-base text-tinta-600">{o.description}</p>}
+      <p className="font-display text-5xl leading-none tracking-tight text-monte num" data-testid="total">
         {fmtBsUnits(o.amount_units, o.fx)}
-        {!compacto && <span className="ml-2 align-middle font-sans text-base font-medium tracking-normal text-tinta-600">total</span>}
       </p>
-      {!compacto && <VendidoPor v={v} />}
-    </section>
-  );
-}
-
-/** La promesa, en Monte: la plata espera entre los dos y solo tiene dos salidas. Se entiende en 3 segundos. */
-export function DosSalidas({ v }: { v: OrderView }) {
-  const o = v.order;
-  const { despacho, revision } = plazosDelPedido(o);
-  const limite = Date.now() + despacho * 1000;
-  return (
-    <section className="panel-oscuro space-y-2 !p-5" data-testid="promesa" data-oscuro="">
-      <div className="flex items-center gap-3">
-        <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-yungas/15 text-yungas">
-          <IconoCandado className="h-4 w-4" />
-        </span>
-        <h2 className="text-lg leading-snug text-sal">Tu plata espera entre los dos. Solo tiene dos salidas:</h2>
-      </div>
-      <ul className="divide-y divide-white/10 text-sm">
-        <li className="flex items-start gap-3 py-2" data-testid="salida-tienda">
-          <IconoFlechaDerecha className="mt-0.5 h-5 w-5 flex-none text-yungas" />
-          <p className="text-sal/90">
-            <strong className="text-sal">A {v.seller.store_name}</strong>, cuando confirmes que lo recibiste bien.
-          </p>
-        </li>
-        <li className="flex items-start gap-3 py-2" data-testid="salida-comprador">
-          <IconoVolver className="mt-0.5 h-5 w-5 flex-none text-yungas" />
-          <p className="text-sal/90">
-            <strong className="text-sal">De vuelta a ti</strong>, si no lo despacha hasta el <strong className="text-sal">{fmtDia(limite)}</strong>.
-          </p>
-        </li>
-      </ul>
-      <details className="group text-sm text-sal/75">
-        <summary className="flex cursor-pointer list-none items-center gap-1.5 font-medium text-sal/90 [&::-webkit-details-marker]:hidden">
-          ¿Y si llega mal?
-          <IconoChevronAbajo className="h-4 w-4 transition-transform duration-200 group-open:rotate-180" />
-        </summary>
-        <p className="mt-1.5 leading-relaxed">Abres un reclamo y un revisor decide. Si no confirmas ni reclamas, se le paga a la tienda {fmtPlazo(revision)} después del envío.</p>
-      </details>
-    </section>
-  );
-}
-
-export function Proteccion({ v }: { v: OrderView }) {
-  const o = v.order;
-  const totalNum = unitsToNumber(o.amount_units) * o.fx;
-  const prot = totalNum - o.price_bs_cents / 100;
-  return (
-    <section className="text-sm" data-testid="proteccion">
-      <dl className="divide-y divide-tinta-200/80">
-        <div className="flex justify-between gap-3 py-2">
-          <dt className="text-tinta-600">Precio</dt>
-          <dd className="num">{fmtBs(o.price_bs_cents)}</dd>
-        </div>
+      <p className="text-sm text-tinta-600 num" data-testid="proteccion">
         {o.fee_payer === "comprador" ? (
-          <div className="flex justify-between gap-3 py-2">
-            <dt className="text-tinta-600">
-              Protección <span className="text-tinta-500">({String(PROTECCION.pct).replace(".", ",")}%, mín. Bs {PROTECCION.minBs}, máx. Bs {PROTECCION.maxBs})</span>
-            </dt>
-            <dd className="flex-none num">Bs {nf(prot)}</dd>
-          </div>
+          <>
+            {fmtBs(o.price_bs_cents)} + Bs {nf(total - o.price_bs_cents / 100)} de protección
+          </>
         ) : (
-          <div className="flex justify-between gap-3 py-2">
-            <dt className="text-tinta-600">Protección</dt>
-            <dd className="text-tinta-600">la paga el vendedor</dd>
-          </div>
+          "Precio final: la protección la paga el vendedor"
         )}
-        <div className="flex justify-between gap-3 py-2 text-base font-semibold">
-          <dt>Total</dt>
-          <dd className="num">Bs {nf(totalNum)}</dd>
-        </div>
-      </dl>
-      {o.fee_payer === "comprador" && <p className="mt-1 text-tinta-500">El vendedor recibe el precio completo.</p>}
+      </p>
+      <VendidoPor v={v} />
     </section>
   );
 }
 
-/** Cómo funciona, en tres pasos, plegado para no empujar el botón de pagar. */
-export function ComoFunciona() {
+/** La promesa en dos líneas: a dónde puede ir la plata. Lo demás va plegado en ComoFunciona. */
+export function Promesa({ v }: { v: OrderView }) {
+  const { despacho } = plazosDelPedido(v.order);
+  return (
+    <section className="flex gap-3 rounded-card bg-exito-50 p-4 text-sm text-tinta-700" data-testid="promesa">
+      <IconoCandado className="mt-0.5 h-5 w-5 flex-none text-musgo" />
+      <div className="space-y-1">
+        <p data-testid="salida-tienda">
+          <strong className="text-monte">La tienda cobra recién cuando confirmes que te llegó.</strong>
+        </p>
+        <p data-testid="salida-comprador">
+          Si no lo despacha hasta el <strong>{fmtDia(Date.now() + despacho * 1000)}</strong>, tu plata vuelve a ti.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+/** Todo lo que se puede leer y no hace falta para pagar, plegado. */
+export function ComoFunciona({ v }: { v: OrderView }) {
+  const { revision } = plazosDelPedido(v.order);
   const pasos = [
     ES_MAINNET ? "Pagas con USDC desde tu cuenta Stellar." : "Pagas con QR desde tu banco.",
-    "Tu pago queda guardado. El vendedor ve que pagaste, pero no puede cobrar.",
+    "Tu plata espera entre los dos. La tienda ve que pagaste, pero no puede cobrar.",
     "Cuando te llegue, lo revisas y confirmas. Recién ahí se le paga.",
   ];
   return (
-    <details className="group border-t border-tinta-200 pt-5 text-base" data-testid="como-funciona">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-lg font-semibold [&::-webkit-details-marker]:hidden">
-        ¿Cómo funciona?
+    <details className="group border-t border-tinta-200 text-base" data-testid="como-funciona">
+      <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-2 font-semibold [&::-webkit-details-marker]:hidden">
+        ¿Cómo funciona? ¿Y si llega mal?
         <IconoChevronAbajo className="h-5 w-5 flex-none text-tinta-500 transition-transform duration-200 group-open:rotate-180" />
       </summary>
-      <ol className="mt-4 space-y-3">
+      <ol className="space-y-3 pb-1">
         {pasos.map((s, i) => (
           <li key={s} className="flex gap-3">
             <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-yungas text-xs font-semibold text-monte num">{i + 1}</span>
@@ -130,14 +89,26 @@ export function ComoFunciona() {
           </li>
         ))}
       </ol>
-      <p className="mt-4 text-sm text-tinta-600">Si necesitas más tiempo para revisar, puedes pedirlo una vez. Te avisamos un día antes de que se le pague a la tienda.</p>
-      <p className="mt-2 text-sm text-tinta-600">{DOLLAR_NOTE}</p>
+      <div className="space-y-2 pb-5 pt-3 text-sm text-tinta-600">
+        <p>
+          <strong className="text-tinta-800">Si llega mal,</strong> abres un reclamo y un revisor decide. Solo puede repartir entre la tienda y tú.
+        </p>
+        <p>
+          Si no confirmas ni reclamas, se le paga a la tienda {fmtPlazo(revision)} después del envío. Te avisamos un día antes y puedes pedir más tiempo una vez.
+        </p>
+        {v.order.fee_payer === "comprador" && (
+          <p>
+            La protección es el {String(PROTECCION.pct).replace(".", ",")}% del precio (mín. Bs {PROTECCION.minBs}, máx. Bs {PROTECCION.maxBs}). La tienda recibe el precio completo.
+          </p>
+        )}
+        <p>{DOLLAR_NOTE}</p>
+      </div>
     </details>
   );
 }
 
-/** Botón de pagar fijo abajo: siempre a la vista, con el total. */
-export function BarraPagar({ total, onPagar, disabled, label }: { total: string; onPagar: () => void; disabled?: boolean; label?: string }) {
+/** Botón de pagar fijo abajo, con el total: envía los datos de entrega que están en la misma pantalla. */
+export function BarraPagar({ total }: { total: string }) {
   return (
     <div
       className="fixed inset-x-0 bottom-0 z-30 border-t border-tinta-200 bg-white px-4 pt-3 shadow-[0_-8px_24px_-16px_rgb(10_42_27/0.25)]"
@@ -145,59 +116,9 @@ export function BarraPagar({ total, onPagar, disabled, label }: { total: string;
       data-testid="barra-pagar"
     >
       <div className="mx-auto max-w-md">
-        <button type="button" className="btn-primary w-full py-4 text-lg" onClick={onPagar} disabled={disabled}>
-          <IconoCandado className="h-5 w-5" />
-          {label ?? `Pagar ${total} con ${ES_MAINNET ? "USDC" : "QR"}`}
+        <button type="submit" form="form-entrega" className="btn-primary w-full py-4 text-lg">
+          Pagar {total} con {ES_MAINNET ? "USDC" : "QR"}
         </button>
-        <p className="mt-2 text-center text-sm text-tinta-600">La tienda cobra recién cuando confirmes que te llegó.</p>
-      </div>
-    </div>
-  );
-}
-
-export interface DatosEntrega {
-  recipient: string;
-  city: string;
-  agency: string;
-  whatsapp?: string;
-  /** Teléfono de quien recoge (las empresas lo piden para entregar). */
-  pickupPhone?: string;
-  /** "incluido" | "por_pagar" | "aparte" (con fleteBs). */
-  flete?: string;
-  fleteBs?: string;
-}
-
-/** Hoja que sube desde abajo con los datos de entrega. Al continuar se muestra el QR. */
-export function HojaEntrega({
-  total,
-  abierta,
-  onCerrar,
-  onContinuar,
-  aviso,
-}: {
-  total: string;
-  abierta: boolean;
-  onCerrar: () => void;
-  onContinuar: (x: DatosEntrega) => void;
-  aviso?: React.ReactNode;
-}) {
-  useEffect(() => {
-    if (!abierta) return;
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && onCerrar();
-    window.addEventListener("keydown", esc);
-    return () => window.removeEventListener("keydown", esc);
-  }, [abierta, onCerrar]);
-  if (!abierta) return null;
-  return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-monte/50" role="dialog" aria-modal="true" aria-labelledby="hoja-entrega-titulo" onClick={onCerrar}>
-      <div
-        className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-panel bg-white p-5 shadow-alzada animate-aparecer"
-        style={{ paddingBottom: "max(env(safe-area-inset-bottom), 20px)" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-tinta-200" aria-hidden />
-        {aviso}
-        <FormEntrega total={total} onCerrar={onCerrar} onContinuar={onContinuar} />
       </div>
     </div>
   );
@@ -205,22 +126,53 @@ export function HojaEntrega({
 
 const Opcional = () => <span className="font-normal text-tinta-500">(opcional)</span>;
 
-function FormEntrega({ total, onCerrar, onContinuar }: { total: string; onCerrar: () => void; onContinuar: (x: DatosEntrega) => void }) {
-  const [f, setF] = useState({ recipient: "", city: "", agency: "", whatsapp: "", pickupPhone: "", flete: "", fleteBs: "" });
-  const [error, setError] = useState<string | null>(null);
-  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
+type Campos = { recipient: string; city: string; agency: string; whatsapp: string; pickupPhone: string; flete: string; fleteBs: string };
+const VACIO: Campos = { recipient: "", city: "", agency: "", whatsapp: "", pickupPhone: "", flete: "", fleteBs: "" };
+
+/** A dónde va el pedido: nombre y ciudad. Lo opcional va plegado; si ya compró en este celular, viene lleno. */
+export function FormEntrega({ v, inicial, onContinuar }: { v: OrderView; inicial: DatosEntrega | null; onContinuar: (x: DatosEntrega) => void }) {
+  const [f, setF] = useState<Campos>(VACIO);
+  const [error, setError] = useState<{ campo: "recipient" | "city" | "flete"; texto: string } | null>(null);
+  const form = useRef<HTMLFormElement>(null);
+  const fleteTienda = fmtFlete(v.order.flete);
+  const set = (k: keyof Campos) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setF({ ...f, [k]: e.target.value });
+    setError(null);
+  };
+
+  useEffect(() => {
+    const previo = inicial ?? leerEntrega();
+    if (previo) setF((x) => ({ ...x, ...previo }));
+  }, [inicial]);
+
+  function falla(campo: "recipient" | "city" | "flete", texto: string) {
+    setError({ campo, texto });
+    const el = form.current?.querySelector<HTMLElement>(campo === "recipient" ? "#recipient" : campo === "city" ? "#dest-city" : "#flete-bs");
+    el?.focus({ preventScroll: true });
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+  const aviso = (campo: "recipient" | "city" | "flete") =>
+    error?.campo === campo ? (
+      <p role="alert" className="mt-1.5 text-sm font-medium text-error-700" data-testid="error-campo">
+        {error.texto}
+      </p>
+    ) : null;
+
   return (
     <form
-      className="space-y-3"
+      ref={form}
+      id="form-entrega"
+      className="space-y-4"
       data-testid="datos-entrega"
+      noValidate
       onSubmit={(e) => {
         e.preventDefault();
-        if (f.recipient.trim().length < 2) return setError("Escribe quién recibe el pedido");
-        if (!f.city) return setError("Elige la ciudad de destino");
-        if (f.flete === "aparte" && !(Number(f.fleteBs.replace(",", ".")) > 0)) return setError("Escribe cuánto es el flete en Bs");
+        if (f.recipient.trim().length < 2) return falla("recipient", "Escribe quién recibe el pedido");
+        if (!f.city) return falla("city", "Elige la ciudad de destino");
+        if (f.flete === "aparte" && !(Number(f.fleteBs.replace(",", ".")) > 0)) return falla("flete", "Escribe cuánto es el flete en Bs");
         setError(null);
         onContinuar({
-          recipient: f.recipient,
+          recipient: f.recipient.trim(),
           city: f.city,
           agency: f.agency,
           ...(f.whatsapp.trim() ? { whatsapp: f.whatsapp } : {}),
@@ -229,66 +181,105 @@ function FormEntrega({ total, onCerrar, onContinuar }: { total: string; onCerrar
         });
       }}
     >
-      <h2 id="hoja-entrega-titulo" className="text-2xl">
-        ¿A dónde lo envían?
-      </h2>
+      <h2 className="text-lg">¿A dónde lo envían?</h2>
       <div>
         <label className="label" htmlFor="recipient">
           Quién recibe
         </label>
-        <input id="recipient" className="input" value={f.recipient} onChange={set("recipient")} placeholder="Nombre y apellido" autoComplete="name" />
+        <input id="recipient" className="input" value={f.recipient} onChange={set("recipient")} placeholder="Nombre y apellido" autoComplete="name" aria-invalid={error?.campo === "recipient"} enterKeyHint="next" />
+        {aviso("recipient")}
       </div>
       <div>
         <label className="label" htmlFor="dest-city">
           Ciudad de destino
         </label>
-        <Select id="dest-city" value={f.city} onChange={set("city")}>
+        <Select id="dest-city" value={f.city} onChange={set("city")} aria-invalid={error?.campo === "city"}>
           <option value="">Elige…</option>
           {CIUDADES.map((c) => (
             <option key={c}>{c}</option>
           ))}
         </Select>
+        {aviso("city")}
       </div>
-      <div>
-        <label className="label" htmlFor="agency">
-          Agencia preferida <Opcional />
-        </label>
-        <input id="agency" className="input" value={f.agency} onChange={set("agency")} placeholder="Ej.: Trans Copacabana, terminal" />
-      </div>
-      <div>
-        <label className="label" htmlFor="pickup-phone">
-          Teléfono de quien recoge <Opcional />
-        </label>
-        <input id="pickup-phone" className="input" inputMode="tel" value={f.pickupPhone} onChange={set("pickupPhone")} placeholder="Ej.: 591 70011223" />
-        <p className="mt-1 text-xs text-tinta-500">Las empresas de encomiendas lo piden para entregar. Solo lo ve la tienda.</p>
-      </div>
-      <div>
-        <label className="label" htmlFor="flete">
-          ¿Y el flete? <Opcional />
-        </label>
-        <Select id="flete" value={f.flete} onChange={set("flete")}>
-          <option value="">Lo veo con la tienda</option>
-          <option value="incluido">Incluido en el precio</option>
-          <option value="por_pagar">Por pagar al recoger</option>
-          <option value="aparte">Aparte: más Bs …</option>
-        </Select>
-        {f.flete === "aparte" && (
-          <input id="flete-bs" aria-label="Flete en Bs" className="input mt-2" inputMode="decimal" value={f.fleteBs} onChange={set("fleteBs")} placeholder="Ej.: 25" />
-        )}
-        <p className="mt-1 text-xs text-tinta-500">Es lo que acordaron; no cambia el monto que queda guardado.</p>
-      </div>
-      <div>
-        <label className="label" htmlFor="buyer-wa">
-          Tu WhatsApp para avisarte <Opcional />
-        </label>
-        <input id="buyer-wa" className="input" inputMode="tel" value={f.whatsapp} onChange={set("whatsapp")} placeholder="Ej.: 591 76543210" autoComplete="tel" />
-        <p className="mt-1 text-xs text-tinta-500">Te avisamos cuando despachen y un día antes de que se le pague a la tienda. No se muestra a nadie.</p>
-      </div>
-      <ErrorBox error={error} />
-      <button className="btn-primary w-full py-4 text-lg">{ES_MAINNET ? "Ver cómo pagar" : "Ver el QR para pagar"} {total}</button>
-      <button type="button" className="btn-secondary w-full" onClick={onCerrar}>
-        Cerrar
-      </button>
+      {fleteTienda && (
+        <p className="text-sm text-tinta-600" data-testid="flete-tienda">
+          {fleteTienda}.
+        </p>
+      )}
+      <details className="group" data-testid="mas-datos-entrega">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-sm font-semibold text-musgo [&::-webkit-details-marker]:hidden">
+          Agregar WhatsApp, agencia o teléfono <span className="font-normal text-tinta-500">(opcional)</span>
+          <IconoChevronAbajo className="h-4 w-4 flex-none transition-transform duration-200 group-open:rotate-180" />
+        </summary>
+        <div className="mt-2 space-y-4">
+          <div>
+            <label className="label" htmlFor="buyer-wa">
+              Tu WhatsApp para avisarte <Opcional />
+            </label>
+            <input id="buyer-wa" className="input" inputMode="tel" value={f.whatsapp} onChange={set("whatsapp")} placeholder="Ej.: 591 76543210" autoComplete="tel" />
+            <p className="mt-1 text-xs text-tinta-500">Te avisamos cuando despachen. No se muestra a nadie.</p>
+          </div>
+          <div>
+            <label className="label" htmlFor="agency">
+              Agencia preferida <Opcional />
+            </label>
+            <input id="agency" className="input" value={f.agency} onChange={set("agency")} placeholder="Ej.: Trans Copacabana, terminal" />
+          </div>
+          <div>
+            <label className="label" htmlFor="pickup-phone">
+              Teléfono de quien recoge <Opcional />
+            </label>
+            <input id="pickup-phone" className="input" inputMode="tel" value={f.pickupPhone} onChange={set("pickupPhone")} placeholder="Ej.: 591 70011223" />
+            <p className="mt-1 text-xs text-tinta-500">Lo piden al entregar. Solo lo ve la tienda.</p>
+          </div>
+          {!fleteTienda && (
+            <div>
+              <label className="label" htmlFor="flete">
+                ¿Y el flete? <Opcional />
+              </label>
+              <Select id="flete" value={f.flete} onChange={set("flete")}>
+                <option value="">Lo veo con la tienda</option>
+                <option value="incluido">Incluido en el precio</option>
+                <option value="por_pagar">Por pagar al recoger</option>
+                <option value="aparte">Aparte: más Bs …</option>
+              </Select>
+              {f.flete === "aparte" && (
+                <input id="flete-bs" aria-label="Flete en Bs" className="input mt-2" inputMode="decimal" value={f.fleteBs} onChange={set("fleteBs")} placeholder="Ej.: 25" />
+              )}
+              {aviso("flete")}
+              <p className="mt-1 text-xs text-tinta-500">Es lo que acordaron; no cambia lo que pagas aquí.</p>
+            </div>
+          )}
+        </div>
+      </details>
     </form>
+  );
+}
+
+/**
+ * El link tiene un pago empezado desde otro navegador. Puede ser la misma persona (abrió el link dentro de otra app), así
+ * que dice cómo seguir y a qué hora se libera, en vez de "lo está pagando otra persona".
+ */
+export function PagoEmpezado({ v, now }: { v: OrderView; now: number }) {
+  const hasta = v.order.buyer_lease_until ?? null;
+  const falta = hasta ? Math.max(0, hasta - now) : 0;
+  const hora = hasta ? new Intl.DateTimeFormat("es-BO", { hour: "2-digit", minute: "2-digit", timeZone: "America/La_Paz" }).format(new Date(hasta)) : null;
+  const url = typeof window === "undefined" ? "" : window.location.href.split("?")[0];
+  return (
+    <section className="card space-y-3 text-base" data-testid="pago-empezado">
+      <h2 className="flex items-center gap-2 text-lg">
+        <IconoReloj className="h-5 w-5 flex-none text-musgo" />
+        Ya hay un pago empezado
+      </h2>
+      <p className="text-tinta-700">
+        ¿Fuiste tú? Abre este link <strong>en la app o el navegador donde empezaste</strong> y sigue desde ahí.
+      </p>
+      {hora && (
+        <p className="text-tinta-600">
+          Si nadie lo termina, puedes pagar desde aquí a las <strong className="num">{hora}</strong> (en {Math.max(1, Math.ceil(falta / 60_000))} min). Esta página se actualiza sola.
+        </p>
+      )}
+      <CopyButton text={url} label="Copiar link" className="btn-secondary w-full" />
+    </section>
   );
 }

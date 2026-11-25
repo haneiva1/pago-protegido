@@ -57,7 +57,7 @@ test("comprador: nada hasta que la tienda manda el link; pagar, el estafador blo
   assert.equal(mensajesComprador({ ...base, pedido: pedido("esperando_pago"), reenviado: false }).length, 0);
   const link = mensajesComprador({ ...base, pedido: pedido("esperando_pago"), reenviado: true });
   assert.deepEqual(botones(link).map((b) => b.id), ["pagar"]);
-  assert.match(textos(link), /Zapatería te mandó un link de pago protegido/);
+  assert.match(textos(link), /Zapatería te mandó un link de pago\./);
   const estafa = mensajesComprador({ ...base, pedido: pedido("pagado"), reenviado: true, estafa: { at: T0 + 150_000, rechazado: true, error: "Error(Contract, #12)", detalle: "" } });
   assert.match(textos(estafa), /Soy del banco/);
   assert.match(textos(estafa), /Bloqueado: la plata solo puede ir a la Zapatería o volver a ti/);

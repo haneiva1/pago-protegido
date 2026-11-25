@@ -49,10 +49,11 @@ async function crearLinkDemo(page: Page, producto: string, precio: number) {
   await page.goto("/panel?demo=1");
   await page.getByLabel(/Plazo corto de demo/).check();
   await page.getByLabel("Producto").fill(producto);
-  await page.getByLabel("Categoría").selectOption("Electrónica");
-  await page.getByLabel("Descripción corta").fill("Nuevos, en caja.");
   await page.getByLabel("Precio en Bs").fill(String(precio));
-  await page.getByLabel("Días de entrega", { exact: true }).selectOption("1");
+  await page.getByTestId("cambiar-opciones").click();
+  await page.getByLabel("Días para despachar", { exact: true }).selectOption("1");
+  await page.getByLabel(/^Categoría/).selectOption("Electrónica");
+  await page.getByLabel(/^Descripción corta/).fill("Nuevos, en caja.");
   await page.getByRole("button", { name: "Crear link" }).click();
   const url = (await page.getByTestId("link-url").textContent())!.trim();
   expect(url).toMatch(/\/p\/[a-z0-9-]+$/);
@@ -64,6 +65,7 @@ async function pagar(browser: Browser, url: string, whatsapp: string) {
   await page.goto(url);
   await page.getByLabel("Quién recibe").fill("Ana Pérez");
   await page.getByLabel("Ciudad de destino").selectOption("Sucre");
+  await page.getByTestId("mas-datos-entrega").locator("summary").click();
   await page.getByLabel(/Tu WhatsApp para avisarte/).fill(whatsapp);
   await page.getByRole("button", { name: /Pagar Bs .* con QR/ }).click();
   const simular = page.getByRole("button", { name: "Simular pago del banco (modo práctica)" });
@@ -96,6 +98,7 @@ test("devolución completa: sin despacho, el comprador recupera todo lo que pag�
   await expect(rei).toContainText("Te devolvimos todo lo que pagaste", CHAIN);
   await expect(rei).toContainText("Trato te transfirió las comisiones");
   await expect(rei.locator(TX_LINK)).toHaveCount(2);
+  await buyer.getByText(/^Movimientos en la red \(\d+\)$/).click(); // el historial va plegado
   await expect(buyer.getByText(/Trato te devolvió las comisiones \(Bs .*\): recibiste todo lo que pagaste/)).toBeVisible();
   await capturar(buyer, "comprador-devolucion-completa");
 

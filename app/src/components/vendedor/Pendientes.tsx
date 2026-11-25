@@ -27,7 +27,7 @@ export function Pendientes({ pedidos, onIr }: { pedidos: PedidoPendiente[]; onIr
       {lista.length === 0 ? (
         <p className="flex items-center gap-2 text-base text-tinta-600" data-testid="sin-pendientes">
           <IconoCheckCirculo className="h-5 w-5 flex-none text-musgo" />
-          Nada pendiente: no tienes pedidos por despachar ni reclamos por responder.
+          Nada pendiente por despachar ni responder.
         </p>
       ) : (
         <ul className="divide-y divide-tinta-100">

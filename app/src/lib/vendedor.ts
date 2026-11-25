@@ -95,6 +95,22 @@ export const LINK_VACIO: LinkRapido = {
   feePayer: "comprador",
 };
 
+/** La línea de resumen del formulario: lo que va con valores por defecto y se cambia con "Cambiar". */
+export function resumenLink(f: LinkRapido): string {
+  const flete = {
+    "": "flete a acordar",
+    incluido: "flete incluido",
+    por_pagar: "flete por pagar al recoger",
+    aparte: f.fleteBs.trim() ? `flete aparte, Bs ${f.fleteBs.trim()}` : "flete aparte",
+  }[f.flete];
+  return [
+    `Despachas en ${f.deliveryDays} ${f.deliveryDays === "1" ? "día" : "días"}`,
+    flete,
+    f.feePayer === "comprador" ? "tu cliente paga la protección" : "tú pagas la protección",
+    ...(f.category && f.category !== "Otro" ? [f.category] : []),
+  ].join(" · ");
+}
+
 /** "Duplicar": el formulario del link rápido con los datos de un link anterior (el precio, sin centavos de más). */
 export function duplicarLink(o: {
   product: string;

@@ -201,7 +201,7 @@ export default async function ComoFunciona() {
           <p className="muted">La configuración de la red no está disponible.</p>
         )}
         <p className="text-sm text-tinta-600">
-          Las métricas de todas las compras protegidas se calculan con los eventos públicos de estos contratos:{" "}
+          Las métricas de todas las compras con Trato se calculan con los eventos públicos de estos contratos:{" "}
           <Link href="/transparencia" className="enlace">
             Transparencia
           </Link>

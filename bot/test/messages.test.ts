@@ -101,7 +101,7 @@ describe("mensajes", () => {
       ["vender", "🛍️ Vender otro"],
     ]);
     expect(forward.text).toBe(
-      `¡Hola! 👋 Te paso el link de pago protegido de Tienda Demo para *Celular Samsung A54* (Bs 1.800,00).\n\nTu plata queda guardada en un contrato y solo me llega cuando confirmas que recibiste. Si hay un problema, un tercero revisa el reclamo.\n\n👉 https://pp.test/p/${v2.slug}`,
+      `¡Hola! 👋 Paga *Celular Samsung A54* (Bs 1.800,00) aquí:\nhttps://pp.test/p/${v2.slug}\n\nCon Trato, yo cobro recién cuando confirmes que te llegó.`,
     );
     const regalo = msg.proteccionSet({ ...v2, proteccion: "vendedor", proteccion_bs_cents: 0 }).text;
     expect(regalo).toContain("la regalas tú. Tu cliente paga Bs 1.800,00");

@@ -50,7 +50,7 @@ export function PagoUsdc({ v, busy, onPay }: { v: OrderView; busy: boolean; onPa
   return (
     <section className="space-y-5 animate-aparecer" data-testid="pago-usdc">
       <div className="space-y-1.5">
-        <p className="eyebrow">Compra protegida · {o.code}</p>
+        <p className="eyebrow">Pedido {o.code}</p>
         <h2 className="text-2xl">
           Manda {monto} USDC a tu cuenta de Trato
         </h2>

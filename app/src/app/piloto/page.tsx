@@ -59,7 +59,7 @@ export default function Piloto() {
         <h1 className="mt-2 text-3xl">Piloto con vendedores reales</h1>
         <p className="mt-3 text-tinta-600">
           Buscamos tiendas de celulares y electrónica que vendan a otras ciudades por encomienda (tickets de Bs 1.000 a 7.000). Anótate y te acompañamos en tus
-          primeras ventas protegidas.
+          primeras ventas con Trato.
         </p>
       </header>
       <form className="card space-y-4 sm:p-6" onSubmit={submit} data-testid="form-piloto">

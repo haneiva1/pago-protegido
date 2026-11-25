@@ -2,7 +2,7 @@
   "name": "pago-protegido-bot",
   "version": "0.1.0",
   "private": true,
-  "description": "Pago Protegido: bot de WhatsApp para que el vendedor cree links de pago desde el chat y reciba avisos de cada pedido",
+  "description": "Trato: bot de WhatsApp para que el vendedor cree links de pago desde el chat y reciba avisos de cada pedido",
   "type": "module",
   "engines": {
     "node": ">=22"

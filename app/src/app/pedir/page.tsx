@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { WhatsAppBox } from "@/components/WhatsAppBox";
 
-/** "Pide compra protegida": el comprador le pide al vendedor que use Trato, con un mensaje listo. */
+/** "Pide pagar con Trato": el comprador le pide al vendedor que use Trato, con un mensaje listo. */
 export default function Pedir() {
   const [product, setProduct] = useState("");
   const [price, setPrice] = useState("");
@@ -17,8 +17,8 @@ export default function Pedir() {
     <div className="mx-auto max-w-md space-y-5 pt-2">
       <header>
         <p className="eyebrow">Para compradores</p>
-        <h1 className="mt-2 text-3xl">Pide compra protegida</h1>
-        <p className="mt-3 text-tinta-600">¿Te da miedo pagar por adelantado a una tienda de otra ciudad? Pídele que te venda con Trato.</p>
+        <h1 className="mt-2 text-3xl">Pide pagar con Trato</h1>
+        <p className="mt-3 text-tinta-600">¿Te da miedo pagar por adelantado? Mándale este mensaje a la tienda.</p>
       </header>
       <div className="card space-y-4 sm:p-6">
         <div>

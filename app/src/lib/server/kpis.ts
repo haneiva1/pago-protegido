@@ -153,7 +153,7 @@ export function comprasDeGrupo(grupo: Grupo, all = comprasOnchain()): CompraOnch
 /** Qué compras forman cada número de /metricas (la lista que se abre al tocarlo). */
 export const KPI_DETALLE: Record<KpiClave, { titulo: string; explica: string; filtro: (c: CompraOnchain) => boolean }> = {
   compras: {
-    titulo: "Compras protegidas y monto protegido",
+    titulo: "Compras y monto",
     explica: "Cada compra es un pago que quedó bloqueado en su propio contrato hasta que se decida si va al vendedor o vuelve al comprador.",
     filtro: () => true,
   },

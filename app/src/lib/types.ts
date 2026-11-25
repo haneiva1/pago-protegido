@@ -50,7 +50,7 @@ export interface Kpis {
   devoluciones_sin_despacho: number;
   mas_tiempo: number;
   reclamos_perdidos: number;
-  /** Primera compra protegida (hora del ledger). */
+  /** Primera compra con Trato (hora del ledger). */
   desde: string | null;
 }
 

@@ -75,7 +75,7 @@ test("métricas en vivo: piloto y pruebas del equipo por separado, cada número 
   await expect(page.getByTestId("inscritas-piloto").getByTestId("valor")).toHaveText("0");
   const eq = page.getByTestId("grupo-equipo");
   await expect(eq.getByTestId("kpi-compras")).toContainText("Compras de prueba internas en testnet");
-  await expect(eq).not.toContainText("Compras protegidas");
+  await expect(eq).not.toContainText("Compras con Trato");
   for (const id of ["kpi-compras", "kpi-monto", "kpi-sin-reclamo", "kpi-cobro", "kpi-reclamos", "kpi-devoluciones", "kpi-mas-tiempo", "kpi-despacho"]) {
     await expect(eq.getByTestId(id)).toBeVisible();
     await expect(eq.getByTestId(id)).toHaveAttribute("href", /^\/metricas\/equipo\/[a-z-]+$/);
@@ -152,6 +152,7 @@ test("perfil verificable de la tienda (/tienda/<slug>): mismos números que la t
   // Página de pago del comprador: la tarjeta del vendedor muestra los números y enlaza al perfil.
   await page.goto(`/p/${link.slug}`);
   const tarjeta = page.getByTestId("vendedor");
+  await tarjeta.locator("summary").first().click(); // la ficha de la tienda va plegada
   await expect(tarjeta).toContainText("La tienda");
   await expect(tarjeta).toContainText("Calzados Sofi");
   await expect(tarjeta).toContainText("Cochabamba");

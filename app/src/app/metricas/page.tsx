@@ -10,7 +10,7 @@ import type { Grupo, GrupoMetricas } from "@/lib/types";
 export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Métricas en vivo · Trato",
-  description: "Compras protegidas, monto, reclamos y tiempos de cobro, calculados con el registro público de cada compra.",
+  description: "Compras, monto, reclamos y tiempos de cobro, calculados con el registro público de cada compra.",
 };
 
 function KpiTile({ href, label, value, sub, testId }: { href: string; label: string; value: string; sub?: string; testId: string }) {

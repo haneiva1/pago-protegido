@@ -42,7 +42,7 @@ describe("verificador de links (bot contra la app de mentira)", () => {
 
   it("un link reenviado dentro de un mensaje se verifica solo", async () => {
     const o = newLink();
-    const [ok] = await texts(BUYER, `Hola! Te paso el link de pago protegido 👉 ${URL_}/p/${o.slug} gracias`);
+    const [ok] = await texts(BUYER, `Hola! Te paso el link de pago 👉 ${URL_}/p/${o.slug} gracias`);
     expect(ok).toMatch(/^✅ Auténtico: Tienda Demo/);
     const [fake] = await texts(BUYER, `Entra aquí para cobrar tu venta: https://pago-protegido.co/p/${o.slug}`);
     expect(fake.split("\n")[0]).toBe(VERIFY_FAKE);
@@ -150,7 +150,7 @@ describe("avisos al vendedor", () => {
   it("al entregar el link de pago: 'el QR de pago nunca está a nombre de una persona'", async () => {
     bot.greeted.add(SELLER);
     const [first, second] = await texts(SELLER, "vendo zapatillas nike 40 a 450 bs entrega 3 días");
-    expect(first).toMatch(/Tu link de pago protegido/);
+    expect(first).toMatch(/Tu link de pago/);
     expect(first).toContain(QR_WARNING);
     expect(second).toMatch(/Reenvíale esto/);
   });

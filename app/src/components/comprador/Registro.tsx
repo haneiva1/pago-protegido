@@ -8,8 +8,22 @@ import { fmtBsUnits } from "@/lib/format";
 import type { OrderView } from "@/lib/types";
 
 /** Línea de tiempo del pedido con los plazos (despacho y revisión). */
-export function LineaDeTiempo({ v, onReload, onExtend }: { v: OrderView; onReload: () => void; onExtend?: () => void }) {
+export function LineaDeTiempo({ v, plegada = false, onReload, onExtend }: { v: OrderView; plegada?: boolean; onReload: () => void; onExtend?: () => void }) {
   const o = v.order;
+  // Recién pagado, el próximo paso y el plazo ya están arriba: el detalle queda plegado.
+  if (plegada)
+    return (
+      <details className="group border-t border-tinta-200" data-testid="seguimiento-plegado">
+        <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-2 text-lg font-semibold [&::-webkit-details-marker]:hidden">
+          Seguimiento · {o.code}
+          <IconoChevronAbajo className="h-5 w-5 flex-none text-tinta-500 transition-transform duration-200 group-open:rotate-180" />
+        </summary>
+        <div className="space-y-4 pb-5">
+          <Timeline order={o} txs={v.txs} />
+          <ShipDeadline shipDeadline={o.ship_deadline} status={o.status} role="comprador" />
+        </div>
+      </details>
+    );
   return (
     <section className="space-y-4 border-t border-tinta-200 pt-6">
       {/* Con el código de 8 caracteres, en celular la etiqueta de estado baja en vez de cortar el título. */}
