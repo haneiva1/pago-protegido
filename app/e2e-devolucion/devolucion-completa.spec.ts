@@ -98,6 +98,7 @@ test("devolución completa: sin despacho, el comprador recupera todo lo que pag�
   await expect(rei).toContainText("Te devolvimos todo lo que pagaste", CHAIN);
   await expect(rei).toContainText("Trato te transfirió las comisiones");
   await expect(rei.locator(TX_LINK)).toHaveCount(2);
+  await buyer.getByText(/^Movimientos en la red \(\d+\)$/).click(); // el historial va plegado
   await expect(buyer.getByText(/Trato te devolvió las comisiones \(Bs .*\): recibiste todo lo que pagaste/)).toBeVisible();
   await capturar(buyer, "comprador-devolucion-completa");
 

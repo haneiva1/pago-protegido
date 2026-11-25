@@ -152,6 +152,7 @@ test("perfil verificable de la tienda (/tienda/<slug>): mismos números que la t
   // Página de pago del comprador: la tarjeta del vendedor muestra los números y enlaza al perfil.
   await page.goto(`/p/${link.slug}`);
   const tarjeta = page.getByTestId("vendedor");
+  await tarjeta.locator("summary").first().click(); // la ficha de la tienda va plegada
   await expect(tarjeta).toContainText("La tienda");
   await expect(tarjeta).toContainText("Calzados Sofi");
   await expect(tarjeta).toContainText("Cochabamba");
