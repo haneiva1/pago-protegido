@@ -149,15 +149,28 @@ export function plantillaPayload(to: string, p: Plantilla, params: string[]): Js
   };
 }
 
-/** Error de la Graph API con su código (131047, 190, …). */
+/** Error de la Graph API con su código (131047, 190, …), o del intermediario con su motivo ("insufficient_credits"). */
 export class GraphError extends Error {
+  readonly motivo?: string;
   constructor(
     readonly status: number,
     readonly code: number | undefined,
     detalle: string,
+    o: { api?: string; motivo?: string } = {},
   ) {
-    super(`Graph API ${status}${code ? ` (${code})` : ""}: ${detalle.slice(0, 300)}`);
+    const cual = code || o.motivo;
+    super(`${o.api ?? "Graph API"} ${status}${cual ? ` (${cual})` : ""}: ${detalle.slice(0, 300)}`);
+    this.motivo = o.motivo;
   }
+}
+
+/** Lo que cambia al mandar si hay un proveedor entre el bot y Meta (Kapso). */
+export interface Intermediario {
+  /** Su credencial, en lugar de `Authorization: Bearer`. */
+  cabeceras: Record<string, string>;
+  error(status: number, data: Json, texto: string): GraphError;
+  /** Errores propios que vale la pena reintentar, además de los de Meta. */
+  reintentar(e: GraphError): boolean;
 }
 
 /** Fuera de la ventana de 24 horas: solo se pueden mandar plantillas. */
@@ -193,6 +206,8 @@ export interface GraphConfig {
   phoneNumberId: string;
   version?: string;
   baseUrl?: string;
+  /** Sin esto, la Graph API de Meta directa. */
+  intermediario?: Intermediario;
   fetchFn?: typeof fetch;
   /** Espera antes de cada reintento (ms). [] = sin reintentos. */
   reintentosMs?: number[];
@@ -224,7 +239,7 @@ export class GraphSender {
         return d.messages?.[0]?.id;
       } catch (e) {
         // Un corte por tiempo no se reintenta: Meta puede haberlo recibido y la persona vería el mensaje dos veces.
-        const pasajero = e instanceof GraphError ? e.status === 429 || e.status >= 500 || (e.code != null && PASAJEROS.has(e.code)) : e instanceof TypeError;
+        const pasajero = e instanceof GraphError ? e.status === 429 || e.status >= 500 || (e.code != null && PASAJEROS.has(e.code)) || !!this.c.intermediario?.reintentar(e) : e instanceof TypeError;
         if (!pasajero || i >= esperas.length) throw e;
         await new Promise((r) => setTimeout(r, esperas[i]));
       }
@@ -233,9 +248,12 @@ export class GraphSender {
 
   private async pedir(ruta: string, init: RequestInit): Promise<Json> {
     const url = `${this.c.baseUrl ?? "https://graph.facebook.com"}/${this.c.version ?? "v23.0"}/${ruta}`;
+    const inter = this.c.intermediario;
     const res = await (this.c.fetchFn ?? fetch)(url, {
       ...init,
-      headers: { authorization: `Bearer ${this.c.token}`, "content-type": "application/json" },
+      headers: { ...(inter ? inter.cabeceras : { authorization: `Bearer ${this.c.token}` }), "content-type": "application/json" },
+      // fetch quita `authorization` al seguir una redirección a otro dominio, pero no las demás cabeceras: no se sigue.
+      ...(inter ? { redirect: "manual" as const } : {}),
       signal: AbortSignal.timeout(15_000),
     });
     const texto = await res.text();
@@ -245,9 +263,17 @@ export class GraphSender {
     } catch {
       /* respuesta sin JSON */
     }
+    if (!res.ok && inter) throw inter.error(res.status, data ?? {}, texto);
     if (!res.ok) throw new GraphError(res.status, data.error?.code, data.error?.error_data?.details ?? data.error?.message ?? texto);
     return data;
   }
+}
+
+/** Cómo se comprueba y se lee el webhook si no llega directo de Meta (Kapso). */
+export interface LectorWebhook {
+  firmaValida(raw: Buffer, headers: http.IncomingHttpHeaders): boolean;
+  mensajes(body: Json): Incoming[];
+  estados(body: Json): EstadoEnvio[];
 }
 
 export interface WebhookDeps {
@@ -258,6 +284,8 @@ export interface WebhookDeps {
   appSecret: string;
   /** Si está, se ignoran los mensajes a otros números de la misma cuenta. */
   phoneNumberId?: string;
+  /** Reemplaza la firma y el formato de Meta. Sin esto, el webhook es el de Meta. */
+  lector?: LectorWebhook;
   path?: string;
   /** Antes de atender: abre la ventana de 24 horas. */
   onInbound?: (m: Incoming) => void;
@@ -276,6 +304,11 @@ export const corto = (tel: string) => `…${tel.slice(-4)}`;
 /** Servidor HTTP del webhook. Responde 200 al instante y procesa después (Meta reintenta si tarda). */
 export function createWebhookServer(d: WebhookDeps): http.Server {
   const path = d.path ?? "/webhook";
+  const lector: LectorWebhook = d.lector ?? {
+    firmaValida: (raw, headers) => validSignature(raw, headers["x-hub-signature-256"] as string | undefined, d.appSecret),
+    mensajes: (body) => parseWebhook(body, d.phoneNumberId),
+    estados: (body) => parseStatuses(body, d.phoneNumberId),
+  };
   const seen = new Set<string>();
   const colas = new Map<string, Promise<void>>();
 
@@ -341,7 +374,7 @@ export function createWebhookServer(d: WebhookDeps): http.Server {
         chunks.push(c as Buffer);
       }
       const raw = Buffer.concat(chunks);
-      if (!validSignature(raw, req.headers["x-hub-signature-256"] as string | undefined, d.appSecret)) {
+      if (!lector.firmaValida(raw, req.headers)) {
         res.statusCode = 401;
         return void res.end("Bad signature");
       }
@@ -353,8 +386,8 @@ export function createWebhookServer(d: WebhookDeps): http.Server {
       }
       res.statusCode = 200;
       res.end("EVENT_RECEIVED");
-      procesar(parseWebhook(body, d.phoneNumberId));
-      void estados(parseStatuses(body, d.phoneNumberId));
+      procesar(lector.mensajes(body));
+      void estados(lector.estados(body));
     } catch (e) {
       console.error("[whatsapp] webhook:", e instanceof Error ? e.message : e);
       if (!res.headersSent) res.statusCode = 400;

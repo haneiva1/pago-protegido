@@ -110,12 +110,15 @@ Se leen de `.env` si existe (ver [`.env.example`](.env.example)). **Nunca commit
 | `PP_PUBLIC_URL` | `PP_APP_URL` | URL de los links que ve la gente (túnel o dominio) |
 | `PP_BOT_KEY` | vacío | Clave compartida con la app para `/api/bot/*` (APP-ENDPOINTS.md §0) |
 | `STELLAR_NETWORK` | `testnet` | Red de la app de `PP_APP_URL`: `testnet` o `mainnet`. Cambia la moneda de los mensajes y se comprueba al arrancar |
+| `WA_PROVIDER` | `meta` | Quién conecta con WhatsApp: `meta` (directo) o `kapso`. Ver [`../docs/WHATSAPP.md`](../docs/WHATSAPP.md#13-con-kapso) |
+| `KAPSO_API_KEY` | — | Solo con `kapso`: clave del proyecto. Reemplaza a `WA_TOKEN` |
+| `KAPSO_WEBHOOK_SECRET` | — | Solo con `kapso`: secreto del webhook, se exige la firma `X-Webhook-Signature`. Reemplaza a `WA_APP_SECRET` y `WA_VERIFY_TOKEN` |
 | `WA_TOKEN` | — | Token de la Graph API (`npm start`) |
 | `WA_PHONE_NUMBER_ID` | — | ID del número que envía (`npm start`) |
 | `WA_VERIFY_TOKEN` | — | Palabra para verificar el webhook (`npm start`) |
 | `WA_APP_SECRET` | — | Clave secreta de la app de Meta: se exige la firma `X-Hub-Signature-256` (`npm start`) |
 | `WA_TEMPLATE_AVISO` / `WA_TEMPLATE_LANG` | vacío / `es` | Plantilla aprobada para avisar fuera de las 24 horas. Vacía = los avisos esperan a que la persona escriba |
-| `WA_GRAPH_VERSION` | `v23.0` | Versión de la Graph API |
+| `WA_GRAPH_VERSION` | `v23.0` (`v24.0` con `kapso`) | Versión de la Graph API |
 | `PORT` | `3040` | Puerto del webhook |
 | `SIM_PORT` | `3030` | Puerto del simulador |
 | `MOCK_PORT` | `3031` | Puerto de la app de mentira (`sim:demo`, `npm run mock`) |
@@ -143,6 +146,7 @@ src/
   reports.ts           reportes de links (JSONL local)
   transports/
     whatsapp.ts        webhook (GET verificación, POST mensajes, firma) + envío por Graph API
+    kapso.ts           WA_PROVIDER=kapso: firma, formatos del webhook y errores de Kapso
     simulator.ts       servidor del simulador (SSE) + sim.html (chat estilo WhatsApp)
   mock/app-mock.ts     app de mentira con las mismas formas de la API (tests, e2e, demo)
   main.ts              arranque: --sim, --mock, --whatsapp
