@@ -150,3 +150,8 @@ Criterio: cuando el SPEC no decide algo, se elige **la opción más simple que r
 50. **En modo WhatsApp, lo que falta es un error, no un valor por defecto:** las cuatro `WA_…`, `PP_APP_URL`, `PP_BOT_KEY` y una URL pública con `https`. `WA_APP_SECRET` pasó a ser obligatoria: sin la firma, cualquiera podría escribir en nombre de una tienda. `--mock` no se puede combinar con `--whatsapp`.
 51. **Un mensaje sin teléfono** (nombres de usuario de WhatsApp, 2026) llega con el ID de la persona para este negocio. El bot le contesta por `recipient` y le pide que escriba desde su número: sin teléfono no hay tienda ni compra que buscar. El verificador de links sí funciona.
 52. **Un corte por tiempo no se reintenta.** Meta puede haber recibido el mensaje y la persona lo vería dos veces. Se reintentan (2 veces) los errores pasajeros y los cortes de conexión.
+53. **Kapso es un modo, no un reemplazo** (`WA_PROVIDER=kapso`; por defecto, Meta directo sin cambios). Su proxy habla el idioma de la Cloud API, así que solo cambian la URL, la credencial (`X-API-Key`) y la firma del webhook.
+   - Se recomienda su webhook crudo de Meta (`kind: meta`), y se acepta también el formato propio de Kapso: los dos se leen con el mismo lector.
+   - El filtro por número es más estricto que con Meta: lo que no dice a qué número llegó, se ignora. Kapso reenvía todos los campos de Meta y solo se atiende `messages`.
+   - No se siguen redirecciones: `fetch` reenviaría `X-API-Key` a otro dominio.
+   - Se reintenta también el 409 sin motivo (otro mensaje a esa persona todavía está saliendo).

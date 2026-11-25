@@ -13,6 +13,7 @@ import { Outbox, type AvisoMeta } from "./notify/outbox.ts";
 import { Poller } from "./notify/poller.ts";
 import { ReportStore } from "./reports.ts";
 import { estadoDe, guardarEstado, leerEstado, type Saved } from "./state.ts";
+import { apiKapso, lectorKapso } from "./transports/kapso.ts";
 import { createSimulator } from "./transports/simulator.ts";
 import { GraphError, GraphSender, createWebhookServer, pista } from "./transports/whatsapp.ts";
 
@@ -134,7 +135,8 @@ if (useSim) {
   send = sim.send;
   sim.server.listen(cfg.simPort, () => console.log(`Simulador en http://localhost:${cfg.simPort} (app: ${publicUrl})`));
 } else {
-  const graph = new GraphSender(cfg.wa);
+  const kapso = cfg.wa.proveedor === "kapso";
+  const graph = new GraphSender(kapso ? { ...cfg.wa, token: "", intermediario: apiKapso(cfg.wa.kapso.apiKey), reintentosMs: [500, 2000, 5000] } : cfg.wa);
   const plantilla = cfg.wa.plantilla ? { name: cfg.wa.plantilla, lang: cfg.wa.plantillaLang } : null;
   const bandeja = (outbox = new Outbox({
     send: (to, m) => graph.send(to, m),
@@ -146,9 +148,11 @@ if (useSim) {
   const server = createWebhookServer({
     handle,
     send: (to, m) => graph.send(to, m),
-    verifyToken: cfg.wa.verifyToken,
-    appSecret: cfg.wa.appSecret,
+    // Kapso no hace la verificación GET ni firma con la clave de Meta: con Kapso, esas dos puertas quedan cerradas.
+    verifyToken: kapso ? "" : cfg.wa.verifyToken,
+    appSecret: kapso ? "" : cfg.wa.appSecret,
     phoneNumberId: cfg.wa.phoneNumberId,
+    ...(kapso ? { lector: lectorKapso({ secreto: cfg.wa.kapso.webhookSecret, phoneNumberId: cfg.wa.phoneNumberId }) } : {}),
     onInbound: (m) => bandeja.entrante(m.from, m.at),
     onHandled: (from) => bandeja.entregar(from),
     onStatus: (s) => bandeja.estado(s),
@@ -156,13 +160,14 @@ if (useSim) {
   });
   server.listen(cfg.port, () => {
     console.log(`WhatsApp real: webhook en el puerto ${cfg.port}, ruta /webhook (${cfg.red}, app: ${publicUrl})`);
+    if (kapso) console.log("Proveedor: Kapso (WA_PROVIDER=kapso)");
     console.log(plantilla ? `Fuera de las 24 horas: plantilla "${plantilla.name}" (${plantilla.lang})` : "Fuera de las 24 horas: los avisos esperan a que la persona escriba");
   });
   // Solo informa: si Meta no responde, el webhook igual tiene que estar arriba.
   graph
     .numero()
     .then((n) => console.log(`Número de WhatsApp: ${n}`))
-    .catch((e) => console.error("[whatsapp] Meta no confirmó el número:", e instanceof Error ? e.message : e, pista(e instanceof GraphError ? e.code : undefined)));
+    .catch((e) => console.error(`[whatsapp] ${kapso ? "Kapso" : "Meta"} no confirmó el número:`, e instanceof Error ? e.message : e, pista(e instanceof GraphError ? e.code : undefined)));
 
   const reloj = setInterval(() => void bandeja.vuelta().catch((e) => console.error("[avisos]", e)), cfg.pollMs);
   const cerrar = () => {

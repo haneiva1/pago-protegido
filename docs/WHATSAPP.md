@@ -4,6 +4,8 @@ Guía para poner el bot de Trato (`bot/`) en un WhatsApp de verdad, con la API o
 
 **Estado al 24-nov-2026:** el código está listo y probado contra una API de Meta simulada a nivel HTTP. **Todavía no se conectó a Meta:** no se creó ninguna app ni número, y no se tocó Railway. Todo eso lo hace Hans con esta guía (unos 30 minutos). El simulador (`bot-sim`) sigue igual y no se toca.
 
+**Hay dos caminos, y alcanza con uno.** Los pasos 1 a 8 son con Meta directo y su número de prueba (5 teléfonos). El camino corto, sin chip y sin límite de 5 teléfonos, es [Con Kapso](#13-con-kapso): un número de EE.UU. ya verificado. Las secciones 9, 10 y 12 valen para los dos.
+
 - [1. Qué vas a necesitar](#1-qué-vas-a-necesitar)
 - [2. Crear la app en Meta](#2-crear-la-app-en-meta)
 - [3. El número de prueba y su Phone number ID](#3-el-número-de-prueba-y-su-phone-number-id)
@@ -16,6 +18,7 @@ Guía para poner el bot de Trato (`bot/`) en un WhatsApp de verdad, con la API o
 - [10. Testnet o mainnet](#10-testnet-o-mainnet)
 - [11. Si algo falla](#11-si-algo-falla)
 - [12. Límites conocidos](#12-límites-conocidos)
+- [13. Con Kapso](#13-con-kapso)
 
 ---
 
@@ -268,3 +271,136 @@ El registro del servicio en Railway dice qué pasó y qué hacer. Los teléfonos
 ### Fuentes
 
 Documentación de Meta, leída el 24-nov-2026: [Get Started](https://developers.facebook.com/documentation/business-messaging/whatsapp/get-started), [webhooks](https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/create-webhook-endpoint), [tokens](https://developers.facebook.com/documentation/business-messaging/whatsapp/access-tokens), [envío y ventana de 24 horas](https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-messages), [errores](https://developers.facebook.com/documentation/business-messaging/whatsapp/support/error-codes), [precios](https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing), [nombres de usuario y BSUID](https://developers.facebook.com/documentation/business-messaging/whatsapp/business-scoped-user-ids), [`subscribed_apps`](https://developers.facebook.com/documentation/business-messaging/whatsapp/solution-providers/manage-webhooks) y [versiones de la Graph API](https://developers.facebook.com/docs/graph-api/changelog/versions). El recorrido exacto por las pantallas puede variar: Meta las cambia seguido.
+
+## 13. Con Kapso
+
+[Kapso](https://kapso.ai) es un servicio que va entre el bot y la API oficial de WhatsApp (Meta). Da un número de EE.UU. **ya verificado** (sin chip ni código por SMS) y reemplaza los pasos 2 a 5 y el 7: no hace falta crear una app de Meta ni un token, y el número habla con cualquiera, no solo con 5 teléfonos.
+
+**Estado al 24-nov-2026:** el código está listo y probado contra un Kapso simulado, con los ejemplos de su documentación. **Todavía no se conectó:** no se creó ninguna cuenta ni se tocó Railway. Unos 20 minutos, si Meta no pide nada más.
+
+### 13.1. Crear la cuenta
+
+1. Entra a <https://app.kapso.ai> y regístrate. Quédate en el plan **Free** y en el proyecto que te crea.
+2. Usa Chrome, sin bloqueador de anuncios y con las ventanas emergentes permitidas: el paso siguiente abre una de Meta.
+3. Ten a mano la cuenta de Facebook que administra tu portafolio comercial de Meta, y una web pública `https` del negocio por si Meta la pide (sirve la de la demo).
+
+### 13.2. Conectar el número (Instant setup)
+
+1. **Connected numbers → Connect new number → Instant setup**.
+2. Se abre Meta: entra con Facebook y toca **Continue**.
+3. En **Add your WhatsApp phone number**, abre la lista **Phone number** y elige uno con la marca **Verified** (tiene un maletín).
+   - No elijas **Enter a new phone number**: pide SMS.
+   - No elijas **Use a display name with a virtual number instead**: es un número limitado, que deja de funcionar a los 5 mensajes.
+   - Si no aparece ninguno con **Verified**, cancela y empieza de nuevo desde Kapso.
+4. Elige tu portafolio comercial. En **WhatsApp Business account**, crea una cuenta nueva (o usa la que tengas) → **Next → Confirm → Finish**.
+5. Si en algún paso Meta pide el nombre visible, pon **Trato**. Si no lo pide, o quedó otro: **Connected numbers →** tu número **→ Profile → Display name →** `Trato` **→** enviar. Meta lo revisa, casi siempre en 24 a 48 horas, y puede rechazarlo si no coincide con tu web. Mientras tanto, la documentación no dice qué nombre se ve.
+6. Kapso tiene que mostrar el número como conectado. Si queda **pendiente**, Meta está revisando la cuenta nueva: Kapso reintenta solo, pero no hay plazo publicado. **Es el riesgo principal para el viernes:** haz este paso cuanto antes.
+7. No le conectes workflows ni agentes de Kapso, ni el agente de IA de Meta: contestarían además del bot.
+
+### 13.3. La clave y el Phone number ID
+
+En el panel de Kapso, crea una **API key** del proyecto. La vas a pegar en Railway y en tu Terminal, nunca en un chat. Corre esta línea sola, pega la clave (no se ve) y toca Enter:
+
+```bash
+read -rs KAPSO_API_KEY
+```
+
+Después, la lista de tus números:
+
+```bash
+curl -sS -H "X-API-Key: $KAPSO_API_KEY" https://api.kapso.ai/platform/v1/whatsapp/phone_numbers
+```
+
+En la respuesta, `display_phone_number` es el número al que le van a escribir, y `phone_number_id`, el que va en `WA_PHONE_NUMBER_ID`.
+
+### 13.4. Crear el webhook
+
+Kapso tiene dos tipos de webhook por número. El bot entiende los dos; crea **uno solo**.
+
+**Opción A, la recomendada: el webhook crudo de Meta** (`kind: meta`). Llega lo mismo que manda Meta, sin traducir, y con los estados de envío incluidos. El secreto lo inventas tú, y Kapso firma cada aviso con él (`X-Webhook-Signature`). En la misma Terminal del paso anterior, corre esta línea sola, pega tu `phone_number_id` y toca Enter:
+
+```bash
+read -r WA_PHONE_NUMBER_ID
+```
+
+Después, este bloque:
+
+```bash
+KAPSO_WEBHOOK_SECRET=$(openssl rand -hex 32)
+printf '{"whatsapp_webhook":{"kind":"meta","url":"https://bot-wa-production-d5cbe08f.up.railway.app/webhook","secret_key":"%s","active":true}}' "$KAPSO_WEBHOOK_SECRET" | curl -sS -o /dev/null -w "%{http_code}\n" -X POST "https://api.kapso.ai/platform/v1/whatsapp/phone_numbers/$WA_PHONE_NUMBER_ID/webhooks" -H "X-API-Key: $KAPSO_API_KEY" -H "Content-Type: application/json" -d @-
+printf %s "$KAPSO_WEBHOOK_SECRET" | pbcopy
+```
+
+Tiene que responder `201`. La última línea deja el secreto en el portapapeles, para el paso 13.5. Hay un solo webhook de Meta por número: si ya creaste uno, bórralo o edítalo en el panel.
+
+También se puede desde el panel (tu número **→ Edit → Webhook destination URL**), pero la documentación no dice si esa pantalla te deja poner el secreto. Sin secreto conocido el bot rechaza todo con 401, así que conviene el comando.
+
+**Opción B, el webhook de Kapso** (`kind: kapso`), desde los webhooks de **tu número** (no en **Platform webhooks**, que no trae mensajes):
+
+- URL: `https://bot-wa-production-d5cbe08f.up.railway.app/webhook`
+- Eventos: `whatsapp.message.received`, `whatsapp.message.delivered`, `whatsapp.message.read` y `whatsapp.message.failed`.
+- Secreto: cópialo, va en `KAPSO_WEBHOOK_SECRET`.
+- **Buffering apagado:** con él, cada respuesta tarda unos segundos más (el bot igual entiende los lotes).
+
+### 13.5. Variables en Railway (servicio `bot-wa`)
+
+| Variable | Valor |
+|---|---|
+| `WA_PROVIDER` | `kapso` |
+| `KAPSO_API_KEY` | la clave del paso 13.3 |
+| `KAPSO_WEBHOOK_SECRET` | el secreto del paso 13.4 |
+| `WA_PHONE_NUMBER_ID` | el `phone_number_id` del paso 13.3. No es el número de teléfono |
+
+Las que no son de WhatsApp quedan como en el [paso 6](#6-el-servicio-en-railway): `RAILWAY_DOCKERFILE_PATH`, `RAILWAY_RUN_UID`, `PORT`, `PP_APP_URL` y `PP_BOT_KEY`, con su volumen en `/data`, `/health` y 1 réplica. `WA_TOKEN`, `WA_VERIFY_TOKEN` y `WA_APP_SECRET` **no hacen falta**; si están, no se usan. No pongas `WA_GRAPH_VERSION`: con Kapso es `v24.0`, la de su documentación.
+
+Para volver a Meta directo: borra `WA_PROVIDER` (o ponla en `meta`), con las cuatro variables del [paso 5](#5-las-credenciales), y despliega de nuevo.
+
+Despliega (el código tiene que estar en `main`). En el registro:
+
+```
+WhatsApp real: webhook en el puerto 3040, ruta /webhook (testnet, app: https://…)
+Proveedor: Kapso (WA_PROVIDER=kapso)
+Fuera de las 24 horas: los avisos esperan a que la persona escriba
+Avisos: revisando la app cada 10 s
+Número de WhatsApp: +1 … (Trato)
+```
+
+Después: `curl https://bot-wa-production-d5cbe08f.up.railway.app/health` responde `ok`, y se hace la [prueba de humo](#8-prueba-de-humo-2-minutos) escribiéndole al número nuevo desde cualquier celular. Opcional: `NEXT_PUBLIC_BOT_WHATSAPP` en el servicio de la app, con el número nuevo.
+
+### 13.6. Qué cambia y qué no
+
+- **No cambia:** la ventana de 24 horas, los avisos guardados, la plantilla opcional y testnet o mainnet (secciones 9 y 10). La plantilla hay que aprobarla en la cuenta nueva.
+- **Firma:** se exige `X-Webhook-Signature` (HMAC-SHA256 en hex del cuerpo crudo, con `KAPSO_WEBHOOK_SECRET`). La firma de Meta y la verificación GET quedan cerradas: la documentación de Kapso no las usa.
+- **Un solo número:** se atiende solo lo que llega a `WA_PHONE_NUMBER_ID`. Lo de otro número, o lo que no dice a cuál llegó, se ignora. También el historial importado y los chats que atiende otra app.
+- **Costos:** Kapso Free incluye 2.000 mensajes por mes, contando los que entran y los que salen. Aparte, Meta da 1.000 mensajes de servicio gratis por mes y por número, y cobra los siguientes. El límite es de 100 pedidos por minuto.
+- **El número gratis** es uno por persona, para siempre. Si en 30 días no tiene mensajes, Kapso lo libera.
+
+### 13.7. Si algo falla
+
+| Síntoma | Causa y solución |
+|---|---|
+| No arranca: `Falta KAPSO_…` o `WA_PROVIDER tiene que ser…` | Esa variable falta o tiene otro valor (13.5) |
+| El webhook da 401 | `KAPSO_WEBHOOK_SECRET` no es el de **ese** webhook |
+| El webhook da 200 pero el bot no contesta | `WA_PHONE_NUMBER_ID` no es el del número que recibió el mensaje, o el webhook es de **Platform webhooks** |
+| Dejaron de llegar mensajes | Con muchos fallos en 15 minutos (40 o más entregas, 85 % falladas) Kapso pausa el webhook y avisa por correo: **Integrations → Webhooks → activar** |
+| `Kapso 401` | `KAPSO_API_KEY` no sirve: crea otra |
+| `Kapso 401 (190)` | Kapso perdió el permiso de Meta: vuelve a conectar el número |
+| `Kapso 402 (…)` | No puede cobrar el mensaje. Mira **Phone numbers →** tu número **→ Meta message fees** y el saldo del proyecto |
+| `Kapso 404` | El Phone number ID no es de ese proyecto |
+| `Kapso 409` sin más | Otro mensaje para esa persona estaba saliendo. El bot repite hasta 3 veces |
+| `Kapso 409 (thread_not_owner)` | Otra app atiende ese chat: desconéctala del número en Meta |
+| `Kapso 422 (131047)` | Pasaron más de 24 horas: el aviso sale cuando escriba (sección 9) |
+| `Kapso 423 (project_under_review)` | Kapso está revisando la cuenta. Escríbele a su soporte |
+| El número sigue pendiente | [Instant setup troubleshooting](https://docs.kapso.ai/docs/how-to/whatsapp/instant-setup-troubleshooting.md) |
+
+### 13.8. Lo que la documentación de Kapso no aclara
+
+- **Si el número es gratis del todo.** *Instant setup* dice que el primero, en el plan Free, no lleva depósito; *Connect WhatsApp* y *Pricing* hablan de «un depósito chico» que queda como crédito. Si te lo pide, es decisión tuya.
+- **Si hace falta saldo para responder.** Los primeros 1.000 mensajes por mes son gratis, pero también dice que los envíos se permiten «con saldo positivo» y no dice qué pasa con saldo cero. Si ves `Kapso 402`, es eso.
+- **En qué pantalla se pone el nombre** durante Instant setup, y qué nombre se ve mientras Meta lo aprueba.
+- **En qué pantalla están** la API key, el Phone number ID y el secreto del webhook de Meta. Por eso los comandos.
+- **Qué forma exacta tienen los errores 401 y 5xx.** El bot acepta las dos formas que usa Kapso (la de Meta y `{"error": "texto"}`).
+
+### Fuentes de Kapso
+
+Leídas el 24-nov-2026: [Connect WhatsApp](https://docs.kapso.ai/docs/how-to/whatsapp/connect-whatsapp.md), [Instant setup](https://docs.kapso.ai/docs/platform/phone-numbers/instant-setup.md), [webhooks](https://docs.kapso.ai/docs/platform/webhooks/overview.md), [eventos](https://docs.kapso.ai/docs/platform/webhooks/message-events.md), [firma](https://docs.kapso.ai/docs/platform/webhooks/security.md), [entrega y lotes](https://docs.kapso.ai/docs/platform/webhooks/advanced.md), [crear webhook](https://docs.kapso.ai/api/platform/v1/webhooks/create-webhook.md), [enviar](https://docs.kapso.ai/api/meta/whatsapp/messages/send-a-message.md), [nombre visible](https://docs.kapso.ai/docs/whatsapp/display-names.md), [precios](https://docs.kapso.ai/docs/whatsapp/pricing-faq.md), [cobro de Meta](https://docs.kapso.ai/docs/whatsapp/meta-message-billing.md) y [límites](https://docs.kapso.ai/api/rate-limits.md). Los tests del modo Kapso están en `bot/test/kapso.test.ts`.
