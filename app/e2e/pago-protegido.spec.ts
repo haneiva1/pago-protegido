@@ -126,6 +126,8 @@ async function pagar(
   // QR como se paga en Bolivia: guardarlo o compartirlo y subirlo desde la galería del banco.
   const qr = page.getByTestId("qr");
   await expect(qr.getByTestId("imagen-qr")).toBeVisible();
+  // Guardarlo, compartirlo y los pasos van plegados en "¿Cómo pago con este QR?".
+  await qr.getByText("¿Cómo pago con este QR?").click();
   await expect(qr.getByRole("button", { name: /Guardar QR/ })).toBeEnabled();
   await expect(qr.getByRole("button", { name: /Compartir QR/ })).toBeEnabled();
   await expect(qr.getByTestId("pasos-qr")).toContainText("Abre tu banco → Pagar con QR → Galería");
@@ -159,9 +161,9 @@ const fotoDe = (page: Page, y: number) => page.screenshot({ clip: { x: 0, y, wid
 async function llenarEnvio(card: Locator, e: { empresa: string; guia?: string; peso: string; ciudad?: string; fotos?: [Buffer, Buffer]; imei?: string }) {
   await card.getByLabel("Empresa de envío").selectOption(e.empresa);
   if (e.guia) await card.getByLabel("Número de guía").fill(e.guia);
-  // El peso, el destino y las fotos van plegados en "Más datos".
+  // El peso, el destino y las fotos van plegados en "Más datos" (cada foto trae adentro su propio plegado).
   const mas = card.getByTestId("mas-datos-envio");
-  if (!(await mas.evaluate((el) => (el as HTMLDetailsElement).open))) await mas.locator("summary").click();
+  if (!(await mas.evaluate((el) => (el as HTMLDetailsElement).open))) await mas.locator("> summary").click();
   await card.getByLabel("Peso declarado (kg)").fill(e.peso);
   if (e.ciudad) await card.getByLabel("Ciudad de destino").selectOption(e.ciudad);
   if (e.fotos) {
@@ -186,6 +188,11 @@ async function marcarEnviado(seller: Page, slug: string, e: Parameters<typeof ll
   await card.getByRole("button", { name: "Marcar como enviado" }).click();
   await expect(card.getByTestId("estado")).toHaveText("Enviado", CHAIN);
   return card;
+}
+
+/** El historial de transacciones del pedido va plegado en "Movimientos en la red (n)". */
+async function abrirMovimientos(buyer: Page) {
+  await buyer.getByText(/^Movimientos en la red \(\d+\)$/).click();
 }
 
 /** "Pagar al vendedor (irreversible)": se habilita 1 minuto después del envío (modo demo) y pregunta antes. */
@@ -531,6 +538,7 @@ test("celular (v2): IMEI obligatorio, revisión desde el envío, «Necesito más
   const plazoAntes = await buyer.getByTestId("plazo").locator(".text-xs").first().innerText();
   await buyer.getByRole("button", { name: "Necesito más tiempo" }).click();
   await expect(buyer.getByTestId("extendido")).toContainText("ya pidió más tiempo una vez", CHAIN);
+  await abrirMovimientos(buyer); // queda abierto: más abajo se busca ahí la liberación por plazo
   await expect(buyer.getByText(/Pediste más tiempo para revisar/)).toBeVisible();
   await expect(buyer.getByRole("button", { name: "Necesito más tiempo" })).toHaveCount(0);
   expect(await buyer.getByTestId("plazo").locator(".text-xs").first().innerText()).not.toBe(plazoAntes);
@@ -571,6 +579,7 @@ test("devolución automática (v2): el vendedor no despacha a tiempo y el pago v
   await expect(buyer.getByTestId("estado-pedido")).toContainText("Te devolvimos tu pago", { timeout: 6 * 60_000 });
   await expect(buyer.getByTestId("devolucion")).toContainText("El vendedor no registró el envío antes del plazo");
   await expect(buyer.getByTestId("registro-publico")).toContainText("Te devolvimos el pago");
+  await abrirMovimientos(buyer);
   await expect(buyer.getByText("Se devolvió el pago al comprador: el vendedor no despachó a tiempo")).toBeVisible();
   await expect(buyer.locator(TX_LINK).last()).toBeVisible();
   await capturar(buyer, "47-comprador-devuelto-sin-despacho");
