@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!o) return { title: "Link de pago · Trato" };
   const store = sellers.get(o.seller_pubkey)?.store_name ?? "La tienda";
   const title = `${o.product} · ${fmtBs(o.price_bs_cents)} | Trato`;
-  const description = `${store} te envió un link de pago protegido. ${TAGLINE}.`;
+  const description = `${store} te envió un link de pago. ${TAGLINE}.`;
   return {
     title,
     description,

@@ -4,7 +4,7 @@ Con este bot, el vendedor crea links de pago desde el chat y recibe un aviso en 
 
 ```
 Vendedor: vendo celular Samsung A54 a 1800 bs entrega 3 días
-Bot:      ¡Listo! ✅ Tu link de pago protegido:
+Bot:      ¡Listo! ✅ Tu link de pago:
           *Celular Samsung A54* · Bs 1.800,00 · entrega en 3 días
           👉 https://…/p/celular-samsung-a54-a1b2c3
           🛡️ Protección: la paga tu cliente (Bs 27,00). Paga Bs 1.827,00 (≈ 156,15 USD de prueba) y tú recibes Bs 1.800,00.

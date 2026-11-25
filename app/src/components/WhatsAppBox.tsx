@@ -18,9 +18,9 @@ export function WhatsAppBox({ title, text, phone, testId }: { title: string; tex
       <div className="grid grid-cols-2 gap-2">
         <a href={waLink(text, phone)} target="_blank" rel="noreferrer" className="btn-oscuro btn-sm">
           <IconoWhatsApp className="h-4 w-4" />
-          Compartir por WhatsApp
+          Enviar por WhatsApp
         </a>
-        <CopyButton text={text} label="Copiar texto" className="btn-secondary btn-sm" />
+        <CopyButton text={text} label="Copiar" className="btn-secondary btn-sm" />
       </div>
     </div>
   );

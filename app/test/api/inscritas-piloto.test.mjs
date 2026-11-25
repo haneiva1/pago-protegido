@@ -60,15 +60,15 @@ test("las compras del equipo se llaman compras de prueba internas, y las del pil
   assert.equal(COMPRAS_INTERNAS, "Compras de prueba internas en testnet");
   assert.equal(rotuloCompras("equipo"), COMPRAS_INTERNAS);
   assert.equal(rotuloMonto("equipo"), "Monto de prueba");
-  assert.equal(rotuloCompras("piloto"), "Compras protegidas");
+  assert.equal(rotuloCompras("piloto"), "Compras con Trato");
   assert.equal(rotuloMonto("piloto"), "Monto protegido");
 });
 
 test("las ventas de una tienda que no es del piloto se llaman compras de prueba internas", async () => {
   assert.equal(rotuloVentas(1, false), "compra de prueba interna en testnet");
   assert.equal(rotuloVentas(57, false), "compras de prueba internas en testnet");
-  assert.equal(rotuloVentas(1, true), "venta protegida");
-  assert.equal(rotuloVentas(3, true), "ventas protegidas");
+  assert.equal(rotuloVentas(1, true), "venta con Trato");
+  assert.equal(rotuloVentas(3, true), "ventas con Trato");
   // La página de pago sabe si la tienda es del piloto.
   const { slug } = nuevoLink();
   const r = await llamar("orders/[slug]", { method: "GET", path: `/api/orders/${slug}`, params: { slug } });

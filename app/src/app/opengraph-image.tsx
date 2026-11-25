@@ -32,7 +32,7 @@ export default async function Image() {
           <div style={{ display: "flex", fontSize: 32, lineHeight: 1.3, color: "rgba(245,247,241,0.75)", maxWidth: 980 }}>{TAGLINE}.</div>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 24, color: "rgba(245,247,241,0.6)" }}>
-          <div style={{ display: "flex" }}>Pago protegido para ventas por redes · Bolivia</div>
+          <div style={{ display: "flex" }}>Compra y vende por redes · Bolivia</div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ display: "flex", width: 10, height: 10, borderRadius: 5, background: BRAND.yungas }} />
             {ES_MAINNET ? TEXTO.modo : "Modo práctica"}

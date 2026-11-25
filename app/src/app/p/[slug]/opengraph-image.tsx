@@ -5,7 +5,7 @@ import { BRAND, FUENTE, LogoOg, NudoIcono, OG_SIZE, TAGLINE, iniciales } from "@
 import { ogFonts } from "@/lib/og-fonts";
 import { orders, sellers } from "@/lib/server/db";
 
-export const alt = "Link de pago protegido";
+export const alt = "Link de pago de Trato";
 export const size = OG_SIZE;
 export const contentType = "image/png";
 
@@ -17,7 +17,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   const { slug } = await params;
   const o = orders.get(slug);
   const s = o ? sellers.get(o.seller_pubkey) : undefined;
-  const product = o?.product ?? "Link de pago protegido";
+  const product = o?.product ?? "Link de pago";
   const price = o ? fmtBs(o.price_bs_cents) : "";
   const usd = o ? `aprox. ${fmtUsd(o.amount_units)} ${TEXTO.dolares}` : "";
   const store = s?.store_name ?? "Trato";
@@ -54,7 +54,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", fontSize: 22, fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", color: BRAND.musgo, marginBottom: 6 }}>
-              {o?.code ? `Compra protegida · ${o.code}` : "Compra protegida"}
+              {o?.code ? `Pedido ${o.code}` : "Pedido"}
             </div>
             <div
               style={{

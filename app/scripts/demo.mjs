@@ -86,7 +86,7 @@ async function ready(url) {
 const [okApp, okSim] = await Promise.all([ready(`${appUrl}/api/info`), ready(simUrl)]);
 const wallet = env.NEXT_PUBLIC_WALLET === "pollar" ? "Pollar (Google o email)" : "local (llave en el navegador)";
 console.log(`
-──────────────── Pago Protegido: demo lista (testnet) ────────────────
+──────────────── Trato: demo lista (testnet) ────────────────
  App web          ${appUrl}${okApp ? "" : "   (no respondió todavía)"}
    Billetera      ${wallet} · modo ${env.PP_MODE || "guardian"}
    Vendedor       ${appUrl}/vender?wa=${SELLER}   (crea la tienda con el número del simulador)

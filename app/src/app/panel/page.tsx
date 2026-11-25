@@ -6,29 +6,29 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Countdown, ShipDeadline } from "@/components/Guardian";
 import { Breakdown, SplitView, TxList } from "@/components/OrderBits";
-import { CopyButton, ErrorBox, Spinner, StatusBadge } from "@/components/ui";
+import { ErrorBox, Spinner, StatusBadge } from "@/components/ui";
 import { IconoAlerta, IconoBalanza, IconoBillete, IconoCamion, IconoCandado, IconoCelular, IconoCheckCirculo, IconoChevronAbajo, IconoChevronDerecha, IconoInfo, IconoMas, IconoUsuario, IconoVolver } from "@/components/iconos";
 import { Stat } from "@/components/Kpis";
-import { Compartir } from "@/components/vendedor/Compartir";
+import { EnviarWhatsApp } from "@/components/vendedor/EnviarWhatsApp";
 import { EnvioForm } from "@/components/vendedor/EnvioForm";
 import { Insignia } from "@/components/vendedor/Insignia";
-import { LinkRapido } from "@/components/vendedor/LinkRapido";
+import { LinkRapido, type LinkCreado } from "@/components/vendedor/LinkRapido";
 import { PasarAMiBanco } from "@/components/vendedor/PasarAMiBanco";
 import { Pendientes } from "@/components/vendedor/Pendientes";
 import { fmtDuracion, fmtProporcion, nf as nfKpi, rotuloVentas } from "@/lib/kpi-format";
 import { WhatsAppBox } from "@/components/WhatsAppBox";
-import { fmtFlete } from "@/lib/comprador";
+import { fmtFlete, mensajeDeError } from "@/lib/comprador";
 import { explorer, fmtBs, fmtBsUnits, fmtDate, fmtKg, fmtWhatsApp } from "@/lib/format";
 import type { InfoData, SellerData, SellerOrder } from "@/lib/types";
 import { apiFirmada } from "@/lib/api-firmada";
-import { duplicarLink, ventasEnCurso, type LinkRapido as DatosLink } from "@/lib/vendedor";
+import { duplicarLink, pendientes, ventasEnCurso, type LinkRapido as DatosLink } from "@/lib/vendedor";
 import { api, getWallet } from "@/lib/wallet";
 import { waText } from "@/lib/whatsapp";
 
 const origin = () => (typeof window === "undefined" ? "" : window.location.origin);
 const linkUrl = (slug: string) => `${origin()}/p/${slug}`;
 /** Mensaje para el cliente, listo para WhatsApp (con el flete, si el vendedor lo puso). */
-const textoLink = (o: SellerOrder, store: string) =>
+const textoLink = (o: Pick<SellerOrder, "product" | "price_bs_cents" | "slug" | "flete">, store: string) =>
   waText("link", { product: o.product, price: fmtBs(o.price_bs_cents), url: linkUrl(o.slug), store, flete: fmtFlete(o.flete) });
 
 /** Los pedidos que piden algo del vendedor van primero; después los abiertos; al final los cerrados. */
@@ -43,7 +43,7 @@ export default function Panel() {
   const [primer, setPrimer] = useState(false);
   const [demo, setDemo] = useState(false);
   const [enviar, setEnviar] = useState<{ slug: string; evidencia: string } | null>(null);
-  const [created, setCreated] = useState<string | null>(null);
+  const [created, setCreated] = useState<LinkCreado | null>(null);
   const [plantilla, setPlantilla] = useState<(DatosLink & { code: string | null }) | null>(null);
   const [formKey, setFormKey] = useState(0);
   const [banco, setBanco] = useState(false);
@@ -52,8 +52,9 @@ export default function Panel() {
   const load = useCallback(async (p: string) => {
     try {
       setData(await apiFirmada<SellerData>(getWallet("vendedor"), `/api/sellers/${p}/panel`));
+      setError(null);
     } catch (e) {
-      setError((e as Error).message);
+      setError(mensajeDeError(e));
     }
   }, []);
 
@@ -110,6 +111,7 @@ export default function Panel() {
   const { enCurso, enReclamo } = ventasEnCurso(orders);
   const saldo = fmtBsUnits(data.balance, fx);
   const haySaldo = Number(data.balance) > 0;
+  const hayPendientes = pendientes(orders, Date.now()).length > 0;
   const hayVentas = data.kpis.pagadas_al_vendedor > 0;
 
   function irAlPedido(slug: string) {
@@ -141,11 +143,6 @@ export default function Panel() {
             {fmtWhatsApp(seller.whatsapp)}
             {seller.completedSales > 0 ? ` · ${seller.completedSales} ${rotuloVentas(seller.completedSales, esPiloto)}` : ""}
           </p>
-          <p className="mt-2 text-sm">
-            <a className="enlace" href={explorer.account(seller.pubkey)} target="_blank" rel="noreferrer">
-              Ver el registro público de tu cuenta
-            </a>
-          </p>
         </div>
         <div className="sm:w-80 sm:flex-none sm:text-right">
           <p className="eyebrow">Saldo cobrado</p>
@@ -169,9 +166,7 @@ export default function Panel() {
               <IconoBillete className="h-4 w-4" />
               {ES_MAINNET ? "Retirar mis USDC" : "Pasar a mi banco"}
             </button>
-          ) : (
-            <p className="mt-1 text-sm text-tinta-500">Sin saldo por cobrar todavía.</p>
-          )}
+          ) : null}
         </div>
       </section>
 
@@ -184,39 +179,19 @@ export default function Panel() {
       )}
       {banco && !ES_MAINNET && <PasarAMiBanco saldo={saldo} onCerrar={() => setBanco(false)} />}
 
-      <p data-testid="antifraude-vendedor" className="flex gap-3 text-base text-tinta-700">
-        <IconoInfo className="mt-0.5 h-5 w-5 flex-none text-musgo" />
-        <span>
-          <strong>Para cobrar no tienes que abrir ningún link.</strong> Lo que vendes te llega solo cuando el comprador confirma. Nadie de Trato te va a pedir
-          códigos ni contraseñas.
-        </span>
-      </p>
-
       {created && (
-        <section className="space-y-4 animate-aparecer" data-testid="link-creado">
-          <div className="rounded-card border border-tinta-200 bg-white p-5 sm:p-6">
+        <section className="space-y-2 animate-aparecer">
+          <div className="card space-y-4 sm:p-6" data-testid="link-creado">
             <p className="flex items-center gap-2 text-lg font-semibold">
               <IconoCheckCirculo className="h-6 w-6 flex-none text-musgo" />
-              Link listo
+              Link listo. Mándaselo a tu cliente
             </p>
-            <p className="mt-1 max-w-[48ch] text-base text-tinta-600">Mándaselo a tu cliente. Cuando pague, la plata espera entre los dos hasta que confirme que recibió.</p>
-            <code data-testid="link-url" className="mt-4 block truncate rounded-control bg-tinta-50 px-3.5 py-3 font-mono text-sm text-monte">
-              {linkUrl(created)}
-            </code>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {orders.some((x) => x.slug === created) && (
-                <Compartir text={textoLink(orders.find((x) => x.slug === created)!, seller.store_name)} label="Compartir" className="btn-primary" testId="compartir-link" />
-              )}
-              <CopyButton text={linkUrl(created)} label="Copiar link" className="btn-secondary" testId="copiar-link" />
-            </div>
+            <MensajeCliente texto={textoLink(created, seller.store_name)} url={linkUrl(created.slug)} />
+            <EnviarWhatsApp text={textoLink(created, seller.store_name)} />
           </div>
-          {(() => {
-            const o = orders.find((x) => x.slug === created);
-            return o ? <WhatsAppBox title="Mensaje para tu cliente" text={textoLink(o, seller.store_name)} /> : null;
-          })()}
           <button
             type="button"
-            className="btn-secondary btn-sm"
+            className="btn-ghost w-full"
             onClick={() => {
               setCreated(null);
               setTimeout(() => document.getElementById("crear-link")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
@@ -228,7 +203,7 @@ export default function Panel() {
         </section>
       )}
 
-      <Pendientes pedidos={orders} onIr={irAlPedido} />
+      {hayPendientes && <Pendientes pedidos={orders} onIr={irAlPedido} />}
 
       {!created && (
       <LinkRapido
@@ -238,20 +213,22 @@ export default function Panel() {
         title={firstLink ? "Tu primer link" : "Crear link"}
         demo={demo}
         plantilla={plantilla}
-        onCreated={(slug) => {
-          setCreated(slug);
+        onCreated={(link) => {
+          setCreated(link);
           setPlantilla(null);
           load(seller.pubkey);
         }}
       />
       )}
 
+      {!hayPendientes && orders.length > 0 && <Pendientes pedidos={orders} onIr={irAlPedido} />}
+
       <section className="space-y-2">
         <h2 className="text-lg">Pedidos</h2>
-        {orders.length === 0 && (
+        {orders.length === 0 && !created && (
           <div className="flex flex-col items-center gap-2 border-t border-tinta-200 py-10 text-center">
             <IconoBillete className="h-8 w-8 text-tinta-300" />
-            <p className="text-base text-tinta-600">Todavía no tienes pedidos. Crea tu primer link y compártelo.</p>
+            <p className="text-base text-tinta-600">Todavía no tienes pedidos. Crea tu primer link y mándalo.</p>
           </div>
         )}
         {orders.map((o) => (
@@ -264,11 +241,19 @@ export default function Panel() {
             capabilities={info?.capabilities}
             prefill={enviar && enviar.slug === o.slug && o.status === "pagado" ? enviar.evidencia : null}
             resaltado={resaltado === o.slug}
+            recienCreado={created?.slug === o.slug}
             onDuplicar={() => duplicar(o)}
             onChange={() => load(seller.pubkey)}
           />
         ))}
       </section>
+
+      <p data-testid="antifraude-vendedor" className="flex gap-3 text-base text-tinta-700">
+        <IconoInfo className="mt-0.5 h-5 w-5 flex-none text-musgo" />
+        <span>
+          <strong>Para cobrar no tienes que abrir ningún link.</strong> Te llega solo cuando tu cliente confirma. Nadie de Trato te pide códigos.
+        </span>
+      </p>
 
       <details className="group border-t border-tinta-200 pt-5" data-testid="kpis-vendedor" open={hayVentas}>
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-lg font-semibold [&::-webkit-details-marker]:hidden">
@@ -283,7 +268,7 @@ export default function Panel() {
             </Link>
           )}
         </div>
-        {!hayVentas && <p className="mt-2 text-sm text-tinta-600">Aparecen con tu primera venta protegida.</p>}
+        {!hayVentas && <p className="mt-2 text-sm text-tinta-600">Aparecen con tu primera venta.</p>}
         <div className={`mt-3 grid grid-cols-3 gap-2 ${hayVentas ? "" : "hidden"}`}>
           <Stat
             testId="kpi-ventas"
@@ -307,10 +292,30 @@ export default function Panel() {
         {hayVentas && <p className="mt-3 text-sm text-tinta-600">Calculados con el registro público de tus ventas: son los mismos que ven tus clientes en tu perfil.</p>}
       </details>
 
+      <p className="text-sm">
+        <a className="enlace inline-flex min-h-11 items-center" href={explorer.account(seller.pubkey)} target="_blank" rel="noreferrer">
+          Ver el registro público de tu cuenta
+        </a>
+      </p>
+
       {seller.slug && <Insignia slug={seller.slug} storeName={seller.store_name} kpis={data.kpis} piloto={esPiloto} />}
 
       <p className="text-center text-sm text-tinta-500">{TEXTO.aviso}</p>
     </div>
+  );
+}
+
+/** Así le llega a tu cliente: el mensaje completo, con el link resaltado. */
+function MensajeCliente({ texto, url }: { texto: string; url: string }) {
+  const [antes, despues = ""] = texto.replace(/\*/g, "").split(url);
+  return (
+    <p className="whitespace-pre-line break-words rounded-control bg-tinta-50 px-3.5 py-3 text-base text-tinta-700" data-testid="mensaje-cliente">
+      {antes}
+      <span className="font-medium text-musgo" data-testid="link-url">
+        {url}
+      </span>
+      {despues}
+    </p>
   );
 }
 
@@ -322,6 +327,7 @@ function OrderCard({
   capabilities,
   prefill,
   resaltado,
+  recienCreado,
   onDuplicar,
   onChange,
 }: {
@@ -332,6 +338,8 @@ function OrderCard({
   capabilities?: { extend: boolean; clockFromShipping: boolean; refundUnshipped?: boolean };
   prefill: string | null;
   resaltado: boolean;
+  /** Sus acciones ya están en la tarjeta "Link listo": no se repiten en la lista. */
+  recienCreado: boolean;
   onDuplicar: () => void;
   onChange: () => void;
 }) {
@@ -371,21 +379,13 @@ function OrderCard({
         </div>
         <div className="flex flex-none flex-col items-end gap-1.5">
           <StatusBadge status={o.status} />
-          <button type="button" className="text-sm font-medium text-musgo" onClick={onDuplicar} data-testid="duplicar">
+          <button type="button" className="btn-ghost btn-sm text-musgo" onClick={onDuplicar} data-testid="duplicar">
             Duplicar
           </button>
         </div>
       </header>
 
-      {o.status === "esperando_pago" && (
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <code className="flex-1 truncate rounded-control bg-tinta-50 px-3 py-2.5 text-sm ring-1 ring-tinta-200">{url}</code>
-          <div className="grid grid-cols-2 gap-2 sm:flex">
-            <CopyButton text={url} label="Copiar link" className="btn-secondary btn-sm" />
-            <Compartir text={textoLink(o, store)} className="btn-primary btn-sm" />
-          </div>
-        </div>
-      )}
+      {o.status === "esperando_pago" && !recienCreado && <EnviarWhatsApp text={textoLink(o, store)} chico />}
 
       {o.recipient_name && o.status !== "esperando_pago" && (
         <div data-testid="datos-entrega-vendedor" className="space-y-1.5 text-base text-tinta-700">

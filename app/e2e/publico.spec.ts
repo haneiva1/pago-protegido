@@ -75,7 +75,7 @@ test("métricas en vivo: piloto y pruebas del equipo por separado, cada número 
   await expect(page.getByTestId("inscritas-piloto").getByTestId("valor")).toHaveText("0");
   const eq = page.getByTestId("grupo-equipo");
   await expect(eq.getByTestId("kpi-compras")).toContainText("Compras de prueba internas en testnet");
-  await expect(eq).not.toContainText("Compras protegidas");
+  await expect(eq).not.toContainText("Compras con Trato");
   for (const id of ["kpi-compras", "kpi-monto", "kpi-sin-reclamo", "kpi-cobro", "kpi-reclamos", "kpi-devoluciones", "kpi-mas-tiempo", "kpi-despacho"]) {
     await expect(eq.getByTestId(id)).toBeVisible();
     await expect(eq.getByTestId(id)).toHaveAttribute("href", /^\/metricas\/equipo\/[a-z-]+$/);

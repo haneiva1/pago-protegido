@@ -193,7 +193,7 @@ export function ChatComprador({ slugInicial = null }: { slugInicial?: string | n
         overlay={
           overlay && slug
             ? {
-                titulo: "Pago protegido · Trato",
+                titulo: "Pagar con Trato",
                 onCerrar: () => setOverlay(false),
                 contenido: <iframe name="pago" title="Página de pago" src={`/p/${slug}`} className="h-full w-full border-0" />,
               }

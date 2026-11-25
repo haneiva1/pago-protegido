@@ -22,8 +22,8 @@ test("vender zapatillas 450 → devuelve un link de pago, y avisa cuando pagan",
   await expect(link).toBeVisible();
   const href = (await link.getAttribute("href"))!;
   expect(href).toMatch(new RegExp(`^${MOCK}/p/zapatillas-[0-9a-f]{6}$`));
-  await expect(page.getByTestId("bot-msg").filter({ hasText: "Tu link de pago protegido" })).toContainText("*Zapatillas* · Bs 450,00 · entrega en 3 días".replace(/\*/g, ""));
-  await expect(page.getByTestId("bot-msg").filter({ hasText: "Tu link de pago protegido" })).toContainText("Paga Bs 456,75 (≈ 39,04 USD de prueba) y tú recibes Bs 450,00.");
+  await expect(page.getByTestId("bot-msg").filter({ hasText: "Tu link de pago" })).toContainText("*Zapatillas* · Bs 450,00 · entrega en 3 días".replace(/\*/g, ""));
+  await expect(page.getByTestId("bot-msg").filter({ hasText: "Tu link de pago" })).toContainText("Paga Bs 456,75 (≈ 39,04 USD de prueba) y tú recibes Bs 450,00.");
 
   // El link existe de verdad en la API (POST /api/links) y es el pedido.
   const slug = href.split("/p/")[1];

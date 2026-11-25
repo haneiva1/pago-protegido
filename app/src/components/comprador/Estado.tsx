@@ -86,14 +86,11 @@ export function Antifraude({ code, host }: { code: string | null; host: string }
     <section className="flex gap-3 border-t border-tinta-200 pt-5 text-sm text-tinta-600" data-testid="antifraude">
       <IconoInfo className="mt-0.5 h-5 w-5 flex-none text-musgo" />
       <div className="space-y-1">
-        <p className="text-base font-semibold text-monte">Señales de confianza</p>
         <p>Si un QR de Trato está a nombre de una persona, es estafa.</p>
         <p>
-          Comprueba este link en{" "}
-          <a className="enlace" href={`/verificar?codigo=${code ?? ""}`}>
-            Verificar un link
-          </a>{" "}
-          con el código <strong>{code}</strong>.
+          <a className="enlace inline-flex min-h-11 items-center" href={`/verificar?codigo=${code ?? ""}`}>
+            Verificar este link ({code})
+          </a>
         </p>
         {SOPORTE_WA && (
           <p>

@@ -301,7 +301,7 @@ textarea.input:focus-visible {
 }
 
 @utility btn-sm {
-  @apply px-3 py-2 text-sm;
+  @apply min-h-11 px-3 py-2 text-sm;
 }
 
 /* ---------- Formularios ---------- */

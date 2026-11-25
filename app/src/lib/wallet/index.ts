@@ -2,6 +2,7 @@ import { enProbar } from "@/lib/probar";
 import { ES_MAINNET } from "@/lib/red";
 import { LocalWallet } from "./local";
 import { PollarWallet, pollarConfigured } from "./pollar";
+import { usarCompradorDeProbar } from "./storage";
 import type { PreparedTx, SubmitResult, WalletProvider, WalletRole } from "./types";
 
 export type { PreparedTx, SubmitResult, WalletProvider, WalletRole };
@@ -24,6 +25,21 @@ export function getWallet(role: WalletRole): WalletProvider {
     cache.set(role, w);
   }
   return w;
+}
+
+/**
+ * Cuenta del comprador en este navegador. Si el pedido (`buscada`) se empezó a pagar dentro de /probar en este mismo
+ * celular y ahora se abre suelto, sigue con esa cuenta en vez de tratarlo como si fuera de otra persona.
+ */
+export function cuentaDelComprador(buscada: string | null): string | null {
+  const w = getWallet("comprador");
+  usarCompradorDeProbar(false);
+  const propia = w.publicKey();
+  if (!buscada || propia === buscada) return propia;
+  usarCompradorDeProbar(true);
+  if (w.publicKey() === buscada) return buscada;
+  usarCompradorDeProbar(false);
+  return propia;
 }
 
 export { api, ApiError } from "@/lib/api";

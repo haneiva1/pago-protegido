@@ -1,6 +1,6 @@
 # Trato: app web (testnet, modo práctica)
 
-Links de pago protegidos para ventas por redes:
+Links de pago para ventas por redes:
 
 1. El vendedor crea un link.
 2. El comprador paga y la plata queda en un escrow de Trustless Work en Stellar.
@@ -137,7 +137,7 @@ Cuando el vendedor pega `/p/<slug>` en un chat, WhatsApp muestra una tarjeta con
 
 - el producto y el precio en Bs (aprox. en USD de prueba);
 - la tienda;
-- el escudo "Trato · pago protegido";
+- el escudo "Trato";
 - "Tu plata queda guardada hasta que confirmes que te llegó".
 
 Cómo está hecho:
@@ -155,7 +155,7 @@ Para probarlo en un WhatsApp real, la app tiene que ser pública (túnel): Whats
 
 `/transparencia` (y `GET /api/transparencia` en JSON) muestra métricas en vivo calculadas **solo con eventos públicos** de `pp_guardian` y `pp_arbiter`:
 
-- compras protegidas y volumen (USD de prueba y ≈ Bs);
+- compras y volumen (USD de prueba y ≈ Bs);
 - liberadas por confirmación y por plazo, y tiempo promedio hasta que el vendedor cobra;
 - reclamos: quién los abrió y cómo se resolvieron;
 - comisiones;

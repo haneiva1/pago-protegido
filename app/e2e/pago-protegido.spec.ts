@@ -66,6 +66,12 @@ async function nuevoVendedor(browser: Browser, tienda: string, whatsapp: string 
   return page;
 }
 
+/** "Cambiar": días de despacho, flete, quién paga la protección, categoría, descripción y foto. */
+async function abrirOpciones(page: Page) {
+  const cambiar = page.getByTestId("cambiar-opciones");
+  if ((await cambiar.getAttribute("aria-expanded")) !== "true") await cambiar.click();
+}
+
 async function crearLink(
   page: Page,
   p: { producto: string; descripcion: string; precio: number; dias: number; categoria: string; quienPaga?: "comprador" | "vendedor"; demo?: boolean; flete?: RegExp },
@@ -78,50 +84,98 @@ async function crearLink(
   // Con un link recién creado el formulario queda plegado detrás de "Crear otro link".
   const otro = page.getByRole("button", { name: "Crear otro link" });
   if (await otro.isVisible().catch(() => false)) await otro.click();
-  // Link rápido (M9): producto, precio, días para despachar y flete en una pantalla; lo demás en "Más detalles".
+  // A la vista, solo producto, precio y el botón. Lo demás va con valores por defecto en una línea con "Cambiar".
   await page.getByLabel("Producto").fill(p.producto);
   await page.getByLabel("Precio en Bs").fill(String(p.precio));
+  if (captura) await capturar(page, captura);
+  await abrirOpciones(page);
   await page.getByLabel("Días para despachar", { exact: true }).selectOption(String(p.dias));
   if (p.flete) await page.getByTestId("flete-vendedor").getByText(p.flete).click();
   if (p.quienPaga === "vendedor") await page.getByRole("radio", { name: /Yo la regalo/ }).check();
-  if (captura) await capturar(page, captura);
-  const mas = page.getByTestId("mas-detalles");
-  if (!(await mas.evaluate((e) => (e as HTMLDetailsElement).open))) await mas.locator("summary").click();
   await page.getByLabel(/^Categoría/).selectOption(p.categoria);
-  await page.getByLabel("Descripción corta").fill(p.descripcion);
+  await page.getByLabel(/^Descripción corta/).fill(p.descripcion);
+  await expect(page.getByTestId("resumen-link")).toContainText(`Despachas en ${p.dias} ${p.dias === 1 ? "día" : "días"}`);
+  if (captura) await capturar(page, `${captura}-opciones`);
   await page.getByRole("button", { name: "Crear link" }).click();
   const url = (await page.getByTestId("link-url").textContent())!.trim();
   expect(url).toMatch(/\/p\/[a-z0-9-]+$/);
   return { url, slug: url.split("/p/")[1] };
 }
 
+/**
+ * Quien empezó a pagar sigue desde el mismo celular: se corta la red justo al enviar el pago, recarga el link y lo
+ * termina ahí. En otro navegador, el mismo link explica cómo seguir y cuándo se libera.
+ */
+async function pagoAMedias(page: Page, simular: Locator, capturas: boolean) {
+  await page.route("**/api/tx/submit", async (r) => {
+    const s = JSON.stringify(r.request().postDataJSON() ?? {});
+    // La activación de la cuenta pasa; se corta el primer envío después de /pay (el fondeo).
+    if (empezado && s) return r.abort();
+    return r.continue();
+  });
+  let empezado = false;
+  page.on("response", (r) => {
+    if (r.url().endsWith("/pay") && r.request().method() === "POST" && r.ok()) empezado = true;
+  });
+  await simular.click();
+  await expect(page.getByTestId("error")).toContainText("No pudimos conectarnos", CHAIN);
+  expect(empezado).toBe(true);
+  await page.unroute("**/api/tx/submit");
+  await page.reload();
+  await expect(page.getByTestId("pago-a-medias")).toContainText("Termínalo aquí: no se cobra dos veces.");
+  await expect(simular).toBeVisible();
+  if (capturas) await capturar(page, "07b-comprador-pago-a-medias");
+  // Sin lo que guardó la página (solo queda la cuenta), tampoco lo trata como si fuera de otra persona.
+  const guardado = await page.evaluate(() => Object.entries(localStorage).filter(([k]) => k.startsWith("trato.")));
+  await page.evaluate((ks) => ks.forEach(([k]) => localStorage.removeItem(k)), guardado);
+  await page.reload();
+  await expect(page.getByTestId("barra-pagar")).toBeVisible();
+  await expect(page.getByText(/otra persona/i)).toHaveCount(0);
+  await page.evaluate((ks) => ks.forEach(([k, x]) => localStorage.setItem(k, x)), guardado);
+  await page.reload();
+  await expect(page.getByTestId("pago-a-medias")).toBeVisible();
+  const otro = await (await page.context().browser()!.newContext()).newPage();
+  await otro.goto(page.url());
+  await expect(otro.getByTestId("pago-empezado")).toContainText("Abre este link en la app o el navegador donde empezaste");
+  await expect(otro.getByTestId("pago-empezado")).toContainText(/puedes pagar desde aquí a las \d{2}:\d{2}/);
+  await expect(otro.getByText(/otra persona/i)).toHaveCount(0);
+  if (capturas) await capturar(otro, "07c-comprador-pago-empezado-en-otro-navegador");
+  await otro.close();
+}
+
 async function pagar(
   browser: Browser,
   url: string,
-  o: { capturas?: boolean; whatsapp?: string; quien?: string; ciudad?: string; agencia?: string; telefono?: string; flete?: string; antes?: (p: Page) => Promise<void> } = {},
+  o: { capturas?: boolean; aMedias?: boolean; whatsapp?: string; quien?: string; ciudad?: string; agencia?: string; telefono?: string; antes?: (p: Page) => Promise<void> } = {},
 ) {
   const page = await (await browser.newContext()).newPage();
   await page.goto(url);
-  await expect(page.getByTestId("codigo")).toHaveText(/Compra protegida · PP-[2-9A-HJKMNP-Z]{8}/);
-  // Primer pantallazo: producto, total, "Dos salidas" y el botón de pagar fijo abajo.
-  await expect(page.getByTestId("promesa")).toContainText("Tu plata espera entre los dos. Solo tiene dos salidas:");
-  await expect(page.getByTestId("salida-comprador")).toContainText("De vuelta a ti, si no lo despacha hasta el");
+  await expect(page.getByTestId("codigo")).toHaveText(/^Pedido PP-[2-9A-HJKMNP-Z]{8}$/);
+  // Una sola pantalla antes del QR: producto, total, las dos salidas de la plata, nombre, ciudad y el botón fijo abajo.
+  await expect(page.getByTestId("promesa")).toContainText("La tienda cobra recién cuando confirmes que te llegó.");
+  await expect(page.getByTestId("salida-comprador")).toContainText(/Si no lo despacha hasta el .*, tu plata vuelve a ti\./);
+  await expect(page.getByTestId("como-funciona")).not.toHaveAttribute("open");
+  await expect(page.locator("main").locator("input:visible, select:visible")).toHaveCount(2);
   await expect(page.getByTestId("reputacion")).toBeVisible();
   await expect(page.getByTestId("antifraude")).toContainText("Si un QR de Trato está a nombre de una persona, es estafa.");
   await expect(page.getByTestId("modo-practica")).toContainText("Modo práctica: no se mueve dinero real");
   if (o.antes) await o.antes(page);
   if (o.capturas) await capturar(page, "06-comprador-antes-de-pagar");
-  // El botón fijo abre la hoja con los datos de entrega; al continuar se muestra el QR.
-  await page.getByTestId("barra-pagar").getByRole("button", { name: /Pagar Bs .* con QR/ }).click();
-  await expect(page.getByTestId("datos-entrega")).toBeVisible();
+  // Sin datos, el botón no avanza: marca el primer campo que falta.
+  const pagarConQr = page.getByTestId("barra-pagar").getByRole("button", { name: /Pagar Bs .* con QR/ });
+  if (o.capturas) {
+    await pagarConQr.click();
+    await expect(page.getByTestId("error-campo")).toHaveText("Escribe quién recibe el pedido");
+    await expect(page.getByLabel("Quién recibe")).toBeFocused();
+  }
   await page.getByLabel("Quién recibe").fill(o.quien ?? "Ana Pérez");
   await page.getByLabel("Ciudad de destino").selectOption(o.ciudad ?? "Cochabamba");
+  if (o.agencia || o.whatsapp || o.telefono) await page.getByTestId("mas-datos-entrega").locator("summary").click();
   if (o.agencia) await page.getByLabel(/Agencia preferida/).fill(o.agencia);
   if (o.whatsapp) await page.getByLabel(/Tu WhatsApp para avisarte/).fill(o.whatsapp);
   if (o.telefono) await page.getByLabel(/Teléfono de quien recoge/).fill(o.telefono);
-  if (o.flete) await page.getByLabel(/¿Y el flete\?/).selectOption(o.flete);
   if (o.capturas) await capturar(page, "06b-comprador-datos-de-entrega");
-  await page.getByRole("button", { name: /Ver el QR para pagar Bs/ }).click();
+  await pagarConQr.click();
   await expect(page.getByTestId("rampa-simulada")).toHaveText("Pago simulado en la red de prueba. En producción lo hace una entidad certificada por ASFI.");
   // QR como se paga en Bolivia: guardarlo o compartirlo y subirlo desde la galería del banco.
   const qr = page.getByTestId("qr");
@@ -137,6 +191,10 @@ async function pagar(
   // El pago encadena varias transacciones en testnet (rampa, deploy del escrow, fondeo). Si la red falla,
   // la pantalla muestra el error y se puede reintentar: el flujo es idempotente (no vuelve a emitir la rampa).
   const simular = page.getByRole("button", { name: "Simular pago del banco (modo práctica)" });
+  // Fue a su banco y volvió: el navegador recargó la página y sigue en el QR, sin volver a llenar nada.
+  await page.reload();
+  await expect(qr.getByTestId("imagen-qr")).toBeVisible();
+  if (o.aMedias) await pagoAMedias(page, simular, Boolean(o.capturas));
   const ok = page.getByTestId("estado-pedido");
   const err = page.getByTestId("error"); // ojo: Next.js tiene un route announcer con role="alert"
   for (let intento = 1; ; intento++) {
@@ -148,6 +206,7 @@ async function pagar(
     if (intento >= 3) throw new Error(`El pago falló 3 veces: ${msg}`);
   }
   await expect(ok).toContainText("Tu pago está guardado", CHAIN);
+  await page.getByTestId("seguimiento-plegado").locator("summary").click();
   await expect(page.locator(TX_LINK).first()).toBeVisible();
   // H-2 en pantalla: pago bloqueado en un contrato público, con "Ver registro público".
   await expect(page.getByTestId("registro-publico")).toContainText("Pago bloqueado en un contrato público: solo puede ir al vendedor o volver a ti.");
@@ -221,22 +280,26 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
     { producto: "Zapatillas Nike talla 40", descripcion: "Originales, nuevas en caja.", precio: 450, dias: 3, categoria: "Ropa y calzado", flete: /^Por pagar$/ },
     "04-panel-primer-link",
   );
-  await expect(seller.getByTestId("link-creado").getByTestId("whatsapp")).toContainText(url);
-  // El mensaje para WhatsApp ya dice quién paga el flete, y se comparte con el menú del celular.
-  await expect(seller.getByTestId("link-creado").getByTestId("whatsapp")).toContainText("🚚 Flete por pagar al recoger.");
-  await expect(seller.getByTestId("compartir-link")).toBeVisible();
+  // Una sola tarjeta: el mensaje con el link y quién paga el flete, "Enviar por WhatsApp" y "Copiar". Nada repetido.
+  const listo = seller.getByTestId("link-creado");
+  await expect(listo.getByTestId("mensaje-cliente")).toContainText(url);
+  await expect(listo.getByTestId("mensaje-cliente")).toContainText("🚚 Flete por pagar al recoger.");
+  await expect(listo.getByRole("link", { name: "Enviar por WhatsApp" })).toHaveAttribute("href", /^https:\/\/wa\.me\/\?text=/);
+  await expect(listo.getByRole("button", { name: "Copiar" })).toBeVisible();
+  await expect(seller.getByTestId("enviar-whatsapp")).toHaveCount(1);
+  await expect(seller.getByTestId("copiar-mensaje")).toHaveCount(1);
   await expect(seller.getByTestId("pendientes")).toContainText("Nada pendiente");
   await capturar(seller, "05-panel-link-creado");
 
   // Comprador: ve la protección (la paga él), deja los datos de entrega y paga.
   const buyer = await pagar(browser, url, {
     capturas: true,
+    aMedias: true,
     whatsapp: "591 76543210",
     quien: "Ana Pérez",
     ciudad: "Cochabamba",
     agencia: "Trans Copacabana, terminal",
     telefono: "70011223",
-    flete: "por_pagar",
     antes: async (p) => {
       await expect(p.getByTestId("vendedor")).toContainText("La tienda");
       await expect(p.getByTestId("vendedor")).toContainText("Tienda Sofi");
@@ -244,11 +307,14 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
       await expect(p.getByTestId("reputacion")).toContainText("Vendido por Tienda Sofi · Santa Cruz");
       await expect(p.getByTestId("vendedor")).toContainText("Tienda nueva");
       await expect(p.getByTestId("vendedor")).toContainText("Verificación de identidad: pendiente");
-      await expect(p.getByTestId("proteccion")).toContainText("Bs 6,75");
-      await expect(p.getByTestId("proteccion")).toContainText("Bs 456,75");
+      await expect(p.getByTestId("total")).toHaveText("Bs 456,75");
+      await expect(p.getByTestId("proteccion")).toHaveText("Bs 450,00 + Bs 6,75 de protección");
+      // El flete lo fijó la tienda en el link: el comprador lo ve y no tiene que elegir nada.
+      await expect(p.getByTestId("flete-tienda")).toHaveText("Flete por pagar al recoger.");
       await expect(p.getByRole("button", { name: "Pagar Bs 456,75 con QR" })).toBeVisible();
     },
   });
+  await expect(buyer.getByTestId("avisar-tienda")).toHaveAttribute("href", /^https:\/\/wa\.me\/59171234567\?text=/);
   await capturar(buyer, "08-comprador-pagado");
   await expect(buyer.getByTestId("compra-en-este-navegador")).toContainText("Tu compra quedó en este navegador");
   await buyer.getByRole("button", { name: "Agregar a inicio" }).click();
@@ -356,6 +422,7 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
   await expect(tarjeta.getByTestId("num-sin-reclamo")).toContainText("Todas");
   await expect(tarjeta.getByTestId("num-perdidos")).toContainText(/0\s*reclamos perdidos/);
   await capturar(buyer, "75-comprador-tarjeta-tras-venta");
+  await tarjeta.locator("summary").first().click();
   await tarjeta.getByTestId("link-perfil-tienda").click();
   await expect(buyer).toHaveURL(/\/tienda\/tienda-sofi-[0-9a-f]{4}$/);
   await expect(buyer.getByTestId("perfil-nombre")).toHaveText("Tienda Sofi");
@@ -396,11 +463,14 @@ test("caso feliz: el comprador paga la protección, datos de entrega, envío con
   await expect(seller.getByTestId("duplicado")).toContainText("Copia de PP-");
   await expect(seller.getByLabel("Producto")).toHaveValue("Zapatillas Nike talla 40");
   await expect(seller.getByLabel("Precio en Bs")).toHaveValue("450");
+  await expect(seller.getByTestId("resumen-link")).toContainText("flete por pagar al recoger");
+  await abrirOpciones(seller);
   await expect(seller.getByTestId("flete-vendedor").getByRole("radio", { name: "Por pagar" })).toBeChecked();
 });
 
 test("presión para confirmar abre un reclamo; el vendedor regala la protección; el revisor reparte 70/30", async ({ browser }) => {
   const seller = await nuevoVendedor(browser, "Moda Andina", "59176543210", "La Paz");
+  await abrirOpciones(seller);
   await seller.getByRole("radio", { name: /Yo la regalo/ }).check();
   await seller.getByLabel("Precio en Bs").fill("300");
   await expect(seller.getByTestId("vista-previa-link")).toContainText("Tu cliente paga Bs 300,00");
@@ -415,7 +485,7 @@ test("presión para confirmar abre un reclamo; el vendedor regala la protección
   const buyer = await pagar(browser, url, {
     ciudad: "Oruro",
     antes: async (p) => {
-      await expect(p.getByTestId("proteccion")).toContainText("la paga el vendedor");
+      await expect(p.getByTestId("proteccion")).toContainText("la protección la paga el vendedor");
       await expect(p.getByRole("button", { name: "Pagar Bs 300,00 con QR" })).toBeVisible();
     },
   });

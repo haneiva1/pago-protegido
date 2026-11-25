@@ -41,11 +41,11 @@ export function fmtReparto(buyerPct: number): string {
 export function waText(ev: WaEvent, d: WaData): string {
   switch (ev) {
     case "link":
-      return `¡Hola! 👋 Te paso el link de pago protegido de ${d.store ?? "mi tienda"} para *${d.product}* (${d.price}).${d.flete ? `\n🚚 ${d.flete}.` : ""}\n\nTu plata espera entre los dos y solo me llega cuando confirmas que recibiste. Si hay un problema, un tercero revisa el reclamo.\n\n👉 ${d.url}`;
+      return `¡Hola! 👋 Paga *${d.product}* (${d.price}) aquí:\n${d.url}${d.flete ? `\n🚚 ${d.flete}.` : ""}\n\nCon Trato, yo cobro recién cuando confirmes que te llegó.`;
     case "pagado":
       return `Hola ${d.store ?? ""} 👋 Ya pagué *${d.product}* (${d.price}) con Trato. La plata está guardada hasta que reciba. ¿Me avisas cuando lo despaches?\n\n${d.url}`;
     case "despacho":
-      return `¡Gracias por tu compra! 🙌 Recibí tu pago protegido por *${d.product}*. Te aviso apenas lo despache.\n\nSeguimiento: ${d.url}`;
+      return `¡Gracias por tu compra! 🙌 Ya vi tu pago por *${d.product}*. Te aviso apenas lo despache.\n\nSeguimiento: ${d.url}`;
     case "enviado":
       return `📦 Tu pedido *${d.product}* ya fue enviado.\nEnvío: ${fmtEnvio(d.evidence) || "-"}\n\nCuando lo tengas en tus manos y lo revises, entra aquí para pagarme:\n${d.url}`;
     case "liberado":

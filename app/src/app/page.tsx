@@ -50,7 +50,7 @@ export default function Home() {
             <Link href="/metricas" className="enlace" data-testid="link-metricas">
               Métricas en vivo
             </Link>
-            : compras protegidas, reclamos y tiempos de cobro, con el registro público de cada compra.
+            : compras, reclamos y tiempos de cobro, con el registro público de cada compra.
           </p>
         </div>
 
@@ -59,7 +59,7 @@ export default function Home() {
           <div className="rounded-panel bg-monte p-2.5 shadow-celular">
             <div className="rounded-[1.1rem] bg-sal p-4">
               <div className="flex items-center justify-between gap-2">
-                <p className="eyebrow">Compra protegida · PP-4821</p>
+                <p className="eyebrow">Pedido PP-4821</p>
                 <span className="chip-neutro" data-testid="ejemplo">
                   Ejemplo
                 </span>
@@ -68,7 +68,7 @@ export default function Home() {
                 <div>
                   <p className="text-sm text-tinta-600">Celular Samsung Galaxy A35</p>
                   <p className="mt-1 font-display text-3xl leading-none tracking-tight text-monte num">Bs 2.500</p>
-                  <p className="mt-2 text-xs text-tinta-500">Zapatería · Santa Cruz · 128 ventas protegidas, 2 reclamos</p>
+                  <p className="mt-2 text-xs text-tinta-500">Zapatería · Santa Cruz · 128 ventas con Trato, 2 reclamos</p>
                 </div>
                 <div className="panel-suave flex items-start gap-2.5 !p-3 text-xs">
                   <IconoCandado className="mt-px h-4 w-4 shrink-0 text-musgo" />
@@ -133,7 +133,7 @@ export default function Home() {
           <p className="mt-1 text-sm text-monte/80">
             ¿Eres comprador?{" "}
             <Link href="/pedir" className="font-semibold underline underline-offset-2">
-              Pide compra protegida
+              Pide pagar con Trato
             </Link>{" "}
             al vendedor.
           </p>

@@ -24,7 +24,7 @@ export function QrEscaneo({ v, busy, hechos, error, onEscanear }: { v: OrderView
 
   useEffect(() => {
     import("qrcode")
-      .then(({ default: QRCode }) => QRCode.toDataURL(`PAGO-PROTEGIDO-EJEMPLO|NO-ES-UN-QR-REAL|${o.code}|BOB ${monto}`, { margin: 1, width: 560, color: { dark: "#0A2A1B", light: "#FFFFFF" } }))
+      .then(({ default: QRCode }) => QRCode.toDataURL(`TRATO-EJEMPLO|NO-ES-UN-QR-REAL|${o.code}|BOB ${monto}`, { margin: 1, width: 560, color: { dark: "#0A2A1B", light: "#FFFFFF" } }))
       .then(setQr)
       .catch(() => {});
   }, [o.code, monto]);

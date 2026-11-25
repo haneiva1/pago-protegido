@@ -151,7 +151,7 @@ export function mensajesVendedor(e: EstadoVendedor): Mensaje[] {
       id: "hola-bot",
       de: "bot",
       at: t0,
-      texto: "Hola 👋 Soy Trato. Vende por WhatsApp con pago protegido.",
+      texto: "Hola 👋 Soy Trato. Vende por WhatsApp y cobra sin vueltas.",
       botones: e.alta.hola ? undefined : [{ id: "hola", texto: "Hola", principal: true }],
     });
     if (e.alta.hola) {
@@ -192,12 +192,12 @@ export function mensajesVendedor(e: EstadoVendedor): Mensaje[] {
     id: "link",
     de: "bot",
     at: p.created_at,
-    texto: "Tu link de pago protegido:",
+    texto: "Tu link de pago:",
     tarjeta: tarjetaDe(p, e.host),
     botones: e.reenviado ? undefined : [{ id: "mandar", texto: "Mandar al cliente", principal: true }],
   });
   if (!e.reenviado) return m;
-  m.push({ id: "yo-reenvio", de: "yo", at: p.created_at + 4000, texto: "Te paso el link de pago protegido 👇", tarjeta: tarjetaDe(p, e.host) });
+  m.push({ id: "yo-reenvio", de: "yo", at: p.created_at + 4000, texto: "Te paso el link para pagar 👇", tarjeta: tarjetaDe(p, e.host) });
   if (p.status === "esperando_pago") {
     m.push({ id: "esperando", de: "bot", at: p.created_at + 5000, texto: "Enviado. Te aviso apenas pague." });
     return m;
@@ -261,7 +261,7 @@ export function mensajesComprador(e: EstadoComprador): Mensaje[] {
     id: "link",
     de: "bot",
     at: p.created_at + 4000,
-    texto: `${e.tienda} te mandó un link de pago protegido.`,
+    texto: `${e.tienda} te mandó un link de pago.`,
     tarjeta: tarjetaDe(p, e.host),
     botones: p.status === "esperando_pago" ? [{ id: "pagar", texto: `Abrir y pagar ${p.total}`, principal: true }] : undefined,
   });

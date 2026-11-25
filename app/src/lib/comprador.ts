@@ -160,6 +160,14 @@ export function linkAbrirEnChrome(url: string): string | null {
   return `intent://${m[2]}#Intent;scheme=${m[1].toLowerCase()};package=com.android.chrome;end`;
 }
 
+/** Errores para la persona: sin mensajes crudos de la red ni inglés. */
+export function mensajeDeError(e: unknown): string {
+  const m = e instanceof Error ? e.message : String(e ?? "");
+  if (/fetch failed|failed to fetch|load failed|networkerror|timeout|econn|enotfound|socket hang up/i.test(m)) return "No pudimos conectarnos. Revisa tu internet y toca de nuevo.";
+  // La reserva del link la pone el servidor; puede ser la misma persona desde otro navegador.
+  return m.replace(/^Otra persona está pagando este link\./, "Ya hay un pago empezado en este link.");
+}
+
 export const NO_CARGO_CUENTA = "No pudimos cargar tu cuenta. Recarga la página.";
 
 /**

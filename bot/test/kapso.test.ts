@@ -366,9 +366,9 @@ describe.each(["meta", "kapso"] as const)("Kapso: flujo real, webhook en formato
 
   it("la tienda escribe y recibe su link por el proxy de Kapso, aunque el primer envío encuentre otro en camino", async () => {
     expect((await enviar(evento(DEMO_SELLER.whatsapp, texto("vendo zapatillas nike 40 a 90 bs entrega 3 días")))).status).toBe(200);
-    const link = await recibe(DEMO_SELLER.whatsapp, /Tu link de pago protegido/);
+    const link = await recibe(DEMO_SELLER.whatsapp, /Tu link de pago/);
     expect(link).toContain(`https://trato.test/p/${[...app.orders.keys()][0]}`);
-    await recibe(DEMO_SELLER.whatsapp, /Te paso el link de pago protegido/);
+    await recibe(DEMO_SELLER.whatsapp, /Paga \*.+ aquí:/);
     expect(trabado).toBe(false);
     for (const l of llamadas) {
       expect(l.path).toBe(`/v24.0/${ej.PHONE_ID}/messages`);

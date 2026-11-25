@@ -71,7 +71,7 @@ describe("bot contra la API (mock)", () => {
     const order = [...app.orders.values()][0];
     expect(order).toMatchObject({ product: "Celular Samsung A54", price_bs_cents: 180000, delivery_days: 3, category: "Celular", proteccion: "comprador" });
     expect(created.map((m) => m.text).join("\n")).toContain(`https://pp.test/p/${order.slug}`);
-    const first = created.find((m) => m.text.includes("Tu link de pago protegido"))!;
+    const first = created.find((m) => m.text.includes("Tu link de pago"))!;
     expect(first.text).toContain(`Código: *${order.code}*`);
     expect(first.buttons?.map((b) => b.title)).toEqual(["La paga mi cliente", "Yo la regalo", "🛍️ Vender otro"]);
     const out = await texts(SELLER, `regalo ${order.slug}`);

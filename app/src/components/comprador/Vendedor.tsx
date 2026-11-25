@@ -1,6 +1,6 @@
 "use client";
 
-import { IconoChevronDerecha, IconoWhatsApp } from "@/components/iconos";
+import { IconoChevronAbajo, IconoChevronDerecha, IconoWhatsApp } from "@/components/iconos";
 import { TEXTO } from "@/lib/red";
 import { NumerosTienda } from "@/components/Kpis";
 import { desdeTexto, fmtProporcion, nf, rotuloVentas } from "@/lib/kpi-format";
@@ -61,8 +61,8 @@ export function TarjetaVendedor({ v }: { v: OrderView }) {
   const s = v.seller;
   const k = s.kpis;
   return (
-    <section className="space-y-4 border-t border-tinta-200 pt-5" data-testid="vendedor">
-      <div className="flex items-center gap-3">
+    <details className="group border-t border-tinta-200" data-testid="vendedor">
+      <summary className="flex cursor-pointer list-none items-center gap-3 py-4 [&::-webkit-details-marker]:hidden">
         <div className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-tinta-100 font-semibold text-monte">{iniciales(s.store_name)}</div>
         <div className="min-w-0 flex-1">
           <p className="eyebrow">La tienda</p>
@@ -72,11 +72,9 @@ export function TarjetaVendedor({ v }: { v: OrderView }) {
             {reputacionTexto(k, s.pilot)}
           </p>
         </div>
-        <a className="btn-secondary btn-sm flex-none" href={waLink("Hola, te escribo por tu link de pago de Trato", s.whatsapp)} target="_blank" rel="noreferrer">
-          <IconoWhatsApp className="h-4 w-4 text-musgo" />
-          Escribir
-        </a>
-      </div>
+        <IconoChevronAbajo className="h-5 w-5 flex-none text-tinta-500 transition-transform duration-200 group-open:rotate-180" />
+      </summary>
+      <div className="space-y-4 pb-5">
       {k.pagadas_al_vendedor > 0 && <NumerosTienda k={k} piloto={s.pilot} compacto />}
       <ul className="space-y-0.5 text-sm text-tinta-600">
         <li>{desdeTexto(k, s.since)}</li>
@@ -84,11 +82,16 @@ export function TarjetaVendedor({ v }: { v: OrderView }) {
         <li>WhatsApp {fmtWhatsApp(s.whatsapp)}</li>
       </ul>
       {s.slug && (
-        <a className="inline-flex items-center gap-1 text-sm font-semibold text-musgo" href={`/tienda/${s.slug}`} data-testid="link-perfil-tienda">
+        <a className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-musgo" href={`/tienda/${s.slug}`} data-testid="link-perfil-tienda">
           Ver el perfil de la tienda y su historial
           <IconoChevronDerecha className="h-4 w-4" />
         </a>
       )}
-    </section>
+      <a className="btn-secondary btn-sm w-full" href={waLink("Hola, te escribo por tu link de pago de Trato", s.whatsapp)} target="_blank" rel="noreferrer">
+        <IconoWhatsApp className="h-4 w-4 text-musgo" />
+        Escribirle a la tienda
+      </a>
+      </div>
+    </details>
   );
 }

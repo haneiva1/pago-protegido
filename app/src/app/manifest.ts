@@ -9,7 +9,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Trato",
     short_name: "Trato",
-    description: "Pago protegido para compras por redes: tu plata espera entre los dos hasta que confirmes que te llegó.",
+    description: "Compra y vende por redes: tu plata espera entre los dos hasta que confirmes que te llegó.",
     display: "browser",
     background_color: "#F5F7F1",
     theme_color: "#0A2A1B",

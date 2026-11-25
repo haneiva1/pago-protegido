@@ -38,7 +38,7 @@ export function AvisoNavegadorInterno() {
           Estás dentro de {n.app}. Abre este link en {nav} antes de pagar.
         </span>
       </p>
-      <p>Tu compra queda en el navegador donde pagas. Si pagas aquí y después lo abres en otro lado, no vas a poder confirmar ni reclamar.</p>
+      <p>Tu compra queda guardada donde pagas: desde otro lado no vas a poder confirmar ni reclamar.</p>
       <p className="text-xs">
         {n.plat === "ios"
           ? "Toca ⋯ o el ícono de compartir y elige «Abrir en Safari». O copia el link y pégalo en Safari."
@@ -68,8 +68,7 @@ export function CompraEnEsteNavegador() {
         Tu compra quedó en este navegador
       </h2>
       <p className="text-tinta-600">
-        Para confirmar o reclamar, vuelve a este link desde aquí mismo{n.app ? ` (dentro de ${n.app})` : ""}. Si borras los datos del navegador o lo abres en otro
-        celular, no vas a poder hacerlo.
+        Para confirmar o reclamar, vuelve a este link desde aquí mismo{n.app ? ` (dentro de ${n.app})` : ""}. No borres los datos del navegador.
       </p>
       <div className="flex flex-wrap gap-2">
         <button type="button" className="btn-secondary btn-sm" onClick={() => setAyuda((x) => !x)} aria-expanded={ayuda}>
@@ -114,8 +113,7 @@ export function OtroNavegador({ v }: { v: OrderView }) {
         ¿Pagaste tú este pedido?
       </h2>
       <p className="text-tinta-700">
-        Este pedido se pagó desde otro navegador. Tu compra quedó guardada ahí (por ejemplo, dentro de Facebook, Instagram o TikTok, o en otro celular), y
-        desde aquí no puedes confirmar ni reclamar.
+        Se pagó desde otro navegador y la compra quedó guardada ahí. Desde aquí no puedes confirmar ni reclamar.
       </p>
       <p className="font-medium text-tinta-800">
         Qué hacer: abre este mismo link desde la app o el navegador donde pagaste{n?.app ? ` (si fue en ${n.app}, ábrelo desde el chat de ${n.app})` : ""}.

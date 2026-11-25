@@ -21,7 +21,7 @@ test("verificador: el comprador reenvía un link auténtico y uno falso (captura
   const href = (await link.getAttribute("href"))!;
   const slug = href.split("/p/")[1];
   const code = (await (await request.get(`${MOCK}/api/orders/${slug}`)).json()).order.code as string;
-  await expect(page.getByTestId("bot-msg").filter({ hasText: "Tu link de pago protegido" }).last()).toContainText(
+  await expect(page.getByTestId("bot-msg").filter({ hasText: "Tu link de pago" }).last()).toContainText(
     "Ojo: el QR de pago nunca está a nombre de una persona.",
   );
 

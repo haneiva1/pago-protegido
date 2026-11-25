@@ -2,7 +2,7 @@
   "name": "pago-protegido-app",
   "version": "0.1.0",
   "private": true,
-  "description": "Pago Protegido: links de pago con escrow de Trustless Work en Stellar testnet",
+  "description": "Trato: links de pago con escrow de Trustless Work en Stellar testnet",
   "scripts": {
     "setup": "node scripts/setup-env.mjs",
     "dev": "next dev",
