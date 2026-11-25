@@ -53,6 +53,12 @@ test.describe.configure({ mode: "serial" });
 test("métricas en vivo: piloto y pruebas del equipo por separado, cada número con sus operaciones y un gráfico por día", async ({ page, request }) => {
   // Enlazada desde la landing y desde /transparencia.
   await page.goto("/");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Vende a otras ciudades sin que desconfíen de ti");
+  await expect(page.getByText("El contra entrega no cruza departamentos. Trato sí.")).toBeVisible();
+  // Una sola versión: el segmento (celulares y electrónica, Bs 1.000 a 7.000) y el rótulo "Ejemplo" en los datos ilustrativos.
+  await expect(page.getByText("Celulares y electrónica entre ciudades · Bs 1.000 a 7.000")).toBeVisible();
+  await expect(page.getByTestId("ejemplo")).toHaveText("Ejemplo");
+  await expect(page.getByText("Celular Samsung Galaxy A35")).toBeVisible();
   await page.getByTestId("link-metricas").click();
   await expect(page).toHaveURL(/\/metricas$/);
   await page.goto("/transparencia");
@@ -185,7 +191,7 @@ test("perfil verificable de la tienda (/tienda/<slug>): mismos números que la t
   // Vista previa al pegar el link en Instagram, TikTok o WhatsApp: "Vende con Trato" y sus números.
   const meta = metas(await (await request.get(`/tienda/${slug}`, { headers: WHATSAPP })).text());
   expect(meta["og:title"]).toBe("Calzados Sofi vende con Trato");
-  expect(meta["og:description"]).toContain(`${numero(enTarjeta["num-ventas"])} venta`);
+  expect(meta["og:description"]).toMatch(new RegExp(`^${numero(enTarjeta["num-ventas"])} compras? de prueba interna`));
   expect(meta["og:description"]).toContain("sin reclamo");
   expect(meta["og:description"]).not.toContain(TIENDA_WA);
   expect(meta["twitter:card"]).toBe("summary_large_image");

@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { COMPRAS_INTERNAS, fmtDuracion, fmtProporcion, nf } from "@/lib/kpi-format";
+import { COMPRAS_INTERNAS, fmtDuracion, fmtProporcion, nf, rotuloVentas } from "@/lib/kpi-format";
 import { BRAND, FUENTE, LogoOg, OG_SIZE, iniciales } from "@/lib/og";
 import { ogFonts } from "@/lib/og-fonts";
 import { ES_MAINNET } from "@/lib/red";
@@ -14,7 +14,7 @@ export async function insigniaImage(p: PerfilTienda | null) {
   const k = p?.kpis;
   const stats: [string, string][] = k
     ? [
-        [nf(k.pagadas_al_vendedor), k.pagadas_al_vendedor === 1 ? "venta protegida" : "ventas protegidas"],
+        [nf(k.pagadas_al_vendedor), rotuloVentas(k.pagadas_al_vendedor, p.pilot)],
         [fmtProporcion(k.ventas_sin_reclamo, k.cerradas), "sin reclamo"],
         [fmtDuracion(k.despacho_promedio_s), "despacho promedio"],
       ]

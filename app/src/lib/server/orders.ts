@@ -1160,6 +1160,7 @@ function sellerCard(pubkey: string) {
     verification: "pendiente" as const,
     slug: sellers.ensureSlug(s.pubkey),
     kpis: sellerKpis(s.pubkey),
+    pilot: s.pilot === 1,
   };
 }
 

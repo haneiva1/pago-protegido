@@ -6,7 +6,7 @@ import { cache } from "react";
 import { Nudo } from "@/components/iconos";
 import { ListaOperaciones, NumerosTienda } from "@/components/Kpis";
 import { explorer } from "@/lib/format";
-import { desdeTexto, fmtDuracion, fmtHora, fmtProporcion, nf } from "@/lib/kpi-format";
+import { desdeTexto, fmtDuracion, fmtHora, fmtProporcion, nf, rotuloVentas } from "@/lib/kpi-format";
 import { perfilTienda } from "@/lib/server/kpis";
 import type { PerfilTienda } from "@/lib/types";
 
@@ -16,7 +16,7 @@ const cargar = cache(perfilTienda);
 
 const resumen = (p: PerfilTienda) => {
   const k = p.kpis;
-  return `${nf(k.pagadas_al_vendedor)} ${k.pagadas_al_vendedor === 1 ? "venta protegida" : "ventas protegidas"} · ${fmtProporcion(k.ventas_sin_reclamo, k.cerradas)} sin reclamo · despacho promedio ${fmtDuracion(k.despacho_promedio_s)}`;
+  return `${nf(k.pagadas_al_vendedor)} ${rotuloVentas(k.pagadas_al_vendedor, p.pilot)} · ${fmtProporcion(k.ventas_sin_reclamo, k.cerradas)} sin reclamo · despacho promedio ${fmtDuracion(k.despacho_promedio_s)}`;
 };
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -68,7 +68,7 @@ export default async function Tienda({ params }: { params: Promise<{ slug: strin
           <Nudo className="h-3.5 w-3.5" />
           Vende con Trato
         </span>
-        <NumerosTienda k={k} />
+        <NumerosTienda k={k} piloto={p.pilot} />
         <ul className="space-y-1 text-sm text-sal/80">
           <li data-testid="verificacion">Verificación de identidad: pendiente ({TEXTO.modo})</li>
           <li>

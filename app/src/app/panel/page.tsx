@@ -15,7 +15,7 @@ import { Insignia } from "@/components/vendedor/Insignia";
 import { LinkRapido } from "@/components/vendedor/LinkRapido";
 import { PasarAMiBanco } from "@/components/vendedor/PasarAMiBanco";
 import { Pendientes } from "@/components/vendedor/Pendientes";
-import { fmtDuracion, fmtProporcion, nf as nfKpi, plural } from "@/lib/kpi-format";
+import { fmtDuracion, fmtProporcion, nf as nfKpi, rotuloVentas } from "@/lib/kpi-format";
 import { WhatsAppBox } from "@/components/WhatsAppBox";
 import { fmtFlete } from "@/lib/comprador";
 import { explorer, fmtBs, fmtBsUnits, fmtDate, fmtKg, fmtWhatsApp } from "@/lib/format";
@@ -101,6 +101,7 @@ export default function Panel() {
     );
 
   const { seller } = data;
+  const esPiloto = seller.pilot === 1;
   const orders = ordenar(data.orders);
   const fx = data.fx;
   const firstLink = primer && orders.length === 0;
@@ -138,7 +139,7 @@ export default function Panel() {
           <p className="mt-1 text-sm text-tinta-600">
             {seller.city ? `${seller.city} · ` : ""}
             {fmtWhatsApp(seller.whatsapp)}
-            {seller.completedSales > 0 ? ` · ${plural(seller.completedSales, "venta protegida", "ventas protegidas")}` : ""}
+            {seller.completedSales > 0 ? ` · ${seller.completedSales} ${rotuloVentas(seller.completedSales, esPiloto)}` : ""}
           </p>
           <p className="mt-2 text-sm">
             <a className="enlace" href={explorer.account(seller.pubkey)} target="_blank" rel="noreferrer">
@@ -287,7 +288,7 @@ export default function Panel() {
           <Stat
             testId="kpi-ventas"
             value={nfKpi(data.kpis.pagadas_al_vendedor)}
-            label={data.kpis.pagadas_al_vendedor === 1 ? "venta protegida" : "ventas protegidas"}
+            label={rotuloVentas(data.kpis.pagadas_al_vendedor, esPiloto)}
             sub={data.kpis.en_curso ? `${data.kpis.en_curso} en curso` : undefined}
           />
           <Stat
@@ -306,7 +307,7 @@ export default function Panel() {
         {hayVentas && <p className="mt-3 text-sm text-tinta-600">Calculados con el registro público de tus ventas: son los mismos que ven tus clientes en tu perfil.</p>}
       </details>
 
-      {seller.slug && <Insignia slug={seller.slug} storeName={seller.store_name} kpis={data.kpis} />}
+      {seller.slug && <Insignia slug={seller.slug} storeName={seller.store_name} kpis={data.kpis} piloto={esPiloto} />}
 
       <p className="text-center text-sm text-tinta-500">{TEXTO.aviso}</p>
     </div>

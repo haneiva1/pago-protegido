@@ -1,4 +1,4 @@
-import { TEXTOS } from "@/lib/red";
+import { ES_MAINNET, TEXTOS } from "@/lib/red";
 import type { Desenlace, Grupo, Kpis } from "@/lib/types";
 
 /** Formatos de los KPIs (métricas, panel, perfil público y tarjeta del vendedor). Sin dependencias de servidor. */
@@ -8,6 +8,11 @@ const TZ = "America/La_Paz";
 /** Las compras del equipo en testnet son pruebas, no tracción: donde se muestre su número, se llaman así. */
 export const COMPRAS_INTERNAS = TEXTOS.testnet.grupoPropioCorto;
 export const rotuloCompras = (grupo: Grupo) => (grupo === "equipo" ? COMPRAS_INTERNAS : "Compras protegidas");
+/** Lo mismo con el número de una tienda (pedido, perfil, panel e insignia): solo las del piloto, o en mainnet, tienen "ventas protegidas". */
+export function rotuloVentas(n: number, piloto: boolean): string {
+  if (!piloto && !ES_MAINNET) return n === 1 ? "compra de prueba interna en testnet" : "compras de prueba internas en testnet";
+  return n === 1 ? "venta protegida" : "ventas protegidas";
+}
 export const rotuloMonto = (grupo: Grupo) => (grupo === "equipo" ? "Monto de prueba" : "Monto protegido");
 
 export const nf = (n: number, d = 0) => n.toLocaleString("es-BO", { minimumFractionDigits: d, maximumFractionDigits: d });

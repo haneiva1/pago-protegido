@@ -2,16 +2,16 @@
 
 import { IconoChevronAbajo } from "@/components/iconos";
 import { CopyButton } from "@/components/ui";
-import { fmtDuracion, fmtProporcion, nf } from "@/lib/kpi-format";
+import { fmtDuracion, fmtProporcion, nf, rotuloVentas } from "@/lib/kpi-format";
 import type { Kpis } from "@/lib/types";
 
 /**
  * Insignia "Vendo con Trato" para la bio de Instagram o TikTok (M9). Antes estaba en /tienda/<slug>, donde la veía el
  * comprador; ahora está en el panel, que es donde la usa el vendedor. La imagen sigue en /tienda/<slug>/insignia.
  */
-export function Insignia({ slug, storeName, kpis }: { slug: string; storeName: string; kpis: Kpis }) {
+export function Insignia({ slug, storeName, kpis, piloto }: { slug: string; storeName: string; kpis: Kpis; piloto: boolean }) {
   const url = `${typeof window === "undefined" ? "" : window.location.origin}/tienda/${slug}`;
-  const resumen = `${nf(kpis.pagadas_al_vendedor)} ${kpis.pagadas_al_vendedor === 1 ? "venta protegida" : "ventas protegidas"} · ${fmtProporcion(kpis.ventas_sin_reclamo, kpis.cerradas)} sin reclamo · despacho promedio ${fmtDuracion(kpis.despacho_promedio_s)}`;
+  const resumen = `${nf(kpis.pagadas_al_vendedor)} ${rotuloVentas(kpis.pagadas_al_vendedor, piloto)} · ${fmtProporcion(kpis.ventas_sin_reclamo, kpis.cerradas)} sin reclamo · despacho promedio ${fmtDuracion(kpis.despacho_promedio_s)}`;
   const bio = `Vendo con Trato ✅ ${resumen} ${url}`;
 
   return (
